@@ -23,7 +23,7 @@ let browser, shellServer;
  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
  page.setDefaultTimeout(15000);
  const errors = []; page.on('pageerror', e => errors.push(e.message));
- await page.addInitScript(() => localStorage.setItem('devboard.token','disposable-browser-credential'));
+ await page.addInitScript(() => localStorage.setItem('werkbord.token','disposable-browser-credential'));
  const today = new Date().toISOString().slice(0,10);
  const project = await personal('POST', '/projects', { name: 'Northern European Venue Operations and Logistics', path: process.env.WERKBORD_BROWSER_REPO });
  const work = await personal('POST','/projects', { name: 'Launch planning', kind: 'work' });
@@ -178,7 +178,7 @@ let browser, shellServer;
  const shellPage = await browser.newPage({viewport:{width:1440,height:1000}}); shellPage.on('pageerror',e=>errors.push(e.message));
  const items = [{id:'personal',kind:'personal',name:'Individual',state:'ready',source:'Werkbord'},{id:'team:main',kind:'team',name:'Workspace coordination',state:'ready',source:'Fixture'}];
  await shellPage.addInitScript(({items,summary,individual,team,teamToken})=> {
-  try { localStorage.setItem('devboard.token','disposable-browser-credential'); sessionStorage.setItem('werkbord-team-token',teamToken); } catch (_) { /* Initial about:blank frames have no storage. */ }
+  try { localStorage.setItem('werkbord.token','disposable-browser-credential'); sessionStorage.setItem('werkbord-team-token',teamToken); } catch (_) { /* Initial about:blank frames have no storage. */ }
   if(window.parent!==window)return;
   window.runtime={EventsOn:()=>()=>{}};
   window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}), OpenWorkspace:async id=>({id,kind:id==='personal'?'personal':'team',url:id==='personal'?individual:team,origin:id==='personal'?individual:team}), Overview:async()=>({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{...summary,workspace:items[1],work:[],planned:[],schedule:[],attention:[],projects:[]}}],at:new Date().toISOString()}), RememberPlace:async()=>{}, PersonalWorkspaceCall:async(method,route,body)=>(await fetch('/fixture/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,route,body})})).json()}}};

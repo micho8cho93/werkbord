@@ -87,7 +87,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	t.Helper()
 	e := &env{t: t, repo: newRepo(t, true)}
 	e.root, _ = filepath.EvalSymlinks(t.TempDir())
-	e.dbPath = filepath.Join(t.TempDir(), "devboard.db")
+	e.dbPath = filepath.Join(t.TempDir(), "werkbord.db")
 	e.open()
 	e.adapter = &fake.Adapter{}
 	e.agents = agent.NewRegistry()

@@ -64,7 +64,7 @@ const ok = text => console.log('PASS ' + text);
   await ready(web, vite);
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : {}) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
-  await context.addInitScript(token => { localStorage.setItem('devboard.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
+  await context.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
   const page = await context.newPage(); lastPage = page;
   const errors = [], modelRequests = [];
   page.on('pageerror', e => errors.push(e.message));

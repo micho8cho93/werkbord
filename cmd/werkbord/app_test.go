@@ -54,7 +54,7 @@ func (f *fakeNode) Status(context.Context) (netprivate.BackendStatus, error) {
 	if !f.loggedIn {
 		return netprivate.BackendStatus{State: "NeedsLogin", AuthURL: f.authURL}, nil
 	}
-	return netprivate.BackendStatus{State: "Running", DNSName: "devboard-test.tail1234.ts.net.", HTTPS: true,
+	return netprivate.BackendStatus{State: "Running", DNSName: "werkbord-test.tail1234.ts.net.", HTTPS: true,
 		IPs: []netip.Addr{netip.MustParseAddr("100.64.0.9")}, Tailnet: "me@example.com"}, nil
 }
 func (f *fakeNode) Listen(string, bool) (net.Listener, error) {
@@ -220,7 +220,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		st, _ := e.mgr.Status(ctx)
 		return e.mgr, st.Installed
 	}
-	bin := filepath.Join(dir, "bin", "devboard")
+	bin := filepath.Join(dir, "bin", "werkbord")
 	_ = os.MkdirAll(filepath.Dir(bin), 0o755)
 	_ = os.WriteFile(bin, []byte("#!/bin/sh\necho old\n"), 0o755)
 	e.app.executable = func() (string, error) { return bin, nil }

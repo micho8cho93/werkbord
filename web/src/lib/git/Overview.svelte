@@ -50,7 +50,7 @@
   let showAllAttention = $state(false);
   // Werkbord's own branches first, unless there are none, when everything is shown.
   let chosen = $state<BranchFilter | null>(null);
-  const filter = $derived<BranchFilter>(chosen ?? ((o?.summary.devboard ?? 0) > 0 ? 'devboard' : 'all'));
+  const filter = $derived<BranchFilter>(chosen ?? ((o?.summary.werkbord ?? 0) > 0 ? 'werkbord' : 'all'));
   const listed = $derived(filterBranches(o?.branches ?? [], filter));
   const SHOW_BRANCHES = 12;
   let showAllBranches = $state(false);
@@ -139,7 +139,7 @@
       {#if attention.length}
         <ul class="g-list">
           {#each showAllAttention ? attention : attention.slice(0, SHOW_ATTENTION) as b (b.ref)}
-            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} emphasis={b.devboard.created} />
+            <BranchCard projectId={project.id} branch={b} targetName={o.local.target.name} ctx={ctxFor(b.name)} emphasis={b.werkbord.created} />
           {/each}
         </ul>
         {#if attention.length > SHOW_ATTENTION && !showAllAttention}
@@ -348,7 +348,7 @@
 
       <div class="counts g-row" aria-label="Summary">
         <Chips chips={[
-          { text: `${o.summary.devboard} Werkbord branch${o.summary.devboard === 1 ? '' : 'es'}`, tone: 'work' },
+          { text: `${o.summary.werkbord} Werkbord branch${o.summary.werkbord === 1 ? '' : 'es'}`, tone: 'work' },
           ...(o.summary.mergeable ? [{ text: `${o.summary.mergeable} ready to review`, tone: 'ask' as const }] : []),
           ...(o.summary.cleanup ? [{ text: `${o.summary.cleanup} to clean up`, tone: 'ok' as const }] : []),
           ...(o.summary.unpushed ? [{ text: `${o.summary.unpushed} with unpushed work`, tone: 'ask' as const }] : []),

@@ -33,7 +33,7 @@ def api(base, token, method, route, body=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
-    parser.add_argument('--data-dir', type=Path, default=Path.home() / 'Library/Application Support/devboard')
+    parser.add_argument('--data-dir', type=Path, default=Path.home() / 'Library/Application Support/werkbord')
     parser.add_argument('--team-key', type=Path, default=Path.home() / 'Library/Application Support/werkbord-team-desktop/access.key')
     args = parser.parse_args()
     if not args.apply:
@@ -47,11 +47,11 @@ def main():
     backup.mkdir(parents=True, mode=0o700)
     token = (args.data_dir / 'token').read_text().strip()
     call = lambda method, route, body=None: api('http://127.0.0.1:7420', token, method, route, body)
-    db = sqlite3.connect(args.data_dir / 'devboard.db', timeout=30)
+    db = sqlite3.connect(args.data_dir / 'werkbord.db', timeout=30)
     db.execute('PRAGMA foreign_keys=ON')
-    with sqlite3.connect(backup / 'devboard.db') as snapshot:
+    with sqlite3.connect(backup / 'werkbord.db') as snapshot:
         db.backup(snapshot)
-    os.chmod(backup / 'devboard.db', 0o600)
+    os.chmod(backup / 'werkbord.db', 0o600)
 
     def insert(table, values):
         cols = ','.join(values)

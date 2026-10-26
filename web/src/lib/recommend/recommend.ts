@@ -122,7 +122,7 @@ export function feedbackNote(storedIn: 'memory' | 'device' | undefined): string 
 /** The project last visited in this browser, which is where the assistant's opening suggestions are about. Empty when none. */
 export function lastProject(): string {
   try {
-    return localStorage.getItem('devboard.project') ?? '';
+    return localStorage.getItem('werkbord.project') ?? '';
   } catch {
     return '';
   }

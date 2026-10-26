@@ -214,10 +214,10 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         console.log('PASS inherited remote eligibility, remote model/reasoning, Start on remote while controller agent unavailable');
         const reply = await sync();
         const job = reply.jobs.find(j => j.run.id === run.id);
-        const handoff = '<devboard-handoff>' + JSON.stringify({ summary: 'Readable browser handoff', objective: 'Improve the board', results: 'Preserved the run history', tests: ['Browser flow passed'], nextAction: 'Review the work' }) + '</devboard-handoff>';
-        await sync([{ runId: run.id, observations: [{ seq: 1, kind: 'accepted' }, { seq: 2, kind: 'started', branch: 'devboard/' + remote.id + '/' + run.id, baseCommit: 'a'.repeat(40) }, { seq: 3, kind: 'event', event: { Kind: 'output', Stream: 'assistant', Text: handoff + '\n' + 'long-agent-output/path/'.repeat(200) } }] }]);
+        const handoff = '<werkbord-handoff>' + JSON.stringify({ summary: 'Readable browser handoff', objective: 'Improve the board', results: 'Preserved the run history', tests: ['Browser flow passed'], nextAction: 'Review the work' }) + '</werkbord-handoff>';
+        await sync([{ runId: run.id, observations: [{ seq: 1, kind: 'accepted' }, { seq: 2, kind: 'started', branch: 'werkbord/' + remote.id + '/' + run.id, baseCommit: 'a'.repeat(40) }, { seq: 3, kind: 'event', event: { Kind: 'output', Stream: 'assistant', Text: handoff + '\n' + 'long-agent-output/path/'.repeat(200) } }] }]);
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
-        assert.equal(await page.locator('.text').filter({ hasText: '<devboard-handoff>' }).count(), 0);
+        assert.equal(await page.locator('.text').filter({ hasText: '<werkbord-handoff>' }).count(), 0);
         // A lost SSE connection must qualify cached states and preserve a draft on reconnect.
         await page.route('**/api/events*', route => route.abort());
         await page.reload();
@@ -501,7 +501,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(await page.locator('.panel .state select').inputValue(),'review','recording a verdict does not move a task out of Review');
 
         const reviewOverview = await api('GET', `/api/projects/${p.id}/git`);
-        const ownedBranch = reviewOverview.branches.find(branch=>branch.devboard.runId===localRun.id);
+        const ownedBranch = reviewOverview.branches.find(branch=>branch.werkbord.runId===localRun.id);
         assert(ownedBranch,'fixture Git evidence identifies the task-owned branch');
         const taskReviewRun = (await api('GET', `/api/projects/${p.id}/tasks/${localTask.id}/runs`)).runs.find(run=>run.id===localRun.id);
         assert(taskReviewRun?.handoff?.results,'the fixture API supplies the result retained through Git navigation');

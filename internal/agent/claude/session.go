@@ -295,7 +295,7 @@ func (s *session) onControlRequest(e *envelope) {
 	}
 	if e.Request.Subtype != "can_use_tool" {
 		_ = s.write(map[string]any{"type": "control_response", "response": map[string]any{
-			"subtype": "error", "request_id": e.RequestID, "error": "devboard does not support " + e.Request.Subtype,
+			"subtype": "error", "request_id": e.RequestID, "error": "werkbord does not support " + e.Request.Subtype,
 		}})
 		return
 	}

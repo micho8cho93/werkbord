@@ -14,7 +14,7 @@
   const target = untrack(() => store.overview?.local.target.name ?? '');
   const repo = untrack(() => store.overview?.remote.github.repo ?? '');
 
-  let title = $state(untrack(() => branch?.devboard.taskTitle || branch?.subject || ''));
+  let title = $state(untrack(() => branch?.werkbord.taskTitle || branch?.subject || ''));
   let body = $state('');
   let draft = $state(true);
   let result = $state<GitActionResult | null>(null);

@@ -33,7 +33,7 @@
       run,
   );
   const git = $derived(gitStore(run.projectId));
-  const branch = $derived(!current.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.devboard.runId === current.id || (!!current.branch && b.name === current.branch))) : undefined);
+  const branch = $derived(!current.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.werkbord.runId === current.id || (!!current.branch && b.name === current.branch))) : undefined);
   /** The same test as the board's Merge…: its own local branch, ahead of the target and not merged yet. */
   const canMerge = $derived(!!branch && !branch.merged && branch.vsTarget.ahead > 0);
   const pr = $derived(git.github?.pullRequests.find(p => p.runId === current.id));

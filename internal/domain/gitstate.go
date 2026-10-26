@@ -138,7 +138,7 @@ func ClassifyUpstream(ahead, behind int) UpstreamState {
 
 // GitUpstream is a local branch's upstream.
 type GitUpstream struct {
-	Name   string        `json:"name,omitempty"` // e.g. origin/devboard/fix-1a2b3c
+	Name   string        `json:"name,omitempty"` // e.g. origin/werkbord/fix-1a2b3c
 	State  UpstreamState `json:"state"`
 	Ahead  int           `json:"ahead"`
 	Behind int           `json:"behind"`
@@ -214,12 +214,12 @@ const (
 
 // GitBranchOwnership is what Werkbord knows about a branch.
 type GitBranchOwnership struct {
-	// Created: Werkbord made this branch. It requires both the devboard/ name
+	// Created: Werkbord made this branch. It requires both the werkbord/ name
 	// and a worktree record in this project for exactly this branch, because a
-	// name alone proves nothing: anyone can type devboard/ into a branch name.
+	// name alone proves nothing: anyone can type werkbord/ into a branch name.
 	// Only such branches may ever be deleted by Werkbord.
 	Created   bool `json:"created"`
-	Namespace bool `json:"namespace"` // the name is under devboard/, with or without a record
+	Namespace bool `json:"namespace"` // the name is under werkbord/, with or without a record
 
 	WorktreeIDs []string  `json:"worktreeIds,omitempty"`
 	TaskID      string    `json:"taskId,omitempty"`
@@ -262,7 +262,7 @@ type GitAttention struct {
 
 // GitBranch is one branch, local or remote-tracking.
 type GitBranch struct {
-	Name       string    `json:"name"`             // local: devboard/fix-1a2b3c; remote: origin/devboard/fix-1a2b3c
+	Name       string    `json:"name"`             // local: werkbord/fix-1a2b3c; remote: origin/werkbord/fix-1a2b3c
 	Ref        string    `json:"ref"`              // refs/heads/... or refs/remotes/...
 	Scope      string    `json:"scope"`            // ScopeLocal or ScopeRemote
 	Remote     string    `json:"remote,omitempty"` // the remote's name, for a remote branch
@@ -284,22 +284,22 @@ type GitBranch struct {
 	StaleWhy  string      `json:"staleWhy,omitempty"`
 
 	Worktree  *GitBranchWorktree `json:"worktree,omitempty"`
-	DevBoard  GitBranchOwnership `json:"devboard"`
+	Werkbord  GitBranchOwnership `json:"werkbord"`
 	Attention []GitAttention     `json:"attention"`
 }
 
 // Naming rules for what Werkbord treats as its own.
 const (
 	// BranchNamespace is the prefix of every branch Werkbord creates.
-	BranchNamespace = "devboard/"
+	BranchNamespace = "werkbord/"
 
 	// StaleAfter is how long a branch can sit untouched, while the target moves
 	// on, before it is called stale.
 	StaleAfter = 14 * 24 * time.Hour
 )
 
-// InDevBoardNamespace reports whether a branch name is under devboard/.
-func InDevBoardNamespace(name string) bool { return strings.HasPrefix(name, BranchNamespace) }
+// InWerkbordNamespace reports whether a branch name is under werkbord/.
+func InWerkbordNamespace(name string) bool { return strings.HasPrefix(name, BranchNamespace) }
 
 // conventionalTargets are names that are never deleted, whatever the project's
 // target is, because deleting one is a mistake in nearly every repository.
@@ -352,7 +352,7 @@ func BranchAttention(b *GitBranch) []GitAttention {
 		}
 	}
 	dirty := b.Worktree != nil && b.Worktree.Dirty != nil && b.Worktree.Dirty.Dirty()
-	own := b.DevBoard
+	own := b.Werkbord
 
 	switch {
 	case (b.VsTarget.Relation == RelSame || b.VsTarget.Relation == RelBehind) && own.Created && !own.ActiveRun && own.Phase != PhaseActive:
@@ -406,9 +406,9 @@ func plural(n int) string {
 // and the caller breaks ties by recency.
 func AttentionRank(b *GitBranch) int {
 	rank := 0
-	if b.DevBoard.Created {
+	if b.Werkbord.Created {
 		rank += 1000
-	} else if b.DevBoard.Namespace {
+	} else if b.Werkbord.Namespace {
 		rank += 500
 	}
 	best := 0
@@ -515,7 +515,7 @@ type GitHubRepo struct {
 // GitSummary counts what needs the user.
 type GitSummary struct {
 	Branches   int `json:"branches"`   // local branches
-	DevBoard   int `json:"devboard"`   // owned by Werkbord
+	Werkbord   int `json:"werkbord"`   // owned by Werkbord
 	NeedsYou   int `json:"needsYou"`   // branches with an action-level reason
 	Warnings   int `json:"warnings"`   // branches with a warning-level reason
 	Mergeable  int `json:"mergeable"`  // owned, ahead of the target, not running

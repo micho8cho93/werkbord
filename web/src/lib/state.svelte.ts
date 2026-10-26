@@ -18,7 +18,7 @@ import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, LabelUse, O
 
 export type Connection = 'connecting' | 'syncing' | 'live' | 'offline' | 'unauthorized';
 
-const LAST_PROJECT_KEY = 'devboard.project';
+const LAST_PROJECT_KEY = 'werkbord.project';
 
 function loadLastProject(): string {
   try {

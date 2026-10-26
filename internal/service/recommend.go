@@ -353,9 +353,9 @@ func (r *Recommender) repoFacts(ctx context.Context, f *domain.RecFacts, project
 		if b.Scope != domain.ScopeLocal || len(f.Repo.Branches) >= maxFactBranch {
 			continue
 		}
-		rb := domain.RecBranch{Name: b.Name, Owned: b.DevBoard.Created, Target: b.Target, Head: b.Head, Ahead: b.VsTarget.Ahead, Behind: b.VsTarget.Behind,
-			Merged: b.Merged, NotPushed: b.NotPushed, HasUpstream: b.Upstream.State != domain.UpstreamNone, ActiveRun: b.DevBoard.ActiveRun,
-			TaskID: b.DevBoard.TaskID, TaskTitle: b.DevBoard.TaskTitle, Phase: b.DevBoard.Phase, LastCommit: b.CommitDate}
+		rb := domain.RecBranch{Name: b.Name, Owned: b.Werkbord.Created, Target: b.Target, Head: b.Head, Ahead: b.VsTarget.Ahead, Behind: b.VsTarget.Behind,
+			Merged: b.Merged, NotPushed: b.NotPushed, HasUpstream: b.Upstream.State != domain.UpstreamNone, ActiveRun: b.Werkbord.ActiveRun,
+			TaskID: b.Werkbord.TaskID, TaskTitle: b.Werkbord.TaskTitle, Phase: b.Werkbord.Phase, LastCommit: b.CommitDate}
 		if b.Worktree != nil && b.Worktree.Dirty != nil {
 			rb.Dirty = b.Worktree.Dirty.Total()
 		}

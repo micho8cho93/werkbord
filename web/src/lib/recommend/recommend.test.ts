@@ -9,7 +9,7 @@ const rec = (a: RecAction, projectId = 'prj_1'): Pick<Recommendation, 'projectId
 describe('where a suggestion leads', () => {
   it('only ever opens screens that exist, in the project the suggestion is about', () => {
     expect(destination(rec(action('open_task', { taskId: 'tsk_1' })))).toEqual({ href: '#/p/prj_1/task/tsk_1' });
-    expect(destination(rec(action('open_branch', { branch: 'devboard/fix-1a2b3c' })))).toEqual({ href: '#/p/prj_1/git/branch/local/devboard%2Ffix-1a2b3c' });
+    expect(destination(rec(action('open_branch', { branch: 'werkbord/fix-1a2b3c' })))).toEqual({ href: '#/p/prj_1/git/branch/local/werkbord%2Ffix-1a2b3c' });
     expect(destination(rec(action('open_changes')))).toEqual({ href: '#/p/prj_1/git/changes' });
     expect(destination(rec(action('open_git')))).toEqual({ href: '#/p/prj_1/git' });
     expect(destination(rec(action('open_health')))).toEqual({ href: '#/p/prj_1/git' });

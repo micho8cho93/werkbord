@@ -42,7 +42,7 @@ func (r *recorder) took(prefix string) int {
 
 func spec(dir string) Spec {
 	return Spec{
-		Binary: filepath.Join(dir, "bin", "devboard"), Args: []string{"serve"}, DataDir: filepath.Join(dir, "data"),
+		Binary: filepath.Join(dir, "bin", "werkbord"), Args: []string{"serve"}, DataDir: filepath.Join(dir, "data"),
 		LogFile: filepath.Join(dir, "data", "logs", "controller.log"), Path: "/usr/local/bin:/home/me/.nvm/versions/node/v22/bin:/usr/bin",
 	}
 }
@@ -60,7 +60,7 @@ func TestLaunchdAgentDefinition(t *testing.T) {
 	plist := string(b)
 	for _, want := range []string{
 		"<string>dev.werkbord.controller</string>",
-		"<string>" + filepath.Join(home, "bin", "devboard") + "</string>",
+		"<string>" + filepath.Join(home, "bin", "werkbord") + "</string>",
 		"<string>serve</string>",
 		"<key>PATH</key>", "/home/me/.nvm/versions/node/v22/bin", // the agents are found through the captured PATH
 		"<key>WERKBORD_DATA_DIR</key>",
@@ -74,7 +74,7 @@ func TestLaunchdAgentDefinition(t *testing.T) {
 	}
 	// The path of a binary with markup in it cannot break the file.
 	s := spec(home)
-	s.Binary = filepath.Join(home, "a&b<c>", "devboard")
+	s.Binary = filepath.Join(home, "a&b<c>", "werkbord")
 	if err := l.Install(bg, s); err != nil {
 		t.Fatal(err)
 	}
@@ -160,13 +160,13 @@ func TestSystemdUnitDefinition(t *testing.T) {
 	home := t.TempDir()
 	s := &Systemd{Options: Options{Home: home, Exec: (&recorder{}).exec}}
 	sp := spec(home)
-	sp.Binary = filepath.Join(home, "my bin", "devboard") // a space needs quoting
+	sp.Binary = filepath.Join(home, "my bin", "werkbord") // a space needs quoting
 	unit, err := s.Unit(sp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`ExecStart="` + filepath.Join(home, "my bin", "devboard") + `" serve`,
+		`ExecStart="` + filepath.Join(home, "my bin", "werkbord") + `" serve`,
 		"Environment=PATH=/usr/local/bin:/home/me/.nvm/versions/node/v22/bin:/usr/bin",
 		"Environment=WERKBORD_DATA_DIR=" + filepath.Join(home, "data"),
 		"Restart=on-failure", "WantedBy=default.target", "TimeoutStopSec=30",
@@ -269,7 +269,7 @@ func TestSchtasksLifecycle(t *testing.T) {
 	if err := s.Start(bg); !errors.Is(err, ErrNotInstalled) {
 		t.Fatalf("start before install: %v", err)
 	}
-	sp := Spec{Binary: `C:\Users\me\bin\devboard.exe`, Args: []string{"serve"}, DataDir: `C:\Users\me\AppData\Roaming\devboard`, LogFile: filepath.Join(t.TempDir(), "logs", "c.log")}
+	sp := Spec{Binary: `C:\Users\me\bin\werkbord.exe`, Args: []string{"serve"}, DataDir: `C:\Users\me\AppData\Roaming\werkbord`, LogFile: filepath.Join(t.TempDir(), "logs", "c.log")}
 	if err := s.Install(bg, sp); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestSchtasksLifecycle(t *testing.T) {
 			create = c
 		}
 	}
-	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Werkbord", `devboard.exe" serve`, "WERKBORD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\devboard"} {
+	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Werkbord", `werkbord.exe" serve`, "WERKBORD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\werkbord"} {
 		if !strings.Contains(create, want) {
 			t.Errorf("create command lacks %q: %s", want, create)
 		}
@@ -307,7 +307,7 @@ func TestBackgroundProcessIsNeverStartedTwice(t *testing.T) {
 	}
 	dir := t.TempDir()
 	// A controller stand-in that runs until told to stop and records that it was started.
-	script := filepath.Join(dir, "fake-devboard")
+	script := filepath.Join(dir, "fake-werkbord")
 	startsFile := filepath.Join(dir, "starts")
 	body := "#!/bin/sh\necho started >> '" + startsFile + "'\ntrap 'exit 0' TERM\nwhile true; do sleep 0.1; done\n"
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {

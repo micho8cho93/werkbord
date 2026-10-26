@@ -21,7 +21,7 @@ func TestRemoteContinuationUsesPublishedWorkInsteadOfOlderLocalWorktree(t *testi
 	// the continuation when a later run executed on a different machine.
 	os.WriteFile(filepath.Join(old.Path, "older-local.txt"), []byte("retain"), 0600)
 	base := strings.TrimSpace(git(t, e.repo, "rev-parse", "main"))
-	branch := "devboard/rnr_peer/run_remote"
+	branch := "werkbord/rnr_peer/run_remote"
 	git(t, e.repo, "checkout", "-b", branch)
 	os.WriteFile(filepath.Join(e.repo, "remote-work.txt"), []byte("latest work"), 0600)
 	git(t, e.repo, "add", ".")

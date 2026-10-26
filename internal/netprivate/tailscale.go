@@ -126,30 +126,6 @@ var nonHostname = regexp.MustCompile(`[^a-z0-9]+`)
 // own and the name says what it is.
 func DefaultHostname(machine string) string { return hostnameWith("werkbord", machine) }
 
-// nameRecord is the file in a node's state directory that says which prefix its
-// name was given, so that it is never changed under it.
-const nameRecord = "werkbord-name"
-
-// HostnameFor is the default name of the node whose state is kept in stateDir.
-// A node that joined the tailnet before Werkbord was renamed from Dev Board keeps
-// "devboard-…": its address is what a phone, and the app installed on it, open.
-// A new node is "werkbord-…". The choice is recorded beside the node's state.
-func HostnameFor(stateDir, machine string) string {
-	if b, err := os.ReadFile(filepath.Join(stateDir, nameRecord)); err == nil {
-		if prefix := strings.TrimSpace(string(b)); prefix == "werkbord" || prefix == "devboard" {
-			return hostnameWith(prefix, machine)
-		}
-	}
-	prefix := "werkbord"
-	if entries, err := os.ReadDir(stateDir); err == nil && len(entries) > 0 {
-		prefix = "devboard" // state from before the rename, which had no record
-	}
-	if err := os.MkdirAll(stateDir, 0o700); err == nil {
-		_ = os.WriteFile(filepath.Join(stateDir, nameRecord), []byte(prefix+"\n"), 0o600)
-	}
-	return hostnameWith(prefix, machine)
-}
-
 func hostnameWith(prefix, machine string) string {
 	machine = strings.TrimSuffix(strings.ToLower(machine), ".local")
 	machine = strings.Trim(nonHostname.ReplaceAllString(machine, "-"), "-")

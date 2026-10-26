@@ -126,7 +126,7 @@ func TestMemoryMigrationAndPreUpgradeRestore(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	backups, err := filepath.Glob(filepath.Join(BackupDir(path), "devboard-v16-*.db"))
+	backups, err := filepath.Glob(filepath.Join(BackupDir(path), "werkbord-v16-*.db"))
 	if err != nil || len(backups) != 1 {
 		t.Fatal(backups, err)
 	}

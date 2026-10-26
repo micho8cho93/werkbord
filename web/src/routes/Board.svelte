@@ -97,7 +97,7 @@
   function branchOf(task: Task): GitBranch | undefined {
     const run = scope.latestRun[task.id];
     return git.overview?.branches.find(
-      (b) => b.scope === 'local' && !b.target && (b.devboard.taskId === task.id || (!!run?.branch && b.name === run.branch)),
+      (b) => b.scope === 'local' && !b.target && (b.werkbord.taskId === task.id || (!!run?.branch && b.name === run.branch)),
     );
   }
 

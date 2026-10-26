@@ -19,13 +19,13 @@ export function resolveGitReviewContext(input: {
 }): GitReviewContext | undefined {
   const { projectId, taskId, runId, branch, branches, tasks, run } = input;
   if (!taskId || !runId || branch.stale || branch.scope !== 'local') return;
-  const matches = branches.filter((b) => b.scope === 'local' && b.devboard.taskId === taskId && b.devboard.runId === runId);
+  const matches = branches.filter((b) => b.scope === 'local' && b.werkbord.taskId === taskId && b.werkbord.runId === runId);
   if (matches.length !== 1 || matches[0].name !== branch.name || matches[0].sha !== branch.sha) return;
   if (!run || run.id !== runId || run.projectId !== projectId || run.taskId !== taskId || !run.endedAt || run.remote) return;
-  if (branch.devboard.taskId !== taskId || branch.devboard.runId !== runId || branch.devboard.runState !== run.state || branch.devboard.taskState !== 'review' || branch.devboard.activeRun) return;
+  if (branch.werkbord.taskId !== taskId || branch.werkbord.runId !== runId || branch.werkbord.runState !== run.state || branch.werkbord.taskState !== 'review' || branch.werkbord.activeRun) return;
   const taskMatches = tasks.filter((t) => t.id === taskId && t.projectId === projectId && t.state === 'review' && !t.archivedAt);
   const task = taskMatches[0];
-  if (taskMatches.length !== 1 || task.title !== branch.devboard.taskTitle) return;
+  if (taskMatches.length !== 1 || task.title !== branch.werkbord.taskTitle) return;
   if (run.branch && run.branch !== branch.name) return;
   if (run.headCommit && run.headCommit !== branch.sha) return;
   const result = run.handoff?.results || run.handoff?.summary || '';

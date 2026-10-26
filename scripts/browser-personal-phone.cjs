@@ -86,7 +86,7 @@ const workspace = (name, collectionId) => {
   const browser = await engine.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
   await context.addInitScript(token => {
-    localStorage.setItem('devboard.token', token);
+    localStorage.setItem('werkbord.token', token);
     localStorage.setItem('werkbord.theme', 'light');
     localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture');
   }, phoneToken);

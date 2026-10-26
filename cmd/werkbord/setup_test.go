@@ -30,7 +30,7 @@ func TestSetupFromACleanMachine(t *testing.T) {
 	e := newTestEnv(t)
 	e.signInWhenOpened()
 	// A computer with nothing: no data directory content but what the test put in config.
-	if _, err := os.Stat(filepath.Join(e.dataDir, "devboard.db")); err == nil {
+	if _, err := os.Stat(filepath.Join(e.dataDir, "werkbord.db")); err == nil {
 		t.Fatal("the database exists before setup")
 	}
 
@@ -45,7 +45,7 @@ func TestSetupFromACleanMachine(t *testing.T) {
 			t.Errorf("%s was not created", d)
 		}
 	}
-	info, err := sqlite.Inspect(bg, filepath.Join(e.dataDir, "devboard.db"))
+	info, err := sqlite.Inspect(bg, filepath.Join(e.dataDir, "werkbord.db"))
 	if err != nil || !info.Exists || info.Version != info.Latest || info.Integrity != "ok" {
 		t.Fatalf("database = %+v, %v", info, err)
 	}
@@ -82,10 +82,10 @@ func TestSetupFromACleanMachine(t *testing.T) {
 		t.Fatalf("the app was opened at %s", opened[1])
 	}
 	n, err := c.network(bg)
-	if err != nil || n.State != "connected" || n.URL != "https://devboard-test.tail1234.ts.net/" || n.Choice != "on" {
+	if err != nil || n.State != "connected" || n.URL != "https://werkbord-test.tail1234.ts.net/" || n.Choice != "on" {
 		t.Fatalf("network = %+v, %v", n, err)
 	}
-	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "https://devboard-test.tail1234.ts.net/", "Opened Werkbord in your browser"} {
+	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "https://werkbord-test.tail1234.ts.net/", "Opened Werkbord in your browser"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
@@ -130,7 +130,7 @@ func TestSetupWithNoStartOnlyPreparesEverything(t *testing.T) {
 	if !st.Installed || st.Running || e.running() {
 		t.Fatalf("service = %+v: installed, not started", st)
 	}
-	if _, err := os.Stat(filepath.Join(e.dataDir, "devboard.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(e.dataDir, "werkbord.db")); err != nil {
 		t.Fatal("the database was not prepared")
 	}
 }

@@ -44,7 +44,7 @@ let browser;
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(15000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript(() => localStorage.setItem('devboard.token', 'disposable-browser-credential'));
+  await page.addInitScript(() => localStorage.setItem('werkbord.token', 'disposable-browser-credential'));
   await page.goto(`${personal}/#/p/${project.id}/analytics`);
   await page.getByText('Usage', { exact: true }).waitFor();
   const rangeLoaded = page.waitForResponse(r => r.url().includes('/api/analytics') && new URL(r.url()).searchParams.get('days') === '7');

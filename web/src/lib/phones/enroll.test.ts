@@ -45,7 +45,7 @@ describe('scanning the QR code', () => {
     expect(JSON.parse(init!.body as string)).toEqual({ code: 'abc_DEF-123', name: 'iPhone (Safari)' });
     // the app's token is the phone's own, kept where the app keeps its token
     expect(getToken()).toBe('wbp_secret');
-    expect(values.get('devboard.token')).toBe('wbp_secret');
+    expect(values.get('werkbord.token')).toBe('wbp_secret');
     expect(enrollment.state).toBe('done');
     expect(enrollment.name).toBe('iPhone (Safari)');
   });

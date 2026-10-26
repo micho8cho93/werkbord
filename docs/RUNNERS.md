@@ -42,7 +42,7 @@ The runner uses its own Git credential helper or SSH keys. No GitHub tokens or a
 are sent by the runner protocol. Projects without an origin require an explicitly bound local clone.
 
 Before execution, each runner fetches its origin, starts from the fresh target and creates
-`devboard/<runner-id>/<run-id>` in a separate worktree. Pinned stale targets are refused. Continuing
+`werkbord/<runner-id>/<run-id>` in a separate worktree. Pinned stale targets are refused. Continuing
 work requires the previous branch to contain both its latest reported commit and the fresh target.
 Uncommitted work is retained on its owning machine. To change machines, commit and push the prior
 branch first, and keep its runner connected so it can report the clean worktree and updated commit.

@@ -63,7 +63,7 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		}
 		expectedBranch := j.WorkBranch
 		if expectedBranch == "" {
-			expectedBranch = "devboard/" + r.RunnerID + "/" + r.ID
+			expectedBranch = "werkbord/" + r.RunnerID + "/" + r.ID
 		}
 		if ob.Branch != expectedBranch {
 			return fmt.Errorf("%w: invalid owned branch", domain.ErrInvalid)

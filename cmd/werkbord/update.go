@@ -81,7 +81,7 @@ func (a *app) cmdUpdate(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.MkdirTemp("", "devboard-update-")
+	tmp, err := os.MkdirTemp("", "werkbord-update-")
 	if err != nil {
 		return err
 	}

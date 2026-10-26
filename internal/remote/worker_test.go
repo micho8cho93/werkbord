@@ -98,7 +98,7 @@ func workerFixture(t *testing.T) *workerEnv {
 		return domain.RunnerCapabilities{CPU: 4, Agents: registry.Detect(testCtx)}
 	}}
 	env.worker.Prepare = func(ctx context.Context, j runnerwire.Job) (string, string, string, error) {
-		return root, "devboard/" + j.Run.RunnerID + "/" + j.Run.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
+		return root, "werkbord/" + j.Run.RunnerID + "/" + j.Run.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
 	}
 	if e := env.worker.Load(testCtx); e != nil {
 		t.Fatal(e)

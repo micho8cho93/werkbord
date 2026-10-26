@@ -100,7 +100,7 @@ func (rt *runnerTest) start(t *testing.T, task *domain.Task) *domain.Run {
 	return run
 }
 func (rt *runnerTest) started(run *domain.Run) runnerwire.Observation {
-	return runnerwire.Observation{Seq: 1, Kind: "started", Branch: "devboard/" + run.RunnerID + "/" + run.ID, BaseCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+	return runnerwire.Observation{Seq: 1, Kind: "started", Branch: "werkbord/" + run.RunnerID + "/" + run.ID, BaseCommit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 }
 
 func TestWorkspaceReportsOnlyReconcileOwnedTerminalGitMetadata(t *testing.T) {

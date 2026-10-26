@@ -21,8 +21,8 @@ import type { GitBranch, GitHubPR } from './types';
 
 function branch(over: Partial<GitBranch> = {}): GitBranch {
   return {
-    name: 'devboard/fix-abc123',
-    ref: 'refs/heads/devboard/fix-abc123',
+    name: 'werkbord/fix-abc123',
+    ref: 'refs/heads/werkbord/fix-abc123',
     scope: 'local',
     sha: 'a'.repeat(40),
     subject: 'fix',
@@ -35,7 +35,7 @@ function branch(over: Partial<GitBranch> = {}): GitBranch {
     merged: false,
     notPushed: 2,
     stale: false,
-    devboard: { created: true, namespace: true, phase: 'review', activeRun: false, taskId: 'tsk_1', runId: 'run_1' },
+    werkbord: { created: true, namespace: true, phase: 'review', activeRun: false, taskId: 'tsk_1', runId: 'run_1' },
     attention: [],
     ...over,
   };
@@ -63,7 +63,7 @@ describe('labels', () => {
   });
 
   it('split names for display without losing them', () => {
-    expect(splitBranch('devboard/fix-abc123')).toEqual({ prefix: 'devboard/', rest: 'fix-abc123' });
+    expect(splitBranch('werkbord/fix-abc123')).toEqual({ prefix: 'werkbord/', rest: 'fix-abc123' });
     expect(splitBranch('a/b/c')).toEqual({ prefix: 'a/b/', rest: 'c' });
     expect(splitBranch('main')).toEqual({ prefix: '', rest: 'main' });
     expect(splitPath('src/lib/a.ts')).toEqual({ dir: 'src/lib/', name: 'a.ts' });
@@ -76,11 +76,11 @@ describe('labels', () => {
     expect(texts(branch({ upstream: { state: 'ahead', ahead: 1, behind: 0, name: 'origin/x' }, notPushed: 1 }))).toEqual(['2 ahead', '1 to push']);
     expect(texts(branch({ vsTarget: { ahead: 0, behind: 1, relation: 'merged' }, merged: true, notPushed: 0 }))).toEqual(['merged', 'local only']);
     expect(texts(branch({ worktree: { path: '/w', primary: false, owned: true, dirty: { staged: 1, unstaged: 2, untracked: 0, conflicted: 0 } } }))).toContain('3 uncommitted');
-    const live = { ...branch().devboard, activeRun: true };
-    expect(texts(branch({ devboard: { ...live, runState: 'running' } }))).toContain('agent working');
-    expect(texts(branch({ devboard: { ...live, runState: 'waiting_for_user', runWaiting: 'idle' } }))).toContain('session idle');
-    expect(texts(branch({ devboard: { ...live, runState: 'waiting_for_user', runWaiting: 'question' } }))).toContain('needs your answer');
-    expect(texts(branch({ devboard: { ...live, runState: 'blocked' } }))).toContain('agent blocked');
+    const live = { ...branch().werkbord, activeRun: true };
+    expect(texts(branch({ werkbord: { ...live, runState: 'running' } }))).toContain('agent working');
+    expect(texts(branch({ werkbord: { ...live, runState: 'waiting_for_user', runWaiting: 'idle' } }))).toContain('session idle');
+    expect(texts(branch({ werkbord: { ...live, runState: 'waiting_for_user', runWaiting: 'question' } }))).toContain('needs your answer');
+    expect(texts(branch({ werkbord: { ...live, runState: 'blocked' } }))).toContain('agent blocked');
     expect(texts(branch())).not.toContain('agent working');
     expect(texts(branch({ unusual: 'x' }))).toContain('unusual name');
     expect(texts(branch({ target: true, vsTarget: { ahead: 0, behind: 0, relation: 'target' }, upstream: { state: 'in_sync', ahead: 0, behind: 0 } }))).toEqual(['target']);
@@ -111,13 +111,13 @@ describe('what needs attention', () => {
   it('filters', () => {
     const list = [
       branch({ name: 'a', attention: [{ kind: 'review', severity: 'action', message: '' }] }),
-      branch({ name: 'b', devboard: { created: false, namespace: false, phase: 'none', activeRun: false }, vsTarget: { ahead: 0, behind: 1, relation: 'merged' } }),
+      branch({ name: 'b', werkbord: { created: false, namespace: false, phase: 'none', activeRun: false }, vsTarget: { ahead: 0, behind: 1, relation: 'merged' } }),
       branch({ name: 'origin/c', scope: 'remote' }),
       branch({ name: 'main', target: true, vsTarget: { ahead: 0, behind: 0, relation: 'target' } }),
     ];
     const names = (f: Parameters<typeof filterBranches>[1]) => filterBranches(list, f).map((b) => b.name);
     expect(names('attention')).toEqual(['a']);
-    expect(names('devboard')).toEqual(['a', 'origin/c', 'main']);
+    expect(names('werkbord')).toEqual(['a', 'origin/c', 'main']);
     expect(names('local')).toEqual(['a', 'b', 'main']);
     expect(names('remote')).toEqual(['origin/c']);
     expect(names('merged')).toEqual(['b']);
@@ -147,9 +147,9 @@ describe('the actions offered', () => {
   });
 
   it('do not offer merge or delete while an agent is working', () => {
-    const working = branch({ devboard: { ...branch().devboard, activeRun: true } });
+    const working = branch({ werkbord: { ...branch().werkbord, activeRun: true } });
     expect(ids(working)).not.toContain('merge');
-    const mergedWorking = branch({ merged: true, vsTarget: { ahead: 0, behind: 1, relation: 'merged' }, devboard: { ...branch().devboard, activeRun: true } });
+    const mergedWorking = branch({ merged: true, vsTarget: { ahead: 0, behind: 1, relation: 'merged' }, werkbord: { ...branch().werkbord, activeRun: true } });
     expect(ids(mergedWorking)).not.toContain('delete');
     expect(ids(mergedWorking)).not.toContain('clean');
   });
@@ -165,7 +165,7 @@ describe('the actions offered', () => {
 
   it('never offer deletion for what Werkbord did not create, or for protected or target branches', () => {
     const merged = { merged: true, notPushed: 0, vsTarget: { ahead: 0, behind: 1, relation: 'merged' as const } };
-    expect(ids(branch({ ...merged, devboard: { created: false, namespace: true, phase: 'none', activeRun: false } }))).not.toContain('delete');
+    expect(ids(branch({ ...merged, werkbord: { created: false, namespace: true, phase: 'none', activeRun: false } }))).not.toContain('delete');
     expect(ids(branch({ ...merged, protected: true }))).not.toContain('delete');
     expect(ids(branch({ target: true, vsTarget: { ahead: 0, behind: 0, relation: 'target' }, merged: true }))).not.toContain('delete');
   });
@@ -177,7 +177,7 @@ describe('the actions offered', () => {
   });
 
   it('offer pushing the target when it is ahead of its remote', () => {
-    const main = branch({ name: 'main', target: true, devboard: { created: false, namespace: false, phase: 'none', activeRun: false }, vsTarget: { ahead: 0, behind: 0, relation: 'target' }, upstream: { state: 'ahead', ahead: 1, behind: 0, name: 'origin/main' }, notPushed: 1 });
+    const main = branch({ name: 'main', target: true, werkbord: { created: false, namespace: false, phase: 'none', activeRun: false }, vsTarget: { ahead: 0, behind: 0, relation: 'target' }, upstream: { state: 'ahead', ahead: 1, behind: 0, name: 'origin/main' }, notPushed: 1 });
     expect(ids(main)).toEqual(['push']);
   });
 

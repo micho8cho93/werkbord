@@ -106,7 +106,7 @@
         break;
       case 'clean':
         if (branch.worktree?.worktreeId) {
-          sheets.open({ kind: 'clean', worktreeId: branch.worktree.worktreeId, label: branch.devboard.taskTitle || branch.name, branch: branch.name, head: branch.sha });
+          sheets.open({ kind: 'clean', worktreeId: branch.worktree.worktreeId, label: branch.werkbord.taskTitle || branch.name, branch: branch.name, head: branch.sha });
         }
         break;
       case 'review':
@@ -115,7 +115,7 @@
     }
   }
 
-  const hasTask = $derived(!!branch?.devboard.taskId);
+  const hasTask = $derived(!!branch?.werkbord.taskId);
   const prState = $derived(pr ? prStateLabel(pr) : null);
   const maintenance = $derived(actions.filter((a) => a.id !== 'review' && a.id !== 'task' && a.id !== 'run'));
 </script>
@@ -146,7 +146,7 @@
         <dt>Made by</dt>
         <dd>
           {originLabel(branch)}
-          {#if phaseLabel(branch.devboard.phase)}<span class="muted g-small"> · {phaseLabel(branch.devboard.phase)}</span>{/if}
+          {#if phaseLabel(branch.werkbord.phase)}<span class="muted g-small"> · {phaseLabel(branch.werkbord.phase)}</span>{/if}
         </dd>
         {#if branch.worktree}
           <dt>Checked out</dt>
@@ -179,10 +179,10 @@
       {#if branch.protected && branch.scope === 'local'}<p class="g-small muted">Protected: Werkbord never deletes this branch.</p>{/if}
     </section>
 
-    {#if actions.length || hasTask || branch.devboard.runId || branch.scope === 'local'}
+    {#if actions.length || hasTask || branch.werkbord.runId || branch.scope === 'local'}
       <section class="g-actions" aria-label="Actions">
         {#if actions.some((a) => a.id === 'review')}<button class="btn primary" onclick={() => act({ id: 'review', label: 'Review changes', primary: true })}>Review changes</button>{/if}
-        {#if maintenance.length || hasTask || branch.devboard.runId || branch.scope === 'local'}
+        {#if maintenance.length || hasTask || branch.werkbord.runId || branch.scope === 'local'}
           <details class="branch-actions">
             <summary>Branch actions</summary>
             <div class="branch-action-list">
@@ -200,8 +200,8 @@
                 <details class="branch-action-group">
                   <summary>Task and history</summary>
                   <div class="branch-action-options">
-                    {#if branch.devboard.taskId}<a class="btn open" href={taskHref(project.id, branch.devboard.taskId)}>Open task</a>{/if}
-                    {#if branch.devboard.runId && branch.devboard.taskId}<a class="btn open" href={taskHref(project.id, branch.devboard.taskId, branch.devboard.runId)}>Open run</a>{/if}
+                    {#if branch.werkbord.taskId}<a class="btn open" href={taskHref(project.id, branch.werkbord.taskId)}>Open task</a>{/if}
+                    {#if branch.werkbord.runId && branch.werkbord.taskId}<a class="btn open" href={taskHref(project.id, branch.werkbord.taskId, branch.werkbord.runId)}>Open run</a>{/if}
                     {#if branch.scope === 'local'}<a class="btn open" href={commitsHref(project.id, 'local', branch.name)}>History</a>{/if}
                   </div>
                 </details>

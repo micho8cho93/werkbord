@@ -134,7 +134,7 @@ func (s *session) send(v any) error {
 // instructions for the thread, which is also what a resumed thread needs again.
 func (s *session) handshake(ctx context.Context, resumeRef, instructions string) error {
 	if err := s.call(ctx, "initialize", map[string]any{
-		"clientInfo":   map[string]any{"name": "devboard", "title": "Devboard", "version": "1"},
+		"clientInfo":   map[string]any{"name": "werkbord", "title": "Werkbord", "version": "1"},
 		"capabilities": map[string]any{"experimentalApi": true}, // request_user_input is experimental
 	}, nil); err != nil {
 		return err
@@ -144,7 +144,7 @@ func (s *session) handshake(ctx context.Context, resumeRef, instructions string)
 	}
 
 	params := map[string]any{
-		"cwd": s.workDir, "approvalPolicy": s.cfg.ApprovalPolicy, "sandbox": s.cfg.Sandbox, "serviceName": "devboard",
+		"cwd": s.workDir, "approvalPolicy": s.cfg.ApprovalPolicy, "sandbox": s.cfg.Sandbox, "serviceName": "werkbord",
 	}
 	if m := s.effectiveModel(); m != "" {
 		params["model"] = m
@@ -524,7 +524,7 @@ func (s *session) onServerRequest(m rpcMessage) {
 
 	default:
 		// Anything else would leave the agent waiting forever for a reply.
-		s.send(map[string]any{"id": m.ID, "error": map[string]any{"code": -32601, "message": "devboard does not support " + m.Method}})
+		s.send(map[string]any{"id": m.ID, "error": map[string]any{"code": -32601, "message": "werkbord does not support " + m.Method}})
 		s.Say(domain.StreamSystem, "Codex asked for something Werkbord does not support (%s); it was declined.", m.Method)
 	}
 }

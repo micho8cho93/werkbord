@@ -152,8 +152,8 @@ describe('the assistant report', () => {
       await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target, place } }, d);
     }
     expect(d.open).not.toHaveBeenCalled();
-    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target: 'personal', place: '#/p/prj_1/git/branch/local/devboard%2Ffix' } }, d);
-    expect(d.open).toHaveBeenCalledExactlyOnceWith('personal', 'personal', '#/p/prj_1/git/branch/local/devboard%2Ffix');
+    await handle([surface], { source: assistantWindow, origin: surface.origin, data: { type: 'werkbord.frame', event: 'open', target: 'personal', place: '#/p/prj_1/git/branch/local/werkbord%2Ffix' } }, d);
+    expect(d.open).toHaveBeenCalledExactlyOnceWith('personal', 'personal', '#/p/prj_1/git/branch/local/werkbord%2Ffix');
   });
   it('can open a validated ticket route in a Team workspace', async () => {
     const d = deps();

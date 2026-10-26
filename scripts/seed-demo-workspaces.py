@@ -615,8 +615,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--replace', action='store_true', help='bring Demo workspaces from an earlier version up to date')
-    parser.add_argument('--data-dir', type=Path, default=Path.home() / 'Library/Application Support/devboard')
-    parser.add_argument('--db-name', default='devboard.db')
+    parser.add_argument('--data-dir', type=Path, default=Path.home() / 'Library/Application Support/werkbord')
+    parser.add_argument('--db-name', default='werkbord.db')
     parser.add_argument('--port', type=int, default=7420)
     parser.add_argument('--team-key', type=Path, default=Path.home() / 'Library/Application Support/werkbord-team-desktop/access.key')
     parser.add_argument('--skip-team', action='store_true', help='add only the Individual workspaces and collections')
@@ -640,9 +640,9 @@ def main():
     backup.mkdir(parents=True, mode=0o700)
     os.chmod(backup, 0o700)
     with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as source:
-        with sqlite3.connect(backup / 'devboard.db') as destination:
+        with sqlite3.connect(backup / 'werkbord.db') as destination:
             source.backup(destination)
-    os.chmod(backup / 'devboard.db', 0o600)
+    os.chmod(backup / 'werkbord.db', 0o600)
     if team:
         before['teamBackup'] = team('POST', '/storage/backup', {})
     (backup / 'before.json').write_text(json.dumps(before, indent=2))

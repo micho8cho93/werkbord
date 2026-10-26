@@ -60,7 +60,7 @@ then items needing attention.
 no guess about anyone's intent). *Heuristic* means it infers intent or likely behaviour from a pattern, so it
 can be wrong, and the finding says "may" or "looks like". Thresholds are in section 8.
 
-Scope: **Werkbord's own branches** (created by Werkbord: a `devboard/` name *and* a worktree record naming
+Scope: **Werkbord's own branches** (created by Werkbord: a `werkbord/` name *and* a worktree record naming
 exactly that branch) are what the branch rules are about. Beyond them, health looks at the target branch and
 the branch your own checkout is on, and at your checkout's working state. Your other branches are yours.
 

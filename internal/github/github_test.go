@@ -38,7 +38,7 @@ func printing(text string) string {
 
 const listJSON = `[
  {"number":7,"title":"Add login","url":"https://github.com/acme/app/pull/7","state":"OPEN","isDraft":false,
-  "headRefName":"devboard/login-aaaaaa","baseRefName":"main","headRefOid":"1111111111111111111111111111111111111111",
+  "headRefName":"werkbord/login-aaaaaa","baseRefName":"main","headRefOid":"1111111111111111111111111111111111111111",
   "author":{"login":"michel"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE",
   "statusCheckRollup":[
     {"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS"},
@@ -46,7 +46,7 @@ const listJSON = `[
     {"__typename":"StatusContext","context":"ci/x","state":"SUCCESS"}],
   "createdAt":"2026-01-02T03:04:05Z","updatedAt":"2026-01-03T03:04:05Z","mergedAt":"0001-01-01T00:00:00Z","closedAt":"0001-01-01T00:00:00Z","isCrossRepository":false},
  {"number":6,"title":"Fix typo","url":"https://github.com/acme/app/pull/6","state":"MERGED","isDraft":false,
-  "headRefName":"devboard/typo-bbbbbb","baseRefName":"main","headRefOid":"2222222222222222222222222222222222222222",
+  "headRefName":"werkbord/typo-bbbbbb","baseRefName":"main","headRefOid":"2222222222222222222222222222222222222222",
   "author":{"login":"michel"},"reviewDecision":"","mergeable":"UNKNOWN","statusCheckRollup":[],
   "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T01:00:00Z","mergedAt":"2026-01-01T01:00:00Z","closedAt":"2026-01-01T01:00:00Z","isCrossRepository":false},
  {"number":5,"title":"Draft from a fork","url":"https://github.com/acme/app/pull/5","state":"OPEN","isDraft":true,
@@ -66,7 +66,7 @@ func TestPullRequestsAreNormalised(t *testing.T) {
 		t.Fatalf("got %d pull requests", len(prs))
 	}
 	open, merged, fork := prs[0], prs[1], prs[2]
-	if open.Number != 7 || open.State != "open" || open.HeadBranch != "devboard/login-aaaaaa" || open.BaseBranch != "main" ||
+	if open.Number != 7 || open.State != "open" || open.HeadBranch != "werkbord/login-aaaaaa" || open.BaseBranch != "main" ||
 		open.Review != "approved" || open.Mergeable != "mergeable" || open.Checks.State != "passing" || open.Checks.Passed != 3 || open.Author != "michel" {
 		t.Errorf("open = %+v", open)
 	}
@@ -124,7 +124,7 @@ func TestNotInstalledNotSignedInAndOtherFailures(t *testing.T) {
 }
 
 func TestCreatePullRequestReadsBackWhatGitHubHas(t *testing.T) {
-	viewed := `{"number":9,"title":"T","url":"https://github.com/acme/app/pull/9","state":"OPEN","isDraft":true,"headRefName":"devboard/x-111111","baseRefName":"main","headRefOid":"","author":{"login":"me"},"reviewDecision":"","mergeable":"UNKNOWN","statusCheckRollup":[],"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","mergedAt":null,"closedAt":null,"isCrossRepository":false}`
+	viewed := `{"number":9,"title":"T","url":"https://github.com/acme/app/pull/9","state":"OPEN","isDraft":true,"headRefName":"werkbord/x-111111","baseRefName":"main","headRefOid":"","author":{"login":"me"},"reviewDecision":"","mergeable":"UNKNOWN","statusCheckRollup":[],"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","mergedAt":null,"closedAt":null,"isCrossRepository":false}`
 	jsonFile := filepath.Join(t.TempDir(), "view.json")
 	if err := os.WriteFile(jsonFile, []byte(viewed), 0o644); err != nil {
 		t.Fatal(err)
@@ -135,7 +135,7 @@ case "$1 $2" in
   "pr view") cat '`+jsonFile+`';;
 esac`)
 	pr, err := gh.CreatePullRequest(context.Background(), Repo{Host: "github.com", Owner: "acme", Name: "app"},
-		CreateRequest{Head: "devboard/x-111111", Base: "main", Title: "T", Body: "B", Draft: true})
+		CreateRequest{Head: "werkbord/x-111111", Base: "main", Title: "T", Body: "B", Draft: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ esac`)
 		t.Errorf("pr = %+v", pr)
 	}
 	calls, _ := os.ReadFile(log)
-	for _, want := range []string{"pr create -R acme/app --head devboard/x-111111 --base main --title T --body B --draft", "pr view 9 -R acme/app"} {
+	for _, want := range []string{"pr create -R acme/app --head werkbord/x-111111 --base main --title T --body B --draft", "pr view 9 -R acme/app"} {
 		if !strings.Contains(string(calls), want) {
 			t.Errorf("calls missing %q:\n%s", want, calls)
 		}

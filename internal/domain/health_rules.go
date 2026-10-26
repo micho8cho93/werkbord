@@ -220,12 +220,12 @@ func short(sha string) string {
 // not the target. These are the branches the health rules are about; the
 // user's own branches are theirs to manage.
 func ownedBranch(b *GitBranch) bool {
-	return b.Scope == ScopeLocal && !b.Target && b.DevBoard.Created && b.Unusual == ""
+	return b.Scope == ScopeLocal && !b.Target && b.Werkbord.Created && b.Unusual == ""
 }
 
 // busy: an agent has a live session on the branch, so what looks unfinished is
 // work in motion and not a problem.
-func busy(b *GitBranch) bool { return b.DevBoard.ActiveRun }
+func busy(b *GitBranch) bool { return b.Werkbord.ActiveRun }
 
 // measured: the branch could be compared with the target. Without that a rule
 // would be guessing from nothing, so it stays silent.
@@ -248,7 +248,7 @@ func (c *healthCtx) ownedBranches() []*GitBranch {
 // runsOf returns the runs that used the branch's worktrees, oldest first.
 func (c *healthCtx) runsOf(b *GitBranch) []Run {
 	var out []Run
-	for _, id := range b.DevBoard.WorktreeIDs {
+	for _, id := range b.Werkbord.WorktreeIDs {
 		out = append(out, c.in.RunsByWorktree[id]...)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -281,9 +281,9 @@ func (c *healthCtx) lastActivity(b *GitBranch) time.Time {
 
 // subjectOf fills what is known of a branch's task and run.
 func (c *healthCtx) subjectOf(b *GitBranch) HealthSubject {
-	s := HealthSubject{Branch: b.Name, TaskID: b.DevBoard.TaskID, TaskTitle: b.DevBoard.TaskTitle, RunID: b.DevBoard.RunID}
-	if len(b.DevBoard.WorktreeIDs) > 0 {
-		s.WorktreeID = b.DevBoard.WorktreeIDs[len(b.DevBoard.WorktreeIDs)-1]
+	s := HealthSubject{Branch: b.Name, TaskID: b.Werkbord.TaskID, TaskTitle: b.Werkbord.TaskTitle, RunID: b.Werkbord.RunID}
+	if len(b.Werkbord.WorktreeIDs) > 0 {
+		s.WorktreeID = b.Werkbord.WorktreeIDs[len(b.Werkbord.WorktreeIDs)-1]
 	}
 	if b.Worktree != nil {
 		s.WorktreePath = b.Worktree.Path
@@ -297,10 +297,10 @@ func (c *healthCtx) subjectOf(b *GitBranch) HealthSubject {
 func taskEv(b *GitBranch) HealthEvidence { return ev("Task", "%s", orNone(taskLine(b))) }
 
 func taskLine(b *GitBranch) string {
-	if b.DevBoard.TaskTitle == "" {
+	if b.Werkbord.TaskTitle == "" {
 		return ""
 	}
-	return fmt.Sprintf("%q (%s)", b.DevBoard.TaskTitle, b.DevBoard.TaskState)
+	return fmt.Sprintf("%q (%s)", b.Werkbord.TaskTitle, b.Werkbord.TaskState)
 }
 
 // ---- action builders ----
@@ -423,7 +423,7 @@ func (c *healthCtx) deleteAction(b *GitBranch, label string) HealthAction {
 	switch {
 	case b.Protected:
 		return fail("it is a protected branch")
-	case !b.DevBoard.Created:
+	case !b.Werkbord.Created:
 		return fail("Werkbord did not create it, so it will not delete it")
 	case busy(b):
 		return fail("an agent still has a session on it")
@@ -519,7 +519,7 @@ func (c *healthCtx) uncommitted() {
 		var subj HealthSubject
 		if b != nil {
 			subj = c.subjectOf(b)
-			done = b.DevBoard.Phase == PhaseCompleted
+			done = b.Werkbord.Phase == PhaseCompleted
 			if r := latestRun(c.runsOf(b)); r != nil && r.State.Terminal() {
 				idle = c.now.Sub(settled(r))
 			}
@@ -757,7 +757,7 @@ func (c *healthCtx) unsynced() {
 			if b.Target {
 				why += " A merge made here is not on the remote until it is pushed."
 			}
-			if own && b.DevBoard.Phase == PhaseCompleted {
+			if own && b.Werkbord.Phase == PhaseCompleted {
 				sev = HealthRisk
 				why += " The task is Done, so this work lives only on this computer."
 			}
@@ -805,7 +805,7 @@ func (c *healthCtx) unsynced() {
 					"Werkbord does not pull or fast-forward branches"),
 			})
 		case UpstreamGone:
-			if b.Merged || b.Target || b.NotPushed == 0 || !measured(b) || b.VsTarget.Ahead == 0 || b.DevBoard.Phase == PhaseCompleted {
+			if b.Merged || b.Target || b.NotPushed == 0 || !measured(b) || b.VsTarget.Ahead == 0 || b.Werkbord.Phase == PhaseCompleted {
 				continue // finished work whose remote branch went with its pull request: housekeeping, or said by the Done task's finding
 			}
 			if c.contentOnTarget(b) {
@@ -826,7 +826,7 @@ func (c *healthCtx) unsynced() {
 			}
 			sev := HealthAttention
 			why := fmt.Sprintf("It has %s that no remote has. Until it is pushed, this computer is the only place the work exists.", n(b.NotPushed, "commit", "commits"))
-			if b.DevBoard.Phase == PhaseCompleted {
+			if b.Werkbord.Phase == PhaseCompleted {
 				sev = HealthRisk
 				why += " The task is Done."
 			}
@@ -931,7 +931,7 @@ func (c *healthCtx) branches() {
 
 		switch {
 		// The task says it is finished but the work is not in the target.
-		case b.DevBoard.Phase == PhaseCompleted:
+		case b.Werkbord.Phase == PhaseCompleted:
 			sev := HealthRisk
 			why := fmt.Sprintf("The task is Done, but %s on its branch would change %s and are not in it.", n(ahead, "commit", "commits"), target)
 			if b.Upstream.State == UpstreamGone {
@@ -944,13 +944,13 @@ func (c *healthCtx) branches() {
 				ex = append(ex, ev("Merge into target", "would change it"))
 			}
 			c.add(FindTaskDoneUnmerged, b.Name, HealthFinding{
-				Severity: sev, Title: fmt.Sprintf("%q is Done but %s is not merged", b.DevBoard.TaskTitle, b.Name), Explanation: why,
+				Severity: sev, Title: fmt.Sprintf("%q is Done but %s is not merged", b.Werkbord.TaskTitle, b.Name), Explanation: why,
 				Subject: subj, Evidence: ex, Action: c.mergeActionOr(b, "Merge the branch"),
 			})
 			c.emitted[b.Name] = FindTaskDoneUnmerged
 
 		// Nobody is working on it, no task is waiting on it, and it has been quiet.
-		case quiet >= c.th.AbandonedAfter && (b.DevBoard.Phase == PhaseNone || b.DevBoard.Phase == PhaseIdle || b.DevBoard.Phase == PhaseActive):
+		case quiet >= c.th.AbandonedAfter && (b.Werkbord.Phase == PhaseNone || b.Werkbord.Phase == PhaseIdle || b.Werkbord.Phase == PhaseActive):
 			ex := []HealthEvidence{ev("Last activity", "%s ago", ago(quiet)), ev("Commits not in target", "%d", ahead)}
 			if t := taskLine(b); t != "" {
 				ex = append(ex, ev("Task", "%s", t))
@@ -1046,7 +1046,7 @@ func (c *healthCtx) emptyBranch(b *GitBranch, subj HealthSubject, run *Run) {
 	if b.Worktree != nil && b.Worktree.Dirty != nil && b.Worktree.Dirty.Dirty() {
 		return
 	}
-	if b.DevBoard.Phase == PhaseReview || b.DevBoard.Phase == PhaseActive {
+	if b.Werkbord.Phase == PhaseReview || b.Werkbord.Phase == PhaseActive {
 		return // someone still expects something from it
 	}
 	quiet := c.now.Sub(c.lastActivity(b))

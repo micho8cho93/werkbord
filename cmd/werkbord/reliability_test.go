@@ -72,7 +72,7 @@ func TestUpdateRestoresDatabaseAsWellAsBinary(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "running again") || !e.running() {
 		t.Fatalf("rollback: %v", err)
 	}
-	files, _ := filepath.Glob(filepath.Join(e.app.cfg.DataDir, "backups", "failed-update-*", "devboard.db"))
+	files, _ := filepath.Glob(filepath.Join(e.app.cfg.DataDir, "backups", "failed-update-*", "werkbord.db"))
 	if len(files) != 1 {
 		t.Fatalf("failed database was not retained: %v", files)
 	}

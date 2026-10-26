@@ -83,7 +83,7 @@ curl -fsSL https://raw.githubusercontent.com/micho8cho93/werkbord/main/scripts/i
 
 | | The app | The installer |
 | --- | --- | --- |
-| Program | `~/.local/bin/werkbord` (and `devboard`) | the same file |
+| Program | `~/.local/bin/werkbord` | the same file |
 | Data, database, token, `config.json` | the data directory `werkbord setup` chose (`…/Application Support/werkbord`) | the same directory |
 | Login service | `dev.werkbord.controller` (launchd) | the same one (a service under the pre-rename label is found and used as it is) |
 | Commands | all of them, from a terminal, once `~/.local/bin` is on your `PATH` | all of them |

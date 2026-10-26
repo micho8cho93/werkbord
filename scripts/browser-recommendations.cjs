@@ -75,7 +75,7 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
     const errors = [];
     async function newPage(opts = {}, storage = {}) {
         const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, ...opts });
-        await ctx.addInitScript(s => { for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); }, { 'devboard.token': token, 'devboard.project': pid, ...storage });
+        await ctx.addInitScript(s => { for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); }, { 'werkbord.token': token, 'werkbord.project': pid, ...storage });
         const page = await ctx.newPage();
         page.setDefaultTimeout(12000);
         page.on('pageerror', e => errors.push(e.message));
@@ -134,7 +134,7 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
             slots[6] = { id: 'wf-find-bugs', button: 'find-bugs', target: 'ask' };
             await api(base, 'PUT', '/api/deck', { version: deck.version, slots }, phone.token);
             const { ctx, page } = await newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' },
-                { 'devboard.token': phone.token, 'werkbord-tour-phone-deck-v2': 'fixture' });
+                { 'werkbord.token': phone.token, 'werkbord-tour-phone-deck-v2': 'fixture' });
             const posts = [];
             page.on('request', r => { if (r.method() === 'POST' && (r.url().includes('/recommendations/feedback') || r.url().includes('/deck/workflows'))) posts.push(r.url()); });
             await page.goto(base + '/#/deck');

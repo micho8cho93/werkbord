@@ -69,7 +69,7 @@ type Config struct {
 	// phone (see docs/RELAY.md).
 	Relay RelayConfig `json:"relay,omitempty"`
 	// GitHub tunes the optional GitHub integration, which runs the user's own
-	// GitHub CLI. Dev Board has no GitHub account or token of its own.
+	// GitHub CLI. Werkbord has no GitHub account or token of its own.
 	GitHub GitHubConfig `json:"github,omitempty"`
 	// Assistant tunes the conversational assistant (internal/assistant).
 	Assistant AssistantConfig `json:"assistant,omitempty"`
@@ -520,7 +520,7 @@ func (c Config) WorktreesPath() string {
 }
 
 // DBPath is the SQLite database location.
-func (c Config) DBPath() string { return filepath.Join(c.DataDir, "devboard.db") }
+func (c Config) DBPath() string { return filepath.Join(c.DataDir, "werkbord.db") }
 
 // LockPath is the file that prevents two controllers sharing a data dir.
 func (c Config) LockPath() string { return filepath.Join(c.DataDir, "controller.lock") }

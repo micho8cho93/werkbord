@@ -25,4 +25,4 @@ func migrate(ctx context.Context, db *sql.DB, ms []Migration) (applied int, err 
 }
 
 // productName is what a database from a newer build tells the user to upgrade.
-const productName = "devboard"
+const productName = "werkbord"

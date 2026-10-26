@@ -33,14 +33,14 @@ func TestAddAndRemoveWorktree(t *testing.T) {
 	ctx := context.Background()
 	head := gitOut(t, repo, "rev-parse", "HEAD")
 
-	added, err := g.AddWorktree(ctx, repo, wt, "devboard/feature", head)
+	added, err := g.AddWorktree(ctx, repo, wt, "werkbord/feature", head)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !added.BranchCreated || added.Head != head {
 		t.Fatalf("added = %+v, want a new branch at %s", added, head)
 	}
-	if got := gitOut(t, wt, "rev-parse", "--abbrev-ref", "HEAD"); got != "devboard/feature" {
+	if got := gitOut(t, wt, "rev-parse", "--abbrev-ref", "HEAD"); got != "werkbord/feature" {
 		t.Fatalf("worktree is on %q", got)
 	}
 	if _, err := os.Stat(filepath.Join(wt, "README.md")); err != nil {
@@ -61,7 +61,7 @@ func TestAddAndRemoveWorktree(t *testing.T) {
 	if _, err := os.Stat(wt); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("directory still exists: %v", err)
 	}
-	if got := gitOut(t, repo, "branch", "--list", "devboard/feature"); got == "" {
+	if got := gitOut(t, repo, "branch", "--list", "werkbord/feature"); got == "" {
 		t.Fatal("removing a worktree must not delete its branch")
 	}
 	if got := gitOut(t, repo, "worktree", "list", "--porcelain"); strings.Contains(got, "feature") {
@@ -69,17 +69,17 @@ func TestAddAndRemoveWorktree(t *testing.T) {
 	}
 
 	// An existing branch is checked out as it is, ignoring the start point.
-	again, err := g.AddWorktree(ctx, repo, wt, "devboard/feature", "main")
+	again, err := g.AddWorktree(ctx, repo, wt, "werkbord/feature", "main")
 	if err != nil || again.BranchCreated {
 		t.Fatalf("re-adding = %+v, %v; want the existing branch reused", again, err)
 	}
 	if err := g.RemoveWorktree(ctx, repo, wt); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.DeleteBranch(ctx, repo, "devboard/feature"); err != nil {
+	if err := g.DeleteBranch(ctx, repo, "werkbord/feature"); err != nil {
 		t.Fatal(err)
 	}
-	if got := gitOut(t, repo, "branch", "--list", "devboard/feature"); got != "" {
+	if got := gitOut(t, repo, "branch", "--list", "werkbord/feature"); got != "" {
 		t.Fatalf("branch survived DeleteBranch: %q", got)
 	}
 }

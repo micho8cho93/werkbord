@@ -167,7 +167,7 @@ func listModels(ctx context.Context, command string) ([]codexModel, error) {
 	}
 
 	if err := send(map[string]any{"id": 1, "method": "initialize", "params": map[string]any{
-		"clientInfo": map[string]any{"name": "devboard", "title": "Devboard", "version": "1"},
+		"clientInfo": map[string]any{"name": "werkbord", "title": "Werkbord", "version": "1"},
 	}}); err != nil {
 		return nil, err
 	}

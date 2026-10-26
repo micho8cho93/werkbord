@@ -90,7 +90,7 @@ the end of it.
 
 `werkbord update` (or rerunning the installer for a newer release) upgrades the executable and restarts the controller through the same recovery lifecycle. When the
 new version has database migrations, the controller **copies the database first** to
-`<data dir>/backups/devboard-v<N>-<time>.db` (the newest five are kept) and then upgrades it; a database written
+`<data dir>/backups/werkbord-v<N>-<time>.db` (the newest five are kept) and then upgrades it; a database written
 by a newer version than the one running is refused rather than damaged. If the new version does not come up,
 `werkbord update` puts the old executable back and restarts it, and says where the backup is.
 

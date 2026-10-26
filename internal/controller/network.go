@@ -30,7 +30,7 @@ func newNetworkControl(cfg config.Config, settings *service.Settings, h http.Han
 	host := cfg.Network.Hostname
 	if host == "" {
 		machine, _ := os.Hostname()
-		host = netprivate.HostnameFor(netprivate.StateDir(cfg.DataDir), machine)
+		host = netprivate.DefaultHostname(machine)
 	}
 	// An auth key signs the node in without a browser. It is read from the
 	// environment only: a key in config.json would sit on disk.

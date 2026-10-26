@@ -41,7 +41,7 @@ func TestStartRunsTheAgentInAFreshWorktree(t *testing.T) {
 	if !strings.HasPrefix(wt.Path, e.root+"/") || !exists(filepath.Join(wt.Path, "README.md")) {
 		t.Fatalf("worktree %s is not a checkout inside the data directory", wt.Path)
 	}
-	if got := strings.TrimSpace(git(t, wt.Path, "rev-parse", "--abbrev-ref", "HEAD")); got != wt.Branch || !strings.HasPrefix(got, "devboard/fix-the-login-bug-") {
+	if got := strings.TrimSpace(git(t, wt.Path, "rev-parse", "--abbrev-ref", "HEAD")); got != wt.Branch || !strings.HasPrefix(got, "werkbord/fix-the-login-bug-") {
 		t.Fatalf("worktree is on %q, record says %q", got, wt.Branch)
 	}
 	if got := strings.TrimSpace(git(t, e.repo, "rev-parse", "--abbrev-ref", "HEAD")); got != "main" {
@@ -359,7 +359,7 @@ func TestInstructionsAreAddedToTheTask(t *testing.T) {
 	if _, err := e.mgr.Start(ctx, StartInput{TaskID: task.ID, AgentID: "fake", Instructions: "  Do not touch the tests. "}); err != nil {
 		t.Fatal(err)
 	}
-	if p := e.session().Req.Prompt; !strings.HasPrefix(p, "Refactor\n\nDo the thing carefully.\n\nDo not touch the tests.") || !strings.Contains(p, "<devboard-handoff>") {
+	if p := e.session().Req.Prompt; !strings.HasPrefix(p, "Refactor\n\nDo the thing carefully.\n\nDo not touch the tests.") || !strings.Contains(p, "<werkbord-handoff>") {
 		t.Fatalf("prompt = %q", p)
 	}
 }

@@ -45,7 +45,7 @@ async function captureMatrix(page, name) {
   const run = runs.find(item => item.endedAt && item.id === task.latestRunId) || runs.find(item => item.endedAt);
   assert(run?.handoff, 'the seeded Review task has a finished run handoff');
   const overview = await api('GET', `/api/projects/${projectId}/git`);
-  const branch = overview.branches.find(item => item.scope === 'local' && item.devboard.taskId === task.id && item.devboard.runId === run.id);
+  const branch = overview.branches.find(item => item.scope === 'local' && item.werkbord.taskId === task.id && item.werkbord.runId === run.id);
   assert(branch, 'fixture Git evidence identifies the task-owned branch and run');
   assert(run.handoff.results || run.handoff.summary, 'the seeded run provides an actual result');
 

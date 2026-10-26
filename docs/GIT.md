@@ -104,12 +104,12 @@ branch: the branch then shows "no commits" and an "N uncommitted" chip, and the 
 
 ### Werkbord association
 
-`devboard/*` branches are the ones Werkbord makes. For each local branch the overview joins Dev
-Board's own records: the **worktree record(s)** for that exact branch, the **runs** that used them,
+`werkbord/*` branches are the ones Werkbord makes. For each local branch the overview joins Werkbord's
+own records: the **worktree record(s)** for that exact branch, the **runs** that used them,
 the **task** of the latest run, and the task's phase (`active`: in Doing or a run is live; `review`;
 `completed`: Done; `idle`: Backlog). A branch is **created by Werkbord** only if *both* its name is
-under `devboard/` *and* a worktree record of this project names exactly that branch. A name proves
-nothing, because anyone can type `devboard/` into a branch name, so a branch that merely has the
+under `werkbord/` *and* a worktree record of this project names exactly that branch. A name proves
+nothing, because anyone can type `werkbord/` into a branch name, so a branch that merely has the
 name is shown as "has Werkbord's name, but Werkbord has no record of making it" and is treated as
 the user's.
 

@@ -20,7 +20,7 @@ func healthy() RecFacts {
 		Project: RecProject{HasRepository: true},
 		Repo: RecRepo{
 			Status: SourceStatusRead, Head: "main", Target: "main", TargetLocal: true, HasRemote: true,
-			Branches:     []RecBranch{{Name: "devboard/fix-login-1a2b3c", Owned: true, Ahead: 3, Phase: PhaseReview, TaskID: "tsk_1", TaskTitle: "Fix login", LastCommit: recNow.Add(-time.Hour)}},
+			Branches:     []RecBranch{{Name: "werkbord/fix-login-1a2b3c", Owned: true, Ahead: 3, Phase: PhaseReview, TaskID: "tsk_1", TaskTitle: "Fix login", LastCommit: recNow.Add(-time.Hour)}},
 			PullRequests: RecPullRequests{Status: SourceStatusRead, Detected: true, Available: true},
 			Health:       RecHealth{Status: SourceStatusRead},
 		},
@@ -501,7 +501,7 @@ func TestPullRequestStateDrivesTheNextStep(t *testing.T) {
 	f.Repo.Branches = nil
 	f.Memory.Items = nil
 	f.Repo.PullRequests.Items = []RecPullRequest{
-		{Number: 7, Title: "Cart", Branch: "devboard/cart", Base: "main", State: "open", Review: "changes_requested", TaskID: "tsk_7"},
+		{Number: 7, Title: "Cart", Branch: "werkbord/cart", Base: "main", State: "open", Review: "changes_requested", TaskID: "tsk_7"},
 		{Number: 8, Title: "Docs", Branch: "docs", Base: "main", State: "open", Review: "approved", Checks: "passing", Mergeable: "mergeable"},
 	}
 	got := mustIntegrate(t, Recommend(f))

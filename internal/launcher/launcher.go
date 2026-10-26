@@ -292,7 +292,7 @@ func (l *Launcher) FindInstall(ctx context.Context) Install {
 			candidates = append(candidates, def.Binary)
 		}
 		for _, dir := range []string{l.opt.InstallDir, "/opt/homebrew/bin", "/usr/local/bin"} {
-			candidates = append(candidates, filepath.Join(dir, "werkbord"), filepath.Join(dir, "devboard"))
+			candidates = append(candidates, filepath.Join(dir, "werkbord"))
 		}
 	}
 	seen := map[string]bool{}

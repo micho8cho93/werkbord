@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -113,9 +111,9 @@ func TestSignInThenConnectedWithHTTPS(t *testing.T) {
 	}
 
 	// They sign in, and the tailnet issues certificates: the app is on 443, and 80 redirects there.
-	f.set(BackendStatus{State: backendRunning, DNSName: "devboard-mac.tail1234.ts.net.", IPs: []netip.Addr{ip}, Tailnet: "me@example.com", HTTPS: true})
+	f.set(BackendStatus{State: backendRunning, DNSName: "werkbord-mac.tail1234.ts.net.", IPs: []netip.Addr{ip}, Tailnet: "me@example.com", HTTPS: true})
 	s = waitStatus(t, m, "connected", func(s Status) bool { return s.State == StateConnected && len(f.listened()) == 2 })
-	if s.URL != "https://devboard-mac.tail1234.ts.net/" || !s.HTTPS || s.HTTPSHint != "" || s.AuthURL != "" || s.Hostname != "devboard-mac.tail1234.ts.net" ||
+	if s.URL != "https://werkbord-mac.tail1234.ts.net/" || !s.HTTPS || s.HTTPSHint != "" || s.AuthURL != "" || s.Hostname != "werkbord-mac.tail1234.ts.net" ||
 		len(s.IPs) != 1 || s.IPs[0] != "100.101.102.103" || s.Tailnet != "me@example.com" {
 		t.Fatalf("status = %+v", s)
 	}
@@ -136,7 +134,7 @@ func TestSignInThenConnectedWithHTTPS(t *testing.T) {
 		return resp, string(b)
 	}
 	// By name on port 80: sent to https.
-	if resp, _ := get(f.addr(":80"), "devboard-mac.tail1234.ts.net"); resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != "https://devboard-mac.tail1234.ts.net/x?y=1" {
+	if resp, _ := get(f.addr(":80"), "werkbord-mac.tail1234.ts.net"); resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != "https://werkbord-mac.tail1234.ts.net/x?y=1" {
 		t.Fatalf("redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	// By address on port 80: served, since a certificate does not cover an address.
@@ -144,18 +142,18 @@ func TestSignInThenConnectedWithHTTPS(t *testing.T) {
 		t.Fatalf("by address = %d %q", resp.StatusCode, body)
 	}
 	// The listener the app is behind is the handler it was given.
-	if resp, body := get(f.addr(":443"), "devboard-mac.tail1234.ts.net"); resp.StatusCode != 200 || body != "app" {
+	if resp, body := get(f.addr(":443"), "werkbord-mac.tail1234.ts.net"); resp.StatusCode != 200 || body != "app" {
 		t.Fatalf("app = %d %q", resp.StatusCode, body)
 	}
 }
 
 func TestWithoutHTTPSTheAppIsServedOnPort80AndTheHintSaysHowToGetHTTPS(t *testing.T) {
-	f := &fakeBackend{st: BackendStatus{State: backendRunning, DNSName: "devboard.tail1234.ts.net.", IPs: []netip.Addr{ip}}}
+	f := &fakeBackend{st: BackendStatus{State: backendRunning, DNSName: "werkbord.tail1234.ts.net.", IPs: []netip.Addr{ip}}}
 	m := newManager(f, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "app") }))
 	m.Start()
 	defer m.Stop(context.Background())
 	s := waitStatus(t, m, "connected", func(s Status) bool { return s.State == StateConnected && len(f.listened()) == 1 })
-	if s.URL != "http://devboard.tail1234.ts.net/" || s.HTTPS || !strings.Contains(s.HTTPSHint, "HTTPS") {
+	if s.URL != "http://werkbord.tail1234.ts.net/" || s.HTTPS || !strings.Contains(s.HTTPSHint, "HTTPS") {
 		t.Fatalf("status = %+v", s)
 	}
 	if f.listened()[0] != ":80" {
@@ -253,34 +251,12 @@ func TestDefaultHostname(t *testing.T) {
 	}
 }
 
-// A node that joined before the rename keeps its name: a phone opens that address.
-func TestANodeKeepsTheNameItJoinedWith(t *testing.T) {
-	fresh := filepath.Join(t.TempDir(), "tailscale")
-	if got := HostnameFor(fresh, "mac"); got != "werkbord-mac" {
-		t.Fatalf("new node: %s", got)
-	}
-	_ = os.WriteFile(filepath.Join(fresh, "tailscaled.state"), []byte("{}"), 0o600)
-	if got := HostnameFor(fresh, "mac"); got != "werkbord-mac" {
-		t.Fatalf("a new node's name changed once it had state: %s", got)
-	}
-
-	legacy := filepath.Join(t.TempDir(), "tailscale")
-	_ = os.MkdirAll(legacy, 0o700)
-	_ = os.WriteFile(filepath.Join(legacy, "tailscaled.state"), []byte("{}"), 0o600)
-	if got := HostnameFor(legacy, "mac"); got != "devboard-mac" {
-		t.Fatalf("node from before the rename: %s", got)
-	}
-	if got := HostnameFor(legacy, "mac"); got != "devboard-mac" {
-		t.Fatalf("second start: %s", got)
-	}
-}
-
 func TestQRCodes(t *testing.T) {
-	svg, err := QRSVG("https://devboard.tail1234.ts.net/#token=abc")
+	svg, err := QRSVG("https://werkbord.tail1234.ts.net/#token=abc")
 	if err != nil || !strings.HasPrefix(svg, "<svg") || !strings.Contains(svg, "viewBox") || strings.Contains(svg, "token") {
 		t.Fatalf("svg = %.80s, %v", svg, err)
 	}
-	txt, err := QRText("https://devboard.tail1234.ts.net/")
+	txt, err := QRText("https://werkbord.tail1234.ts.net/")
 	if err != nil || strings.Count(txt, "\n") < 10 {
 		t.Fatalf("text = %q, %v", txt, err)
 	}

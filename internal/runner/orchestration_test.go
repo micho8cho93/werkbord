@@ -67,7 +67,7 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 		t.Fatalf("sessions=%d", len(e.adapter.Sessions()))
 	}
 	first := e.session()
-	first.Assistant(`<devboard-handoff>{"summary":"Implemented first","tests":["go test ./... passed"],"decisions":["Keep API"],"nextAction":"Review first"}</devboard-handoff>`)
+	first.Assistant(`<werkbord-handoff>{"summary":"Implemented first","tests":["go test ./... passed"],"decisions":["Keep API"],"nextAction":"Review first"}</werkbord-handoff>`)
 	first.TurnEnd()
 	eventually(t, "scheduled turn completes without browser", func() bool {
 		runs, err := e.runs.ListByTask(ctx, a.ID)

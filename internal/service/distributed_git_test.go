@@ -20,7 +20,7 @@ func TestDistributedReviewFetchesAndMergeRefusesAdvancedRemote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	branch := "devboard/rnr_other/" + run.ID
+	branch := "werkbord/rnr_other/" + run.ID
 	peer := filepath.Join(t.TempDir(), "peer")
 	gitOut(t, f.repo, "clone", "-q", f.remote, peer)
 	gitOut(t, peer, "checkout", "-q", "-b", branch)
@@ -52,7 +52,7 @@ func TestDistributedReviewFetchesAndMergeRefusesAdvancedRemote(t *testing.T) {
 	owned := false
 	for _, b := range overview.Branches {
 		if b.Name == "origin/"+branch {
-			owned = b.DevBoard.RunID == run.ID
+			owned = b.Werkbord.RunID == run.ID
 		}
 	}
 	if !owned {

@@ -46,7 +46,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   const vite = start(process.execPath, [path.join(root, 'web/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], path.join(root, 'web'), { WERKBORD_URL: base }); await ready(web, vite);
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? {executablePath:process.env.BROWSER_EXECUTABLE} : {}) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await context.addInitScript(token => { localStorage.setItem('devboard.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
+  await context.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
   const page = await context.newPage(); lastPage = page; const errors = []; page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000);
   await page.goto(web + '/#/personal'); await page.getByRole('button', { name: 'Create with Salie', exact: true }).click();
   async function launch(agent) { await page.getByRole('button', { name: 'New tab', exact: true }).click(); await page.getByRole('dialog', { name: 'New tab', exact: true }).getByRole('button', { name: agent, exact: true }).click(); await page.getByRole('button', { name: 'Open terminal', exact: true }).click(); await page.locator('.terminal-session .identity').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready')); }
@@ -90,7 +90,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   for (const s of sessions) await api('PUT', `/api/projects/${s.projectId}/terminals/${s.id}/phone`, { phoneId: enrolled.id, enabled: true });
   await context.close();
   const mobile = await browser.newContext({ viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true });
-  await mobile.addInitScript(token => { localStorage.setItem('devboard.token', token); localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'); }, enrolled.token);
+  await mobile.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'); }, enrolled.token);
   const nativeInput = [];
   let phone = await mobile.newPage(); lastPage = phone;
   phone.on('request',r=>{if(r.url().includes('/terminals/') && r.url().endsWith('/input')) nativeInput.push(JSON.parse(r.postData()).data);}); phone.setDefaultTimeout(15000); phone.on('pageerror', e => errors.push(e.message));

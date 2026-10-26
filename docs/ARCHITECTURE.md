@@ -25,7 +25,7 @@ questions (§15), projects as the scope of the application (§16), per-task exec
         ▼
 ┌──────────────────────── werkbord controller (one Go process) ───────────────────────┐
 │                                                                                       │
-│  api ──────────▶ service ──────────▶ store (interfaces) ──▶ store/sqlite ──▶ devboard.db
+│  api ──────────▶ service ──────────▶ store (interfaces) ──▶ store/sqlite ──▶ werkbord.db
 │  (HTTP, SSE,      (use cases,          ▲                                              │
 │   auth, PWA)       domain rules)        │ same transaction                            │
 │      ▲               │   │              │                                             │
@@ -229,7 +229,7 @@ If any startup step fails, everything already started is torn down in reverse or
   are HTTP clients of the running controller, so every change goes through services,
   validation and the event log. `werkbord migrate` is the one offline command, and it
   is guarded by the same migration code.
-- Location: `<dataDir>/devboard.db` (default `~/Library/Application Support/werkbord` on
+- Location: `<dataDir>/werkbord.db` (default `~/Library/Application Support/werkbord` on
   macOS, `~/.config/werkbord` on Linux). Directory 0700, file 0600.
 - Driver: `modernc.org/sqlite` (pure Go, so builds need no C toolchain). WAL mode,
   `synchronous=FULL` on the writer (a committed transaction survives a power cut; with
@@ -419,7 +419,7 @@ projects. The engine must go through `service.Worktrees`; it must not write the 
 A path that was used by a removed worktree is not reused: its record is kept as history.
 
 **The engine** (`gitrepo.Worktrees`, driven by `runner`) follows that order. A task keeps one
-worktree and one branch (`devboard/<title-slug>-<task-id-tail>`) across its runs, so a retry,
+worktree and one branch (`werkbord/<title-slug>-<task-id-tail>`) across its runs, so a retry,
 follow-up or resumed session continues from the same files; each worktree gets a fresh
 directory name, based on the repository's current HEAD commit. A worktree whose directory
 vanished is retired and replaced on the same branch. If starting an agent fails, a worktree made
@@ -789,7 +789,7 @@ web (Git screens)  ──▶  api/git.go  ──▶  service.GitControl  ──�
   pull requests are a separate call that can fail without affecting the rest. An action's result reports its
   *local effect* and the *remote's confirmation* separately, and a push, a pull request or a remote deletion is
   only reported done after the remote itself was asked and agreed.
-- **Ownership.** A branch is Werkbord's only if its name is under `devboard/` *and* a worktree record of the
+- **Ownership.** A branch is Werkbord's only if its name is under `werkbord/` *and* a worktree record of the
   project names exactly that branch. Only such branches are ever deleted, and only after proving nothing
   unmerged would be lost; only directories Werkbord's records name, inside its own worktree directory, that
   Git lists as worktrees and that hold nothing uncommitted, are ever removed.
@@ -990,8 +990,8 @@ Build with `make desktop` or run with `make desktop-dev`. `make web-shell` build
 the desktop Svelte entry separately from the Personal PWA. The shell shares
 Geist, tokens, icons, mark, theme and dialog components with the PWA. It has no
 Team backend imports. Team continues serving its existing console, including
-`?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI,
-`devboard` aliases and every `WERKBORD_*` variable.
+`?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI
+and every `WERKBORD_*` variable.
 
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
 (the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
@@ -1137,7 +1137,7 @@ it does not stop runs already accepted by Personal or affect another slot.
 
 ### Distribution, plans and updates
 
-One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`WERKBORD_*` behavior remain.
+One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers remain.
 
 The bundle contains the shell, the Personal helper, and Team's service (`werkbord-team`), its pinned network and database
 programs and their notices, and its installer, which is the app's own executable in an installer mode

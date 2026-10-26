@@ -8,9 +8,9 @@
 # holding the executable and the README, and a checksums.txt in sha256sum format
 # beside them.
 #
-# A product that was renamed (werkbord was "devboard") also publishes every archive under
+# A product that was renamed (werkbord was "werkbord") also publishes every archive under
 # its old name, with the executable inside under its old name: that is what the installers
-# and `devboard update` of the releases from before the rename look for, so they upgrade
+# and `werkbord update` of the releases from before the rename look for, so they upgrade
 # to this one.
 #
 # The individual product's web app must already be built and embedded

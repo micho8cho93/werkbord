@@ -16,7 +16,7 @@ export type MessagePart = { text: string; handoff?: never } | { handoff: Readabl
 /** Render completed protocol blocks as prose. Malformed or partial output stays visible. */
 export function messageParts(text: string): MessagePart[] {
   const parts: MessagePart[] = [];
-  const pattern = /<(devboard-handoff|werkbord-handoff)>\s*([\s\S]*?)\s*<\/\1>/g;
+  const pattern = /<(werkbord-handoff|werkbord-handoff)>\s*([\s\S]*?)\s*<\/\1>/g;
   let offset = 0;
   for (const match of text.matchAll(pattern)) {
     try {

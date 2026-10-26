@@ -69,9 +69,9 @@ func TestWorktreesCreate(t *testing.T) {
 	ctx := context.Background()
 	sub := f.bus.Subscribe(10)
 
-	w := f.create(t, "wt_1", "devboard/task-1")
+	w := f.create(t, "wt_1", "werkbord/task-1")
 	if w.State != domain.WorktreeActive || w.Version != 1 || w.RemovingSince != nil || w.ProjectID != f.project.ID ||
-		w.Path != filepath.Join(f.root, "wt_1") || w.Branch != "devboard/task-1" || w.BaseRef != "origin/main" {
+		w.Path != filepath.Join(f.root, "wt_1") || w.Branch != "werkbord/task-1" || w.BaseRef != "origin/main" {
 		t.Fatalf("created worktree = %+v", w)
 	}
 	if ev := <-sub.C; ev.Type != domain.EventWorktreeCreated || ev.ProjectID != f.project.ID || ev.Seq == 0 {

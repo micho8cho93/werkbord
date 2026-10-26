@@ -136,14 +136,14 @@ func TestLiveApprovalAndResume(t *testing.T) {
 			dir, _ := filepath.EvalSymlinks(t.TempDir())
 			s, err := a.Start(context.Background(), agent.StartRequest{
 				WorkDir: dir,
-				Prompt:  "Create a file named note.txt in the current directory containing the single word: saved-by-devboard. Then reply with exactly: done",
+				Prompt:  "Create a file named note.txt in the current directory containing the single word: saved-by-werkbord. Then reply with exactly: done",
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
 			said, asked, ref := driveRef(t, s, "Allow")
 			t.Logf("asked %d question(s); session ref %q", len(asked), ref)
-			if b, err := os.ReadFile(filepath.Join(dir, "note.txt")); err != nil || !strings.Contains(string(b), "saved-by-devboard") {
+			if b, err := os.ReadFile(filepath.Join(dir, "note.txt")); err != nil || !strings.Contains(string(b), "saved-by-werkbord") {
 				t.Fatalf("the file was not created after approving: %v %q (said %q)", err, b, said)
 			}
 			if ref == "" {
@@ -167,7 +167,7 @@ func TestLiveApprovalAndResume(t *testing.T) {
 				t.Fatal(err)
 			}
 			said, _, _ = driveRef(t, s2, "Allow")
-			if !strings.Contains(strings.Join(said, " "), "saved-by-devboard") {
+			if !strings.Contains(strings.Join(said, " "), "saved-by-werkbord") {
 				t.Fatalf("the resumed session does not remember the conversation: %q", said)
 			}
 			_ = s2.Close(context.Background())

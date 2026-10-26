@@ -46,14 +46,14 @@
         break;
       case 'clean':
         if (branch.worktree?.worktreeId) {
-          sheets.open({ kind: 'clean', worktreeId: branch.worktree.worktreeId, label: branch.devboard.taskTitle || branch.name, branch: branch.name, head: branch.sha });
+          sheets.open({ kind: 'clean', worktreeId: branch.worktree.worktreeId, label: branch.werkbord.taskTitle || branch.name, branch: branch.name, head: branch.sha });
         }
         break;
     }
   }
 </script>
 
-<li class="card item" class:owned={branch.devboard.created} class:emphasis data-severity={why?.severity ?? 'none'}>
+<li class="card item" class:owned={branch.werkbord.created} class:emphasis data-severity={why?.severity ?? 'none'}>
   <a class="main" {href}>
     <span class="name g-wrap"><span class="prefix">{parts.prefix}</span>{parts.rest}</span>
     <span class="g-row chips"><Chips {chips} /></span>
@@ -68,8 +68,8 @@
 
   <div class="foot">
     <span class="origin muted g-small g-wrap">
-      {#if branch.devboard.taskId}
-        <a href={taskHref(projectId, branch.devboard.taskId)}>{branch.devboard.taskTitle || 'Task'}</a>
+      {#if branch.werkbord.taskId}
+        <a href={taskHref(projectId, branch.werkbord.taskId)}>{branch.werkbord.taskTitle || 'Task'}</a>
       {:else}
         {originLabel(branch)}
       {/if}

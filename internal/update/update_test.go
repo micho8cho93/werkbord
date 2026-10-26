@@ -88,7 +88,7 @@ func TestLatestFollowsTheRedirect(t *testing.T) {
 }
 
 func TestDownloadVerifiesTheChecksum(t *testing.T) {
-	archive := tarGz(t, map[string]string{"devboard": "#!/bin/sh\necho v1.0.0\n"})
+	archive := tarGz(t, map[string]string{"werkbord": "#!/bin/sh\necho v1.0.0\n"})
 	asset := AssetName("v1.0.0", "linux", "amd64")
 	if asset != "werkbord_1.0.0_linux_amd64.tar.gz" || AssetName("v1.0.0", "windows", "arm64") != "werkbord_1.0.0_windows_arm64.zip" {
 		t.Fatalf("asset names = %s", asset)
@@ -169,9 +169,9 @@ func TestReplaceKeepsTheOldBinaryForRollback(t *testing.T) {
 		t.Skip("covered by the rename path")
 	}
 	dir := t.TempDir()
-	current := filepath.Join(dir, "devboard")
+	current := filepath.Join(dir, "werkbord")
 	_ = os.WriteFile(current, []byte("old"), 0o755)
-	fresh := filepath.Join(t.TempDir(), "devboard")
+	fresh := filepath.Join(t.TempDir(), "werkbord")
 	_ = os.WriteFile(fresh, []byte("new"), 0o755)
 
 	prev, err := Replace(current, fresh)
@@ -205,7 +205,7 @@ func TestReplaceKeepsTheOldBinaryForRollback(t *testing.T) {
 
 	// A directory that cannot be written says so, and changes nothing.
 	ro := t.TempDir()
-	target := filepath.Join(ro, "devboard")
+	target := filepath.Join(ro, "werkbord")
 	_ = os.WriteFile(target, []byte("old"), 0o755)
 	_ = os.Chmod(ro, 0o500)
 	defer os.Chmod(ro, 0o700)

@@ -63,7 +63,7 @@ func (h *hb) targetBranch() *GitBranch {
 	b := &GitBranch{
 		Name: "main", Ref: "refs/heads/main", Scope: ScopeLocal, Sha: "aaaaaaaaaaaaaaaa", Head: true, Target: true, Protected: true,
 		Upstream: GitUpstream{Name: "origin/main", State: UpstreamInSync}, VsTarget: GitVsTarget{Relation: RelTarget},
-		DevBoard: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{},
+		Werkbord: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{},
 	}
 	h.extra = append(h.extra, b)
 	return b
@@ -178,7 +178,7 @@ func (h *hb) input() HealthInput {
 	tasks := map[string]Task{}
 	wts := append([]GitWorktree{}, h.o.Worktrees...)
 	for _, a := range h.agents {
-		own := &a.b.DevBoard
+		own := &a.b.Werkbord
 		*own = GitBranchOwnership{Created: true, Namespace: true, WorktreeIDs: []string{a.rec.ID}, TaskID: a.task.ID, TaskTitle: a.task.Title,
 			TaskState: a.task.State, RunID: a.run.ID, RunState: a.run.State, AgentID: a.run.AgentID, ActiveRun: a.run.State.Active()}
 		switch {
@@ -235,40 +235,40 @@ func w(t HealthFindingType, sev HealthSeverity) hWant { return hWant{t, sev} }
 var hCases = []hCase{
 	// ---- the quiet baseline: none of these may produce anything ----
 	{name: "a repository with nothing going on", setup: func(h *hb) {}},
-	{name: "an agent finished an hour ago and its work is pushed and waiting for review", setup: func(h *hb) { h.agent("devboard/feature") }},
+	{name: "an agent finished an hour ago and its work is pushed and waiting for review", setup: func(h *hb) { h.agent("werkbord/feature") }},
 	{name: "an agent is working", setup: func(h *hb) {
-		a := h.agent("devboard/feature").runState(RunRunning).taskState(TaskDoing).dirty(GitChangeCounts{Staged: 3, Unstaged: 4, Untracked: 20}).noUpstream(5)
+		a := h.agent("werkbord/feature").runState(RunRunning).taskState(TaskDoing).dirty(GitChangeCounts{Staged: 3, Unstaged: 4, Untracked: 20}).noUpstream(5)
 		a.counts(5, 40)
 	}},
 	{name: "an agent waiting on a question is still working", setup: func(h *hb) {
-		h.agent("devboard/feature").runState(RunWaitingForUser).taskState(TaskDoing).dirty(GitChangeCounts{Unstaged: 2})
+		h.agent("werkbord/feature").runState(RunWaitingForUser).taskState(TaskDoing).dirty(GitChangeCounts{Unstaged: 2})
 	}},
 
 	// ---- uncommitted work ----
 	{name: "an agent left modified files in its worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Unstaged: 2})
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Unstaged: 2})
 	}, want: []hWant{w(FindUncommittedWork, HealthAttention)}},
 	{name: "staged files left in a worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Staged: 1})
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Staged: 1})
 	}, want: []hWant{w(FindUncommittedWork, HealthAttention)}},
 	{name: "uncommitted work left for more than a day is at risk of being forgotten", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Unstaged: 2}).quietFor(30 * time.Hour)
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Unstaged: 2}).quietFor(30 * time.Hour)
 	}, want: []hWant{w(FindUncommittedWork, HealthRisk), w(FindFinishedUnmerged, HealthAttention)}},
 	{name: "a task marked Done with its work uncommitted", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Unstaged: 2}).taskState(TaskDone).counts(0, 0)
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Unstaged: 2}).taskState(TaskDone).counts(0, 0)
 	}, want: []hWant{w(FindUncommittedWork, HealthRisk)}},
 	{name: "significant untracked work", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Untracked: 5})
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Untracked: 5})
 	}, want: []hWant{w(FindUncommittedWork, HealthAttention)}},
 	{name: "a scratch file or two is not work", setup: func(h *hb) {
-		h.agent("devboard/feature").dirty(GitChangeCounts{Untracked: 4})
+		h.agent("werkbord/feature").dirty(GitChangeCounts{Untracked: 4})
 	}},
 	{name: "the user's checkout with edits is info, not a problem", setup: func(h *hb) {
 		*h.primary().Dirty = GitChangeCounts{Unstaged: 3}
 	}, want: []hWant{w(FindUncommittedWork, HealthInfo)}},
 	{name: "the user's checkout with edits blocks a merge that is ready", setup: func(h *hb) {
 		*h.primary().Dirty = GitChangeCounts{Unstaged: 3}
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}, want: []hWant{w(FindUncommittedWork, HealthAttention)}},
 	{name: "a few untracked files in the user's checkout are nothing", setup: func(h *hb) {
 		*h.primary().Dirty = GitChangeCounts{Untracked: 3}
@@ -276,70 +276,70 @@ var hCases = []hCase{
 
 	// ---- unsynced work ----
 	{name: "commits not pushed on a finished branch", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamAhead, 2, 0)
+		h.agent("werkbord/feature").upstream(UpstreamAhead, 2, 0)
 	}, want: []hWant{w(FindUnpushedCommits, HealthAttention)}},
 	{name: "commits not pushed on a Done task's branch", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamAhead, 2, 0).taskState(TaskDone)
+		h.agent("werkbord/feature").upstream(UpstreamAhead, 2, 0).taskState(TaskDone)
 	}, want: []hWant{w(FindUnpushedCommits, HealthRisk), w(FindTaskDoneUnmerged, HealthRisk)}},
 	{name: "commits not pushed while the agent is still working are normal", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamAhead, 2, 0).runState(RunRunning).taskState(TaskDoing)
+		h.agent("werkbord/feature").upstream(UpstreamAhead, 2, 0).runState(RunRunning).taskState(TaskDoing)
 	}},
 	{name: "the user's own branch with unpushed commits is housekeeping", setup: func(h *hb) {
 		b := &GitBranch{Name: "my-feature", Scope: ScopeLocal, Head: true, Upstream: GitUpstream{Name: "origin/my-feature", State: UpstreamAhead, Ahead: 1},
-			VsTarget: GitVsTarget{Ahead: 1, Relation: RelAhead}, DevBoard: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}}
+			VsTarget: GitVsTarget{Ahead: 1, Relation: RelAhead}, Werkbord: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}}
 		h.extra = append(h.extra, b)
 	}, want: []hWant{w(FindUnpushedCommits, HealthInfo)}},
 	{name: "another of the user's branches is not looked at", setup: func(h *hb) {
 		h.extra = append(h.extra, &GitBranch{Name: "someone", Scope: ScopeLocal, Upstream: GitUpstream{State: UpstreamDiverged, Ahead: 1, Behind: 1},
-			VsTarget: GitVsTarget{Ahead: 1, Relation: RelAhead}, DevBoard: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}})
+			VsTarget: GitVsTarget{Ahead: 1, Relation: RelAhead}, Werkbord: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}})
 	}},
 	{name: "a merge made here that is not pushed", setup: func(h *hb) {
 		b := h.targetBranch()
 		b.Upstream = GitUpstream{Name: "origin/main", State: UpstreamAhead, Ahead: 1}
 	}, want: []hWant{w(FindUnpushedCommits, HealthAttention)}},
 	{name: "a branch that was never pushed", setup: func(h *hb) {
-		h.agent("devboard/feature").noUpstream(2)
+		h.agent("werkbord/feature").noUpstream(2)
 	}, want: []hWant{w(FindBranchNotPushed, HealthAttention)}},
 	{name: "a Done task's branch that was never pushed", setup: func(h *hb) {
-		h.agent("devboard/feature").noUpstream(2).taskState(TaskDone)
+		h.agent("werkbord/feature").noUpstream(2).taskState(TaskDone)
 	}, want: []hWant{w(FindBranchNotPushed, HealthRisk), w(FindTaskDoneUnmerged, HealthRisk)}},
 	{name: "without a remote nothing can be pushed, so nothing is reported", setup: func(h *hb) {
 		h.o.Remote.Remotes = nil
-		h.agent("devboard/feature").noUpstream(2)
+		h.agent("werkbord/feature").noUpstream(2)
 	}},
 	{name: "a branch with no commits of its own has nothing to push", setup: func(h *hb) {
-		h.agent("devboard/feature").noUpstream(0).counts(0, 3).neverAdvanced()
+		h.agent("werkbord/feature").noUpstream(0).counts(0, 3).neverAdvanced()
 	}},
 	{name: "the target is behind its remote", setup: func(h *hb) {
 		h.targetBranch().Upstream = GitUpstream{Name: "origin/main", State: UpstreamBehind, Behind: 3}
 	}, want: []hWant{w(FindRemoteAhead, HealthAttention)}},
 	{name: "someone pushed to an agent's branch", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamBehind, 0, 1)
+		h.agent("werkbord/feature").upstream(UpstreamBehind, 0, 1)
 	}, want: []hWant{w(FindRemoteAhead, HealthInfo)}},
 	{name: "a branch that diverged from its remote", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamDiverged, 1, 1)
+		h.agent("werkbord/feature").upstream(UpstreamDiverged, 1, 1)
 	}, want: []hWant{w(FindUpstreamDiverged, HealthRisk)}},
 	{name: "the remote branch was deleted while the work is not in the target", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamGone, 0, 0)
+		h.agent("werkbord/feature").upstream(UpstreamGone, 0, 0)
 		h.agents[0].b.NotPushed = 2
 	}, want: []hWant{w(FindRemoteBranchDeleted, HealthAttention)}},
 	{name: "the remote branch of a merged branch went with its pull request", setup: func(h *hb) {
-		a := h.agent("devboard/feature").upstream(UpstreamGone, 0, 0).counts(0, 4).noWorktree()
+		a := h.agent("werkbord/feature").upstream(UpstreamGone, 0, 0).counts(0, 4).noWorktree()
 		a.b.NotPushed = 0
 	}, want: []hWant{w(FindMergedBranch, HealthInfo)}},
 	{name: "the remote branch is gone but Git shows its content is already on the target", setup: func(h *hb) {
-		h.agent("devboard/feature").upstream(UpstreamGone, 0, 0)
+		h.agent("werkbord/feature").upstream(UpstreamGone, 0, 0)
 		h.agents[0].b.NotPushed = 2
-		h.onTarget["devboard/feature"] = TargetContent{Checked: true, Unchanged: true}
+		h.onTarget["werkbord/feature"] = TargetContent{Checked: true, Unchanged: true}
 	}, want: []hWant{w(FindContentOnTarget, HealthInfo)}},
 	{name: "the repository never fetched", setup: func(h *hb) {
 		h.o.Remote.LastFetchedAt = nil
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}, want: []hWant{w(FindRemoteStateStale, HealthInfo)}},
 	{name: "the last fetch was weeks ago", setup: func(h *hb) {
 		t := hNow.Add(-20 * 24 * time.Hour)
 		h.o.Remote.LastFetchedAt = &t
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}, want: []hWant{w(FindRemoteStateStale, HealthInfo)}},
 	{name: "an old fetch does not matter when there is no agent work", setup: func(h *hb) {
 		t := hNow.Add(-20 * 24 * time.Hour)
@@ -348,162 +348,162 @@ var hCases = []hCase{
 	{name: "a recent fetch is fine", setup: func(h *hb) {
 		t := hNow.Add(-2 * 24 * time.Hour)
 		h.o.Remote.LastFetchedAt = &t
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}},
 
 	// ---- branch hygiene ----
 	{name: "a merged branch is still present", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(0, 3).noWorktree()
+		h.agent("werkbord/feature").counts(0, 3).noWorktree()
 	}, want: []hWant{w(FindMergedBranch, HealthInfo)}},
 	{name: "a merged branch whose worktree is still there", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(0, 3)
+		h.agent("werkbord/feature").counts(0, 3)
 	}, want: []hWant{w(FindMergedBranch, HealthInfo)}},
 	{name: "the user's merged branch is theirs to tidy", setup: func(h *hb) {
 		h.extra = append(h.extra, &GitBranch{Name: "old-feature", Scope: ScopeLocal, Merged: true, Upstream: GitUpstream{State: UpstreamNone},
-			VsTarget: GitVsTarget{Behind: 3, Relation: RelMerged}, DevBoard: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}})
+			VsTarget: GitVsTarget{Behind: 3, Relation: RelMerged}, Werkbord: GitBranchOwnership{Phase: PhaseNone}, Attention: []GitAttention{}})
 	}},
 	{name: "a branch whose content is already on the target (squash merge)", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone)
-		h.onTarget["devboard/feature"] = TargetContent{Checked: true, Unchanged: true}
+		h.agent("werkbord/feature").taskState(TaskDone)
+		h.onTarget["werkbord/feature"] = TargetContent{Checked: true, Unchanged: true}
 	}, want: []hWant{w(FindContentOnTarget, HealthInfo)}},
 	{name: "a branch nobody works on and no task waits for, quiet for days", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskBacklog).quietFor(5 * 24 * time.Hour)
+		h.agent("werkbord/feature").taskState(TaskBacklog).quietFor(5 * 24 * time.Hour)
 	}, want: []hWant{w(FindAbandonedBranch, HealthAttention)}},
 	{name: "a task stuck in Doing with no run for days", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDoing).runState(RunFailed).quietFor(6 * 24 * time.Hour)
+		h.agent("werkbord/feature").taskState(TaskDoing).runState(RunFailed).quietFor(6 * 24 * time.Hour)
 	}, want: []hWant{w(FindAbandonedBranch, HealthAttention)}},
 	{name: "an empty branch, untouched for days", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskBacklog).quietFor(5*24*time.Hour).counts(0, 2).neverAdvanced()
+		h.agent("werkbord/feature").taskState(TaskBacklog).quietFor(5*24*time.Hour).counts(0, 2).neverAdvanced()
 	}, want: []hWant{w(FindAbandonedBranch, HealthInfo)}},
 	{name: "a branch quiet for only a day is not abandoned", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskBacklog).quietFor(20 * time.Hour)
+		h.agent("werkbord/feature").taskState(TaskBacklog).quietFor(20 * time.Hour)
 	}},
 	{name: "work waiting for review is not abandoned however long it has waited a few days", setup: func(h *hb) {
-		h.agent("devboard/feature").quietFor(5 * 24 * time.Hour)
+		h.agent("werkbord/feature").quietFor(5 * 24 * time.Hour)
 	}, want: []hWant{w(FindFinishedUnmerged, HealthAttention)}},
 	{name: "a branch with a live session is never abandoned", setup: func(h *hb) {
-		h.agent("devboard/feature").runState(RunWaitingForUser).taskState(TaskBacklog).quietFor(9 * 24 * time.Hour)
+		h.agent("werkbord/feature").runState(RunWaitingForUser).taskState(TaskBacklog).quietFor(9 * 24 * time.Hour)
 	}},
 	{name: "a stale branch waiting for review", setup: func(h *hb) {
-		a := h.agent("devboard/feature").quietFor(20*24*time.Hour).counts(2, 6)
+		a := h.agent("werkbord/feature").quietFor(20*24*time.Hour).counts(2, 6)
 		a.b.Stale, a.b.StaleWhy = true, "no commits for 20 days while the target moved on by 6"
 	}, want: []hWant{w(FindStaleBranch, HealthAttention)}},
 	{name: "a branch far behind the target", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(2, 30)
+		h.agent("werkbord/feature").counts(2, 30)
 	}, want: []hWant{w(FindBranchFarBehind, HealthAttention)}},
 	{name: "a branch very far behind the target", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(2, 120)
+		h.agent("werkbord/feature").counts(2, 120)
 	}, want: []hWant{w(FindBranchFarBehind, HealthRisk)}},
 	{name: "a branch a little behind is normal", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(2, 10)
+		h.agent("werkbord/feature").counts(2, 10)
 	}},
 	{name: "a merged branch is not reported as behind", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(0, 80).noWorktree()
+		h.agent("werkbord/feature").counts(0, 80).noWorktree()
 	}, want: []hWant{w(FindMergedBranch, HealthInfo)}},
 
 	// ---- orchestration ----
 	{name: "a task is Done but its branch is not merged", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone)
+		h.agent("werkbord/feature").taskState(TaskDone)
 	}, want: []hWant{w(FindTaskDoneUnmerged, HealthRisk)}},
 	{name: "a Done task whose remote branch was deleted is less alarming", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone).upstream(UpstreamGone, 0, 0)
+		h.agent("werkbord/feature").taskState(TaskDone).upstream(UpstreamGone, 0, 0)
 		h.agents[0].b.NotPushed = 2
 	}, want: []hWant{w(FindTaskDoneUnmerged, HealthAttention)}},
 	{name: "a Done task whose branch is merged is fine", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone).counts(0, 2).noWorktree()
+		h.agent("werkbord/feature").taskState(TaskDone).counts(0, 2).noWorktree()
 	}, want: []hWant{w(FindMergedBranch, HealthInfo)}},
 	{name: "finished work left unmerged for more than a day", setup: func(h *hb) {
-		h.agent("devboard/feature").quietFor(30 * time.Hour)
+		h.agent("werkbord/feature").quietFor(30 * time.Hour)
 	}, want: []hWant{w(FindFinishedUnmerged, HealthAttention)}},
 	{name: "finished work from a few hours ago is just waiting for review", setup: func(h *hb) {
-		h.agent("devboard/feature").quietFor(5 * time.Hour)
+		h.agent("werkbord/feature").quietFor(5 * time.Hour)
 	}},
 	{name: "an active task's branch is missing", setup: func(h *hb) {
-		h.agent("devboard/feature").runState(RunRunning).taskState(TaskDoing).withoutBranch()
+		h.agent("werkbord/feature").runState(RunRunning).taskState(TaskDoing).withoutBranch()
 	}, want: []hWant{w(FindMissingBranch, HealthRisk)}},
 	{name: "a finished task's missing branch is not an active-task problem", setup: func(h *hb) {
-		h.agent("devboard/feature").withoutBranch()
+		h.agent("werkbord/feature").withoutBranch()
 	}},
 	{name: "two branches change the same files", setup: func(h *hb) {
-		h.agent("devboard/a")
-		h.agent("devboard/b")
-		h.overlaps = []BranchOverlap{{A: "devboard/a", B: "devboard/b", Files: []string{"server.go"}}}
+		h.agent("werkbord/a")
+		h.agent("werkbord/b")
+		h.overlaps = []BranchOverlap{{A: "werkbord/a", B: "werkbord/b", Files: []string{"server.go"}}}
 	}, want: []hWant{w(FindBranchOverlap, HealthAttention)}},
 	{name: "two branches change the same file but Git merges their commits cleanly", setup: func(h *hb) {
-		h.agent("devboard/a")
-		h.agent("devboard/b")
-		h.overlaps = []BranchOverlap{{A: "devboard/a", B: "devboard/b", Files: []string{"server.go"}, Simulated: true}}
+		h.agent("werkbord/a")
+		h.agent("werkbord/b")
+		h.overlaps = []BranchOverlap{{A: "werkbord/a", B: "werkbord/b", Files: []string{"server.go"}, Simulated: true}}
 	}},
 	{name: "a clean merge of committed work does not hide uncommitted overlap", setup: func(h *hb) {
-		h.agent("devboard/a")
-		h.agent("devboard/b")
-		h.overlaps = []BranchOverlap{{A: "devboard/a", B: "devboard/b", Files: []string{"server.go"}, Simulated: true, Uncommitted: true}}
+		h.agent("werkbord/a")
+		h.agent("werkbord/b")
+		h.overlaps = []BranchOverlap{{A: "werkbord/a", B: "werkbord/b", Files: []string{"server.go"}, Simulated: true, Uncommitted: true}}
 	}, want: []hWant{w(FindBranchOverlap, HealthAttention)}},
 	{name: "Git proves two branches conflict", setup: func(h *hb) {
-		h.agent("devboard/a")
-		h.agent("devboard/b")
-		h.overlaps = []BranchOverlap{{A: "devboard/a", B: "devboard/b", Files: []string{"server.go"}, Simulated: true, Conflicts: true, ConflictFiles: []string{"server.go"}}}
+		h.agent("werkbord/a")
+		h.agent("werkbord/b")
+		h.overlaps = []BranchOverlap{{A: "werkbord/a", B: "werkbord/b", Files: []string{"server.go"}, Simulated: true, Conflicts: true, ConflictFiles: []string{"server.go"}}}
 	}, want: []hWant{w(FindBranchConflict, HealthRisk)}},
 
 	// ---- worktree hygiene ----
 	{name: "a worktree in Werkbord's directory that no record owns", setup: func(h *hb) {
-		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/leftover", Branch: "devboard/old", Head: "cccccccc"})
+		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/leftover", Branch: "werkbord/old", Head: "cccccccc"})
 	}, want: []hWant{w(FindOrphanedWorktree, HealthAttention)}},
 	{name: "a worktree of the user's elsewhere is not Werkbord's business", setup: func(h *hb) {
 		h.extraWTs = append(h.extraWTs, GitWorktree{Path: "/home/me/other-checkout", Branch: "experiment", Head: "cccccccc"})
 	}},
 	{name: "a worktree record that no run ever used", setup: func(h *hb) {
-		h.records = append(h.records, Worktree{ID: "wt_x", ProjectID: "p1", Path: hWTRoot + "/unused", Branch: "devboard/unused", BaseRef: "main", State: WorktreeActive, CreatedAt: hNow.Add(-3 * time.Hour)})
-		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/unused", Branch: "devboard/unused", Head: "cccccccc", Owned: true, WorktreeID: "wt_x", Dirty: &GitChangeCounts{}})
-		h.extra = append(h.extra, &GitBranch{Name: "devboard/unused", Scope: ScopeLocal, VsTarget: GitVsTarget{Relation: RelSame}, Merged: true, Attention: []GitAttention{}})
+		h.records = append(h.records, Worktree{ID: "wt_x", ProjectID: "p1", Path: hWTRoot + "/unused", Branch: "werkbord/unused", BaseRef: "main", State: WorktreeActive, CreatedAt: hNow.Add(-3 * time.Hour)})
+		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/unused", Branch: "werkbord/unused", Head: "cccccccc", Owned: true, WorktreeID: "wt_x", Dirty: &GitChangeCounts{}})
+		h.extra = append(h.extra, &GitBranch{Name: "werkbord/unused", Scope: ScopeLocal, VsTarget: GitVsTarget{Relation: RelSame}, Merged: true, Attention: []GitAttention{}})
 	}, want: []hWant{w(FindWorktreeNoRun, HealthAttention)}},
 	{name: "a worktree record created a moment ago has not had time to get a run", setup: func(h *hb) {
-		h.records = append(h.records, Worktree{ID: "wt_x", ProjectID: "p1", Path: hWTRoot + "/new", Branch: "devboard/new", BaseRef: "main", State: WorktreeActive, CreatedAt: hNow.Add(-2 * time.Minute)})
-		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/new", Branch: "devboard/new", Head: "cccccccc", Owned: true, WorktreeID: "wt_x", Dirty: &GitChangeCounts{}})
+		h.records = append(h.records, Worktree{ID: "wt_x", ProjectID: "p1", Path: hWTRoot + "/new", Branch: "werkbord/new", BaseRef: "main", State: WorktreeActive, CreatedAt: hNow.Add(-2 * time.Minute)})
+		h.extraWTs = append(h.extraWTs, GitWorktree{Path: hWTRoot + "/new", Branch: "werkbord/new", Head: "cccccccc", Owned: true, WorktreeID: "wt_x", Dirty: &GitChangeCounts{}})
 	}},
 	{name: "a Done task keeps a clean worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone).counts(0, 0)
+		h.agent("werkbord/feature").taskState(TaskDone).counts(0, 0)
 	}, want: []hWant{w(FindWorktreeAfterDone, HealthInfo)}},
 	{name: "a Done task with uncommitted work is reported as uncommitted, not as a spare worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").taskState(TaskDone).counts(0, 0).dirty(GitChangeCounts{Unstaged: 1})
+		h.agent("werkbord/feature").taskState(TaskDone).counts(0, 0).dirty(GitChangeCounts{Unstaged: 1})
 	}, want: []hWant{w(FindUncommittedWork, HealthRisk)}},
 	{name: "a task in Review may keep its worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").counts(0, 0)
+		h.agent("werkbord/feature").counts(0, 0)
 	}},
 	{name: "the record says a worktree is active but Git does not list it", setup: func(h *hb) {
-		h.agent("devboard/feature").notInGit()
+		h.agent("werkbord/feature").notInGit()
 	}, want: []hWant{w(FindWorktreeMismatch, HealthAttention)}},
 	{name: "someone switched an agent's worktree to another branch", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		a.w.Branch = "other"
 	}, want: []hWant{w(FindWorktreeMismatch, HealthAttention)}},
 	{name: "an agent's worktree is on a detached HEAD", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		a.w.Branch, a.w.Detached = "", true
 	}, want: []hWant{w(FindWorktreeMismatch, HealthAttention)}},
 	{name: "an agent's worktree directory is gone", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		a.w.Missing = true
 		a.b.Worktree.Missing = true
 	}, want: []hWant{w(FindWorktreeMismatch, HealthAttention)}},
 	{name: "a removal that was begun and never finished", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		t := hNow.Add(-time.Hour)
 		a.rec.RemovingSince = &t
 	}, want: []hWant{w(FindWorktreeMismatch, HealthAttention)}},
 	{name: "a removal begun a moment ago is in progress, not stuck", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		t := hNow.Add(-time.Minute)
 		a.rec.RemovingSince = &t
 	}},
 
 	// ---- Git operations ----
 	{name: "a merge was left unfinished in an agent's worktree", setup: func(h *hb) {
-		a := h.agent("devboard/feature")
+		a := h.agent("werkbord/feature")
 		a.w.Operation = "merge"
 	}, want: []hWant{w(FindOperationInterrupt, HealthAttention)}},
 	{name: "a rebase was left unfinished in an agent's worktree", setup: func(h *hb) {
-		h.agent("devboard/feature").w.Operation = "rebase"
+		h.agent("werkbord/feature").w.Operation = "rebase"
 	}, want: []hWant{w(FindOperationInterrupt, HealthRisk)}},
 	{name: "a merge is unfinished in the user's checkout", setup: func(h *hb) {
 		h.primary().Operation = "merge"
@@ -512,7 +512,7 @@ var hCases = []hCase{
 		h.primary().Operation = "bisect"
 	}, want: []hWant{w(FindOperationInterrupt, HealthInfo)}},
 	{name: "an operation in a worktree where an agent is working is the agent's", setup: func(h *hb) {
-		a := h.agent("devboard/feature").runState(RunRunning).taskState(TaskDoing)
+		a := h.agent("werkbord/feature").runState(RunRunning).taskState(TaskDoing)
 		a.w.Operation = "rebase"
 	}},
 	{name: "unresolved conflicts in the user's checkout block everything", setup: func(h *hb) {
@@ -520,7 +520,7 @@ var hCases = []hCase{
 		h.primary().Operation = "merge"
 	}, want: []hWant{w(FindUnresolvedConflict, HealthCritical)}},
 	{name: "unresolved conflicts in an agent's worktree", setup: func(h *hb) {
-		a := h.agent("devboard/feature").dirty(GitChangeCounts{Conflicted: 1})
+		a := h.agent("werkbord/feature").dirty(GitChangeCounts{Conflicted: 1})
 		a.w.Operation = "merge"
 	}, want: []hWant{w(FindUnresolvedConflict, HealthRisk)}},
 	{name: "no target branch could be found", setup: func(h *hb) {
@@ -532,7 +532,7 @@ var hCases = []hCase{
 	}, want: []hWant{w(FindAutomationBlocked, HealthAttention)}},
 	{name: "the target is not checked out and a branch is ready to merge", setup: func(h *hb) {
 		h.o.Local.Target.CheckedOut = ""
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}, want: []hWant{w(FindAutomationBlocked, HealthAttention)}},
 	{name: "the target is not checked out but there is nothing to merge", setup: func(h *hb) {
 		h.o.Local.Target.CheckedOut = ""
@@ -542,7 +542,7 @@ var hCases = []hCase{
 	}, want: []hWant{w(FindAutomationBlocked, HealthInfo)}},
 	{name: "a detached HEAD with work to merge needs attention", setup: func(h *hb) {
 		h.o.Local.Head = GitHead{Commit: "aaaaaaaa", Detached: true}
-		h.agent("devboard/feature")
+		h.agent("werkbord/feature")
 	}, want: []hWant{w(FindAutomationBlocked, HealthAttention)}},
 	{name: "an index.lock left behind", setup: func(h *hb) {
 		t := hNow.Add(-2 * time.Hour)
@@ -717,9 +717,9 @@ func TestUnreadableRepository(t *testing.T) {
 // only acceptable when Git proved it.
 func TestOverlapIsWordedAsAPossibilityUnlessGitProvedIt(t *testing.T) {
 	h := newHB()
-	h.agent("devboard/a")
-	h.agent("devboard/b")
-	h.overlaps = []BranchOverlap{{A: "devboard/a", B: "devboard/b", Files: []string{"x.go", "y.go"}}}
+	h.agent("werkbord/a")
+	h.agent("werkbord/b")
+	h.overlaps = []BranchOverlap{{A: "werkbord/a", B: "werkbord/b", Files: []string{"x.go", "y.go"}}}
 	f := h.findings()[0]
 	text := strings.ToLower(f.Title + " " + f.Explanation)
 	if f.Type != FindBranchOverlap || f.Basis != BasisHeuristic || !strings.Contains(text, "may conflict") || strings.Contains(f.Title, "conflict") {
@@ -746,11 +746,11 @@ func TestWhichSignalsAreHeuristic(t *testing.T) {
 
 func TestActionsAreNeverExecutedAndDestructiveOnesAreFlagged(t *testing.T) {
 	h := newHB()
-	h.agent("devboard/feature").counts(0, 3).noWorktree()
+	h.agent("werkbord/feature").counts(0, 3).noWorktree()
 	for _, f := range h.findings() {
 		if f.Type == FindMergedBranch {
 			a := f.Action
-			if a.Kind != ActDeleteBranch || !a.Destructive || !a.CanPerform || a.Branch != "devboard/feature" {
+			if a.Kind != ActDeleteBranch || !a.Destructive || !a.CanPerform || a.Branch != "werkbord/feature" {
 				t.Fatalf("delete action = %+v", a)
 			}
 			return
@@ -761,14 +761,14 @@ func TestActionsAreNeverExecutedAndDestructiveOnesAreFlagged(t *testing.T) {
 
 func TestDeleteNeedsTheWorktreeCleanedFirst(t *testing.T) {
 	h := newHB()
-	h.agent("devboard/feature").counts(0, 3)
+	h.agent("werkbord/feature").counts(0, 3)
 	f := h.findings()[0]
 	if f.Action.Kind != ActCleanWorktree || !f.Action.CanPerform || f.Action.WorktreeID == "" {
 		t.Fatalf("a merged branch that still has a worktree should say to clean it first: %+v", f.Action)
 	}
 	// ... and when the worktree has uncommitted work, Werkbord says it cannot.
 	h = newHB()
-	h.agent("devboard/feature").counts(0, 3).dirty(GitChangeCounts{Unstaged: 1})
+	h.agent("werkbord/feature").counts(0, 3).dirty(GitChangeCounts{Unstaged: 1})
 	for _, f := range h.findings() {
 		if f.Type == FindMergedBranch && f.Action.CanPerform {
 			t.Fatalf("cleaning a dirty worktree must not be offered: %+v", f.Action)
@@ -778,7 +778,7 @@ func TestDeleteNeedsTheWorktreeCleanedFirst(t *testing.T) {
 
 func TestPushIsNotOfferedWhenItWouldBeRejected(t *testing.T) {
 	h := newHB()
-	h.agent("devboard/feature").upstream(UpstreamDiverged, 1, 1)
+	h.agent("werkbord/feature").upstream(UpstreamDiverged, 1, 1)
 	f := h.findings()[0]
 	if f.Action.Kind != ActSyncBranch || f.Action.CanPerform || f.Action.Reason == "" {
 		t.Fatalf("a diverged branch needs a sync Werkbord cannot do: %+v", f.Action)
@@ -787,7 +787,7 @@ func TestPushIsNotOfferedWhenItWouldBeRejected(t *testing.T) {
 	h = newHB()
 	h.o.Remote.Remotes = append(h.o.Remote.Remotes, GitRemote{Name: "backup"})
 	h.o.Remote.Remotes[0].Name = "mirror"
-	h.agent("devboard/feature").noUpstream(2)
+	h.agent("werkbord/feature").noUpstream(2)
 	f = h.findings()[0]
 	if f.Action.CanPerform {
 		t.Fatalf("several remotes and none called origin: push cannot be offered: %+v", f.Action)
@@ -810,7 +810,7 @@ func TestMergeIsOnlyOfferedWhenItCouldRun(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHB()
-			h.agent("devboard/feature").taskState(TaskDone)
+			h.agent("werkbord/feature").taskState(TaskDone)
 			tc.setup(h)
 			var done *HealthFinding
 			for _, f := range h.findings() {
@@ -833,21 +833,21 @@ func TestMergeIsOnlyOfferedWhenItCouldRun(t *testing.T) {
 // ---- identity, summary, order ----
 
 func TestFindingIDsAreStableAndSpecific(t *testing.T) {
-	a := HealthFindingID("p1", FindStaleBranch, "devboard/x")
-	if a != HealthFindingID("p1", FindStaleBranch, "devboard/x") {
+	a := HealthFindingID("p1", FindStaleBranch, "werkbord/x")
+	if a != HealthFindingID("p1", FindStaleBranch, "werkbord/x") {
 		t.Fatal("the same finding must have the same id")
 	}
 	for _, other := range []string{
-		HealthFindingID("p2", FindStaleBranch, "devboard/x"),
-		HealthFindingID("p1", FindAbandonedBranch, "devboard/x"),
-		HealthFindingID("p1", FindStaleBranch, "devboard/y"),
+		HealthFindingID("p2", FindStaleBranch, "werkbord/x"),
+		HealthFindingID("p1", FindAbandonedBranch, "werkbord/x"),
+		HealthFindingID("p1", FindStaleBranch, "werkbord/y"),
 	} {
 		if other == a {
 			t.Fatal("different findings must have different ids")
 		}
 	}
 	h := newHB()
-	h.agent("devboard/feature").dirty(GitChangeCounts{Unstaged: 1})
+	h.agent("werkbord/feature").dirty(GitChangeCounts{Unstaged: 1})
 	if h.findings()[0].ID != h.findings()[0].ID {
 		t.Fatal("recomputing must not change ids")
 	}
@@ -927,9 +927,9 @@ func TestSortPutsTheWorstFirst(t *testing.T) {
 func TestABusyDayWithNothingWrongIsHealthy(t *testing.T) {
 	h := newHB()
 	for _, n := range []string{"a", "b", "c", "d", "e", "f"} {
-		h.agent("devboard/" + n)
+		h.agent("werkbord/" + n)
 	}
-	h.agent("devboard/working").runState(RunRunning).taskState(TaskDoing).dirty(GitChangeCounts{Unstaged: 9, Untracked: 30}).noUpstream(4)
+	h.agent("werkbord/working").runState(RunRunning).taskState(TaskDoing).dirty(GitChangeCounts{Unstaged: 9, Untracked: 30}).noUpstream(4)
 	s := SummarizeHealth(h.findings())
 	if s.State != HealthHealthy || s.NeedsAttention != 0 {
 		t.Fatalf("a busy day with nothing wrong reported %+v", s)
@@ -1053,7 +1053,7 @@ func TestDismissAndReopen(t *testing.T) {
 func TestWordingAgreesWithTheCount(t *testing.T) {
 	for ahead, want := range map[int]string{1: "1 commit exists here", 3: "3 commits exist here"} {
 		h := newHB()
-		h.agent("devboard/feature").upstream(UpstreamAhead, ahead, 0)
+		h.agent("werkbord/feature").upstream(UpstreamAhead, ahead, 0)
 		var got string
 		for _, f := range h.findings() {
 			if f.Type == FindUnpushedCommits {
@@ -1069,7 +1069,7 @@ func TestWordingAgreesWithTheCount(t *testing.T) {
 // Asking an agent is a step the user takes: the finding only offers to add a card.
 func TestAskingAnAgentOnlyAddsATask(t *testing.T) {
 	h := newHB()
-	h.agent("devboard/feature").runState(RunRunning).taskState(TaskDoing).withoutBranch()
+	h.agent("werkbord/feature").runState(RunRunning).taskState(TaskDoing).withoutBranch()
 	for _, f := range h.findings() {
 		if f.Type != FindMissingBranch {
 			continue

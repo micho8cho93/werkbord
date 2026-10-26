@@ -217,10 +217,10 @@ func (a *gitAssoc) runsOn(branch string) []domain.Run {
 }
 
 // ownership says what Werkbord knows about a local branch. "Created" needs both
-// the devboard/ name and a record of a worktree made for exactly this branch in
+// the werkbord/ name and a record of a worktree made for exactly this branch in
 // this project: a name proves nothing, because anyone can type it.
 func (a *gitAssoc) ownership(branch string) domain.GitBranchOwnership {
-	o := domain.GitBranchOwnership{Namespace: domain.InDevBoardNamespace(branch), Phase: domain.PhaseNone}
+	o := domain.GitBranchOwnership{Namespace: domain.InWerkbordNamespace(branch), Phase: domain.PhaseNone}
 	wts := a.byBranch[branch]
 	o.Created = o.Namespace && len(wts) > 0
 	for _, w := range wts {
@@ -373,7 +373,7 @@ func (s *GitControl) overview(ctx context.Context, t *gitCtx, a *gitAssoc) (*dom
 	sort.Slice(locals, func(i, j int) bool { return locals[i].Date.After(locals[j].Date) })
 	// Werkbord's own branches are measured first, so a cap never hides them.
 	sort.SliceStable(locals, func(i, j int) bool {
-		return domain.InDevBoardNamespace(locals[i].Name) && !domain.InDevBoardNamespace(locals[j].Name)
+		return domain.InWerkbordNamespace(locals[i].Name) && !domain.InWerkbordNamespace(locals[j].Name)
 	})
 	detailed := locals
 	if len(detailed) > maxBranchesDetailed {
@@ -460,12 +460,12 @@ func summarize(branches []domain.GitBranch, wts []domain.GitWorktree) domain.Git
 			continue
 		}
 		sum.Branches++
-		if b.DevBoard.Created {
-			sum.DevBoard++
-			if b.VsTarget.Relation == domain.RelAhead && !b.DevBoard.ActiveRun {
+		if b.Werkbord.Created {
+			sum.Werkbord++
+			if b.VsTarget.Relation == domain.RelAhead && !b.Werkbord.ActiveRun {
 				sum.Mergeable++
 			}
-			if b.VsTarget.Relation == domain.RelMerged && !b.DevBoard.ActiveRun {
+			if b.VsTarget.Relation == domain.RelMerged && !b.Werkbord.ActiveRun {
 				sum.Cleanup++
 			}
 		}
@@ -567,7 +567,7 @@ func (s *GitControl) localBranch(ctx context.Context, t *gitCtx, a *gitAssoc, r 
 		Head: r.Name == headBranch, Target: r.Name == tinfo.Name && tinfo.LocalExists,
 		Protected: domain.ProtectedBranch(r.Name, tinfo.Name, headBranch),
 		Upstream:  upstreamOf(r, byRef),
-		DevBoard:  a.ownership(r.Name),
+		Werkbord:  a.ownership(r.Name),
 		VsTarget:  domain.GitVsTarget{Relation: domain.RelUnknown},
 		Attention: []domain.GitAttention{},
 	}
@@ -616,14 +616,14 @@ func (s *GitControl) remoteBranch(ctx context.Context, t *gitCtx, a *gitAssoc, r
 	b := domain.GitBranch{
 		Name: r.Name, Ref: r.Ref, Scope: domain.ScopeRemote, Remote: r.Remote, Sha: r.Sha, Subject: r.Subject, CommitDate: r.Date,
 		VsTarget: domain.GitVsTarget{Relation: domain.RelUnknown}, Attention: []domain.GitAttention{},
-		DevBoard: domain.GitBranchOwnership{Phase: domain.PhaseNone, Namespace: domain.InDevBoardNamespace(strings.TrimPrefix(r.Name, r.Remote+"/"))},
+		Werkbord: domain.GitBranchOwnership{Phase: domain.PhaseNone, Namespace: domain.InWerkbordNamespace(strings.TrimPrefix(r.Name, r.Remote+"/"))},
 		Upstream: domain.GitUpstream{State: domain.UpstreamNone},
 	}
 	if err := branchNameProblem(strings.TrimPrefix(r.Name, r.Remote+"/")); err != nil {
 		b.Unusual = err.Error()
 	}
 	short := strings.TrimPrefix(r.Name, r.Remote+"/")
-	b.DevBoard = a.ownership(short)
+	b.Werkbord = a.ownership(short)
 	if _, ok := byRef["refs/heads/"+short]; ok {
 		b.LocalName = short
 	}

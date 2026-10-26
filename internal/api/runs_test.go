@@ -215,7 +215,7 @@ func TestWorktreeOfARunIsReadable(t *testing.T) {
 	if code := do(t, "GET", rs.url+"/api/projects/"+rs.project.ID+"/worktrees/"+run.WorktreeID, "", &wt); code != 200 {
 		t.Fatalf("get worktree: %d", code)
 	}
-	if wt.ID != run.WorktreeID || !strings.HasPrefix(wt.Branch, "devboard/where-is-my-work-") || wt.State != domain.WorktreeActive || !filepath.IsAbs(wt.Path) {
+	if wt.ID != run.WorktreeID || !strings.HasPrefix(wt.Branch, "werkbord/where-is-my-work-") || wt.State != domain.WorktreeActive || !filepath.IsAbs(wt.Path) {
 		t.Fatalf("worktree = %+v", wt)
 	}
 	var e apiError

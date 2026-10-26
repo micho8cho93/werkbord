@@ -1,11 +1,11 @@
-// Package update finds, downloads, verifies and installs a newer devboard.
+// Package update finds, downloads, verifies and installs a newer werkbord.
 //
 // Releases live where the installer gets them: a GitHub releases page, laid out as
 //
 //	<base>/latest                       redirects to <base>/tag/<tag>
 //	<base>/download/<tag>/<asset>       a release asset
 //
-// with one archive per platform, devboard_<version>_<os>_<arch>.tar.gz (.zip on
+// with one archive per platform, werkbord_<version>_<os>_<arch>.tar.gz (.zip on
 // Windows), and a checksums.txt (sha256sum format) beside them. Nothing is
 // installed unless its checksum matches, and nothing is run before that.
 //
@@ -347,7 +347,7 @@ func BinaryName(goos string) string {
 	return "werkbord"
 }
 
-// ExtractBinary takes the werkbord executable (named devboard in a release from
+// ExtractBinary takes the werkbord executable (named werkbord in a release from
 // before the rename) out of an archive and writes it into
 // dir. Only that one file is read, by name, and never from a path the archive
 // chooses, so a hostile archive cannot write elsewhere.

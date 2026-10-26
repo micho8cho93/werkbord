@@ -129,7 +129,7 @@ func (f *gcFixture) agent(t *testing.T, title string, n int) *agentBranch {
 		t.Fatal(err)
 	}
 	tail := task.ID[len(task.ID)-6:]
-	a := &agentBranch{task: task, branch: "devboard/" + strings.ReplaceAll(strings.ToLower(title), " ", "-") + "-" + tail}
+	a := &agentBranch{task: task, branch: "werkbord/" + strings.ReplaceAll(strings.ToLower(title), " ", "-") + "-" + tail}
 	a.path = filepath.Join(f.wtRoot, f.project.ID, strings.ReplaceAll(a.branch, "/", "_"))
 	if err := os.MkdirAll(filepath.Dir(a.path), 0o755); err != nil {
 		t.Fatal(err)
@@ -358,7 +358,7 @@ func TestBranchStatesMergedAheadUpstreamAndOwnership(t *testing.T) {
 	commitIn(t, ahead.path, "more.txt", "m\n", "unpushed follow-up")
 	// A branch of the user's own, and one that only has Werkbord's name.
 	git(t, f.repo, "branch", "my-experiment", "main")
-	git(t, f.repo, "branch", "devboard/impostor-000000", "main")
+	git(t, f.repo, "branch", "werkbord/impostor-000000", "main")
 
 	o := f.overview(t)
 
@@ -369,9 +369,9 @@ func TestBranchStatesMergedAheadUpstreamAndOwnership(t *testing.T) {
 	if a.Upstream.State != domain.UpstreamAhead || a.Upstream.Ahead != 1 || a.NotPushed != 1 || a.Upstream.Name != "origin/"+ahead.branch {
 		t.Errorf("upstream = %+v notPushed=%d", a.Upstream, a.NotPushed)
 	}
-	if !a.DevBoard.Created || !a.DevBoard.Namespace || a.DevBoard.TaskID != ahead.task.ID || a.DevBoard.TaskTitle != "Ahead work" ||
-		a.DevBoard.RunID != ahead.run.ID || a.DevBoard.RunState != domain.RunCompleted || a.DevBoard.Phase != domain.PhaseReview || a.DevBoard.ActiveRun {
-		t.Errorf("ownership = %+v", a.DevBoard)
+	if !a.Werkbord.Created || !a.Werkbord.Namespace || a.Werkbord.TaskID != ahead.task.ID || a.Werkbord.TaskTitle != "Ahead work" ||
+		a.Werkbord.RunID != ahead.run.ID || a.Werkbord.RunState != domain.RunCompleted || a.Werkbord.Phase != domain.PhaseReview || a.Werkbord.ActiveRun {
+		t.Errorf("ownership = %+v", a.Werkbord)
 	}
 	if a.Worktree == nil || !a.Worktree.Owned || a.Worktree.WorktreeID != ahead.wt.ID || a.Worktree.Path != ahead.path || a.Worktree.Primary {
 		t.Errorf("worktree = %+v", a.Worktree)
@@ -396,25 +396,25 @@ func TestBranchStatesMergedAheadUpstreamAndOwnership(t *testing.T) {
 	}
 
 	mine := mustBranch(t, o, "my-experiment")
-	if mine.DevBoard.Created || mine.DevBoard.Namespace || mine.DevBoard.Phase != domain.PhaseNone || mine.Worktree != nil {
-		t.Errorf("a user's branch = %+v", mine.DevBoard)
+	if mine.Werkbord.Created || mine.Werkbord.Namespace || mine.Werkbord.Phase != domain.PhaseNone || mine.Worktree != nil {
+		t.Errorf("a user's branch = %+v", mine.Werkbord)
 	}
-	imp := mustBranch(t, o, "devboard/impostor-000000")
-	if imp.DevBoard.Created || !imp.DevBoard.Namespace {
-		t.Errorf("a branch that only has the name = %+v: a name alone must not count as created by Werkbord", imp.DevBoard)
+	imp := mustBranch(t, o, "werkbord/impostor-000000")
+	if imp.Werkbord.Created || !imp.Werkbord.Namespace {
+		t.Errorf("a branch that only has the name = %+v: a name alone must not count as created by Werkbord", imp.Werkbord)
 	}
 
 	// Werkbord's branches come first, and the merged one sorts with its cleanup reason.
 	var firstNonOwned int = -1
 	for i, b := range o.Branches {
-		if !b.DevBoard.Created && firstNonOwned < 0 {
+		if !b.Werkbord.Created && firstNonOwned < 0 {
 			firstNonOwned = i
 		}
-		if b.DevBoard.Created && firstNonOwned >= 0 {
+		if b.Werkbord.Created && firstNonOwned >= 0 {
 			t.Errorf("owned branch %s is listed after non-owned %s", b.Name, o.Branches[firstNonOwned].Name)
 		}
 	}
-	if o.Summary.DevBoard != 3 || o.Summary.Cleanup != 1 || o.Summary.Mergeable != 1 || o.Summary.Worktrees != 3 {
+	if o.Summary.Werkbord != 3 || o.Summary.Cleanup != 1 || o.Summary.Mergeable != 1 || o.Summary.Worktrees != 3 {
 		t.Errorf("summary = %+v", o.Summary)
 	}
 }
@@ -450,7 +450,7 @@ func TestTaskPhaseFollowsTheTaskAndItsRuns(t *testing.T) {
 	f := newGC(t)
 	a := f.agent(t, "Phase work", 1)
 	phase := func() domain.TaskPhase {
-		return mustBranch(t, f.overview(t), a.branch).DevBoard.Phase
+		return mustBranch(t, f.overview(t), a.branch).Werkbord.Phase
 	}
 	if phase() != domain.PhaseReview {
 		t.Errorf("review: %s", phase())
@@ -472,8 +472,8 @@ func TestTaskPhaseFollowsTheTaskAndItsRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := mustBranch(t, f.overview(t), a.branch)
-	if b.DevBoard.Phase != domain.PhaseActive || !b.DevBoard.ActiveRun || b.DevBoard.RunID != run.ID || b.DevBoard.RunState != domain.RunRunning {
-		t.Errorf("active = %+v", b.DevBoard)
+	if b.Werkbord.Phase != domain.PhaseActive || !b.Werkbord.ActiveRun || b.Werkbord.RunID != run.ID || b.Werkbord.RunState != domain.RunRunning {
+		t.Errorf("active = %+v", b.Werkbord)
 	}
 }
 
@@ -639,7 +639,7 @@ func TestRemoteOnlyBranchesAreListedAsRemote(t *testing.T) {
 			rb = &o.Branches[i]
 		}
 	}
-	if rb == nil || rb.Remote != "origin" || rb.VsTarget.Relation != domain.RelAhead || rb.LocalName != "" || rb.DevBoard.Created {
+	if rb == nil || rb.Remote != "origin" || rb.VsTarget.Relation != domain.RelAhead || rb.LocalName != "" || rb.Werkbord.Created {
 		t.Fatalf("remote branch = %+v", rb)
 	}
 	for _, b := range o.Branches {

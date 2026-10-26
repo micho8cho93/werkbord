@@ -251,7 +251,7 @@ func TestNetworkChecksNeverShowTheSignInLink(t *testing.T) {
 		{netprivate.Status{State: netprivate.StateNeedsLogin, AuthURL: "https://login.tailscale.com/a/SECRET"}, Warn, "sign in"},
 		{netprivate.Status{State: netprivate.StateNeedsApproval}, Warn, "approve"},
 		{netprivate.Status{State: netprivate.StateError, Error: "no route"}, Fail, "no route"},
-		{netprivate.Status{State: netprivate.StateConnected, URL: "https://devboard.ts.net/", HTTPS: true}, OK, "https://devboard.ts.net/"},
+		{netprivate.Status{State: netprivate.StateConnected, URL: "https://werkbord.ts.net/", HTTPS: true}, OK, "https://werkbord.ts.net/"},
 		{netprivate.Status{State: netprivate.StateConnected, URL: "http://100.1.1.1/", HTTPSHint: "Turn on HTTPS"}, Warn, "http"},
 	}
 	for _, tc := range cases {

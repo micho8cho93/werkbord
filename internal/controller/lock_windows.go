@@ -22,7 +22,7 @@ func acquireLock(path string) (release func(), err error) {
 	if err := windows.LockFileEx(h, windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, ol); err != nil {
 		_ = f.Close()
 		if errors.Is(err, windows.ERROR_LOCK_VIOLATION) {
-			return nil, fmt.Errorf("another devboard controller is already using %s", path)
+			return nil, fmt.Errorf("another werkbord controller is already using %s", path)
 		}
 		return nil, err
 	}

@@ -1,8 +1,8 @@
 import { isEmbedded } from '../../../internal/nativebridge/bridge.js';
 import type { ControllerEvent } from './types';
 
-const ENABLED_KEY = 'devboard.notifications.enabled';
-const SEEN_KEY = 'devboard.notifications.seen';
+const ENABLED_KEY = 'werkbord.notifications.enabled';
+const SEEN_KEY = 'werkbord.notifications.seen';
 
 /** Browser notifications are optional, local to this browser and never sent through a Werkbord service. */
 export function notificationsEnabled(): boolean {
@@ -85,7 +85,7 @@ export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle:
     return;
   }
   try {
-    const notification = new Notification(message.title, { body: message.body, tag: `devboard-${seq}`, icon: '/icon-192.png' });
+    const notification = new Notification(message.title, { body: message.body, tag: `werkbord-${seq}`, icon: '/icon-192.png' });
     notification.onclick = () => window.focus();
   } catch {
     // Permissions or platform notification support may change while the app is open.

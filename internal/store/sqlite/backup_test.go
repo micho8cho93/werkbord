@@ -14,7 +14,7 @@ import (
 // oldDatabase makes a database at an earlier schema version with one project in it.
 func oldDatabase(t *testing.T, version int) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "devboard.db")
+	path := filepath.Join(t.TempDir(), "werkbord.db")
 	raw, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestUpgradeBacksUpTheOldDatabaseFirst(t *testing.T) {
 	}
 	defer db.Close()
 	entries, err := os.ReadDir(BackupDir(path))
-	if err != nil || len(entries) != 1 || !strings.HasPrefix(entries[0].Name(), "devboard-v5-") {
+	if err != nil || len(entries) != 1 || !strings.HasPrefix(entries[0].Name(), "werkbord-v5-") {
 		t.Fatalf("backups = %v, %v", entries, err)
 	}
 	// The backup is the database as it was: still version 5, with the data, and not migrated.
@@ -76,7 +76,7 @@ func mustMigrations(t *testing.T) []Migration {
 }
 
 func TestNoBackupForANewOrCurrentDatabase(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "devboard.db")
+	path := filepath.Join(t.TempDir(), "werkbord.db")
 	db, err := Open(ctx, path, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestNoBackupForANewOrCurrentDatabase(t *testing.T) {
 func TestOldBackupsArePruned(t *testing.T) {
 	dir := t.TempDir()
 	for i := 1; i <= 8; i++ {
-		name := filepath.Join(dir, "devboard-v"+string(rune('0'+i))+"-2026010"+string(rune('0'+i))+"T000000Z.db")
+		name := filepath.Join(dir, "werkbord-v"+string(rune('0'+i))+"-2026010"+string(rune('0'+i))+"T000000Z.db")
 		if err := os.WriteFile(name, []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestOldBackupsArePruned(t *testing.T) {
 			dbs = append(dbs, e.Name())
 		}
 	}
-	if len(dbs) != keepBackups || dbs[0] != "devboard-v4-20260104T000000Z.db" {
+	if len(dbs) != keepBackups || dbs[0] != "werkbord-v4-20260104T000000Z.db" {
 		t.Fatalf("kept %v: the newest %d should stay", dbs, keepBackups)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "notes.txt")); err != nil {

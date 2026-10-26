@@ -173,8 +173,8 @@ func TestAgentSettingsAreLoadedFromTheConfigFile(t *testing.T) {
 
 func TestWorktreesDefaultToTheDataDirectory(t *testing.T) {
 	c := Default()
-	c.DataDir = "/data/devboard"
-	if got := c.WorktreesPath(); got != "/data/devboard/worktrees" {
+	c.DataDir = "/data/werkbord"
+	if got := c.WorktreesPath(); got != "/data/werkbord/worktrees" {
 		t.Fatalf("WorktreesPath = %s", got)
 	}
 	t.Setenv("WERKBORD_WORKTREES_DIR", "/elsewhere")
@@ -274,7 +274,7 @@ func TestLoadInUsesTheGivenDataDirAndStillReadsItsConfig(t *testing.T) {
 	if c.DataDir != dir || c.Addr != "127.0.0.1:7431" || c.LogLevel != "debug" {
 		t.Fatalf("LoadIn = %+v: want the given data dir and its config.json, with the rest of the environment applied", c)
 	}
-	if c.DBPath() != filepath.Join(dir, "devboard.db") {
+	if c.DBPath() != filepath.Join(dir, "werkbord.db") {
 		t.Fatalf("the database is at %s: a second independent install", c.DBPath())
 	}
 }

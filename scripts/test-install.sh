@@ -144,7 +144,7 @@ newhome 4
 out=$($SH scripts/install.sh 2>&1) || bad "the full install failed" "$out"
 contains "$out" "Installed $HOME/.local/bin/werkbord" || bad "install output" "$out"
 contains "$out" "Setting up Werkbord v9.0.2" || bad "setup did not run after the install" "$out"
-[ -f "$HOME/data/devboard.db" ] || bad "the database was not created" "$out"
+[ -f "$HOME/data/werkbord.db" ] || bad "the database was not created" "$out"
 [ -f "$HOME/data/config.json" ] || bad "config.json was not created"
 [ -f "$HOME/data/token" ] || bad "the access token was not created"
 health=$(api /api/health) || bad "the controller is not answering" "$out"
@@ -163,7 +163,7 @@ ok "a clean install ends with a running controller, a database and this computer
 newhome 5
 WERKBORD_VERSION=v9.0.1 $SH scripts/install.sh >/dev/null 2>&1 || bad "installing v9.0.1 failed"
 health=$(api /api/health); contains "$health" '"version":"v9.0.1"' || bad "v9.0.1 is not running" "$health"
-before=$(ls -l "$HOME/data/devboard.db" | awk '{print $5}')
+before=$(ls -l "$HOME/data/werkbord.db" | awk '{print $5}')
 TOKEN=$(cat "$HOME/data/token")
 # some data worth keeping: a project
 git init -q -b main "$HOME/repo" && git -C "$HOME/repo" -c user.name=t -c user.email=t@e.com commit -q --allow-empty -m init

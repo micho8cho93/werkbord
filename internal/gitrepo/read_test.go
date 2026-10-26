@@ -16,9 +16,9 @@ func TestListRefsAndUpstreamTracking(t *testing.T) {
 	g := &CLI{}
 	ctx := context.Background()
 
-	run(t, repo, "checkout", "-q", "-b", "devboard/feature-abc123")
+	run(t, repo, "checkout", "-q", "-b", "werkbord/feature-abc123")
 	commit(t, repo, "f.txt", "1\n", "feature work")
-	run(t, repo, "push", "-q", "-u", "origin", "devboard/feature-abc123")
+	run(t, repo, "push", "-q", "-u", "origin", "werkbord/feature-abc123")
 	commit(t, repo, "f.txt", "2\n", "more feature work") // one ahead of its upstream
 	run(t, repo, "checkout", "-q", "-b", "no-upstream", "main")
 
@@ -30,8 +30,8 @@ func TestListRefsAndUpstreamTracking(t *testing.T) {
 	for _, r := range refs {
 		by[r.Ref] = r
 	}
-	feat := by["refs/heads/devboard/feature-abc123"]
-	if feat.Name != "devboard/feature-abc123" || feat.UpstreamRef != "refs/remotes/origin/devboard/feature-abc123" || feat.Track != "ahead 1" {
+	feat := by["refs/heads/werkbord/feature-abc123"]
+	if feat.Name != "werkbord/feature-abc123" || feat.UpstreamRef != "refs/remotes/origin/werkbord/feature-abc123" || feat.Track != "ahead 1" {
 		t.Errorf("feature = %+v", feat)
 	}
 	if feat.Subject != "more feature work" || feat.Date.IsZero() {
@@ -40,8 +40,8 @@ func TestListRefsAndUpstreamTracking(t *testing.T) {
 	if nu := by["refs/heads/no-upstream"]; nu.UpstreamRef != "" {
 		t.Errorf("no-upstream has upstream %q", nu.UpstreamRef)
 	}
-	rem := by["refs/remotes/origin/devboard/feature-abc123"]
-	if rem.Remote != "origin" || rem.Name != "origin/devboard/feature-abc123" {
+	rem := by["refs/remotes/origin/werkbord/feature-abc123"]
+	if rem.Remote != "origin" || rem.Name != "origin/werkbord/feature-abc123" {
 		t.Errorf("remote ref = %+v", rem)
 	}
 	if _, ok := by["refs/remotes/origin/HEAD"]; ok {
@@ -90,7 +90,7 @@ func TestListWorktrees(t *testing.T) {
 	linked := filepath.Join(root, "linked")
 	g := &CLI{}
 	ctx := context.Background()
-	if _, err := g.AddWorktree(ctx, repo, linked, "devboard/x-111111", sha(t, repo, "HEAD")); err != nil {
+	if _, err := g.AddWorktree(ctx, repo, linked, "werkbord/x-111111", sha(t, repo, "HEAD")); err != nil {
 		t.Fatal(err)
 	}
 	detached := filepath.Join(root, "detached")
@@ -108,7 +108,7 @@ func TestListWorktrees(t *testing.T) {
 	for _, w := range wts {
 		byPath[w.Path] = w
 	}
-	if w := byPath[linked]; w.Branch != "devboard/x-111111" || w.Primary || w.Detached {
+	if w := byPath[linked]; w.Branch != "werkbord/x-111111" || w.Primary || w.Detached {
 		t.Errorf("linked = %+v", w)
 	}
 	if w := byPath[detached]; !w.Detached || w.Branch != "" || !w.Locked || w.LockReason != "on a usb stick" {
@@ -534,7 +534,7 @@ func isClean(t *testing.T, dir string) bool {
 }
 
 func TestCheckRev(t *testing.T) {
-	good := []string{"refs/heads/main", "refs/heads/devboard/a-b", "refs/remotes/origin/main", strings.Repeat("a", 40), strings.Repeat("0", 64)}
+	good := []string{"refs/heads/main", "refs/heads/werkbord/a-b", "refs/remotes/origin/main", strings.Repeat("a", 40), strings.Repeat("0", 64)}
 	bad := []string{"", "main", "HEAD", "-x", "--upload-pack=x", "refs/heads/-x", "refs/heads/a..b", "refs/heads/a b", "refs/tags/v1", "refs/heads/", "ABCDEF" + strings.Repeat("a", 34), strings.Repeat("a", 39), "refs/heads/a\nb", "refs/heads/x@{1}"}
 	for _, s := range good {
 		if err := checkRev(s); err != nil {

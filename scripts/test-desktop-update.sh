@@ -67,11 +67,11 @@ REAL_HOME=$(python3 -c 'import pwd,os; print(pwd.getpwuid(os.getuid()).pw_dir)')
 real_state() {
   {
     ps -axo pid=,lstart=,command= | grep '[w]erkbord serve' | grep -v "$WORK" || true
-    for f in "$REAL_HOME/.local/bin/werkbord" "$REAL_HOME/.local/bin/devboard"; do [ -e "$f" ] && { ls -l "$f"; shasum "$f"; } || echo "no $f"; done
-    ls -l "$REAL_HOME/Library/LaunchAgents" 2>/dev/null | grep -i -E 'werkbord|devboard' || true
+    for f in "$REAL_HOME/.local/bin/werkbord" "$REAL_HOME/.local/bin/werkbord"; do [ -e "$f" ] && { ls -l "$f"; shasum "$f"; } || echo "no $f"; done
+    ls -l "$REAL_HOME/Library/LaunchAgents" 2>/dev/null | grep -i -E 'werkbord|werkbord' || true
     # (not the test app's own entries: LaunchServices lists a running app, and the test app is dev.werkbord.desktop.test)
-    launchctl list 2>/dev/null | grep -i -E 'werkbord|devboard' | grep -v 'dev\.werkbord\.desktop\.test' || true
-    ls -ld "$REAL_HOME/Library/Application Support/werkbord" "$REAL_HOME/Library/Application Support/devboard" 2>/dev/null || true
+    launchctl list 2>/dev/null | grep -i -E 'werkbord|werkbord' | grep -v 'dev\.werkbord\.desktop\.test' || true
+    ls -ld "$REAL_HOME/Library/Application Support/werkbord" "$REAL_HOME/Library/Application Support/werkbord" 2>/dev/null || true
   } 2>&1
 }
 REAL_BEFORE=$(real_state)

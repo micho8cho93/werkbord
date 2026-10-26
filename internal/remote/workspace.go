@@ -137,7 +137,7 @@ func (w *Worker) prepare(ctx context.Context, j runnerwire.Job) (string, string,
 	}
 	branch := j.WorkBranch
 	if branch == "" {
-		branch = "devboard/" + j.Run.RunnerID + "/" + j.Run.ID
+		branch = "werkbord/" + j.Run.RunnerID + "/" + j.Run.ID
 	}
 	if domain.ValidateRefName(branch) != nil {
 		return "", "", "", domain.ErrInvalid

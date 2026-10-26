@@ -27,7 +27,7 @@
 
   // The task the branch was made for, if Werkbord made it. Merging is that task's end, whichever page the merge was asked
   // from: the board's card says so itself (onmerged); anywhere else this sheet moves the task and offers to undo it.
-  const ownerId = untrack(() => store.overview?.branches.find((b) => b.scope === 'local' && b.name === branchName)?.devboard.taskId ?? '');
+  const ownerId = untrack(() => store.overview?.branches.find((b) => b.scope === 'local' && b.name === branchName)?.werkbord.taskId ?? '');
   let closed = $state<{ task: Task; was: TaskState } | null>(null);
   let reopened = $state('');
   let closing = $state(false);

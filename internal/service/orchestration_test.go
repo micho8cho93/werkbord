@@ -417,7 +417,7 @@ func TestHandoffStreamingAndOriginalObjective(t *testing.T) {
 	if _, e := f.runs.MarkStarted(ctx, r.ID, Started{}); e != nil {
 		t.Fatal(e)
 	}
-	items := []OutputItem{{Stream: domain.StreamAssistant, Text: "Old conversation text"}, {Stream: domain.StreamAssistant, Text: `<devboard-handoff>{"summary":"Changed`}, {Stream: domain.StreamTool, Text: "ignored tool output"}, {Stream: domain.StreamAssistant, Text: ` parser","tests":["go test passed"],"results":"OK"}</devboard-handoff>`}}
+	items := []OutputItem{{Stream: domain.StreamAssistant, Text: "Old conversation text"}, {Stream: domain.StreamAssistant, Text: `<werkbord-handoff>{"summary":"Changed`}, {Stream: domain.StreamTool, Text: "ignored tool output"}, {Stream: domain.StreamAssistant, Text: ` parser","tests":["go test passed"],"results":"OK"}</werkbord-handoff>`}}
 	if e := f.runs.AppendOutput(ctx, r.ID, items); e != nil {
 		t.Fatal(e)
 	}

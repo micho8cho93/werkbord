@@ -14,7 +14,7 @@ import (
 
 func openTemp(t *testing.T) (*DB, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "devboard.db")
+	path := filepath.Join(t.TempDir(), "werkbord.db")
 	db, err := Open(context.Background(), path, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 	db, path := openTemp(t)
 	p := seedProject(t, db)
 	task := &domain.Task{ID: domain.NewID(domain.PrefixTask), ProjectID: p.ID, Title: "t", State: domain.TaskDoing, Position: 1, CreatedAt: now(), UpdatedAt: now()}
-	wt := &domain.Worktree{ID: domain.NewID(domain.PrefixWorktree), ProjectID: p.ID, Path: "/tmp/wt1", Branch: "devboard/t", BaseRef: "origin/main", State: domain.WorktreeActive, CreatedAt: now(), UpdatedAt: now()}
+	wt := &domain.Worktree{ID: domain.NewID(domain.PrefixWorktree), ProjectID: p.ID, Path: "/tmp/wt1", Branch: "werkbord/t", BaseRef: "origin/main", State: domain.WorktreeActive, CreatedAt: now(), UpdatedAt: now()}
 	run := &domain.Run{ID: domain.NewID(domain.PrefixRun), TaskID: task.ID, ProjectID: p.ID, AgentID: "claude-code", State: domain.RunWaitingForUser, Waiting: domain.WaitQuestion, WorktreeID: wt.ID, CreatedAt: now(), UpdatedAt: now()}
 	q := &domain.Question{ID: domain.NewID(domain.PrefixQuestion), RunID: run.ID, TaskID: task.ID, ProjectID: p.ID, Kind: domain.QuestionDecision, Prompt: "Push the tag?", Context: "v1.2.0 on main", Options: []string{"Yes", "No"}, State: domain.QuestionPending, AskedAt: now()}
 	ev, _ := domain.NewEvent(domain.EventAgentQuestion, map[string]string{"questionId": q.ID})

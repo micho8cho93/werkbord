@@ -232,7 +232,7 @@ func branchName(task *domain.Task) string {
 	if task.WorkBranch != "" {
 		return task.WorkBranch
 	}
-	return "devboard/" + slug(task.Title) + "-" + idTail(task.ID)
+	return "werkbord/" + slug(task.Title) + "-" + idTail(task.ID)
 }
 
 // worktreeDirName is unique on every call: a worktree's path is never reused,
@@ -299,7 +299,7 @@ func buildPrompt(task *domain.Task, instructions string, resuming bool) string {
 	}
 	sb.WriteString(`
 
-When ending implementation or review, provide a compact handoff report. Include only evidence you actually have. Use <devboard-handoff> followed by a JSON object and </devboard-handoff>, with keys summary (string), decisions (string array), tests (string array with commands and results), results (string), knownIssues (string array), blockers (string array), questions (string array), nextAction (string). Do not invent test results or answers. Git evidence is captured by the controller.`)
+When ending implementation or review, provide a compact handoff report. Include only evidence you actually have. Use <werkbord-handoff> followed by a JSON object and </werkbord-handoff>, with keys summary (string), decisions (string array), tests (string array with commands and results), results (string), knownIssues (string array), blockers (string array), questions (string array), nextAction (string). Do not invent test results or answers. Git evidence is captured by the controller.`)
 	return sb.String()
 }
 

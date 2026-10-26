@@ -20,7 +20,7 @@ async function request(token, method, route, body) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
     const errors = [];
     await ctx.addInitScript(token => {
-        localStorage.setItem('devboard.token', token);
+        localStorage.setItem('werkbord.token', token);
         localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture');
     }, phone.token);
     const page = await ctx.newPage();

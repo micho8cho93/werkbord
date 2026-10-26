@@ -9,9 +9,9 @@
 
   let { run, onmerged }: { run: Run; onmerged?: () => void } = $props();
   const git = $derived(gitStore(run.projectId));
-  const branch = $derived(!run.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.devboard.runId === run.id || (!!run.branch && b.name === run.branch))) : undefined);
+  const branch = $derived(!run.remote ? git.overview?.branches.find(b => b.scope === 'local' && (b.werkbord.runId === run.id || (!!run.branch && b.name === run.branch))) : undefined);
   const reviewHref = $derived(branch
-    ? branch.devboard.taskId === run.taskId && branch.devboard.runId === run.id
+    ? branch.werkbord.taskId === run.taskId && branch.werkbord.runId === run.id
       ? taskReviewBranchHref(run.projectId, branch.scope, branch.name, run.taskId, run.id)
       : branchHref(run.projectId, branch.scope, branch.name)
     : '');

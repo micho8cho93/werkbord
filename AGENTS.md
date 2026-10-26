@@ -65,8 +65,8 @@ Preserve the actual tag, VERSION metadata, assets, preview status and latest sel
 ### Where versions live and how to apply the policy here
 
 - Everything: `cmd/werkbord/VERSION`. Tag `werkbord-vX.Y.Z`. `cmd/werkbord-team/VERSION` no longer exists and
-  `internal/archtest` fails if it comes back. The executable is `werkbord`; the old `devboard` name and the `DEVBOARD_*`
-  variables are gone.
+  `internal/archtest` fails if it comes back. The executable is `werkbord`; the old `devboard` name, its `DEVBOARD_*`
+  variables and its compatibility shims are gone.
 - Existing tags: `git tag --list 'werkbord-v*'`. The `werkbord-team-v*` tags and the bare `v0.7.0` and earlier are history.
 - When releasing: `make tag` (annotated tag from the VERSION file, then verified) and `make verify-tag` to check again.
   Details: `docs/VERSIONING.md`.

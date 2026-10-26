@@ -66,7 +66,7 @@ func TestDoctorOnAHealthySetup(t *testing.T) {
 	if r.Worst() != doctor.Warn {
 		t.Errorf("worst = %s", r.Worst())
 	}
-	if s := status(t, r, "network").Summary; !strings.Contains(s, "https://devboard-test.tail1234.ts.net/") {
+	if s := status(t, r, "network").Summary; !strings.Contains(s, "https://werkbord-test.tail1234.ts.net/") {
 		t.Errorf("network = %s", s)
 	}
 	if s := status(t, r, "projects").Summary; !strings.Contains(s, "1 configured") {
@@ -183,7 +183,7 @@ func TestDoctorFindsABrokenDatabaseAndProject(t *testing.T) {
 
 	// A database from a newer build, or a damaged one, is a failure with a way out.
 	_ = e.app.cmdStop(bg, nil)
-	db := filepath.Join(e.dataDir, "devboard.db")
+	db := filepath.Join(e.dataDir, "werkbord.db")
 	_ = os.Remove(db + "-wal")
 	_ = os.Remove(db + "-shm")
 	if err := os.WriteFile(db, []byte(strings.Repeat("not a database ", 100)), 0o600); err != nil {

@@ -27,7 +27,7 @@ type fakeNode struct {
 
 func newFakeNode() *fakeNode {
 	return &fakeNode{lns: map[string]net.Listener{}, st: netprivate.BackendStatus{
-		State: "Running", DNSName: "devboard-test.tail1234.ts.net.", IPs: []netip.Addr{netip.MustParseAddr("100.64.0.9")}, Tailnet: "me@example.com",
+		State: "Running", DNSName: "werkbord-test.tail1234.ts.net.", IPs: []netip.Addr{netip.MustParseAddr("100.64.0.9")}, Tailnet: "me@example.com",
 	}}
 }
 
@@ -143,7 +143,7 @@ func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T)
 		_ = json.Unmarshal([]byte(body), &st)
 		return st.State == netprivate.StateConnected
 	})
-	if st.URL != "http://devboard-test.tail1234.ts.net/" {
+	if st.URL != "http://werkbord-test.tail1234.ts.net/" {
 		t.Fatalf("status = %+v", st)
 	}
 	if strings.Contains(mustJSON(st), tok) {
@@ -200,10 +200,10 @@ func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T)
 		QRSVG string `json:"qrSvg"`
 	}
 	_ = json.Unmarshal([]byte(body), &enrollment)
-	if code != 201 || !strings.HasPrefix(enrollment.Link, "http://devboard-test.tail1234.ts.net/#enroll=") || !strings.HasPrefix(enrollment.QRSVG, "<svg") || strings.Contains(body, tok) {
+	if code != 201 || !strings.HasPrefix(enrollment.Link, "http://werkbord-test.tail1234.ts.net/#enroll=") || !strings.HasPrefix(enrollment.QRSVG, "<svg") || strings.Contains(body, tok) {
 		t.Fatalf("enrollment code = %d %.200s", code, body)
 	}
-	secret := strings.TrimPrefix(enrollment.Link, "http://devboard-test.tail1234.ts.net/#enroll=")
+	secret := strings.TrimPrefix(enrollment.Link, "http://werkbord-test.tail1234.ts.net/#enroll=")
 	enroll := func(code string) (int, string) {
 		resp, err := http.Post(priv+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+code+`","name":"Test phone"}`))
 		if err != nil {

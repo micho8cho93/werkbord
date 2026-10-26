@@ -64,16 +64,16 @@ func basicHandoff(ctx context.Context, tx store.Tx, r *domain.Run, now time.Time
 			tail = tail[len(tail)-32000:]
 			break
 		}
-		if strings.Contains(tail, "<devboard-handoff>") {
+		if strings.Contains(tail, "<werkbord-handoff>") {
 			break
 		}
 	}
 	if latest != "" {
 		h.Summary = "Latest agent report (unverified):\n" + truncate(latest, 8000)
 	}
-	if start := strings.LastIndex(tail, "<devboard-handoff>"); start >= 0 {
-		raw := tail[start+len("<devboard-handoff>"):]
-		if end := strings.Index(raw, "</devboard-handoff>"); end >= 0 && strings.TrimSpace(raw[end+len("</devboard-handoff>"):]) == "" {
+	if start := strings.LastIndex(tail, "<werkbord-handoff>"); start >= 0 {
+		raw := tail[start+len("<werkbord-handoff>"):]
+		if end := strings.Index(raw, "</werkbord-handoff>"); end >= 0 && strings.TrimSpace(raw[end+len("</werkbord-handoff>"):]) == "" {
 			var report domain.Handoff
 			if json.Unmarshal([]byte(raw[:end]), &report) == nil {
 				if report.Summary != "" {

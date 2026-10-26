@@ -27,9 +27,9 @@ function finding(over: Partial<HealthFinding> = {}, action: Partial<HealthAction
     category: 'uncommitted',
     severity: 'attention',
     basis: 'deterministic',
-    title: 'Uncommitted work in devboard/x',
+    title: 'Uncommitted work in werkbord/x',
     explanation: 'The agent left files uncommitted.',
-    subject: { branch: 'devboard/x' },
+    subject: { branch: 'werkbord/x' },
     evidence: [{ label: 'Files', value: '2 modified' }],
     action: { kind: 'review_changes', label: 'Review changes', canPerform: true, ...action },
     state: 'open',
@@ -109,22 +109,22 @@ describe('what is wrong, apart from what is only tidy', () => {
 
 describe('what tapping an action does', () => {
   it('opens the existing confirmation for push, merge and delete', () => {
-    expect(actionPlan(finding({}, { kind: 'push_branch', branch: 'devboard/x' }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'push', branch: 'devboard/x' });
-    expect(actionPlan(finding({}, { kind: 'merge_branch', branch: 'devboard/x' }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'merge', branch: 'devboard/x' });
-    expect(actionPlan(finding({}, { kind: 'delete_branch', branch: 'devboard/x', destructive: true }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'delete', branch: 'devboard/x' });
+    expect(actionPlan(finding({}, { kind: 'push_branch', branch: 'werkbord/x' }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'push', branch: 'werkbord/x' });
+    expect(actionPlan(finding({}, { kind: 'merge_branch', branch: 'werkbord/x' }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'merge', branch: 'werkbord/x' });
+    expect(actionPlan(finding({}, { kind: 'delete_branch', branch: 'werkbord/x', destructive: true }), 'prj_1')).toEqual({ type: 'sheet', sheet: 'delete', branch: 'werkbord/x' });
   });
 
   it('opens the clean confirmation for a worktree, never removes it itself', () => {
-    expect(actionPlan(finding({}, { kind: 'clean_worktree', worktreeId: 'wt_1', branch: 'devboard/x', destructive: true }), 'prj_1')).toEqual({
+    expect(actionPlan(finding({}, { kind: 'clean_worktree', worktreeId: 'wt_1', branch: 'werkbord/x', destructive: true }), 'prj_1')).toEqual({
       type: 'clean',
       worktreeId: 'wt_1',
-      branch: 'devboard/x',
+      branch: 'werkbord/x',
     });
   });
 
   it('reviews by navigating: to the worktree, the branch, or the checkout', () => {
     expect(actionPlan(finding({}, { kind: 'review_changes', worktreeId: 'wt_1' }), 'prj_1')).toEqual({ type: 'link', href: expect.stringContaining('wt_1') });
-    expect(actionPlan(finding({}, { kind: 'review_changes', branch: 'devboard/x' }), 'prj_1')).toEqual({ type: 'link', href: expect.stringContaining('devboard') });
+    expect(actionPlan(finding({}, { kind: 'review_changes', branch: 'werkbord/x' }), 'prj_1')).toEqual({ type: 'link', href: expect.stringContaining('werkbord') });
     const checkout = actionPlan(finding({}, { kind: 'review_changes' }), 'prj_1');
     expect(checkout.type).toBe('link');
   });

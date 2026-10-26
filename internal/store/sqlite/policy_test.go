@@ -238,7 +238,7 @@ func TestABlockedRunHoldsItsWorktree(t *testing.T) {
 	p := seedProject(t, db)
 	task := mustTask(t, db, p.ID)
 	root := t.TempDir()
-	w := mustWT(t, db, p.ID, filepath.Join(root, "a"), "devboard/a")
+	w := mustWT(t, db, p.ID, filepath.Join(root, "a"), "werkbord/a")
 
 	r := newRun(p.ID, task.ID, domain.RunBlocked)
 	r.WorktreeID = w.ID
@@ -372,7 +372,7 @@ func TestMigrationToExecutionPolicyKeepsEverything(t *testing.T) {
 		`INSERT INTO tasks (id, project_id, title, description, state, position, version, created_at, updated_at)
 		 VALUES ('tsk_1', 'prj_1', 'Old task', 'd', 'doing', 1, 3, 1, 1), ('tsk_2', 'prj_1', 'Other', '', 'review', 1, 1, 1, 1)`,
 		`INSERT INTO worktrees (id, project_id, path, branch, base_ref, state, created_at, updated_at)
-		 VALUES ('wt_1', 'prj_1', '` + wtPath + `', 'devboard/old', 'main', 'active', 1, 1)`,
+		 VALUES ('wt_1', 'prj_1', '` + wtPath + `', 'werkbord/old', 'main', 'active', 1, 1)`,
 		`INSERT INTO runs (id, task_id, project_id, agent_id, state, worktree_id, session_ref, prompt, waiting, activity, pid, process_id, version, created_at, updated_at)
 		 VALUES ('run_1', 'tsk_1', 'prj_1', 'claude-code', 'waiting_for_user', 'wt_1', 'sess', 'do it', 'question', 'editing', 77, 'p77', 4, 10, 20),
 		        ('run_2', 'tsk_2', 'prj_1', 'codex', 'completed', NULL, '', 'x', '', '', 0, '', 2, 11, 21)`,

@@ -14,7 +14,7 @@ describe('git routes', () => {
   });
 
   it('round-trip a branch whose name has slashes, spaces and symbols', () => {
-    for (const name of ['main', 'devboard/fix-login-3k9x2m', 'feature/a b/c', 'ünï-ブランチ', 'weird?name&x=1#frag', '-dash', 'a%2Fb']) {
+    for (const name of ['main', 'werkbord/fix-login-3k9x2m', 'feature/a b/c', 'ünï-ブランチ', 'weird?name&x=1#frag', '-dash', 'a%2Fb']) {
       for (const scope of ['local', 'remote'] as const) {
         const href = branchHref('prj_1', scope, name);
         expect(parseGit(afterGit(href))).toEqual({ screen: 'branch', scope, name });
@@ -25,18 +25,18 @@ describe('git routes', () => {
   });
 
   it('carries only an explicit task/run origin through task review branch routes', () => {
-    const href = taskReviewBranchHref('prj_1', 'local', 'devboard/a/b', 'tsk_2', 'run_3');
-    expect(parseGit(afterGit(href))).toEqual({ screen: 'branch', scope: 'local', name: 'devboard/a/b', taskId: 'tsk_2', runId: 'run_3' });
-    expect(parseGit(afterGit(branchHref('prj_1', 'local', 'devboard/a/b')))).toEqual({ screen: 'branch', scope: 'local', name: 'devboard/a/b' });
+    const href = taskReviewBranchHref('prj_1', 'local', 'werkbord/a/b', 'tsk_2', 'run_3');
+    expect(parseGit(afterGit(href))).toEqual({ screen: 'branch', scope: 'local', name: 'werkbord/a/b', taskId: 'tsk_2', runId: 'run_3' });
+    expect(parseGit(afterGit(branchHref('prj_1', 'local', 'werkbord/a/b')))).toEqual({ screen: 'branch', scope: 'local', name: 'werkbord/a/b' });
     expect(parseGit('branch/local/x?task=tsk_2')).toEqual({ screen: 'branch', scope: 'local', name: 'x' });
   });
 
   it('round-trip a file, including a rename and a path that needs encoding', () => {
-    const href = fileHref('prj_1', 'local', 'devboard/x-1', 'src/my file&more.ts', 'old/name.ts');
-    expect(parseGit(afterGit(href))).toEqual({ screen: 'file', scope: 'local', name: 'devboard/x-1', path: 'src/my file&more.ts', oldPath: 'old/name.ts' });
+    const href = fileHref('prj_1', 'local', 'werkbord/x-1', 'src/my file&more.ts', 'old/name.ts');
+    expect(parseGit(afterGit(href))).toEqual({ screen: 'file', scope: 'local', name: 'werkbord/x-1', path: 'src/my file&more.ts', oldPath: 'old/name.ts' });
     const plain = fileHref('prj_1', 'local', 'x', 'a.ts');
     expect(parseGit(afterGit(plain))).toMatchObject({ screen: 'file', path: 'a.ts', oldPath: '' });
-    const reviewFile = fileHref('prj_1', 'local', 'devboard/x', 'a.ts', '', { taskId: 'task-2', runId: 'run-3' });
+    const reviewFile = fileHref('prj_1', 'local', 'werkbord/x', 'a.ts', '', { taskId: 'task-2', runId: 'run-3' });
     expect(parseGit(afterGit(reviewFile))).toMatchObject({ screen: 'file', taskId: 'task-2', runId: 'run-3' });
   });
 

@@ -122,7 +122,7 @@ func TestWorktreeRowsMustBeWellFormed(t *testing.T) {
 		}
 	}
 	// A well-formed one is still accepted.
-	if err := createWT(db, newWT(p.ID, "/data/worktrees/wt_1", "devboard/task-1")); err != nil {
+	if err := createWT(db, newWT(p.ID, "/data/worktrees/wt_1", "werkbord/task-1")); err != nil {
 		t.Errorf("valid worktree rejected: %v", err)
 	}
 }
@@ -409,7 +409,7 @@ func TestMigrationKeepsExistingWorktreesAndRunLinks(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO projects VALUES ('prj_old', 'old', '/repos/old', 1, 1)`,
 		`INSERT INTO tasks VALUES ('tsk_old', 'prj_old', 't', '', 'doing', 1, 1, 1, 1)`,
-		`INSERT INTO worktrees VALUES ('wt_old', 'prj_old', '/data/worktrees/old', 'devboard/old', 'main', 'active', 1, 1)`,
+		`INSERT INTO worktrees VALUES ('wt_old', 'prj_old', '/data/worktrees/old', 'werkbord/old', 'main', 'active', 1, 1)`,
 		`INSERT INTO runs (id, task_id, project_id, agent_id, state, worktree_id, created_at, updated_at)
 		 VALUES ('run_old', 'tsk_old', 'prj_old', 'x', 'running', 'wt_old', 1, 1)`,
 	} {
@@ -425,7 +425,7 @@ func TestMigrationKeepsExistingWorktreesAndRunLinks(t *testing.T) {
 	}
 	defer db.Close()
 	w := getWT(t, db, "wt_old")
-	if w.Version != 1 || w.State != domain.WorktreeActive || w.Branch != "devboard/old" {
+	if w.Version != 1 || w.State != domain.WorktreeActive || w.Branch != "werkbord/old" {
 		t.Errorf("worktree after migration = %+v", w)
 	}
 	if err := db.View(ctx, func(tx store.Tx) error {

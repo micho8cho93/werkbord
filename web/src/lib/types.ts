@@ -688,7 +688,7 @@ export interface GitBranch {
   stale: boolean;
   staleWhy?: string;
   worktree?: GitBranchWorktree;
-  devboard: GitBranchOwnership;
+  werkbord: GitBranchOwnership;
   attention: GitAttention[];
 }
 
@@ -755,7 +755,7 @@ export interface GitRemoteInfo {
 
 export interface GitSummary {
   branches: number;
-  devboard: number;
+  werkbord: number;
   needsYou: number;
   warnings: number;
   mergeable: number;

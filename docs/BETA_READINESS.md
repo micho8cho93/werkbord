@@ -85,7 +85,7 @@ a higher fixed version; never replace artifact bytes under an existing tag.
 
 Historical unsigned controller archives are not automatically trusted by the new
 updater. Preserve them for manual historical recovery, using independently
-verified provenance. Existing `werkbord`/`devboard` aliases and settings remain.
+verified provenance. Existing settings remain.
 
 ## Reproducible engineering evidence
 

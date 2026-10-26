@@ -51,7 +51,7 @@ func privateRunnerClient(ctx context.Context, cfg config.Config, out io.Writer, 
 	}
 	_ = uAddr
 	host, _ := os.Hostname()
-	backend := netprivate.NewTailscale(netprivate.TailscaleOptions{Dir: filepath.Join(runnerDir(cfg), "tailscale"), Hostname: netprivate.HostnameFor(filepath.Join(runnerDir(cfg), "tailscale"), host) + "-runner", ControlURL: cfg.Network.ControlURL, AuthKey: config.Getenv("TS_AUTHKEY")})
+	backend := netprivate.NewTailscale(netprivate.TailscaleOptions{Dir: filepath.Join(runnerDir(cfg), "tailscale"), Hostname: netprivate.DefaultHostname(host) + "-runner", ControlURL: cfg.Network.ControlURL, AuthKey: config.Getenv("TS_AUTHKEY")})
 	if e := backend.Start(ctx); e != nil {
 		return nil, nil, e
 	}

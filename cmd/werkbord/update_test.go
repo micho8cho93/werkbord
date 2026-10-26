@@ -36,7 +36,7 @@ func releaseFixtureSignature(tag, manifest string) []byte {
 	return ed25519.Sign(releaseFixtureKey, append([]byte("werkbord/release/v1\x00"+tag+"\x00"), []byte(manifest)...))
 }
 
-// publishRelease serves a releases page whose one release is a "devboard" that
+// publishRelease serves a releases page whose one release is a "werkbord" that
 // prints its own version, like the real one does for `werkbord version`.
 func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	t.Helper()
@@ -135,7 +135,7 @@ func TestUpdateRefusesAnExecutableThatDoesNotReportTheVersion(t *testing.T) {
 	e := newTestEnv(t)
 	setVersion(t, "v1.0.0")
 	ts := publishRelease(t, "v1.1.0", false)
-	// The release's archive contains a devboard that claims to be another version.
+	// The release's archive contains a werkbord that claims to be another version.
 	_ = ts
 	t.Setenv("WERKBORD_RELEASE_URL", publishLiar(t).URL)
 	bin, _ := e.app.executable()

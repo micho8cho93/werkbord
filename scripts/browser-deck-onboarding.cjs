@@ -19,7 +19,7 @@ async function request(token, method, route, body) {
       const code = await request(owner,'POST','/api/phones/codes',{});
       const phone = await request('','POST','/api/phones/enroll',{code:code.code,name:'Onboarding '+mode});
       const ctx = await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-      await ctx.addInitScript(token => localStorage.setItem('devboard.token',token),phone.token);
+      await ctx.addInitScript(token => localStorage.setItem('werkbord.token',token),phone.token);
       const page = await ctx.newPage(); page.setDefaultTimeout(10000);
       const errors = []; page.on('pageerror',e => errors.push(e.message));
       let starts = 0; page.on('request',r => { if (new URL(r.url()).pathname === '/api/deck/workflows' && r.method() === 'POST') starts++; });
@@ -151,7 +151,7 @@ async function request(token, method, route, body) {
     const phone = await request('','POST','/api/phones/enroll',{code:code.code,name:'No repository preview'});
     const ctx = await browser.newContext({viewport:{width:390,height:844}});
     try {
-      await ctx.addInitScript(token => localStorage.setItem('devboard.token',token),phone.token);
+      await ctx.addInitScript(token => localStorage.setItem('werkbord.token',token),phone.token);
       const page = await ctx.newPage();
       await page.route('**/api/projects',route => route.request().method() === 'GET' ? route.fulfill({json:{projects:[]}}) : route.continue());
       let firstDeck = true;

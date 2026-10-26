@@ -248,7 +248,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         await page.getByTestId('phone-welcome').waitFor();
         assert.match(await page.getByTestId('phone-welcome').innerText(), /Signed in as iPhone \(Safari\)/, 'named from the device, without asking');
         assert(!page.url().includes('enroll') && !page.url().includes(code), 'the code is gone from the address bar');
-        const stored = await page.evaluate(() => localStorage.getItem('devboard.token'));
+        const stored = await page.evaluate(() => localStorage.getItem('werkbord.token'));
         assert(stored && stored.startsWith('wbp_') && stored !== token, 'the phone holds a credential of its own, not the owner token');
         const listed = (await ownerRequest('GET', '/api/phones')).phones;
         assert.equal(listed.length, 1, 'the owner sees one phone');
@@ -268,7 +268,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
             await second.page.goto(base + '/#enroll=' + code);
             await second.page.getByTestId('enroll-failed').waitFor();
             assert.match(await second.page.getByTestId('enroll-failed').innerText(), /did not work/);
-            assert.equal(await second.page.evaluate(() => localStorage.getItem('devboard.token')), null, 'a replayed code signs nothing in');
+            assert.equal(await second.page.evaluate(() => localStorage.getItem('werkbord.token')), null, 'a replayed code signs nothing in');
             await second.ctx.close();
         }
 
@@ -279,7 +279,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
 
         // Scope: the phone does its work, and the owner's things are refused.
         const asPhone = (method, route, data) => page.evaluate(async ([method, route, data]) => {
-            const res = await fetch(route, { method, headers: { Authorization: 'Bearer ' + localStorage.getItem('devboard.token'), 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
+            const res = await fetch(route, { method, headers: { Authorization: 'Bearer ' + localStorage.getItem('werkbord.token'), 'Content-Type': 'application/json' }, body: data ? JSON.stringify(data) : undefined });
             return res.status;
         }, [method, route, data]);
         assert.equal(await asPhone('GET', '/api/projects'), 200);

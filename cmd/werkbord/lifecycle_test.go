@@ -146,7 +146,7 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
 	out := e.output()
-	if !strings.Contains(out, "https://devboard-test.tail1234.ts.net/") || !strings.Contains(out, "Scan this") || !strings.Contains(out, "█") {
+	if !strings.Contains(out, "https://werkbord-test.tail1234.ts.net/") || !strings.Contains(out, "Scan this") || !strings.Contains(out, "█") {
 		t.Fatalf("phone output:\n%s", out)
 	}
 	if strings.Contains(out, e.token()) {
@@ -163,7 +163,7 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 	}
 	// With the network connected, plain `open` mentions the phone address.
 	e.out.Reset()
-	if err := e.app.cmdOpen(bg, nil); err != nil || !strings.Contains(e.output(), "On your phone: https://devboard-test") {
+	if err := e.app.cmdOpen(bg, nil); err != nil || !strings.Contains(e.output(), "On your phone: https://werkbord-test") {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
 	if err := e.app.cmdOpen(bg, []string{"--bogus"}); err == nil {

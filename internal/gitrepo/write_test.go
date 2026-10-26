@@ -15,32 +15,32 @@ func TestPushNewBranchThenFastForward(t *testing.T) {
 	repo, remote := repoWithRemote(t)
 	g := &CLI{}
 	ctx := context.Background()
-	run(t, repo, "checkout", "-q", "-b", "devboard/work-aaaaaa")
+	run(t, repo, "checkout", "-q", "-b", "werkbord/work-aaaaaa")
 	tip := commit(t, repo, "w.txt", "1\n", "work")
 
-	res, err := g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "devboard/work-aaaaaa", Sha: tip})
+	res, err := g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "werkbord/work-aaaaaa", Sha: tip})
 	if err != nil || res.Outcome != domain.OutcomeDone || !res.NewBranch {
 		t.Fatalf("push = %+v, %v", res, err)
 	}
-	if got, found, err := g.RemoteBranch(ctx, repo, "origin", "devboard/work-aaaaaa"); err != nil || !found || got != tip {
+	if got, found, err := g.RemoteBranch(ctx, repo, "origin", "werkbord/work-aaaaaa"); err != nil || !found || got != tip {
 		t.Fatalf("the remote itself says %q (found=%v, err=%v), want %s", got, found, err, tip)
 	}
-	if got := gitOut(t, remote, "rev-parse", "refs/heads/devboard/work-aaaaaa"); got != tip {
+	if got := gitOut(t, remote, "rev-parse", "refs/heads/werkbord/work-aaaaaa"); got != tip {
 		t.Errorf("remote repository has %s", got)
 	}
-	if err := g.SetUpstream(ctx, repo, "devboard/work-aaaaaa", "origin"); err != nil {
+	if err := g.SetUpstream(ctx, repo, "werkbord/work-aaaaaa", "origin"); err != nil {
 		t.Fatal(err)
 	}
-	if up := gitOut(t, repo, "rev-parse", "--abbrev-ref", "devboard/work-aaaaaa@{upstream}"); up != "origin/devboard/work-aaaaaa" {
+	if up := gitOut(t, repo, "rev-parse", "--abbrev-ref", "werkbord/work-aaaaaa@{upstream}"); up != "origin/werkbord/work-aaaaaa" {
 		t.Errorf("upstream = %s", up)
 	}
 
 	tip2 := commit(t, repo, "w.txt", "2\n", "more work")
-	res, _ = g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "devboard/work-aaaaaa", Sha: tip2})
+	res, _ = g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "werkbord/work-aaaaaa", Sha: tip2})
 	if res.Outcome != domain.OutcomeDone || res.NewBranch {
 		t.Errorf("fast-forward push = %+v", res)
 	}
-	res, _ = g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "devboard/work-aaaaaa", Sha: tip2})
+	res, _ = g.Push(ctx, repo, PushRequest{Remote: "origin", Branch: "werkbord/work-aaaaaa", Sha: tip2})
 	if res.Outcome != domain.OutcomeDone || !res.UpToDate {
 		t.Errorf("pushing nothing new = %+v", res)
 	}
@@ -355,13 +355,13 @@ func TestDeleteBranchAtRefusesCheckedOutBranch(t *testing.T) {
 	}
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	wt := filepath.Join(root, "wt")
-	if _, err := g.AddWorktree(ctx, repo, wt, "devboard/in-use-111111", main); err != nil {
+	if _, err := g.AddWorktree(ctx, repo, wt, "werkbord/in-use-111111", main); err != nil {
 		t.Fatal(err)
 	}
-	if err := g.DeleteBranchAt(ctx, repo, "devboard/in-use-111111", main); !errors.Is(err, domain.ErrConflict) {
+	if err := g.DeleteBranchAt(ctx, repo, "werkbord/in-use-111111", main); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("deleting a branch checked out in a linked worktree: %v", err)
 	}
-	if sha(t, repo, "devboard/in-use-111111") != main {
+	if sha(t, repo, "werkbord/in-use-111111") != main {
 		t.Fatal("the branch was deleted")
 	}
 	for _, bad := range []string{"-D", "a..b", "x y", ""} {
@@ -382,7 +382,7 @@ func TestRemoveCleanWorktree(t *testing.T) {
 	head := sha(t, repo, "HEAD")
 
 	clean := filepath.Join(root, "clean")
-	if _, err := g.AddWorktree(ctx, repo, clean, "devboard/clean-111111", head); err != nil {
+	if _, err := g.AddWorktree(ctx, repo, clean, "werkbord/clean-111111", head); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.RemoveCleanWorktree(ctx, repo, clean); err != nil {
@@ -391,7 +391,7 @@ func TestRemoveCleanWorktree(t *testing.T) {
 	if exists(clean) {
 		t.Error("directory still exists")
 	}
-	if gitOut(t, repo, "branch", "--list", "devboard/clean-111111") == "" {
+	if gitOut(t, repo, "branch", "--list", "werkbord/clean-111111") == "" {
 		t.Error("the branch must survive removing its worktree")
 	}
 
@@ -405,7 +405,7 @@ func TestRemoveCleanWorktree(t *testing.T) {
 		},
 	} {
 		dir := filepath.Join(root, name)
-		if _, err := g.AddWorktree(ctx, repo, dir, "devboard/"+name+"-222222", head); err != nil {
+		if _, err := g.AddWorktree(ctx, repo, dir, "werkbord/"+name+"-222222", head); err != nil {
 			t.Fatal(err)
 		}
 		dirty(dir)
@@ -419,7 +419,7 @@ func TestRemoveCleanWorktree(t *testing.T) {
 
 	// A worktree whose directory is already gone is only forgotten.
 	gone := filepath.Join(root, "gone")
-	if _, err := g.AddWorktree(ctx, repo, gone, "devboard/gone-333333", head); err != nil {
+	if _, err := g.AddWorktree(ctx, repo, gone, "werkbord/gone-333333", head); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.RemoveAll(gone); err != nil {

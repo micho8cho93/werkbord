@@ -1,6 +1,6 @@
 # Local memory (Phases 1A and 1B)
 
-Memory is a private, local foundation in the controller's existing `devboard.db`.
+Memory is a private, local foundation in the controller's existing `werkbord.db`.
 It adds no network service, HTTP/MCP route, controller-token grant, agent tool,
 Team dependency, prompt injection, automatic extraction or LLM call. Nothing
 collects records automatically. Existing runs, handoffs, projects and workflows

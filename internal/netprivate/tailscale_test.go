@@ -46,7 +46,7 @@ func startControl(t *testing.T, requireAuth, magicDNS bool) *testcontrol.Server 
 }
 
 func serveApp() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "devboard-app") })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "werkbord-app") })
 }
 
 // peer is another device on the tailnet, standing in for the user's phone.
@@ -69,7 +69,7 @@ func TestRealNodeWithAnAuthKeyServesTheAppOnTheTailnet(t *testing.T) {
 	}
 	// A tailnet with no MagicDNS and no certificates: the app is reached by address, over http.
 	control := startControl(t, false, false)
-	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "devboard-test", AuthKey: "tskey-test", ControlURL: control.HTTPTestServer.URL})
+	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "werkbord-test", AuthKey: "tskey-test", ControlURL: control.HTTPTestServer.URL})
 	m := New(Options{Backend: b, Handler: serveApp()})
 	m.Start()
 	defer m.Stop(context.Background())
@@ -91,7 +91,7 @@ func TestRealNodeWithAnAuthKeyServesTheAppOnTheTailnet(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if string(body) != "devboard-app" {
+	if string(body) != "werkbord-app" {
 		t.Fatalf("GET = %d %q", resp.StatusCode, body)
 	}
 }
@@ -101,20 +101,20 @@ func TestRealNodeOnATailnetWithHTTPSUsesItsName(t *testing.T) {
 		t.Skip("starts Tailscale nodes")
 	}
 	control := startControl(t, false, true)
-	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "devboard-test", AuthKey: "tskey-test", ControlURL: control.HTTPTestServer.URL})
+	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "werkbord-test", AuthKey: "tskey-test", ControlURL: control.HTTPTestServer.URL})
 	m := New(Options{Backend: b, Handler: serveApp()})
 	m.Start()
 	defer m.Stop(context.Background())
 
 	s := waitStatusFor(t, m, 60*time.Second, "connected", func(s Status) bool { return s.State == StateConnected && s.URL != "" })
-	if !s.HTTPS || s.URL != "https://devboard-test.tail-scale.ts.net/" || s.HTTPSHint != "" || s.Error != "" {
+	if !s.HTTPS || s.URL != "https://werkbord-test.tail-scale.ts.net/" || s.HTTPSHint != "" || s.Error != "" {
 		t.Fatalf("status = %+v", s)
 	}
 	// A device that types the plain-http name is sent to https.
 	phone := peer(t, control)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", "http://devboard-test.tail-scale.ts.net/board", nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", "http://werkbord-test.tail-scale.ts.net/board", nil)
 	client := phone.HTTPClient()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	resp, err := client.Do(req)
@@ -122,7 +122,7 @@ func TestRealNodeOnATailnetWithHTTPSUsesItsName(t *testing.T) {
 		t.Fatalf("GET from the phone: %v", err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != "https://devboard-test.tail-scale.ts.net/board" {
+	if resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != "https://werkbord-test.tail-scale.ts.net/board" {
 		t.Fatalf("redirect = %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 }
@@ -132,7 +132,7 @@ func TestRealNodeAsksTheUserToSignInThenComesUp(t *testing.T) {
 		t.Skip("starts Tailscale nodes")
 	}
 	control := startControl(t, true, true)
-	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "devboard-login", ControlURL: control.HTTPTestServer.URL})
+	b := NewTailscale(TailscaleOptions{Dir: filepath.Join(t.TempDir(), "ts"), Hostname: "werkbord-login", ControlURL: control.HTTPTestServer.URL})
 	m := New(Options{Backend: b, Handler: serveApp()})
 	m.Start()
 	defer m.Stop(context.Background())
@@ -149,7 +149,7 @@ func TestRealNodeAsksTheUserToSignInThenComesUp(t *testing.T) {
 		t.Fatalf("the harness did not know the link %s", s.AuthURL)
 	}
 	s = waitStatusFor(t, m, 60*time.Second, "connected", func(s Status) bool { return s.State == StateConnected && s.URL != "" })
-	if s.AuthURL != "" || !strings.HasPrefix(s.Hostname, "devboard-login.") {
+	if s.AuthURL != "" || !strings.HasPrefix(s.Hostname, "werkbord-login.") {
 		t.Fatalf("status = %+v", s)
 	}
 }
@@ -160,7 +160,7 @@ func TestRealNodeKeepsItsIdentityAcrossARestart(t *testing.T) {
 	}
 	control := startControl(t, true, true)
 	dir := filepath.Join(t.TempDir(), "ts")
-	opt := TailscaleOptions{Dir: dir, Hostname: "devboard-again", ControlURL: control.HTTPTestServer.URL}
+	opt := TailscaleOptions{Dir: dir, Hostname: "werkbord-again", ControlURL: control.HTTPTestServer.URL}
 
 	m := New(Options{Backend: NewTailscale(opt), Handler: serveApp()})
 	m.Start()

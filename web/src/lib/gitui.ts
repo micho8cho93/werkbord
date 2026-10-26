@@ -20,7 +20,7 @@ export type { Tone };
 
 export const shortSha = (sha: string | undefined): string => (sha ? sha.slice(0, 8) : '');
 
-/** "devboard/fix-login-3k9x2m" → { prefix: "devboard/", name: "fix-login-3k9x2m" }: the namespace is shown quietly. */
+/** "werkbord/fix-login-3k9x2m" → { prefix: "werkbord/", name: "fix-login-3k9x2m" }: the namespace is shown quietly. */
 export function splitBranch(name: string): { prefix: string; rest: string } {
   const i = name.lastIndexOf('/');
   return i === -1 ? { prefix: '', rest: name } : { prefix: name.slice(0, i + 1), rest: name.slice(i + 1) };
@@ -128,7 +128,7 @@ export function branchChips(b: GitBranch, targetName: string): Chip[] {
   if (b.worktree?.dirty && dirtyTotal(b.worktree.dirty) > 0) {
     chips.push({ text: `${dirtyTotal(b.worktree.dirty)} uncommitted`, tone: 'ask' });
   }
-  const agent = agentChip(b.devboard);
+  const agent = agentChip(b.werkbord);
   if (agent) chips.push(agent);
   if (b.stale) chips.push({ text: 'stale', tone: 'neutral' });
   if (b.unusual) chips.push({ text: 'unusual name', tone: 'bad' });
@@ -137,7 +137,7 @@ export function branchChips(b: GitBranch, targetName: string): Chip[] {
 }
 
 /** What a branch's live session is doing: working, waiting for you, or just open and idle. */
-export function agentChip(own: GitBranch['devboard']): Chip | null {
+export function agentChip(own: GitBranch['werkbord']): Chip | null {
   if (!own.activeRun) return null;
   switch (own.runState) {
     case 'waiting_for_user':
@@ -153,12 +153,12 @@ export const dirtyTotal = (c: GitChangeCounts): number => c.staged + c.unstaged 
 
 /** Who made the branch, for the line under its name. */
 export function originLabel(b: GitBranch): string {
-  if (b.devboard.created) return b.devboard.taskTitle ? `Werkbord · ${b.devboard.taskTitle}` : 'Created by Werkbord';
-  if (b.devboard.namespace) return 'Has Werkbord’s name, but Werkbord has no record of making it';
+  if (b.werkbord.created) return b.werkbord.taskTitle ? `Werkbord · ${b.werkbord.taskTitle}` : 'Created by Werkbord';
+  if (b.werkbord.namespace) return 'Has Werkbord’s name, but Werkbord has no record of making it';
   return b.scope === 'remote' ? 'On the remote only' : 'Not created by Werkbord';
 }
 
-export function phaseLabel(p: GitBranch['devboard']['phase']): string {
+export function phaseLabel(p: GitBranch['werkbord']['phase']): string {
   return { none: '', active: 'Task in progress', review: 'Task in review', completed: 'Task done', idle: 'Task not started' }[p];
 }
 
@@ -173,11 +173,11 @@ export function headline(b: GitBranch): GitAttention | undefined {
   return [...b.attention].sort((x, y) => order[x.severity] - order[y.severity])[0];
 }
 
-export type BranchFilter = 'attention' | 'devboard' | 'local' | 'remote' | 'merged' | 'all';
+export type BranchFilter = 'attention' | 'werkbord' | 'local' | 'remote' | 'merged' | 'all';
 
 export const BRANCH_FILTERS: readonly { id: BranchFilter; label: string }[] = [
   { id: 'attention', label: 'Needs you' },
-  { id: 'devboard', label: 'Werkbord' },
+  { id: 'werkbord', label: 'Werkbord' },
   { id: 'local', label: 'Local' },
   { id: 'remote', label: 'Remote' },
   { id: 'merged', label: 'Merged' },
@@ -188,8 +188,8 @@ export function filterBranches(branches: readonly GitBranch[], f: BranchFilter):
   switch (f) {
     case 'attention':
       return branches.filter(needsAttention);
-    case 'devboard':
-      return branches.filter((b) => b.devboard.created);
+    case 'werkbord':
+      return branches.filter((b) => b.werkbord.created);
     case 'local':
       return branches.filter((b) => b.scope === 'local');
     case 'remote':
@@ -229,7 +229,7 @@ export function branchActions(b: GitBranch, ctx: ActionContext): BranchAction[] 
   const out: BranchAction[] = [];
   if (b.scope === 'remote') return b.vsTarget.relation === 'ahead' || b.vsTarget.relation === 'diverged' ? [{ id: 'review', label: 'Review changes', primary: true }] : [];
   if (b.unusual) return [{ id: 'review', label: 'Review changes' }];
-  const own = b.devboard;
+  const own = b.werkbord;
   const ahead = b.vsTarget.relation === 'ahead' || b.vsTarget.relation === 'diverged';
   // A merged branch has nothing to publish: what is worth pushing then is the target.
   const unpushed = !(b.merged && !b.target) && (b.upstream.state === 'none' || b.upstream.state === 'ahead') ? b.notPushed > 0 : false;

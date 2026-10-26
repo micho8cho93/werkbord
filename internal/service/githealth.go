@@ -388,7 +388,7 @@ func ownedUnmerged(o *domain.GitOverview) []*domain.GitBranch {
 	var out []*domain.GitBranch
 	for i := range o.Branches {
 		b := &o.Branches[i]
-		if b.Scope == domain.ScopeLocal && !b.Target && b.DevBoard.Created && b.Unusual == "" &&
+		if b.Scope == domain.ScopeLocal && !b.Target && b.Werkbord.Created && b.Unusual == "" &&
 			b.VsTarget.Ahead > 0 && !b.Merged && gitrepo.IsCommitID(b.Sha) {
 			out = append(out, b)
 		}
@@ -574,7 +574,7 @@ func (h *GitHealth) overlaps(ctx context.Context, t *gitCtx, o *domain.GitOvervi
 	var cands []*domain.GitBranch
 	for i := range o.Branches {
 		b := &o.Branches[i]
-		if b.Scope != domain.ScopeLocal || b.Target || !b.DevBoard.Created || b.Unusual != "" || !gitrepo.IsCommitID(b.Sha) {
+		if b.Scope != domain.ScopeLocal || b.Target || !b.Werkbord.Created || b.Unusual != "" || !gitrepo.IsCommitID(b.Sha) {
 			continue
 		}
 		inFlight := (b.VsTarget.Ahead > 0 && !b.Merged) || (b.Worktree != nil && b.Worktree.Dirty != nil && b.Worktree.Dirty.Dirty())

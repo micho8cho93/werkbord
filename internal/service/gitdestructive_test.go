@@ -31,7 +31,7 @@ func (f *gcFixture) deleteInput(t *testing.T, branch string) DeleteInput {
 
 // ---- deleting branches ----
 
-func TestDeleteBranchSucceedsForAMergedBranchDevBoardCreated(t *testing.T) {
+func TestDeleteBranchSucceedsForAMergedBranchWerkbordCreated(t *testing.T) {
 	f := newGC(t)
 	a := f.agent(t, "Merged and done", 2)
 	f.mergeAway(t, a)
@@ -77,13 +77,13 @@ func TestDeleteBranchSucceedsForAMergedBranchDevBoardCreated(t *testing.T) {
 	}
 }
 
-func TestDeleteBranchNeverDeletesWhatDevBoardDidNotCreate(t *testing.T) {
+func TestDeleteBranchNeverDeletesWhatWerkbordDidNotCreate(t *testing.T) {
 	f := newGC(t)
 	// A merged branch of the user's own, and one that only borrows Werkbord's name.
 	git(t, f.repo, "branch", "users-merged-branch", "main")
-	git(t, f.repo, "branch", "devboard/impostor-111111", "main")
+	git(t, f.repo, "branch", "werkbord/impostor-111111", "main")
 	// And a real one, whose worktree record belongs to ANOTHER project.
-	for _, name := range []string{"users-merged-branch", "devboard/impostor-111111"} {
+	for _, name := range []string{"users-merged-branch", "werkbord/impostor-111111"} {
 		in := f.deleteInput(t, name)
 		plan, err := f.gc.DeletePlan(f.ctx, f.project.ID, in)
 		if err != nil || plan.CanDelete || !hasBlocker(plan.Blockers, domain.BlockNotOwned) {

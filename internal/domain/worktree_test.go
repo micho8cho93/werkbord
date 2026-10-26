@@ -10,7 +10,7 @@ import (
 func validWorktree() *Worktree {
 	return &Worktree{
 		ID: NewID(PrefixWorktree), ProjectID: "prj_x", Path: "/data/worktrees/wt_1",
-		Branch: "devboard/task-1", BaseRef: "origin/main", State: WorktreeActive, Version: 1,
+		Branch: "werkbord/task-1", BaseRef: "origin/main", State: WorktreeActive, Version: 1,
 	}
 }
 
@@ -47,7 +47,7 @@ func TestWorktreeValidate(t *testing.T) {
 }
 
 func TestValidateRefName(t *testing.T) {
-	ok := []string{"main", "feature/x", "devboard/task-12", "origin/main", "refs/heads/main", "HEAD", "v1.2.3", "a/b/c", "café", "release-1.0", "x@y", "a.b", "0123456789abcdef0123456789abcdef01234567"}
+	ok := []string{"main", "feature/x", "werkbord/task-12", "origin/main", "refs/heads/main", "HEAD", "v1.2.3", "a/b/c", "café", "release-1.0", "x@y", "a.b", "0123456789abcdef0123456789abcdef01234567"}
 	bad := []string{
 		"", "-x", "--force", "a b", "a\tb", "a\nb", "a\x00b", "a\x7fb", "a..b", "a~b", "a^b", "a:b", "a?b", "a*b", "a[b", `a\b`,
 		"/a", "a/", "a//b", "a/.b", ".a", "a.", "a.lock", "a/b.lock", "a@{b", "@", "a/..", "..", "a\xffb", strings.Repeat("a", 256),

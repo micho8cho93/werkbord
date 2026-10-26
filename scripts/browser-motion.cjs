@@ -24,7 +24,7 @@ let browser;
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(() => {
-    localStorage.setItem('devboard.token', 'disposable-browser-credential');
+    localStorage.setItem('werkbord.token', 'disposable-browser-credential');
     window.motionCalls = [];
     const original = Element.prototype.animate;
     Element.prototype.animate = function (frames, options) {

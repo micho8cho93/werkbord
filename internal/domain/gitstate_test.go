@@ -55,7 +55,7 @@ func TestProtectedBranch(t *testing.T) {
 			t.Errorf("%q must be protected", name)
 		}
 	}
-	for _, name := range []string{"devboard/fix-abc123", "feature/x", "mainline", "domain"} {
+	for _, name := range []string{"werkbord/fix-abc123", "feature/x", "mainline", "domain"} {
 		if ProtectedBranch(name, "main", "main") {
 			t.Errorf("%q must not be protected", name)
 		}
@@ -107,25 +107,25 @@ func TestBranchAttention(t *testing.T) {
 		b    GitBranch
 		want []string
 	}{
-		{"finished work to review, never pushed", GitBranch{Scope: ScopeLocal, VsTarget: ahead, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamNone}, NotPushed: 2},
+		{"finished work to review, never pushed", GitBranch{Scope: ScopeLocal, VsTarget: ahead, Werkbord: owned(), Upstream: GitUpstream{State: UpstreamNone}, NotPushed: 2},
 			[]string{"review/action", "no_remote/warn"}},
-		{"the same, with the agent still working", GitBranch{Scope: ScopeLocal, VsTarget: ahead, DevBoard: GitBranchOwnership{Created: true, Namespace: true, Phase: PhaseActive, ActiveRun: true}, Upstream: GitUpstream{State: UpstreamNone}, NotPushed: 2},
+		{"the same, with the agent still working", GitBranch{Scope: ScopeLocal, VsTarget: ahead, Werkbord: GitBranchOwnership{Created: true, Namespace: true, Phase: PhaseActive, ActiveRun: true}, Upstream: GitUpstream{State: UpstreamNone}, NotPushed: 2},
 			[]string{"no_remote/warn"}},
-		{"owned and diverged is still to be reviewed", GitBranch{Scope: ScopeLocal, VsTarget: GitVsTarget{Ahead: 1, Behind: 3, Relation: RelDiverged}, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamInSync}},
+		{"owned and diverged is still to be reviewed", GitBranch{Scope: ScopeLocal, VsTarget: GitVsTarget{Ahead: 1, Behind: 3, Relation: RelDiverged}, Werkbord: owned(), Upstream: GitUpstream{State: UpstreamInSync}},
 			[]string{"review/action"}},
 		{"someone else's diverged branch is only flagged", GitBranch{Scope: ScopeLocal, VsTarget: GitVsTarget{Ahead: 1, Behind: 3, Relation: RelDiverged}, Upstream: GitUpstream{State: UpstreamInSync}},
 			[]string{"diverged/warn"}},
-		{"merged and nothing left: delete", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamNone}},
+		{"merged and nothing left: delete", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Werkbord: owned(), Upstream: GitUpstream{State: UpstreamNone}},
 			[]string{"cleanup/action"}},
-		{"merged but its worktree is still there: clean it first", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, DevBoard: owned(), Worktree: &GitBranchWorktree{Owned: true}, Upstream: GitUpstream{State: UpstreamNone}},
+		{"merged but its worktree is still there: clean it first", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Werkbord: owned(), Worktree: &GitBranchWorktree{Owned: true}, Upstream: GitUpstream{State: UpstreamNone}},
 			[]string{"cleanup/info"}},
-		{"merged but still running: leave it", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, DevBoard: GitBranchOwnership{Created: true, ActiveRun: true}, Upstream: GitUpstream{State: UpstreamNone}},
+		{"merged but still running: leave it", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Werkbord: GitBranchOwnership{Created: true, ActiveRun: true}, Upstream: GitUpstream{State: UpstreamNone}},
 			nil},
 		{"a branch of the user's that is merged is not Werkbord's to clean", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 1, Relation: RelMerged}, Upstream: GitUpstream{State: UpstreamNone}},
 			nil},
-		{"a branch the target moved past, with no commits of its own, is not called merged", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 2, Relation: RelBehind}, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamNone}},
+		{"a branch the target moved past, with no commits of its own, is not called merged", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Behind: 2, Relation: RelBehind}, Werkbord: owned(), Upstream: GitUpstream{State: UpstreamNone}},
 			[]string{"cleanup/info"}},
-		{"an empty branch is just empty", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Relation: RelSame}, DevBoard: owned(), Upstream: GitUpstream{State: UpstreamNone}},
+		{"an empty branch is just empty", GitBranch{Scope: ScopeLocal, Merged: true, VsTarget: GitVsTarget{Relation: RelSame}, Werkbord: owned(), Upstream: GitUpstream{State: UpstreamNone}},
 			[]string{"cleanup/info"}},
 		{"upstream deleted", GitBranch{Scope: ScopeLocal, VsTarget: GitVsTarget{Relation: RelUnknown}, Upstream: GitUpstream{State: UpstreamGone}},
 			[]string{"gone/warn"}},
@@ -150,9 +150,9 @@ func TestBranchAttention(t *testing.T) {
 	}
 }
 
-func TestAttentionRankPutsDevBoardFirstThenTheMostPressing(t *testing.T) {
+func TestAttentionRankPutsWerkbordFirstThenTheMostPressing(t *testing.T) {
 	mk := func(created, namespace bool, sev string) *GitBranch {
-		b := &GitBranch{DevBoard: GitBranchOwnership{Created: created, Namespace: namespace}}
+		b := &GitBranch{Werkbord: GitBranchOwnership{Created: created, Namespace: namespace}}
 		if sev != "" {
 			b.Attention = []GitAttention{{Severity: sev}}
 		}

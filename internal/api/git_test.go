@@ -146,7 +146,7 @@ func TestGitOverviewAndDrillDownOverHTTP(t *testing.T) {
 			feat = &o.Branches[i]
 		}
 	}
-	if feat == nil || feat.VsTarget.Ahead != 2 || feat.VsTarget.Relation != domain.RelAhead || feat.DevBoard.Created {
+	if feat == nil || feat.VsTarget.Ahead != 2 || feat.VsTarget.Relation != domain.RelAhead || feat.Werkbord.Created {
 		t.Fatalf("branch = %+v", feat)
 	}
 

@@ -19,12 +19,12 @@
     const current = currentBranches?.find((b) => b.scope === scope && b.name === name);
     const currentSha = current?.sha;
     const currentStale = current?.stale;
-    const currentTaskId = current?.devboard.taskId;
-    const currentTaskTitle = current?.devboard.taskTitle;
-    const currentRunId = current?.devboard.runId;
-    const currentRunState = current?.devboard.runState;
-    const currentTaskState = current?.devboard.taskState;
-    const currentActiveRun = current?.devboard.activeRun;
+    const currentTaskId = current?.werkbord.taskId;
+    const currentTaskTitle = current?.werkbord.taskTitle;
+    const currentRunId = current?.werkbord.runId;
+    const currentRunState = current?.werkbord.runState;
+    const currentTaskState = current?.werkbord.taskState;
+    const currentActiveRun = current?.werkbord.activeRun;
     const id = ++requestId;
     context = undefined;
     if (!taskId || !runId || scope !== 'local' || !current || !currentSha || currentStale || currentTaskId !== taskId || !currentTaskTitle || currentRunId !== runId || !currentRunState || currentTaskState !== 'review' || currentActiveRun) return;
@@ -35,7 +35,7 @@
       context = resolveGitReviewContext({ projectId, taskId, runId, branch, branches: overview.branches, tasks, run });
       if (currentBranches) {
         const current = currentBranches.find((b) => b.scope === scope && b.name === name);
-        if (!current || current.sha !== currentSha || current.sha !== branch.sha || current.stale || current.devboard.taskId !== taskId || current.devboard.taskTitle !== currentTaskTitle || current.devboard.runId !== runId || current.devboard.runState !== currentRunState || current.devboard.runState !== run.state || current.devboard.taskState !== 'review' || current.devboard.activeRun) context = undefined;
+        if (!current || current.sha !== currentSha || current.sha !== branch.sha || current.stale || current.werkbord.taskId !== taskId || current.werkbord.taskTitle !== currentTaskTitle || current.werkbord.runId !== runId || current.werkbord.runState !== currentRunState || current.werkbord.runState !== run.state || current.werkbord.taskState !== 'review' || current.werkbord.activeRun) context = undefined;
       }
     }).catch(() => {
       if (id === requestId) context = undefined;

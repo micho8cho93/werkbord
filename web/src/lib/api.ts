@@ -55,7 +55,7 @@ import { normalizeRunner, normalizeRunners } from './runners';
 import { startRefusal } from './scheduling';
 import { isPhone } from './phones/capability';
 
-const TOKEN_KEY = 'devboard.token';
+const TOKEN_KEY = 'werkbord.token';
 let memoryToken: string | null = null;
 
 /** Error returned by the controller, carrying its machine-readable code. */

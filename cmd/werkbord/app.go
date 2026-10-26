@@ -33,7 +33,7 @@ type app struct {
 	runnerDaemon func(ctx context.Context) daemon.Manager
 	// installed returns the manager and whether the service is installed.
 	installed func(ctx context.Context) (daemon.Manager, bool)
-	// executable is the path of the running devboard.
+	// executable is the path of the running werkbord.
 	executable func() (string, error)
 	// openBrowser opens a URL in the user's browser.
 	openBrowser func(url string) error
@@ -72,7 +72,7 @@ func newApp(cfg config.Config, out, errOut io.Writer) *app {
 	return a
 }
 
-// executable returns the real path of the running devboard, symlinks resolved, so
+// executable returns the real path of the running werkbord, symlinks resolved, so
 // that a service points at the file and not at a shim that may move.
 func executable() (string, error) {
 	p, err := os.Executable()

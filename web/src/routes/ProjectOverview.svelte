@@ -113,7 +113,7 @@
         {#each findings.slice(0, 2) as f (f.id)}<FindingCard finding={f} projectId={project.id} store={git} compact />{/each}
         {#if findings.length > 2}<a class="more" href={projectHref(project.id, 'git')}>{findings.length - 2} more in Git →</a>{/if}
       {:else if git.overview}
-        <p class="big"><span class="dot" data-tone="neutral"></span>{git.overview.summary.devboard} Werkbord branches</p>
+        <p class="big"><span class="dot" data-tone="neutral"></span>{git.overview.summary.werkbord} Werkbord branches</p>
       {:else}
         <p class="muted small">{git.error || 'Looking at the repository…'}</p>
       {/if}

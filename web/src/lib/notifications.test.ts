@@ -18,7 +18,7 @@ beforeEach(() => {
     static permission = 'granted';
     constructor(title: string, options: NotificationOptions) { shown.push({ title, options }); }
   });
-  localStorage.setItem('devboard.notifications.enabled', 'true');
+  localStorage.setItem('werkbord.notifications.enabled', 'true');
 });
 
 const event = (type: string, seq: number, payload?: unknown): ControllerEvent => ({ seq, type, payload, createdAt: new Date(0).toISOString() });
@@ -46,7 +46,7 @@ describe('alerts inside the desktop window', () => {
     const parent = { postMessage: (m: unknown) => posted.push(m) };
     vi.stubGlobal('document', { hidden: false });
     vi.stubGlobal('window', { focus: vi.fn(), parent, postMessage: vi.fn() });
-    localStorage.removeItem('devboard.notifications.enabled');
+    localStorage.removeItem('werkbord.notifications.enabled');
     notifyEvent(event('agent.output', 1), 'App', 'Task');
     notifyEvent(event('agent.question', 2), 'App', 'Fix login');
     notifyEvent(event('agent.failed', 3), 'App', 'Fix login');

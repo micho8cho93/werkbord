@@ -6,8 +6,8 @@ import (
 	"werkbord/internal/sqlitekit"
 )
 
-// backupPrefix names the pre-upgrade copies: devboard-v<version>-<time>.db.
-const backupPrefix = "devboard"
+// backupPrefix names the pre-upgrade copies: werkbord-v<version>-<time>.db.
+const backupPrefix = "werkbord"
 
 // keepBackups is how many pre-upgrade copies of the database are kept.
 const keepBackups = sqlitekit.KeepBackups

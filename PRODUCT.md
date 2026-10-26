@@ -31,7 +31,7 @@ installed web app. Several projects and machines (runners) at once.
 ## Capabilities and Constraints
 
 One product with one version and one release (see AGENTS.md and docs/STRUCTURE.md). The Individual app
-is a Svelte PWA embedded in the `werkbord` executable (`devboard` is kept as an alias).
+is a Svelte PWA embedded in the `werkbord` executable.
 The CSP forbids inline scripts and remote resources.
 
 ## Brand Commitments

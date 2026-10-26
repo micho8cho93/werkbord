@@ -816,18 +816,26 @@ func TestOnlyAProgramThatRunsAndSaysAVersionIsAnInstall(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Not executable, and an executable that is something else.
-	if err := os.WriteFile(filepath.Join(dir, "werkbord"), []byte("x"), 0o644); err != nil {
+	path := filepath.Join(dir, "werkbord")
+	l := w.launcher(Options{Version: "v1.0.0"})
+	// Not executable.
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	other := w.program(filepath.Join(dir, "devboard"), "hello world, I am something else")
-	l := w.launcher(Options{Version: "v1.0.0"})
 	if inst := l.FindInstall(bg); inst.Path != "" {
 		t.Fatalf("found %+v", inst)
 	}
-	w.program(other, "v0.9.0")
-	if inst := l.FindInstall(bg); inst.Path != other || inst.Version != "v0.9.0" {
-		t.Fatalf("an install under the old name was not found: %+v", inst)
+	// An executable that is something else (WriteFile keeps an existing file's mode, so start from nothing).
+	_ = os.Remove(path)
+	w.program(path, "hello world, I am something else")
+	if inst := l.FindInstall(bg); inst.Path != "" {
+		t.Fatalf("found %+v", inst)
+	}
+	// A program that runs and says a version.
+	w.program(path, "v0.9.0")
+	l = w.launcher(Options{Version: "v1.0.0"})
+	if inst := l.FindInstall(bg); inst.Path != path || inst.Version != "v0.9.0" {
+		t.Fatalf("the install was not found: %+v", inst)
 	}
 }
 

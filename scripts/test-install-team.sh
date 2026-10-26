@@ -97,7 +97,7 @@ fresh() { rm -rf "$WORK/home"; mkdir -p "$WORK/home"; export WERKBORD_TEAM_INSTA
 fresh
 out=$($SH scripts/install-team.sh 2>&1) || bad "install failed" "$out"
 [ "$("$WORK/home/.local/bin/werkbord-team" version)" = v9.1.1 ] || bad "the latest Team release (v9.1.1) was not installed" "$out"
-[ ! -e "$WORK/home/.local/bin/werkbord" ] && [ ! -e "$WORK/home/.local/bin/devboard" ] || bad "the individual executable was installed"
+[ ! -e "$WORK/home/.local/bin/werkbord" ] && [ ! -e "$WORK/home/.local/bin/werkbord" ] || bad "the individual executable was installed"
 ok "installs Team from the latest stable release, ignoring changelog tags and prereleases"
 
 # 1a. the newest release has no Team build attached yet: refuse, and say why, rather than install an older one silently

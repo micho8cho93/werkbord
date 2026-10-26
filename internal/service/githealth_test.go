@@ -512,7 +512,7 @@ func TestLockFilesAndABranchBuiltOnAnotherDoNotLookLikeCollisions(t *testing.T) 
 
 // ---- worktrees ----
 
-func TestAWorktreeInDevBoardsDirectoryThatNoRecordOwnsIsFound(t *testing.T) {
+func TestAWorktreeInWerkbordsDirectoryThatNoRecordOwnsIsFound(t *testing.T) {
 	f := newHealth(t)
 	f.h.Control.Worktrees = f.wts
 	stray := filepath.Join(f.wtRoot, "stray")
@@ -536,18 +536,18 @@ func TestAWorktreeRecordNoRunEverUsedIsFoundAfterAGracePeriod(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rec, err := f.wts.Create(f.ctx, NewWorktree{ProjectID: f.project.ID, Path: path, Branch: "devboard/unused-aaaaaa", BaseRef: "main"})
+	rec, err := f.wts.Create(f.ctx, NewWorktree{ProjectID: f.project.ID, Path: path, Branch: "werkbord/unused-aaaaaa", BaseRef: "main"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.git.AddWorktree(f.ctx, f.repo, path, "devboard/unused-aaaaaa", gitOut(t, f.repo, "rev-parse", "main")); err != nil {
+	if _, err := f.git.AddWorktree(f.ctx, f.repo, path, "werkbord/unused-aaaaaa", gitOut(t, f.repo, "rev-parse", "main")); err != nil {
 		t.Fatal(err)
 	}
 	f.expectHealthy(t, f.refresh(t)) // just created: its run has not had time to start
 
 	f.clk.advance(time.Hour)
 	r := f.refresh(t)
-	fd := find(r, domain.FindWorktreeNoRun, "devboard/unused-aaaaaa")
+	fd := find(r, domain.FindWorktreeNoRun, "werkbord/unused-aaaaaa")
 	if fd == nil || fd.Subject.WorktreeID != rec.ID || fd.Action.Kind != domain.ActCleanWorktree || !fd.Action.CanPerform || !fd.Action.Destructive {
 		t.Fatalf("an unused worktree: %v / %+v", typesOf(r), fd)
 	}
@@ -564,7 +564,7 @@ func TestAWorktreeSwitchedToAnotherBranchDoesNotMatchItsRecord(t *testing.T) {
 	}
 }
 
-func TestADirectoryThatWasDeletedUnderDevBoardIsReportedAndCanBeRetired(t *testing.T) {
+func TestADirectoryThatWasDeletedUnderWerkbordIsReportedAndCanBeRetired(t *testing.T) {
 	f := newHealth(t)
 	a := f.pushed(t, "feature", 1)
 	if err := os.RemoveAll(a.path); err != nil {

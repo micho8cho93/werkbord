@@ -35,7 +35,7 @@ func TestRemovingTeamCapabilityPreservesIndividualAndRetainedTeamState(t *testin
 	root := t.TempDir()
 	team := filepath.Join(root, "team")
 	plist := filepath.Join(root, "team.plist")
-	retained := []string{"personal/devboard.db", "personal/token", "personal/runner.json", "team/data/identity.json", "team/data/license.json", "team/access.key", "team/owner", "team/Helpers.previous/program", "team/install-backup-one/program"}
+	retained := []string{"personal/werkbord.db", "personal/token", "personal/runner.json", "team/data/identity.json", "team/data/license.json", "team/access.key", "team/owner", "team/Helpers.previous/program", "team/install-backup-one/program"}
 	for _, name := range append(append([]string{}, retained...), "team/Helpers/program", "team.plist") {
 		p := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {

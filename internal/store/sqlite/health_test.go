@@ -42,12 +42,12 @@ func getFinding(t *testing.T, db *DB, projectID, id string) *domain.HealthFindin
 func TestHealthFindingRoundTrips(t *testing.T) {
 	db, _ := openTemp(t)
 	p := seedProject(t, db)
-	f := finding(p.ID, "devboard/x", domain.HealthRisk)
+	f := finding(p.ID, "werkbord/x", domain.HealthRisk)
 	if err := upsert(t, db, f); err != nil {
 		t.Fatal(err)
 	}
 	got := getFinding(t, db, p.ID, f.ID)
-	if got.Title != f.Title || got.Severity != domain.HealthRisk || got.Subject.Branch != "devboard/x" || len(got.Subject.Related) != 1 ||
+	if got.Title != f.Title || got.Severity != domain.HealthRisk || got.Subject.Branch != "werkbord/x" || len(got.Subject.Related) != 1 ||
 		len(got.Evidence) != 1 || got.Action.Kind != domain.ActReviewChanges || !got.Action.CanPerform || !got.DetectedAt.Equal(f.DetectedAt) {
 		t.Fatalf("got %+v", got)
 	}
@@ -56,7 +56,7 @@ func TestHealthFindingRoundTrips(t *testing.T) {
 func TestHealthUpsertReplacesTheSameFinding(t *testing.T) {
 	db, _ := openTemp(t)
 	p := seedProject(t, db)
-	f := finding(p.ID, "devboard/x", domain.HealthAttention)
+	f := finding(p.ID, "werkbord/x", domain.HealthAttention)
 	_ = upsert(t, db, f)
 	f.Severity, f.Title = domain.HealthRisk, "worse"
 	if err := upsert(t, db, f); err != nil {

@@ -23,7 +23,7 @@ let browser, activePage;
  // Start on the route under test. A token-link bootstrap first resolves its
  // default project; navigating during that startup can race its replacement URL.
  await page.addInitScript(({origin,token}) => {
-  if(location.origin === origin) localStorage.setItem('devboard.token',token);
+  if(location.origin === origin) localStorage.setItem('werkbord.token',token);
  }, {origin:new URL(individual).origin,token});
  await page.goto(individual+'/#/settings?runners');
  await page.waitForURL(url => url.hash === '#/settings?runners');

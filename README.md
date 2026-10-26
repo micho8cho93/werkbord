@@ -336,7 +336,7 @@ working. On the board a task in *Doing* shows one of **Running**, **Needs input*
 **Failed**; these describe the run, and there is no extra column.
 
 Agents run as you, in a Git worktree under `worktreesDir` on a branch named
-`devboard/<task>-<id>`, so your own checkout is never touched. The work stays there when the run
+`werkbord/<task>-<id>`, so your own checkout is never touched. The work stays there when the run
 ends; Werkbord never deletes it by itself (you clean a worktree, and delete a merged branch, from the Git section, and only
 when nothing would be lost).
 
