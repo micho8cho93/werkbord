@@ -117,7 +117,8 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	line.c.CloseNow()
 	line, closed = dialPhone(t, pairing)
 	if line == nil {
-		t.Fatalf("the phone could not reconnect after its link dropped: the relay closed it with status %d", closed)
+		_, relayState := get(t, base+"/api/relay", owner)
+		t.Fatalf("the phone could not reconnect after its link dropped: the relay closed it with status %d; the runner's relay state: %s", closed, relayState)
 	}
 	if status, b = line.do("GET", path+"/output?after=0", phone.Token, ""); status != 200 {
 		t.Fatalf("reconnect: %d %s", status, b)
