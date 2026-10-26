@@ -275,14 +275,14 @@ then flags.
 | Setting | Env | Flag | Default |
 | --- | --- | --- | --- |
 | `addr` | `WERKBORD_ADDR` | `--addr` | `127.0.0.1:7420` |
-| `dataDir` | `WERKBORD_DATA_DIR` | `--data-dir` | OS config dir + `/werkbord` (`/devboard` on an install from before the rename) |
+| `dataDir` | `WERKBORD_DATA_DIR` | `--data-dir` | OS config dir + `/werkbord` |
 | `logLevel` | `WERKBORD_LOG_LEVEL` | `--log-level` | `info` |
 | `logFormat` | `WERKBORD_LOG_FORMAT` | `--log-format` | `text` (or `json`) |
 | `token` | `WERKBORD_TOKEN` | — | generated when needed |
 | `requireToken` | `WERKBORD_REQUIRE_TOKEN` | `--require-token` | `true`. `false` (or `--require-token=false`) allows tokenless access on `127.0.0.1` only, and logs a warning; off loopback the token is always required. Anything but `true`/`false` in the environment is an error |
 | `allowedHosts` | — | — | `[]` |
 | `network.enabled` | `WERKBORD_NETWORK` | — | unset: the app decides (`werkbord setup` turns it on). `true` always joins the private network, `false` never does |
-| `network.hostname` | `WERKBORD_NETWORK_HOSTNAME` | — | `werkbord-<this computer's name>` (`devboard-…` for a computer that joined before the rename) |
+| `network.hostname` | `WERKBORD_NETWORK_HOSTNAME` | — | `werkbord-<this computer's name>` |
 | `network.controlUrl` | `WERKBORD_NETWORK_CONTROL_URL` | — | Tailscale's. A self-hosted Headscale URL, if you run one |
 | `noUpdateCheck` | `WERKBORD_NO_UPDATE_CHECK` | — | `false`. `true` stops the controller from ever asking GitHub whether a newer release exists (what `GET /api/update` and the "update available" banner use); the controller's other network use (Git remotes, GitHub through your own `gh`, the private network) is something you asked for; this one is not, which is why it can be turned off |
 | `shutdownTimeout` | — | — | `10s` |

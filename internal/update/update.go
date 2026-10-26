@@ -50,7 +50,7 @@ const DefaultBase = "https://github.com/micho8cho93/werkbord/releases"
 // Source is a place releases come from.
 type Source struct {
 	// Base is the releases URL, without a trailing slash. Empty means DefaultBase,
-	// or WERKBORD_RELEASE_URL (DEVBOARD_RELEASE_URL) if set (for a mirror, or a test).
+	// or WERKBORD_RELEASE_URL if set (for a mirror, or a test).
 	Base string
 	HTTP *http.Client
 	// PublicKey is supplied by trusted callers/tests, never fetched from the release. Nil uses the build stamp.
@@ -240,13 +240,6 @@ func TagFor(version string) string {
 // AssetName is the archive for a platform in the release with this tag.
 func AssetName(tag, goos, goarch string) string { return assetNamed("werkbord", tag, goos, goarch) }
 
-// LegacyAssetName is the same archive under the name releases had before Werkbord
-// was renamed from Dev Board. Every release still publishes it, for the updaters of
-// those releases; this updater reads it only from a release that has nothing else.
-func LegacyAssetName(tag, goos, goarch string) string {
-	return assetNamed("devboard", tag, goos, goarch)
-}
-
 func assetNamed(prefix, tag, goos, goarch string) string {
 	ext := ".tar.gz"
 	if goos == "windows" {
@@ -311,12 +304,6 @@ func (s Source) Download(ctx context.Context, tag, goos, goarch, dir string) (st
 	}
 	want, ok := checksumFor(sums.String(), asset)
 	if !ok {
-		// A release from before the rename publishes only the old name.
-		if old, found := checksumFor(sums.String(), LegacyAssetName(tag, goos, goarch)); found {
-			asset, want, ok = LegacyAssetName(tag, goos, goarch), old, true
-		}
-	}
-	if !ok {
 		return "", fmt.Errorf("the checksums for %s do not list %s: this release has no build for %s/%s", tag, asset, goos, goarch)
 	}
 	dest := filepath.Join(dir, asset)
@@ -360,14 +347,6 @@ func BinaryName(goos string) string {
 	return "werkbord"
 }
 
-// legacyBinaryName is the executable's name in an archive from before the rename.
-func legacyBinaryName(goos string) string {
-	if goos == "windows" {
-		return "devboard.exe"
-	}
-	return "devboard"
-}
-
 // ExtractBinary takes the werkbord executable (named devboard in a release from
 // before the rename) out of an archive and writes it into
 // dir. Only that one file is read, by name, and never from a path the archive
@@ -399,7 +378,7 @@ func ExtractBinary(archive, goos, dir string) (string, error) {
 		}
 		defer zr.Close()
 		for _, zf := range zr.File {
-			if name := path.Base(zf.Name); (name == want || name == legacyBinaryName(goos)) && !zf.FileInfo().IsDir() {
+			if name := path.Base(zf.Name); name == want && !zf.FileInfo().IsDir() {
 				rc, err := zf.Open()
 				if err != nil {
 					return "", err
@@ -428,7 +407,7 @@ func ExtractBinary(archive, goos, dir string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if name := path.Base(hdr.Name); hdr.Typeflag == tar.TypeReg && (name == want || name == legacyBinaryName(goos)) {
+		if name := path.Base(hdr.Name); hdr.Typeflag == tar.TypeReg && name == want {
 			return dest, write(tr)
 		}
 	}
@@ -545,10 +524,5 @@ func Compare(a, b string) int {
 	return 1
 }
 
-// releaseURL is WERKBORD_RELEASE_URL, or the older DEVBOARD_RELEASE_URL.
-func releaseURL() string {
-	if v := os.Getenv("WERKBORD_RELEASE_URL"); v != "" {
-		return v
-	}
-	return os.Getenv("DEVBOARD_RELEASE_URL")
-}
+// releaseURL is WERKBORD_RELEASE_URL.
+func releaseURL() string { return os.Getenv("WERKBORD_RELEASE_URL") }

@@ -20,50 +20,16 @@ import (
 	"strings"
 )
 
-// The services' labels. Before Werkbord was renamed they were dev.devboard.*;
-// a service installed under such a label is found and managed as it is, and
-// `werkbord setup` replaces it with one under the new label.
+// The services' labels.
 const (
 	// DefaultLabel names the controller's service.
 	DefaultLabel = "dev.werkbord.controller"
 	// RunnerLabel names a remote runner's service.
 	RunnerLabel = "dev.werkbord.runner"
-
-	legacyControllerLabel = "dev.devboard.controller"
-	legacyRunnerLabel     = "dev.devboard.runner"
 )
 
-// LegacyLabel is the label the same service had before the rename, or "".
-func LegacyLabel(label string) string {
-	switch label {
-	case DefaultLabel:
-		return legacyControllerLabel
-	case RunnerLabel:
-		return legacyRunnerLabel
-	}
-	return ""
-}
-
-// Legacy reports whether these options name a service installed before the rename.
-func (o Options) Legacy() bool {
-	return o.Label == legacyControllerLabel || o.Label == legacyRunnerLabel
-}
-
-// runner reports whether the label is a runner's, old or new.
-func (o Options) runner() bool { return o.Label == RunnerLabel || o.Label == legacyRunnerLabel }
-
-// IsLegacy reports whether a manager manages a service installed before the rename.
-func IsLegacy(m Manager) bool {
-	switch v := m.(type) {
-	case *Launchd:
-		return v.Legacy()
-	case *Systemd:
-		return v.Legacy()
-	case *Schtasks:
-		return v.Legacy()
-	}
-	return false
-}
+// runner reports whether the label is a runner's.
+func (o Options) runner() bool { return o.Label == RunnerLabel }
 
 // Spec describes the service to install.
 type Spec struct {
@@ -72,7 +38,7 @@ type Spec struct {
 	// Args are its arguments, normally {"serve"}.
 	Args []string
 	// DataDir is where the controller keeps its state. It is passed to the service
-	// as WERKBORD_DATA_DIR (and DEVBOARD_DATA_DIR) so the service and the commands agree on it.
+	// as WERKBORD_DATA_DIR so the service and the commands agree on it.
 	DataDir string
 	// LogFile receives the controller's standard output and error.
 	LogFile string
@@ -164,10 +130,6 @@ func (o *Options) fill() {
 // already installed, else the one setup would install. A system without a usable
 // one (a container, a minimal Linux without a systemd user session) gets the
 // background process manager.
-//
-// A service installed before the rename, under its old label, is the one returned
-// while nothing is installed under the new label: an upgraded computer keeps
-// managing the controller it has, until setup moves it to the new label.
 func Detect(ctx context.Context, o Options) Manager {
 	o.fill()
 	var m Manager
@@ -184,30 +146,7 @@ func Detect(ctx context.Context, o Options) Manager {
 	if m == nil {
 		return &Background{Options: o}
 	}
-	if legacy := LegacyLabel(o.Label); legacy != "" {
-		if def, ok := definition(ctx, m); !ok || def == "" {
-			lo := o
-			lo.Label = legacy
-			old := withOptions(m, lo)
-			if def, ok := definition(ctx, old); ok && def != "" && servesSame(lo, def) {
-				return old
-			}
-		}
-	}
 	return m
-}
-
-// withOptions is the same kind of manager, with other options.
-func withOptions(m Manager, o Options) Manager {
-	switch m.(type) {
-	case *Launchd:
-		return &Launchd{Options: o}
-	case *Systemd:
-		return &Systemd{Options: o}
-	case *Schtasks:
-		return &Schtasks{Options: o}
-	}
-	return &Background{Options: o}
 }
 
 // definition is the service's definition as installed (the plist, the unit, the
@@ -224,14 +163,6 @@ func definition(ctx context.Context, m Manager) (string, bool) {
 		return v.query(ctx)
 	}
 	return "", false
-}
-
-// servesSame reports whether a legacy definition is the service the options ask
-// for. Before the rename, the controller and a runner had one unit name on Linux
-// and one task name on Windows, so the definition's command decides.
-func servesSame(o Options, def string) bool {
-	runs := strings.Contains(def, " runner") || strings.Contains(def, ">runner<")
-	return runs == o.runner()
 }
 
 // Installed returns the installable manager if the service is installed. The

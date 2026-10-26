@@ -137,8 +137,8 @@ func TestSetupWithNoStartOnlyPreparesEverything(t *testing.T) {
 
 func TestSetupHonoursTheEnvironmentFlagsTheInstallerUses(t *testing.T) {
 	e := newTestEnv(t)
-	t.Setenv("DEVBOARD_NO_OPEN", "1")
-	t.Setenv("DEVBOARD_NO_NETWORK", "true")
+	t.Setenv("WERKBORD_NO_OPEN", "1")
+	t.Setenv("WERKBORD_NO_NETWORK", "true")
 	if err := e.app.cmdSetup(bg, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestSetupMovesToAnotherPortWhenTheDefaultIsTaken(t *testing.T) {
 	}
 	defer l.Close()
 	e := newTestEnv(t)
-	t.Setenv("DEVBOARD_ADDR", "127.0.0.1:7420")
+	t.Setenv("WERKBORD_ADDR", "127.0.0.1:7420")
 	e.app.cfg.Addr = "127.0.0.1:7420"
 	// With the user's own config.json holding no addr, the default is what is in use.
 	if err := e.app.chooseAddr(bg); err != nil {

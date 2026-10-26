@@ -63,7 +63,7 @@ func TestLaunchdAgentDefinition(t *testing.T) {
 		"<string>" + filepath.Join(home, "bin", "devboard") + "</string>",
 		"<string>serve</string>",
 		"<key>PATH</key>", "/home/me/.nvm/versions/node/v22/bin", // the agents are found through the captured PATH
-		"<key>DEVBOARD_DATA_DIR</key>",
+		"<key>WERKBORD_DATA_DIR</key>",
 		"<key>RunAtLoad</key>\n\t<true/>",
 		"<key>SuccessfulExit</key>\n\t\t<false/>", // restarted after a crash, not after a clean stop
 		filepath.Join(home, "data", "logs", "controller.log"),
@@ -168,7 +168,7 @@ func TestSystemdUnitDefinition(t *testing.T) {
 	for _, want := range []string{
 		`ExecStart="` + filepath.Join(home, "my bin", "devboard") + `" serve`,
 		"Environment=PATH=/usr/local/bin:/home/me/.nvm/versions/node/v22/bin:/usr/bin",
-		"Environment=DEVBOARD_DATA_DIR=" + filepath.Join(home, "data"),
+		"Environment=WERKBORD_DATA_DIR=" + filepath.Join(home, "data"),
 		"Restart=on-failure", "WantedBy=default.target", "TimeoutStopSec=30",
 		"StandardOutput=append:" + filepath.Join(home, "data", "logs", "controller.log"),
 	} {
@@ -279,7 +279,7 @@ func TestSchtasksLifecycle(t *testing.T) {
 			create = c
 		}
 	}
-	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Werkbord", `devboard.exe" serve`, "DEVBOARD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\devboard"} {
+	for _, want := range []string{"/SC ONLOGON", "/RL LIMITED", "/TN Werkbord", `devboard.exe" serve`, "WERKBORD_DATA_DIR=C:\\Users\\me\\AppData\\Roaming\\devboard"} {
 		if !strings.Contains(create, want) {
 			t.Errorf("create command lacks %q: %s", want, create)
 		}
@@ -436,50 +436,6 @@ func TestLogsAreRotated(t *testing.T) {
 	}
 }
 
-// A computer set up before the rename keeps its service, under the old label, until
-// setup moves it; a new one gets the new label. A legacy runner unit is never taken
-// for the controller (on Linux they shared one unit name).
-func TestAServiceInstalledBeforeTheRenameIsStillFound(t *testing.T) {
-	ok := func(context.Context, string, ...string) (string, error) { return "", nil }
-
-	home := t.TempDir()
-	agents := filepath.Join(home, "Library", "LaunchAgents")
-	if err := os.MkdirAll(agents, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501}); IsLegacy(m) {
-		t.Fatal("a computer with no service got the old label")
-	}
-	if err := os.WriteFile(filepath.Join(agents, "dev.devboard.controller.plist"), []byte("<string>serve</string>"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501})
-	if !IsLegacy(m) {
-		t.Fatal("the service installed before the rename was not found")
-	}
-	if err := os.WriteFile(filepath.Join(agents, "dev.werkbord.controller.plist"), []byte("<string>serve</string>"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if m := Detect(bg, Options{GOOS: "darwin", Exec: ok, Home: home, UID: 501}); IsLegacy(m) {
-		t.Fatal("the new service lost to the old one")
-	}
-
-	linux := t.TempDir()
-	units := filepath.Join(linux, ".config", "systemd", "user")
-	if err := os.MkdirAll(units, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(units, "devboard.service"), []byte("ExecStart=/home/me/bin/devboard runner serve\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if m := Detect(bg, Options{GOOS: "linux", Exec: ok, Home: linux}); IsLegacy(m) {
-		t.Fatal("a legacy runner unit was taken for the controller")
-	}
-	if m := Detect(bg, Options{GOOS: "linux", Exec: ok, Home: linux, Label: RunnerLabel}); !IsLegacy(m) {
-		t.Fatal("the legacy runner unit was not found for the runner")
-	}
-}
-
 // A program the Finder started has none of the environment `werkbord setup` ran in. The service
 // definition is where the install records which executable it runs and where its data is.
 func TestDescribeReadsWhatSetupInstalled(t *testing.T) {
@@ -524,7 +480,7 @@ func TestDescribeReadsLinuxSystemdUnit(t *testing.T) {
 
 func TestDescribeReadsWindowsScheduledTask(t *testing.T) {
 	home := t.TempDir()
-	const xml = `<?xml version="1.0" encoding="UTF-16"?><Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; set "DEVBOARD_DATA_DIR=C:\Users\me\Data" &amp;&amp; "C:\Users\me\My Tools\werkbord.exe" serve"</Arguments></Exec></Actions></Task>`
+	const xml = `<?xml version="1.0" encoding="UTF-16"?><Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; set "WERKBORD_DATA_DIR=C:\Users\me\Data" &amp;&amp; "C:\Users\me\My Tools\werkbord.exe" serve"</Arguments></Exec></Actions></Task>`
 	r := &recorder{answer: func(call string) (string, error) {
 		if strings.HasSuffix(call, "/XML") {
 			return xml, nil
@@ -542,10 +498,6 @@ func TestDescribeReadsWindowsScheduledTask(t *testing.T) {
 	if def, ok := parseScheduledTask(string(encoded)); !ok || def.Binary != `C:\Users\me\My Tools\werkbord.exe` || def.DataDir != `C:\Users\me\Data` {
 		t.Fatalf("UTF-16 Task Scheduler definition = %+v, %v", def, ok)
 	}
-	const legacyXML = `<Task><Actions><Exec><Command>cmd.exe</Command><Arguments>/c "set "DEVBOARD_DATA_DIR=C:\Users\me\devboard" &amp;&amp; "C:\Users\me\devboard.exe" serve"</Arguments></Exec></Actions></Task>`
-	if def, ok := parseScheduledTask(legacyXML); !ok || def.Binary != `C:\Users\me\devboard.exe` || def.DataDir != `C:\Users\me\devboard` {
-		t.Fatalf("legacy DEVBOARD Task Scheduler definition = %+v, %v", def, ok)
-	}
 }
 
 func TestDescribeIsEmptyWhenNothingIsInstalledOrWhenThereIsNoLaunchd(t *testing.T) {
@@ -561,20 +513,6 @@ func TestDescribeIsEmptyWhenNothingIsInstalledOrWhenThereIsNoLaunchd(t *testing.
 	rec := &recorder{}
 	if _, ok := Describe(bg, Options{Home: home, GOOS: "linux", Exec: rec.exec}); ok {
 		t.Fatal("Describe claimed a definition on linux")
-	}
-}
-
-// An install from before the rename (dev.devboard.controller) is the install there is.
-func TestDescribeFindsAServiceInstalledUnderTheOldLabel(t *testing.T) {
-	home := t.TempDir()
-	old := &Launchd{Options: Options{Home: home, UID: 501, Label: "dev.devboard.controller", Exec: (&recorder{}).exec}}
-	sp := spec(home)
-	if err := old.Install(bg, sp); err != nil {
-		t.Fatal(err)
-	}
-	def, ok := Describe(bg, Options{Home: home, UID: 501, GOOS: "darwin", Exec: (&recorder{}).exec})
-	if !ok || def.Binary != sp.Binary || def.DataDir != sp.DataDir {
-		t.Fatalf("Describe = %+v, %v", def, ok)
 	}
 }
 

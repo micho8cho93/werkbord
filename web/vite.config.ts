@@ -3,7 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 // In development the Vite server proxies the API to a running controller
 // (`devboard serve`). In production the controller serves the built files.
-const controller = process.env.DEVBOARD_URL ?? 'http://127.0.0.1:7420';
+const controller = process.env.WERKBORD_URL ?? 'http://127.0.0.1:7420';
 
 export default defineConfig({
   plugins: [svelte()],

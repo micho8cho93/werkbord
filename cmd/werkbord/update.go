@@ -195,9 +195,6 @@ func (a *app) installRelease(ctx context.Context, self, fresh, target, current s
 		return err
 	}
 	a.printf("Installed %s over %s.\n", target, current)
-	if made, err := ensureCommandNames(self); err == nil && made != "" {
-		a.printf("Added %s: the command is werkbord now, and devboard still works.\n", made)
-	}
 	if !wasUp {
 		if err := a.restartUpdatedRunner(ctx, runner, target); err != nil {
 			return fmt.Errorf("update recovery incomplete: %w; old executable: %s; database backup: %s", err, prev, snapshot)

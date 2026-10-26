@@ -118,29 +118,29 @@ func TestStopIfBlockedBlocksOnOrdinaryQuestions(t *testing.T) {
 }
 
 func TestParseBlocker(t *testing.T) {
-	text := "I looked at both options.\n\nDEVBOARD_BLOCKED {\"summary\": \"Need the production API key\", \"detail\": \"The client reads KEY.\", \"options\": [\"provide it\", \"use a mock\"]}\n"
+	text := "I looked at both options.\n\nWERKBORD_BLOCKED {\"summary\": \"Need the production API key\", \"detail\": \"The client reads KEY.\", \"options\": [\"provide it\", \"use a mock\"]}\n"
 	b, ok := ParseBlocker(text)
 	if !ok || b.Summary != "Need the production API key" || b.Detail != "The client reads KEY." || len(b.Options) != 2 || b.Source != domain.BlockerReport {
 		t.Fatalf("ParseBlocker = %+v, %v", b, ok)
 	}
 
 	// A colon after the marker is tolerated, and the last report wins.
-	b, ok = ParseBlocker("DEVBOARD_BLOCKED: {\"summary\":\"first\"}\nmore text\n  DEVBOARD_BLOCKED: {\"summary\":\"second\"}")
+	b, ok = ParseBlocker("WERKBORD_BLOCKED: {\"summary\":\"first\"}\nmore text\n  WERKBORD_BLOCKED: {\"summary\":\"second\"}")
 	if !ok || b.Summary != "second" {
 		t.Fatalf("ParseBlocker = %+v, %v", b, ok)
 	}
 
 	// The agent clearly meant to stop even if its JSON is broken.
-	b, ok = ParseBlocker("DEVBOARD_BLOCKED I cannot choose between the two schemas")
+	b, ok = ParseBlocker("WERKBORD_BLOCKED I cannot choose between the two schemas")
 	if !ok || b.Summary != "I cannot choose between the two schemas" || b.Source != domain.BlockerReport {
 		t.Fatalf("plain-text report = %+v, %v", b, ok)
 	}
-	if b, ok := ParseBlocker("DEVBOARD_BLOCKED"); !ok || b.Summary == "" {
+	if b, ok := ParseBlocker("WERKBORD_BLOCKED"); !ok || b.Summary == "" {
 		t.Fatalf("empty report = %+v, %v", b, ok)
 	}
 
 	// Mentioning the marker mid-line, or not at all, is not a report.
-	for _, text := range []string{"", "All done.", "I will write DEVBOARD_BLOCKED if I get stuck.", "no marker here\njust prose"} {
+	for _, text := range []string{"", "All done.", "I will write WERKBORD_BLOCKED if I get stuck.", "no marker here\njust prose"} {
 		if _, ok := ParseBlocker(text); ok {
 			t.Errorf("%q parsed as a blocker", text)
 		}

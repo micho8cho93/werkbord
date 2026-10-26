@@ -1,8 +1,8 @@
 // Package live holds tests that run the real Claude Code and Codex CLIs. They
 // cost a little money and need the CLIs signed in, so they only run when
-// DEVBOARD_LIVE_AGENTS is set:
+// WERKBORD_LIVE_AGENTS is set:
 //
-//	DEVBOARD_LIVE_AGENTS=1 go test ./internal/agent/live -v -count=1
+//	WERKBORD_LIVE_AGENTS=1 go test ./internal/agent/live -v -count=1
 package live
 
 import (
@@ -21,17 +21,17 @@ import (
 
 func requireLive(t *testing.T) {
 	t.Helper()
-	if os.Getenv("DEVBOARD_LIVE_AGENTS") == "" {
-		t.Skip("set DEVBOARD_LIVE_AGENTS=1 to run the real agents")
+	if os.Getenv("WERKBORD_LIVE_AGENTS") == "" {
+		t.Skip("set WERKBORD_LIVE_AGENTS=1 to run the real agents")
 	}
 }
 
 func adapters() map[string]agent.Adapter {
 	return map[string]agent.Adapter{
 		"claude": claude.New(claude.Config{PermissionMode: "manual"}),
-		// DEVBOARD_LIVE_CODEX_MODEL is for machines whose Codex default model the
+		// WERKBORD_LIVE_CODEX_MODEL is for machines whose Codex default model the
 		// account cannot use.
-		"codex": codex.New(codex.Config{ApprovalPolicy: "untrusted", Model: os.Getenv("DEVBOARD_LIVE_CODEX_MODEL")}),
+		"codex": codex.New(codex.Config{ApprovalPolicy: "untrusted", Model: os.Getenv("WERKBORD_LIVE_CODEX_MODEL")}),
 	}
 }
 

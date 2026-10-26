@@ -19,7 +19,7 @@ export type FeedItem =
   | { kind: 'question'; seq: number; question: Question; at: string };
 
 /** The line an agent ends its turn with when it is blocked; see agent.BlockerMarker in the controller. */
-const BLOCKER_MARKER = 'DEVBOARD_BLOCKED';
+const BLOCKER_MARKER = 'WERKBORD_BLOCKED';
 
 /** Text with any blocker-report lines taken out. */
 export function withoutBlockerReport(text: string): string {

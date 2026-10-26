@@ -1,5 +1,4 @@
-// Command werkbord runs the local controller and talks to it. It is also
-// installed as devboard, its name before Werkbord was renamed from Dev Board.
+// Command werkbord runs the local controller and talks to it.
 //
 //	werkbord setup                 install and start everything, then open the app
 //	werkbord start | stop | restart | status
@@ -180,13 +179,6 @@ func cmdServe(cfg config.Config, args []string, stderr io.Writer) error {
 	log, err := logging.New(stderr, cfg.LogLevel, cfg.LogFormat)
 	if err != nil {
 		return err
-	}
-	// An install updated by a release from before the rename has only the devboard
-	// command: the controller, which is what such an update starts, adds werkbord.
-	if exe, err := executable(); err == nil {
-		if made, err := ensureCommandNames(exe); err == nil && made != "" {
-			log.Info("added the werkbord command beside devboard", "path", made)
-		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

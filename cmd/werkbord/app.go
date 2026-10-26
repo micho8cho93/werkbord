@@ -507,7 +507,7 @@ func (a *app) cmdUninstall(ctx context.Context, args []string) error {
 	if err := bg.Uninstall(ctx); err != nil {
 		return err
 	}
-	a.printf("Your projects, tasks and settings are untouched, in %s.\nTo remove the program, delete the werkbord executable (and devboard beside it); to remove the data too, delete that directory.\n", a.cfg.DataDir)
+	a.printf("Your projects, tasks and settings are untouched, in %s.\nTo remove the program, delete the werkbord executable; to remove the data too, delete that directory.\n", a.cfg.DataDir)
 	return nil
 }
 

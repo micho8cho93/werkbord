@@ -28,10 +28,10 @@ func TestParseInterspersed(t *testing.T) {
 func tokenEnv(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
-	t.Setenv("DEVBOARD_TOKEN", "")
-	t.Setenv("DEVBOARD_REQUIRE_TOKEN", "")
-	t.Setenv("DEVBOARD_ADDR", "")
+	t.Setenv("WERKBORD_DATA_DIR", dir)
+	t.Setenv("WERKBORD_TOKEN", "")
+	t.Setenv("WERKBORD_REQUIRE_TOKEN", "")
+	t.Setenv("WERKBORD_ADDR", "")
 	return dir
 }
 
@@ -68,7 +68,7 @@ func TestTokenCommand(t *testing.T) {
 
 func TestTokenCommandPrefersTheConfiguredToken(t *testing.T) {
 	tokenEnv(t)
-	t.Setenv("DEVBOARD_TOKEN", "from-env")
+	t.Setenv("WERKBORD_TOKEN", "from-env")
 	if out, err := runCLI("token"); err != nil || out != "from-env\n" {
 		t.Errorf("token = %q, %v", out, err)
 	}
@@ -76,7 +76,7 @@ func TestTokenCommandPrefersTheConfiguredToken(t *testing.T) {
 
 func TestTokenCommandWhenAuthenticationIsOff(t *testing.T) {
 	tokenEnv(t)
-	t.Setenv("DEVBOARD_REQUIRE_TOKEN", "false")
+	t.Setenv("WERKBORD_REQUIRE_TOKEN", "false")
 	_, err := runCLI("token")
 	if err == nil || !strings.Contains(err.Error(), "disabled") {
 		t.Errorf("err = %v, want it to say authentication is disabled", err)

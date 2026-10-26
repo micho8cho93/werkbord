@@ -44,7 +44,7 @@ func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	_ = tw.WriteHeader(&tar.Header{Name: "devboard", Mode: 0o755, Size: int64(len(script)), Typeflag: tar.TypeReg})
+	_ = tw.WriteHeader(&tar.Header{Name: "werkbord", Mode: 0o755, Size: int64(len(script)), Typeflag: tar.TypeReg})
 	_, _ = tw.Write([]byte(script))
 	_ = tw.Close()
 	_ = gz.Close()
@@ -62,7 +62,7 @@ func publishRelease(t *testing.T, tag string, tamper bool) *httptest.Server {
 	mux.HandleFunc("/download/"+tag+"/"+asset, func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(archive) })
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	t.Setenv("DEVBOARD_RELEASE_URL", ts.URL)
+	t.Setenv("WERKBORD_RELEASE_URL", ts.URL)
 	return ts
 }
 
@@ -137,7 +137,7 @@ func TestUpdateRefusesAnExecutableThatDoesNotReportTheVersion(t *testing.T) {
 	ts := publishRelease(t, "v1.1.0", false)
 	// The release's archive contains a devboard that claims to be another version.
 	_ = ts
-	t.Setenv("DEVBOARD_RELEASE_URL", publishLiar(t).URL)
+	t.Setenv("WERKBORD_RELEASE_URL", publishLiar(t).URL)
 	bin, _ := e.app.executable()
 	err := e.app.cmdUpdate(bg, nil)
 	if err == nil || !strings.Contains(err.Error(), "did not report v1.2.0") {
@@ -155,7 +155,7 @@ func publishLiar(t *testing.T) *httptest.Server {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	_ = tw.WriteHeader(&tar.Header{Name: "devboard", Mode: 0o755, Size: int64(len(script)), Typeflag: tar.TypeReg})
+	_ = tw.WriteHeader(&tar.Header{Name: "werkbord", Mode: 0o755, Size: int64(len(script)), Typeflag: tar.TypeReg})
 	_, _ = tw.Write([]byte(script))
 	_ = tw.Close()
 	_ = gz.Close()

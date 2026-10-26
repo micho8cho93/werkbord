@@ -7,5 +7,5 @@ import "strings"
 // are intentionally retained for their own work.
 func IsControllerSecret(kv string) bool {
 	name, _, _ := strings.Cut(kv, "=")
-	return strings.HasPrefix(name, "DEVBOARD_") || strings.HasPrefix(name, "WERKBORD_") || name == "TS_AUTHKEY" || strings.HasPrefix(name, "TS_") && strings.Contains(name, "AUTH")
+	return strings.HasPrefix(name, "WERKBORD_") || name == "TS_AUTHKEY" || strings.HasPrefix(name, "TS_") && strings.Contains(name, "AUTH")
 }

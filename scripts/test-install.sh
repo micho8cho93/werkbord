@@ -54,11 +54,6 @@ mkdir -p "$WORK/releases/werkbord-v9.0.4"
 cp "$WORK/releases/werkbord-v9.0.2"/werkbord_9.0.2_${os}_${arch}.tar.gz "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz"
 sum=$(shasum -a 256 "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz" 2>/dev/null || sha256sum "$WORK/releases/werkbord-v9.0.4/werkbord_9.0.4_${os}_${arch}.tar.gz")
 printf '%s  werkbord_9.0.4_%s_%s.tar.gz\n' "$(printf '%s' "$sum" | cut -d' ' -f1)" "$os" "$arch" > "$WORK/releases/werkbord-v9.0.4/checksums.txt"
-# v9.0.0: a release from before the rename, published only as devboard_…, with a devboard executable.
-PLATFORMS="$os/$arch" scripts/build-release.sh werkbord v9.0.0 "$WORK/build-v9.0.0" >/dev/null
-mkdir -p "$WORK/releases/werkbord-v9.0.0"
-cp "$WORK/build-v9.0.0"/devboard_* "$WORK/releases/werkbord-v9.0.0/"
-grep devboard_ "$WORK/build-v9.0.0/checksums.txt" > "$WORK/releases/werkbord-v9.0.0/checksums.txt"
 for release_dir in "$WORK"/releases/*; do
   tag=${release_dir##*/}
   printf 'werkbord/release/v1\000%s\000' "$tag" > "$WORK/to-sign"
@@ -109,17 +104,15 @@ newhome() {
   H="$WORK/home$1"; mkdir -p "$H"
   export HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_ADDR="127.0.0.1:$(freeport)" WERKBORD_BASE_URL="$BASE"
   export WERKBORD_NO_SERVICE=1 WERKBORD_NO_OPEN=1 WERKBORD_NO_NETWORK=1
-  unset WERKBORD_VERSION WERKBORD_NO_SETUP WERKBORD_INSTALL_DIR DEVBOARD_VERSION DEVBOARD_NO_SETUP || true
+  unset WERKBORD_VERSION WERKBORD_NO_SETUP WERKBORD_INSTALL_DIR WERKBORD_VERSION WERKBORD_NO_SETUP || true
 }
 api() { curl -fsS "http://$WERKBORD_ADDR$1"; }
 
 # ---- 1. the executable alone ----
 newhome 1
-# (with the variables' names from before the rename, which still work)
-out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_VERSION=v9.0.1 $SH scripts/install.sh 2>&1) || bad "install failed" "$out"
+out=$(WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.0.1 $SH scripts/install.sh 2>&1) || bad "install failed" "$out"
 [ -x "$HOME/.local/bin/werkbord" ] || bad "no executable installed" "$out"
 [ "$("$HOME/.local/bin/werkbord" version)" = v9.0.1 ] || bad "wrong version installed"
-[ "$("$HOME/.local/bin/devboard" version)" = v9.0.1 ] || bad "devboard does not run it too"
 contains "$out" "is not on your PATH" || bad "it should say the directory is not on PATH" "$out"
 [ ! -e "$HOME/data" ] || bad "an install-only run created the data directory"
 ok "installs only the executable, checked against its checksum"
@@ -188,30 +181,11 @@ ok "an upgrade restarts the controller on the new version and keeps projects and
 # ---- 6. stop and start through the commands ----
 "$HOME/.local/bin/werkbord" stop >/dev/null 2>&1 || bad "stop failed"
 if api /api/health >/dev/null 2>&1; then bad "the controller still answers after stop"; fi
-"$HOME/.local/bin/devboard" start >/dev/null 2>&1 || bad "start through the old name failed"
+"$HOME/.local/bin/werkbord" start >/dev/null 2>&1 || bad "start failed"
 health=$(api /api/health) || bad "start did not bring it back"
 projects=$(curl -fsS -H "Authorization: Bearer $TOKEN" "http://$WERKBORD_ADDR/api/projects")
 contains "$projects" '"name":"repo"' || bad "the project did not survive a restart" "$projects"
 "$HOME/.local/bin/werkbord" stop >/dev/null 2>&1
-ok "stop and start work, under either name, and projects survive a restart"
-
-# ---- 7. an install from before the rename: only devboard, and its data in devboard ----
-newhome 7
-unset WERKBORD_DATA_DIR
-export XDG_CONFIG_HOME="$HOME/.config" # never the real one
-WERKBORD_NO_SETUP=1 WERKBORD_VERSION=v9.0.0 $SH scripts/install.sh >/dev/null 2>&1 || bad "installing a release published only as devboard_ failed"
-[ "$("$HOME/.local/bin/werkbord" version)" = v9.0.0 ] || bad "the release from before the rename was not installed"
-rm "$HOME/.local/bin/devboard" && mv "$HOME/.local/bin/werkbord" "$HOME/.local/bin/devboard"   # as such an install was
-case "$os" in darwin) cfgdir="$HOME/Library/Application Support" ;; *) cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}" ;; esac
-mkdir -p "$cfgdir/devboard"
-out=$("$HOME/.local/bin/devboard" setup 2>&1) || bad "setup of the old install failed" "$out"
-[ -f "$cfgdir/devboard/devboard.db" ] || bad "the old install did not keep its data directory" "$out"
-[ ! -e "$cfgdir/werkbord" ] || bad "a second data directory was made beside the old one" "$out"
-out=$(WERKBORD_VERSION=v9.0.2 $SH scripts/install.sh 2>&1) || bad "upgrading the old install failed" "$out"
-[ "$("$HOME/.local/bin/devboard" version)" = v9.0.2 ] || bad "the old install was not upgraded" "$out"
-[ "$("$HOME/.local/bin/werkbord" version)" = v9.0.2 ] || bad "werkbord was not added beside devboard" "$out"
-[ -f "$cfgdir/devboard/devboard.db" ] || bad "the upgrade moved the data" "$out"
-"$HOME/.local/bin/werkbord" stop >/dev/null 2>&1
-ok "an install from before the rename upgrades in place, keeps its data, and gains the werkbord command"
+ok "stop and start work, and projects survive a restart"
 
 printf '\n%s installer checks passed\n' "$pass"

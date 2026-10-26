@@ -17,8 +17,6 @@
 #   cmd             the directory of the executable's main package
 #   binary          the executable's name
 #   asset           the prefix of the release archives:   <asset>_<version>_<os>_<arch>.tar.gz
-#   legacy-asset    an older name the same archives are also published under, for the
-#                   updaters and installers of releases from before a rename (empty if none)
 #   readme          the README packed into the archives
 #   version-file    the one VERSION file, for both executables: cmd/werkbord/VERSION
 #   tag-prefix      what every release tag starts with:    werkbord-v
@@ -46,8 +44,8 @@ fi
 product=${1:-}
 field=${2:-}
 case "$product" in
-  werkbord)      cmd=cmd/werkbord;       binary=werkbord;      asset=werkbord;      legacy=devboard; readme=README.md ;;
-  werkbord-team) cmd=cmd/werkbord-team;  binary=werkbord-team; asset=werkbord-team; legacy="";      readme=cmd/werkbord-team/README.md ;;
+  werkbord)      cmd=cmd/werkbord;       binary=werkbord;      asset=werkbord;      readme=README.md ;;
+  werkbord-team) cmd=cmd/werkbord-team;  binary=werkbord-team; asset=werkbord-team; readme=cmd/werkbord-team/README.md ;;
   *) die "unknown product \"$product\" (want werkbord or werkbord-team)" ;;
 esac
 # One version for everything that is released together.
@@ -68,7 +66,6 @@ case "$field" in
   cmd) echo "$cmd" ;;
   binary) echo "$binary" ;;
   asset) echo "$asset" ;;
-  legacy-asset) echo "$legacy" ;;
   readme) echo "$readme" ;;
   version-file) echo "$versionfile" ;;
   tag-prefix) echo "$prefix" ;;

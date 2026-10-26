@@ -18,8 +18,6 @@ func (s *Schtasks) Name() string { s.fill(); return "task scheduler" }
 
 func (s *Schtasks) taskName() string {
 	switch {
-	case s.Legacy():
-		return "Devboard"
 	case s.runner():
 		return "Werkbord runner"
 	}
@@ -37,7 +35,7 @@ func (s *Schtasks) command(spec Spec) string {
 		inner += ` >> "` + spec.LogFile + `" 2>&1`
 	}
 	if spec.DataDir != "" {
-		inner = `set "WERKBORD_DATA_DIR=` + spec.DataDir + `" && set "DEVBOARD_DATA_DIR=` + spec.DataDir + `" && ` + inner
+		inner = `set "WERKBORD_DATA_DIR=` + spec.DataDir + `" && ` + inner
 	}
 	return `cmd /c "` + inner + `"`
 }

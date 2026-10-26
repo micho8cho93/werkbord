@@ -43,7 +43,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
     } finally { for (const s of sessions) await api('POST', `/api/projects/${project.id}/terminals/${s.id}/stop`, {}); }
     return;
   }
-  const vite = start(process.execPath, [path.join(root, 'web/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], path.join(root, 'web'), { DEVBOARD_URL: base }); await ready(web, vite);
+  const vite = start(process.execPath, [path.join(root, 'web/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], path.join(root, 'web'), { WERKBORD_URL: base }); await ready(web, vite);
   browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? {executablePath:process.env.BROWSER_EXECUTABLE} : {}) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(token => { localStorage.setItem('devboard.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);

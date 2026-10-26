@@ -22,8 +22,6 @@ func (s *Systemd) Name() string { s.fill(); return "systemd" }
 
 func (s *Systemd) unitName() string {
 	switch {
-	case s.Legacy():
-		return "devboard.service"
 	case s.runner():
 		return "werkbord-runner.service"
 	}

@@ -264,12 +264,6 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 			return e
 		}
 		home, _ := os.UserHomeDir()
-		if daemon.IsLegacy(manager) {
-			if e := manager.Uninstall(context.Background()); e != nil {
-				return fmt.Errorf("replace the runner service installed under the old name: %w", e)
-			}
-			manager = daemon.Detect(context.Background(), daemon.Options{DataDir: dir, Label: daemon.RunnerLabel})
-		}
 		spec := daemon.Spec{Binary: binary, Args: []string{"runner", "serve"}, DataDir: cfg.DataDir, LogFile: filepath.Join(dir, "logs", "runner.log"), Path: daemon.ServicePATH(os.Getenv("PATH"), home)}
 		if e := manager.Install(context.Background(), spec); e != nil {
 			return e

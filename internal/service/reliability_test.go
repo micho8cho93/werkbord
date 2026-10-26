@@ -77,7 +77,7 @@ func TestRemoteBlockedRunEmitsLifecycleEvents(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	say := agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: "stuck\nDEVBOARD_BLOCKED {\"summary\":\"need the prod DB password\"}"}
+	say := agent.Event{Kind: agent.KindOutput, Stream: domain.StreamAssistant, Text: "stuck\nWERKBORD_BLOCKED {\"summary\":\"need the prod DB password\"}"}
 	obs := []runnerwire.Observation{rt.started(run),
 		{Seq: 2, Kind: "event", Event: &say},
 		{Seq: 3, Kind: "event", Event: &agent.Event{Kind: agent.KindTurnEnd}}}

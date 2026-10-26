@@ -17,7 +17,7 @@ import (
 	"devboard/internal/store/sqlite"
 )
 
-// envOn reports whether WERKBORD_<name> (or the older DEVBOARD_<name>) asks for something: "1", "true" or "yes".
+// envOn reports whether WERKBORD_<name> asks for something: "1", "true" or "yes".
 func envOn(name string) bool {
 	switch strings.ToLower(config.Getenv(name)) {
 	case "1", "true", "yes", "on":
@@ -64,11 +64,6 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		return err
 	}
 	a.step(markOK, "data directory", a.cfg.DataDir)
-	if exe, err := a.executable(); err == nil {
-		if made, err := ensureCommandNames(exe); err == nil && made != "" {
-			a.step(markOK, "commands", "werkbord, and devboard as before ("+made+")")
-		}
-	}
 
 	// 2. The access token and the database, before anything is started, so that a
 	// problem with either is reported here and not as a controller that will not start.
@@ -99,15 +94,6 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		m = &daemon.Background{Options: daemon.Options{DataDir: a.cfg.DataDir}}
 	} else {
 		m = a.daemon(ctx)
-		// A service installed before the rename (dev.devboard.controller) is replaced by
-		// one under the new label, so that there is only ever one.
-		if daemon.IsLegacy(m) {
-			if err := m.Uninstall(ctx); err != nil {
-				return fmt.Errorf("replace the service installed under the old name: %w", err)
-			}
-			m = a.daemon(ctx)
-			a.step(markOK, "service", "moved from the old Dev Board name to Werkbord")
-		}
 	}
 	if err := m.Install(ctx, spec); err != nil {
 		return fmt.Errorf("install the service: %w", err)

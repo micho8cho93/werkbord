@@ -10,8 +10,8 @@ import (
 
 func TestLoadPrecedence(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
-	t.Setenv("DEVBOARD_LOG_LEVEL", "debug")
+	t.Setenv("WERKBORD_DATA_DIR", dir)
+	t.Setenv("WERKBORD_LOG_LEVEL", "debug")
 	if err := os.WriteFile(filepath.Join(dir, "config.json"),
 		[]byte(`{"addr":"127.0.0.1:9999","logLevel":"warn","shutdownTimeout":"3s"}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -92,8 +92,8 @@ func TestRequireTokenSources(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()
-			t.Setenv("DEVBOARD_DATA_DIR", dir)
-			t.Setenv("DEVBOARD_REQUIRE_TOKEN", c.env)
+			t.Setenv("WERKBORD_DATA_DIR", dir)
+			t.Setenv("WERKBORD_REQUIRE_TOKEN", c.env)
 			if c.file != "" {
 				if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(c.file), 0o600); err != nil {
 					t.Fatal(err)
@@ -101,8 +101,8 @@ func TestRequireTokenSources(t *testing.T) {
 			}
 			cfg, err := Load()
 			if c.wantErr {
-				if err == nil || !strings.Contains(err.Error(), "DEVBOARD_REQUIRE_TOKEN") {
-					t.Fatalf("Load err = %v, want an error naming DEVBOARD_REQUIRE_TOKEN", err)
+				if err == nil || !strings.Contains(err.Error(), "WERKBORD_REQUIRE_TOKEN") {
+					t.Fatalf("Load err = %v, want an error naming WERKBORD_REQUIRE_TOKEN", err)
 				}
 				return
 			}
@@ -146,7 +146,7 @@ func TestResolveTokenGeneratesOnce(t *testing.T) {
 
 func TestAgentSettingsAreLoadedFromTheConfigFile(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	t.Setenv("WERKBORD_DATA_DIR", dir)
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{
 		"worktreesDir": "/srv/worktrees",
 		"agents": {
@@ -177,8 +177,8 @@ func TestWorktreesDefaultToTheDataDirectory(t *testing.T) {
 	if got := c.WorktreesPath(); got != "/data/devboard/worktrees" {
 		t.Fatalf("WorktreesPath = %s", got)
 	}
-	t.Setenv("DEVBOARD_WORKTREES_DIR", "/elsewhere")
-	t.Setenv("DEVBOARD_DATA_DIR", t.TempDir())
+	t.Setenv("WERKBORD_WORKTREES_DIR", "/elsewhere")
+	t.Setenv("WERKBORD_DATA_DIR", t.TempDir())
 	loaded, err := Load()
 	if err != nil || loaded.WorktreesPath() != "/elsewhere" {
 		t.Fatalf("env override: %v, %v", loaded.WorktreesPath(), err)
@@ -229,13 +229,12 @@ func TestRiskyAgentSettingsAreReported(t *testing.T) {
 	}
 }
 
-// Werkbord was Werkbord: its old variables still work, and the new ones win.
-func TestWerkbordVariablesWinAndDevboardOnesStillWork(t *testing.T) {
+// The environment overrides the defaults.
+func TestWerkbordVariablesOverrideTheDefaults(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
-	t.Setenv("DEVBOARD_LOG_LEVEL", "debug")
+	t.Setenv("WERKBORD_DATA_DIR", dir)
 	t.Setenv("WERKBORD_LOG_LEVEL", "warn")
-	t.Setenv("DEVBOARD_ADDR", "127.0.0.1:7999")
+	t.Setenv("WERKBORD_ADDR", "127.0.0.1:7999")
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
@@ -249,22 +248,10 @@ func TestWerkbordVariablesWinAndDevboardOnesStillWork(t *testing.T) {
 	}
 }
 
-func TestAnExistingDevboardDataDirectoryIsKept(t *testing.T) {
+func TestTheDataDirectoryIsWerkbordUnderTheConfigDirectory(t *testing.T) {
 	base := t.TempDir()
 	if got := DataDirIn(base); got != filepath.Join(base, "werkbord") {
-		t.Fatalf("new install: %s", got)
-	}
-	if err := os.Mkdir(filepath.Join(base, "devboard"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if got := DataDirIn(base); got != filepath.Join(base, "devboard") {
-		t.Fatalf("install from before the rename: %s", got)
-	}
-	if err := os.Mkdir(filepath.Join(base, "werkbord"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if got := DataDirIn(base); got != filepath.Join(base, "werkbord") {
-		t.Fatalf("both exist: %s", got)
+		t.Fatalf("data dir: %s", got)
 	}
 }
 
@@ -345,7 +332,7 @@ func TestNoUpdateCheckFromFileAndEnvironment(t *testing.T) {
 	if c, err := Load(); err != nil || !c.NoUpdateCheck {
 		t.Fatalf("config.json: %v, %v", c.NoUpdateCheck, err)
 	}
-	t.Setenv("DEVBOARD_NO_UPDATE_CHECK", "maybe")
+	t.Setenv("WERKBORD_NO_UPDATE_CHECK", "maybe")
 	if _, err := Load(); err == nil {
 		t.Fatal("a value that is not a boolean was accepted for a setting that stops something")
 	}
@@ -371,7 +358,7 @@ func TestEmbedOriginsAreExactLoopbackOriginsFromTheEnvironmentOrTheFile(t *testi
 
 func TestAssistantSettingsAreLoadedAndChecked(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	t.Setenv("WERKBORD_DATA_DIR", dir)
 	write := func(body string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(body), 0o600); err != nil {
@@ -422,7 +409,7 @@ func TestAuditRetentionForEverIsAllowed(t *testing.T) {
 
 func TestAttachmentSettingsAreLoadedAndDefaultToHalfAnHourWithFilesOn(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("DEVBOARD_DATA_DIR", dir)
+	t.Setenv("WERKBORD_DATA_DIR", dir)
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"assistant": {"attachmentRetentionMinutes": 10, "attachmentsDisabled": true}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -147,10 +147,8 @@ func TestTheDesktopLifecycleWithTheRealProgram(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("WERKBORD_DATA_DIR", data)
-	t.Setenv("DEVBOARD_DATA_DIR", "")
 	addr := freeAddr(t)
 	t.Setenv("WERKBORD_ADDR", addr)
-	t.Setenv("DEVBOARD_ADDR", "")
 
 	releases := releaseServer(t, "werkbord-v1.1.0", v11)
 	t.Setenv("WERKBORD_RELEASE_URL", releases.URL)

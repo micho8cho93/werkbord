@@ -209,7 +209,6 @@ func TestTheControllersOwnSecretsAreNotPassedOn(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "env")
 	t.Setenv("FAKE_CLAUDE_ENV_FILE", file)
 	t.Setenv("WERKBORD_TOKEN", "controller-secret")
-	t.Setenv("DEVBOARD_TOKEN", "controller-secret")
 	if _, _, err := run(t, newProvider(t), provider.Turn{Prompt: "hi"}); err != nil {
 		t.Fatal(err)
 	}

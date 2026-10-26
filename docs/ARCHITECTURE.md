@@ -197,7 +197,7 @@ snapshot is left untouched, so a project never silently starts describing anothe
 
 `werkbord serve` → `controller.Run`:
 
-1. **Load config**: defaults → `<dataDir>/config.json` → `WERKBORD_*` env (or the older `DEVBOARD_*`) → flags.
+1. **Load config**: defaults → `<dataDir>/config.json` → `WERKBORD_*` env (or the older `WERKBORD_*`) → flags.
 2. **Lock the data directory** with an exclusive `flock` on `controller.lock`. A second
    controller on the same data dir fails fast. The OS releases the lock if the process dies.
 3. **Open SQLite and migrate** (see §6). A database from a newer build is refused.
@@ -230,8 +230,7 @@ If any startup step fails, everything already started is torn down in reverse or
   validation and the event log. `werkbord migrate` is the one offline command, and it
   is guarded by the same migration code.
 - Location: `<dataDir>/devboard.db` (default `~/Library/Application Support/werkbord` on
-  macOS, `~/.config/werkbord` on Linux; an install from before the rename keeps `…/devboard`). The file keeps
-  its name. Directory 0700, file 0600.
+  macOS, `~/.config/werkbord` on Linux). Directory 0700, file 0600.
 - Driver: `modernc.org/sqlite` (pure Go, so builds need no C toolchain). WAL mode,
   `synchronous=FULL` on the writer (a committed transaction survives a power cut; with
   `NORMAL` it could roll back, and a record written before a directory is created or after
@@ -992,7 +991,7 @@ the desktop Svelte entry separately from the Personal PWA. The shell shares
 Geist, tokens, icons, mark, theme and dialog components with the PWA. It has no
 Team backend imports. Team continues serving its existing console, including
 `?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI,
-`devboard` aliases and every `DEVBOARD_*` variable.
+`devboard` aliases and every `WERKBORD_*` variable.
 
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
 (the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
@@ -1138,7 +1137,7 @@ it does not stop runs already accepted by Personal or affect another slot.
 
 ### Distribution, plans and updates
 
-One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`DEVBOARD_*` behavior remain.
+One primary macOS installer carries everything: the app, the controller, and Team's service with its installer. Everything in the app has the one version. The preview suffix remains until production distribution acceptance. Both CLI installers and historical `devboard`/`WERKBORD_*` behavior remain.
 
 The bundle contains the shell, the Personal helper, and Team's service (`werkbord-team`), its pinned network and database
 programs and their notices, and its installer, which is the app's own executable in an installer mode

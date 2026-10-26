@@ -351,7 +351,7 @@ func TestStopIfBlockedBlocksOnAReportAtTheEndOfATurn(t *testing.T) {
 	s := e.session()
 
 	s.Assistant("I read the config loader and both options look plausible.")
-	s.Assistant("DEVBOARD_BLOCKED {\"summary\":\"Need the production API key\",\"detail\":\"The client reads API_KEY from the environment.\",\"options\":[\"provide it\",\"use the sandbox key\"]}")
+	s.Assistant("WERKBORD_BLOCKED {\"summary\":\"Need the production API key\",\"detail\":\"The client reads API_KEY from the environment.\",\"options\":[\"provide it\",\"use the sandbox key\"]}")
 	s.TurnEnd()
 
 	blocked := e.waitBlocked(run.ID)
@@ -385,7 +385,7 @@ func TestBlockerReportsOnlyCountWhenThePolicyAsksForThem(t *testing.T) {
 			e := newEnv(t)
 			run := e.start(e.taskWith("Marker", p))
 			s := e.session()
-			s.Assistant("DEVBOARD_BLOCKED {\"summary\":\"stuck\"}")
+			s.Assistant("WERKBORD_BLOCKED {\"summary\":\"stuck\"}")
 			s.TurnEnd()
 			e.waitWaiting(run.ID, domain.WaitIdle)
 			if e.run(run.ID).Blocker != nil {
@@ -411,7 +411,7 @@ func TestStopIfBlockedRunsEndOrdinaryTurnsNormally(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.waitState(run.ID, domain.RunRunning)
-	s.Assistant("DEVBOARD_BLOCKED {\"summary\":\"second part needs a decision\"}")
+	s.Assistant("WERKBORD_BLOCKED {\"summary\":\"second part needs a decision\"}")
 	s.TurnEnd()
 	if b := e.waitBlocked(run.ID).Blocker; b.Summary != "second part needs a decision" {
 		t.Fatalf("blocker = %+v", b)

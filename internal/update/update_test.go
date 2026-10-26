@@ -112,21 +112,6 @@ func TestDownloadVerifiesTheChecksum(t *testing.T) {
 		t.Fatalf("a refused download was kept: %v", entries)
 	}
 
-	// A release from before the rename has only the old name, with the old executable name inside.
-	old := LegacyAssetName("v0.9.0", "linux", "amd64")
-	if old != "devboard_0.9.0_linux_amd64.tar.gz" {
-		t.Fatalf("legacy asset = %s", old)
-	}
-	legacy := releaseServer(t, "v0.9.0", map[string][]byte{old: archive}, fmt.Sprintf("%s  %s\n", sum(archive), old))
-	dir3 := t.TempDir()
-	got, err := Source{Base: legacy.URL}.Download(bg, "v0.9.0", "linux", "amd64", dir3)
-	if err != nil || filepath.Base(got) != old {
-		t.Fatalf("legacy download = %q, %v", got, err)
-	}
-	bin, err := ExtractBinary(got, "linux", dir3)
-	if err != nil || filepath.Base(bin) != "werkbord" {
-		t.Fatalf("legacy extract = %q, %v", bin, err)
-	}
 	// An archive the checksums do not list is refused, and the error says the platform has no build.
 	unlisted := releaseServer(t, "v1.0.0", map[string][]byte{asset: archive}, strings.Repeat("0", 64)+"  other.tar.gz\n")
 	if _, err := (Source{Base: unlisted.URL}).Download(bg, "v1.0.0", "linux", "amd64", t.TempDir()); err == nil || !strings.Contains(err.Error(), "no build for linux/amd64") {
@@ -143,7 +128,7 @@ func TestDownloadVerifiesTheChecksum(t *testing.T) {
 func TestExtractBinaryOnlyReadsTheExecutableByName(t *testing.T) {
 	dir := t.TempDir()
 	arch := filepath.Join(dir, "a.tar.gz")
-	_ = os.WriteFile(arch, tarGz(t, map[string]string{"README.md": "hi", "devboard_1.0.0_linux_amd64/devboard": "BIN", "../../evil": "x"}), 0o600)
+	_ = os.WriteFile(arch, tarGz(t, map[string]string{"README.md": "hi", "werkbord_1.0.0_linux_amd64/werkbord": "BIN", "../../evil": "x"}), 0o600)
 	out := t.TempDir()
 	bin, err := ExtractBinary(arch, "linux", out)
 	if err != nil || bin != filepath.Join(out, "werkbord") {

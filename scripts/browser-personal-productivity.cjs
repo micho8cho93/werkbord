@@ -58,7 +58,7 @@ const shows = (locator, value) => until(async () => (await locator.inputValue().
     return raw ? JSON.parse(raw) : undefined;
   };
   assert.ok((await fetch(base + '/api/onboarding/complete', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' })).ok);
-  const vite = start(process.execPath, [path.join(root, 'web/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], path.join(root, 'web'), { DEVBOARD_URL: base });
+  const vite = start(process.execPath, [path.join(root, 'web/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'], path.join(root, 'web'), { WERKBORD_URL: base });
   await ready(web, vite);
 
   const field = (key, name, type, extra = {}) => ({ key, name, type, required: false, ...extra });

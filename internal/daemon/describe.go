@@ -27,8 +27,8 @@ type Definition struct {
 
 var (
 	plistProgram   = regexp.MustCompile(`(?s)<key>ProgramArguments</key>\s*<array>\s*<string>(.*?)</string>`)
-	plistEnvKeys   = []string{"WERKBORD_DATA_DIR", "DEVBOARD_DATA_DIR"}
-	windowsDataDir = regexp.MustCompile(`(?i)set\s+"(WERKBORD|DEVBOARD)_DATA_DIR=([^"]*)"`)
+	plistEnvKeys   = []string{"WERKBORD_DATA_DIR"}
+	windowsDataDir = regexp.MustCompile(`(?i)set\s+"WERKBORD_DATA_DIR=([^"]*)"`)
 	xmlEncoding    = regexp.MustCompile(`(?i)(<\?xml[^>]*encoding\s*=\s*["'])[^"']+(["'])`)
 )
 
@@ -107,7 +107,7 @@ func parseSystemdUnit(body string) (Definition, bool) {
 			}
 		case "Environment":
 			pair := strings.SplitN(systemdUnescape(words[0]), "=", 2)
-			if len(pair) == 2 && (pair[0] == "WERKBORD_DATA_DIR" || pair[0] == "DEVBOARD_DATA_DIR") {
+			if len(pair) == 2 && pair[0] == "WERKBORD_DATA_DIR" {
 				def.DataDir = pair[1]
 			}
 		}
@@ -183,7 +183,7 @@ func parseScheduledTask(body string) (Definition, bool) {
 	}
 	def := Definition{}
 	if m := windowsDataDir.FindStringSubmatch(args); m != nil {
-		def.DataDir = m[2]
+		def.DataDir = m[1]
 	}
 	if i := strings.LastIndex(args, " && "); i >= 0 {
 		args = strings.TrimSpace(args[i+4:])

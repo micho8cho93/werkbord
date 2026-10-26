@@ -15,7 +15,7 @@ Compare this fingerprint through an independently trusted publisher channel.
 Downloading a key beside an archive does not establish its authenticity. The
 shell installer must itself come from a trusted source, and accepts an
 independently provisioned PEM through `WERKBORD_RELEASE_PUBLIC_KEY_FILE` (also
-supported with the `DEVBOARD_` prefix). This checked-in PEM is its default only
+supported with the `WERKBORD_` prefix). This checked-in PEM is its default only
 when that installer/source copy is already trusted.
 
 The build receives the matching raw key through `RELEASE_PUBLIC_KEY`; the

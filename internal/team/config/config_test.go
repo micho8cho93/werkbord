@@ -26,8 +26,8 @@ func TestDefaultsAreLoopbackWithTheirOwnDirectoryAndPort(t *testing.T) {
 }
 
 func TestEnvironmentOverridesDefaultsAndIgnoresTheIndividualProductsVariables(t *testing.T) {
-	t.Setenv("DEVBOARD_ADDR", "127.0.0.1:1111")
-	t.Setenv("DEVBOARD_DATA_DIR", "/somewhere/else")
+	t.Setenv("WERKBORD_ADDR", "127.0.0.1:1111")
+	t.Setenv("WERKBORD_DATA_DIR", "/somewhere/else")
 	t.Setenv("WERKBORD_TEAM_ADDR", "0.0.0.0:9000")
 	t.Setenv("WERKBORD_TEAM_DATA_DIR", "/srv/team")
 	c := Load()

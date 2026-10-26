@@ -204,13 +204,13 @@ describe('FeedBuilder and execution policy', () => {
   });
 
   it('does not show the blocker report as raw text, but keeps what was said around it', () => {
-    const report = 'DEVBOARD_BLOCKED {"summary":"stuck"}';
+    const report = 'WERKBORD_BLOCKED {"summary":"stuck"}';
     expect(build([out('assistant', report)]).items).toEqual([]);
     const b = build([out('assistant', `I compared both.\n${report}`)]);
     expect(b.items.map((i) => i.kind === 'message' && i.text)).toEqual(['I compared both.']);
     // Only the assistant's own report: a user who types the word is shown as typed.
     expect(build([out('user', report)]).items).toHaveLength(1);
     expect(withoutBlockerReport('nothing special')).toBe('nothing special');
-    expect(withoutBlockerReport('mentions DEVBOARD_BLOCKED mid-line')).toBe('mentions DEVBOARD_BLOCKED mid-line');
+    expect(withoutBlockerReport('mentions WERKBORD_BLOCKED mid-line')).toBe('mentions WERKBORD_BLOCKED mid-line');
   });
 });

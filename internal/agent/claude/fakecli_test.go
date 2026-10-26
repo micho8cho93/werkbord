@@ -10,7 +10,7 @@ import (
 )
 
 // This file is the fake `claude`: the test binary re-executes itself with
-// DEVBOARD_FAKE_CLAUDE set and speaks the stream-json protocol as the real CLI
+// WERKBORD_FAKE_CLAUDE set and speaks the stream-json protocol as the real CLI
 // does (verified against Claude Code 2.1). What it does depends on the text of
 // the message it is sent, so a test scripts it by choosing its prompt.
 

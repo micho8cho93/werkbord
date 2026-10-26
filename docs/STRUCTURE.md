@@ -10,13 +10,13 @@ The one release contains three executables with different trust responsibilities
 | | **The controller** | **The Team service** | **The desktop app** |
 | --- | --- | --- | --- |
 | What it is | A local-first control plane for your own coding agents: board, runs, Git, runners (Personal) | A workspace that coordinates a team: members, projects, who is on what | A native window around both, and the installer for the Team service |
-| Executable | `werkbord` (and `devboard`, its name before the rename) | `werkbord-team` | `Werkbord.app` (module `desktop/`) |
+| Executable | `werkbord` | `werkbord-team` | `Werkbord.app` (module `desktop/`) |
 | Main package | `cmd/werkbord` | `cmd/werkbord-team` | `desktop/` |
 | Code lives in | the shared `internal/` packages and `web/` | `internal/team/…` only | `desktop/` and `web/src/shell/` |
 | Release assets | controller archives for existing terminal workflows | bundled in the unified desktop app; no standalone Host archive | macOS DMG; Linux packages opt-in after acceptance; Windows publication deferred |
 | Installer | `scripts/install.sh`, `scripts/install.ps1`; the desktop app | the app's native service installer | platform package or app installer |
-| Data directory | `werkbord` in your user config directory (`devboard` on an install from before the rename) | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window preferences and per-user Premium key) |
-| Settings | `WERKBORD_*` (and the older `DEVBOARD_*`) | `WERKBORD_TEAM_*` | — |
+| Data directory | `werkbord` in your user config directory | `werkbord-team` in your user config directory (root-owned for the Mac service) | `werkbord-desktop` (window preferences and per-user Premium key) |
+| Settings | `WERKBORD_*` (and the older `WERKBORD_*`) | `WERKBORD_TEAM_*` | — |
 | Default address | `127.0.0.1:7420` | `127.0.0.1:7430` (device API `7431`) | — |
 | Build | `make build` | `make build-team` | `make desktop` |
 
@@ -35,14 +35,8 @@ Connectivity Hosts, backups and local runners. Personal's tsnet support is separ
 > source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire values `"personal"` and the saved
 > workspaces' `visibility.universal`/`individual` fields keep their names because other programs and stored data speak them.
 >
-> **Naming.** Werkbord was called Dev Board. Since Werkbord 1.0 the executable is `werkbord`, and everything a person
-> sees or types says so. What existing installs depend on keeps working, indefinitely and without nagging: the `devboard`
-> command (installed beside `werkbord`), every `DEVBOARD_*` variable (read after its `WERKBORD_*` name), the data
-> directory of an install from before the rename, its tailnet name (a phone's address), and `devboard update` on older
-> releases (every release is also published under the old archive name). A login service installed under the old label is
-> found and managed, and `werkbord setup` moves it to the new one. Not renamed, because they are protocols rather than
-> names people use: the Go module path (`devboard/…`), the `devboard/` namespace of the branches agents work on (older
-> remote runners create it), the database file name and the agents' blocker marker.
+> **Naming.** Werkbord was called Dev Board. Nothing of the old name remains: the executable, the `WERKBORD_*` variables, the data
+> directory, the database file, the module path and the branch namespace are all `werkbord`.
 
 ## The rule that matters most
 

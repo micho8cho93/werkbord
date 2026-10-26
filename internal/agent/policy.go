@@ -24,7 +24,7 @@ import (
 
 // BlockerMarker begins the line in which an agent reports that it is blocked.
 // Instructions tell it to end its turn with one; ParseBlocker reads it back.
-const BlockerMarker = "DEVBOARD_BLOCKED"
+const BlockerMarker = "WERKBORD_BLOCKED"
 
 // Instructions is the text that is added to an agent's own instructions for a
 // run with policy p. It is empty for an interactive run, which is how agents

@@ -1,10 +1,6 @@
 // Package config loads controller settings. Precedence, lowest to highest:
 // built-in defaults, <data dir>/config.json, WERKBORD_* environment
 // variables, then command-line flags (applied by the caller).
-//
-// Werkbord was called Dev Board, and its variables DEVBOARD_*. Every DEVBOARD_
-// name is still read, as a fallback for the WERKBORD_ one, so nothing an
-// existing install or script sets stops working.
 package config
 
 import (
@@ -316,13 +312,10 @@ func Default() Config {
 	}
 }
 
-// Env returns the value of WERKBORD_<name>, else of the older DEVBOARD_<name>,
-// and the variable it came from ("" if neither is set).
+// Env returns the value of WERKBORD_<name> and the variable it came from ("" if it is not set).
 func Env(name string) (value, from string) {
-	for _, prefix := range []string{"WERKBORD_", "DEVBOARD_"} {
-		if v := os.Getenv(prefix + name); v != "" {
-			return v, prefix + name
-		}
+	if v := os.Getenv("WERKBORD_" + name); v != "" {
+		return v, "WERKBORD_" + name
 	}
 	return "", ""
 }
@@ -340,19 +333,8 @@ func defaultDataDir() string {
 	return ".werkbord"
 }
 
-// DataDirIn is the data directory under a user configuration directory: werkbord,
-// unless an install from before the rename keeps its data in devboard and there
-// is no werkbord yet, in which case that one is used as it is. Nothing is moved.
-func DataDirIn(configDir string) string {
-	current := filepath.Join(configDir, "werkbord")
-	legacy := filepath.Join(configDir, "devboard")
-	if _, err := os.Stat(current); err != nil {
-		if fi, err := os.Stat(legacy); err == nil && fi.IsDir() {
-			return legacy
-		}
-	}
-	return current
-}
+// DataDirIn is the data directory under a user configuration directory.
+func DataDirIn(configDir string) string { return filepath.Join(configDir, "werkbord") }
 
 // Load returns defaults overlaid with the config file and environment.
 // WERKBORD_DATA_DIR is read first because it locates the config file.

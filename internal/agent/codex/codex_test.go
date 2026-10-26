@@ -14,7 +14,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("DEVBOARD_FAKE_CODEX") != "" {
+	if os.Getenv("WERKBORD_FAKE_CODEX") != "" {
 		os.Exit(fakeMain())
 	}
 	os.Exit(m.Run())
@@ -27,7 +27,7 @@ func fakeCodex(t *testing.T) string {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "codex")
-	script := "#!/bin/sh\nDEVBOARD_FAKE_CODEX=1 exec '" + self + "' \"$@\"\n"
+	script := "#!/bin/sh\nWERKBORD_FAKE_CODEX=1 exec '" + self + "' \"$@\"\n"
 	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

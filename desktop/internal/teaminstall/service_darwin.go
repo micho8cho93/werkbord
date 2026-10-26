@@ -250,12 +250,6 @@ func PrivilegedService(action, uid string) (resultErr error) {
 		return err
 	}
 	runner := filepath.Join(u.HomeDir, "Library", "Application Support", "werkbord", "config.json")
-	if _, err := os.Stat(filepath.Dir(runner)); errors.Is(err, os.ErrNotExist) {
-		legacy := filepath.Join(u.HomeDir, "Library", "Application Support", "devboard", "config.json")
-		if _, err := os.Stat(filepath.Dir(legacy)); err == nil {
-			runner = legacy
-		}
-	}
 	if isolated {
 		runner = ""
 	}

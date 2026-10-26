@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The fake `codex`: the test binary re-executes itself with DEVBOARD_FAKE_CODEX
+// The fake `codex`: the test binary re-executes itself with WERKBORD_FAKE_CODEX
 // set and speaks the app-server protocol as Codex 0.155 does (checked against
 // its generated JSON schema and a live handshake). What a turn does depends on
 // the text of the message that starts it.

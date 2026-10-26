@@ -83,7 +83,6 @@ case "$tag" in
   v[0-9]*.[0-9]*.[0-9]*) version=$tag; tag=werkbord-$tag ;;
   [0-9]*.[0-9]*.[0-9]*) version=v$tag; tag=werkbord-v$tag ;;
   werkbord-team-v[0-9]*) fail "\"$tag\" is from the retired Team release series. Werkbord Team is released with Werkbord now: name a werkbord-vX.Y.Z release (4.0.0-preview.1 was the first)" ;;
-  devboard*) fail "\"$tag\" is a release from before the rename; name a werkbord-vX.Y.Z release" ;;
   *) fail "\"$tag\" is not a release version (expected something like v4.0.0)" ;;
 esac
 

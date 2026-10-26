@@ -27,7 +27,7 @@ together; the QR code uses the relay while it is connected.
 ## What it is
 
 - The controller keeps listening on `127.0.0.1` for this computer, as before.
-- Werkbord's embedded node joins **your own tailnet** as a device named `werkbord-<this computer>` (a computer that joined before the rename keeps `devboard-<this computer>`, so its address never changes) and serves the
+- Werkbord's embedded node joins **your own tailnet** as a device named `werkbord-<this computer>` and serves the
   same app and API **only on that tailnet**. It runs in userspace: no root, no TUN device, no system Tailscale,
   and it does not touch the Tailscale you may already have installed.
 - Its identity (keys) is in `<data dir>/tailscale/`, so it keeps the same address across restarts.

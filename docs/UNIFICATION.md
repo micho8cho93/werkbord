@@ -33,7 +33,7 @@ no longer the approach. From `werkbord-v4.0.0-preview.1`:
 | One version for everything? | Yes. `4.0.0-preview.1` first, above Individual `1.11.4-preview.1` and Team `3.10.2`, so no update path sees a downgrade. |
 | Adoption of pre-unified installs | Not needed. Nobody else has one, so the migration layer is deleted (stage 3). |
 | `werkbord-team serve` / `daemon` | Stays, as the headless Workspace Host on Linux and servers. The Mac service already runs `daemon`. What goes is its role as a second, separately installed product. |
-| `devboard` command and `DEVBOARD_*` | Unchanged and unrelated to this work. They keep working indefinitely. |
+| `devboard` command and `WERKBORD_*` | Unchanged and unrelated to this work. They keep working indefinitely. |
 
 ## Stages
 

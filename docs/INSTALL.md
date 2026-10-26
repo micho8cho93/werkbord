@@ -124,20 +124,6 @@ never for a build from source, and not at all with `"noUpdateCheck": true`), and
 Nothing is installed unless its checksum matches the release's. A release is a GitHub release; set
 `WERKBORD_RELEASE_URL` (and `WERKBORD_BASE_URL` for the installer) to use a mirror.
 
-## Renamed from Dev Board
-
-Werkbord was called Dev Board, and its command `devboard`. Since 1.0 the command is `werkbord`. An existing install
-needs nothing from you: update it the way you always have (`devboard update`, or the installer), and
-
-- `devboard` keeps working, as another name for `werkbord` (a link beside it; `devboard.cmd` on Windows);
-- every `DEVBOARD_*` variable keeps working; a `WERKBORD_*` one wins if both are set;
-- the data stays where it is (`…/devboard` in your user config directory): nothing is moved or copied;
-- phone access keeps its address: a computer that joined your tailnet as `devboard-<name>` stays `devboard-<name>`;
-- the login service keeps running under its old label until the next `werkbord setup`, which replaces it with
-  `dev.werkbord.controller` (`werkbord.service`, the `Werkbord` task); only ever one runs.
-
-A new install uses the new names throughout. There is no deprecation warning, and no plan to remove the old names.
-
 ## Uninstalling
 
 ```bash

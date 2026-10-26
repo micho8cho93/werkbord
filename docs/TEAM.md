@@ -588,7 +588,7 @@ Only the token's SHA-256 is stored, so a lost token cannot be recovered, only **
 
 Settings (flags win over environment): `WERKBORD_TEAM_ADDR` (default `127.0.0.1:7430`), `WERKBORD_TEAM_DATA_DIR`
 (default `werkbord-team` in your user config directory; the database is `team.db` there), `WERKBORD_TEAM_LOG_LEVEL`,
-`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the controller's `WERKBORD_*` (formerly `DEVBOARD_*`), so both can run side by side.
+`WERKBORD_TEAM_LOG_FORMAT`. These are separate from the controller's `WERKBORD_*` (formerly `WERKBORD_*`), so both can run side by side.
 
 ### The private network (Team 2.5)
 

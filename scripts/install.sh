@@ -5,8 +5,7 @@
 # Obtain the script and verification PEM independently; a mutable curl|sh command is not a trust anchor.
 #
 # It downloads the release for this computer, checks it against the release's
-# published checksums, puts it in ~/.local/bin as `werkbord` (with `devboard`, its
-# name before the rename, beside it), and runs `werkbord setup`: the data
+# published checksums, puts it in ~/.local/bin as `werkbord`, and runs `werkbord setup`: the data
 # directory, the database, a background service that starts when you log in, this
 # computer as your first runner, phone access, and then it opens the app in your
 # browser. It needs no account, no Docker and no root; it installs nothing but one
@@ -15,7 +14,7 @@
 # Pass options to setup using the independently obtained installer, e.g.:
 #   sh /trusted/installer/install.sh --no-network
 #
-# Environment (each also read under its old DEVBOARD_ name):
+# Environment:
 #   WERKBORD_VERSION      install this release (e.g. v1.2.3, or its tag werkbord-v1.2.3) instead of the latest
 #   WERKBORD_INSTALL_DIR  where the executable goes (default ~/.local/bin)
 #   WERKBORD_BASE_URL     where releases are (default: this project's GitHub releases)
@@ -24,8 +23,7 @@
 #                         passed on to setup (see `werkbord setup -h`)
 set -eu
 
-# A WERKBORD_ variable, else its DEVBOARD_ name from before the rename.
-opt() { eval "printf '%s' \"\${WERKBORD_$1:-\${DEVBOARD_$1:-}}\""; }
+opt() { eval "printf '%s' \"\${WERKBORD_$1:-}\""; }
 
 REPO="micho8cho93/werkbord"
 BASE=$(opt BASE_URL)
@@ -109,20 +107,15 @@ fetch "$BASE/download/$tag/checksums.txt" "$tmp/checksums.txt" || fail "could no
 # Authenticate BEFORE extraction, version probes, setup, or upgrade execution.
 key=$(opt RELEASE_PUBLIC_KEY_FILE)
 key=${key:-"$(dirname "$0")/keys/werkbord-release.pub"}
-[ -f "$key" ] || fail "an independently trusted release PEM is required; set WERKBORD_RELEASE_PUBLIC_KEY_FILE (DEVBOARD_RELEASE_PUBLIC_KEY_FILE also works)"
+[ -f "$key" ] || fail "an independently trusted release PEM is required; set WERKBORD_RELEASE_PUBLIC_KEY_FILE"
 command -v openssl >/dev/null 2>&1 || fail "OpenSSL with Ed25519 support is required"
 fetch "$BASE/download/$tag/checksums.txt.sig" "$tmp/checksums.txt.sig" || fail "release manifest signature is missing; nothing was installed"
 printf 'werkbord/release/v1\000%s\000' "$tag" > "$tmp/signed-manifest"
 cat "$tmp/checksums.txt" >> "$tmp/signed-manifest"
 openssl pkeyutl -verify -pubin -inkey "$key" -rawin -in "$tmp/signed-manifest" -sigfile "$tmp/checksums.txt.sig" >/dev/null 2>&1 || fail "release manifest signature rejected; nothing was installed"
 sumof() { awk -v f="$1" '{ n=$2; sub(/^\*/, "", n); if (n == f) print $1 }' "$tmp/checksums.txt"; }
-# Releases are werkbord_…; a release from before the rename has only devboard_….
 asset="werkbord_${version#v}_${os}_${arch}.tar.gz"
 want=$(sumof "$asset")
-if [ -z "$want" ]; then
-  asset="devboard_${version#v}_${os}_${arch}.tar.gz"
-  want=$(sumof "$asset")
-fi
 [ -n "$want" ] || fail "release $tag has no build for $os/$arch"
 fetch "$BASE/download/$tag/$asset" "$tmp/$asset" || fail "could not download $asset"
 got=$(sha256 "$tmp/$asset")
@@ -136,7 +129,7 @@ fi
 
 mkdir -p "$tmp/unpack"
 tar -xzf "$tmp/$asset" -C "$tmp/unpack" || fail "could not unpack $asset"
-bin=$(find "$tmp/unpack" -type f \( -name werkbord -o -name devboard \) | head -1)
+bin=$(find "$tmp/unpack" -type f -name werkbord | head -1)
 [ -n "$bin" ] || fail "$asset does not contain the werkbord executable"
 chmod +x "$bin"
 reported=$("$bin" version 2>/dev/null || true)
@@ -145,11 +138,9 @@ reported=$("$bin" version 2>/dev/null || true)
 dir=$(opt INSTALL_DIR)
 dir=${dir:-"$HOME/.local/bin"}
 mkdir -p "$dir" || fail "cannot create $dir (set WERKBORD_INSTALL_DIR to somewhere you can write)"
-# An existing install, under either name (it was devboard before the rename).
+# An existing install.
 existing=""
-for name in werkbord devboard; do
-  if [ -e "$dir/$name" ]; then existing="$dir/$name"; break; fi
-done
+[ -e "$dir/werkbord" ] && existing="$dir/werkbord"
 if [ -n "$existing" ]; then
   # Use the downloaded release's recovery implementation for an existing install;
   # replacing the executable here would bypass active-work and rollback checks.
@@ -163,8 +154,6 @@ fi
 cp "$bin" "$dir/.werkbord.new" || fail "cannot write to $dir (set WERKBORD_INSTALL_DIR to somewhere you can write)"
 chmod 755 "$dir/.werkbord.new"
 mv -f "$dir/.werkbord.new" "$dir/werkbord"
-# Its name before the rename, so scripts and habits keep working.
-[ -e "$dir/devboard" ] || ln -s werkbord "$dir/devboard" 2>/dev/null || true
 say "Installed $dir/werkbord"
 
 case ":$PATH:" in

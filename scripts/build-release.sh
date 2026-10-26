@@ -40,7 +40,6 @@ cd "$(dirname "$0")/.."
 CMD=$(scripts/product.sh "$PRODUCT" cmd)
 BINARY=$(scripts/product.sh "$PRODUCT" binary)
 ASSET=$(scripts/product.sh "$PRODUCT" asset)
-LEGACY=$(scripts/product.sh "$PRODUCT" legacy-asset)
 README=$(scripts/product.sh "$PRODUCT" readme)
 if [ "$PRODUCT" = werkbord ]; then
   [ -f internal/webui/dist/index.html ] || { echo "the web app is not built: run 'make web web-embed' first" >&2; exit 1; }
@@ -130,26 +129,10 @@ for p in $PLATFORMS; do
     # shellcheck disable=SC2086 # the members have no spaces
     tar -czf "$OUT/$name.tar.gz" -C "$dir" $members
   fi
-  if [ -n "$LEGACY" ]; then
-    old="$STAGE/$os-$arch-legacy"
-    mkdir -p "$old"
-    oldbin=$LEGACY
-    [ "$os" = windows ] && oldbin=$LEGACY.exe
-    cp "$dir/$bin" "$old/$oldbin"
-    cp "$README" "$old/README.md"
-    [ ! -d "$dir/licenses" ] || cp -R "$dir/licenses" "$old/licenses"
-    oldname="${LEGACY}_${VERSION#v}_${os}_${arch}"
-    if [ "$os" = windows ]; then
-      (cd "$old" && zip -qr "$OUT/$oldname.zip" "$oldbin" README.md licenses)
-    else
-      tar -czf "$OUT/$oldname.tar.gz" -C "$old" "$oldbin" README.md licenses
-    fi
-  fi
 done
 
 cd "$OUT"
 set -- "${ASSET}"_*
-[ -n "$LEGACY" ] && set -- "$@" "${LEGACY}"_*
 # Both executables are archived into the one release, so each has its own list: checksums.txt is Werkbord's (what the
 # installer and `werkbord update` read), checksums-team.txt is Team's.
 LIST=checksums.txt

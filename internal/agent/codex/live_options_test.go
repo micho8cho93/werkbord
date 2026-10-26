@@ -8,10 +8,10 @@ import (
 )
 
 // TestLiveOptions asks the installed Codex for its models. It only runs when
-// DEVBOARD_LIVE_CODEX=1 and codex is installed.
+// WERKBORD_LIVE_CODEX=1 and codex is installed.
 func TestLiveOptions(t *testing.T) {
-	if os.Getenv("DEVBOARD_LIVE_CODEX") != "1" {
-		t.Skip("set DEVBOARD_LIVE_CODEX=1 to ask the installed Codex for its models")
+	if os.Getenv("WERKBORD_LIVE_CODEX") != "1" {
+		t.Skip("set WERKBORD_LIVE_CODEX=1 to ask the installed Codex for its models")
 	}
 	if _, err := exec.LookPath("codex"); err != nil {
 		t.Skip("codex is not installed")

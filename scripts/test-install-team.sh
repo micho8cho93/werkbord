@@ -202,7 +202,7 @@ ok "refuses forged signatures, a different tag's signature, and a missing indepe
 
 # 4. the individual installer refuses a tag of the retired Team series
 fresh
-if out=$(DEVBOARD_NO_SETUP=1 DEVBOARD_BASE_URL="http://127.0.0.1:$PORT" DEVBOARD_VERSION=werkbord-team-v9.1.1 $SH scripts/install.sh 2>&1); then bad "the individual installer installed a Team release" "$out"; fi
+if out=$(WERKBORD_NO_SETUP=1 WERKBORD_BASE_URL="http://127.0.0.1:$PORT" WERKBORD_VERSION=werkbord-team-v9.1.1 $SH scripts/install.sh 2>&1); then bad "the individual installer installed a Team release" "$out"; fi
 contains "$out" "Werkbord Team release" || bad "the individual installer should say it is a Team release" "$out"
 ok "the individual installer refuses a tag of the retired Team series"
 
