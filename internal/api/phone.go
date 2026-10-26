@@ -175,8 +175,8 @@ func phoneRouteFor(method, path string) (phoneRoute, bool) {
 
 type phoneKey struct{}
 
-// phoneDoor reports whether a request came by a way in that is for phones: the private network's listener, or this
-// computer. A phone token is not looked at anywhere else.
+// phoneDoor reports whether a request came by a way in that is for phones: through the relay (which marks its requests
+// private), or from this computer. A phone token is not looked at anywhere else.
 func (s *Server) phoneDoor(r *http.Request) bool {
 	return netprivate.IsPrivateRequest(r.Context()) || fromThisComputer(r)
 }
@@ -310,8 +310,8 @@ func (s *Server) handlePhoneEnroll(w http.ResponseWriter, r *http.Request) {
 // ---- the owner's side: make a code, see the phones, take one away ----
 
 // handlePhoneCode makes an enrollment code and the link and QR code that carry it. The link is the address a phone opens
-// and the code in its fragment, which a browser never sends to a server. With no address to open (the private network is
-// not connected) there is no link or QR code, only the code: a client that needs one says so.
+// and the code in its fragment, which a browser never sends to a server. With no address to open (the relay is turned
+// off) there is no link or QR code, only the code: a client that needs one says so.
 func (s *Server) handlePhoneCode(w http.ResponseWriter, r *http.Request) {
 	if s.opt.Phones == nil {
 		writeError(w, http.StatusServiceUnavailable, "unavailable", "phone access is not available here")
@@ -343,32 +343,14 @@ func (s *Server) handlePhoneCode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, out)
 }
 
-// phoneLink is the address a phone opens to enroll with code, and how it will reach the controller: "relay" (a plain
-// https link, no app on the phone) or "private network" (Tailscale). The relay is preferred when it is set up and
-// connected; when it is set up but not connected, a connected private network is used instead, and when neither is
-// connected the relay's link is given anyway, since it works as soon as the computer is back online. "" means no link.
+// phoneLink is the address a phone opens to enroll with code: the relay's plain https link, which needs no app on the phone
+// and works as soon as this computer is online. "" means there is no link because the relay is turned off.
 func (s *Server) phoneLink(code string) (link, via string, err error) {
-	relayOn := s.opt.Relay != nil && s.opt.Relay.Status().Enabled
-	if relayOn && (s.opt.Relay.Status().Connected || s.phoneBaseURL() == "") {
-		link, err = s.opt.Relay.Link(code)
-		return link, "relay", err
+	if s.opt.Relay == nil || !s.opt.Relay.Status().Enabled {
+		return "", "", nil
 	}
-	if base := s.phoneBaseURL(); base != "" {
-		return strings.TrimSuffix(base, "/") + "/#enroll=" + code, "private network", nil
-	}
-	return "", "", nil
-}
-
-// phoneBaseURL is the address a phone opens, or "" when there is none yet.
-func (s *Server) phoneBaseURL() string {
-	if s.opt.Network == nil {
-		return ""
-	}
-	st := s.opt.Network.Status()
-	if st.State != netprivate.StateConnected {
-		return ""
-	}
-	return st.URL
+	link, err = s.opt.Relay.Link(code)
+	return link, "relay", err
 }
 
 func (s *Server) handlePhoneList(w http.ResponseWriter, r *http.Request) {

@@ -75,7 +75,7 @@ const twoReposJSON = `[
 func TestOptionalEndpointsAreUnavailableWithoutTheirService(t *testing.T) {
 	ts := newTestServer(t, func(o *Options) { o.Settings = nil })
 	var e apiError
-	for _, path := range []string{"/api/github", "/api/github/repos", "/api/network", "/api/network/phone", "/api/settings", "/api/runners", "/api/onboarding"} {
+	for _, path := range []string{"/api/github", "/api/github/repos", "/api/network", "/api/settings", "/api/runners", "/api/onboarding"} {
 		if code := do(t, "GET", ts.URL+path, "", &e); code != 503 || e.Error.Code != "unavailable" {
 			t.Errorf("%s = %d %+v", path, code, e)
 		}

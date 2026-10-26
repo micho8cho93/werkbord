@@ -347,7 +347,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	}
 	apiOpts.Phones, privateOpts.Phones = phones, phones
 	privateHandler := &lateHandler{}
-	c.network = newNetworkControl(c.cfg, settings, privateHandler, c.networkBackend, c.log)
+	c.network = newNetworkControl(c.cfg, settings, runnerDoor(privateHandler), c.networkBackend, c.log)
 	apiOpts.Network, privateOpts.Network = c.network, c.network
 	nw := c.network // not c.network: that is cleared when the controller shuts down
 	env := doctor.Env{
@@ -594,6 +594,20 @@ func choices(in []config.ModelChoice) []domain.AgentOption {
 		out = append(out, domain.AgentOption{ID: m.ID, Name: name, Description: m.Description})
 	}
 	return out
+}
+
+// runnerDoor is all that is served on the private network (Tailscale): what a remote runner calls to join a controller
+// and to sync with it, each of which proves itself with a key of its own. The app and the rest of the API are not served
+// there, and phones do not use it: they come in through the relay.
+func runnerDoor(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/runner/join", "/api/runner/sync":
+			next.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // lateHandler lets the private network be built before the handler it serves,

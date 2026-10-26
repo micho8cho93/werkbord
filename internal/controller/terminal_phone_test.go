@@ -128,19 +128,23 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	if status, b = line.do("POST", "/api/projects/other/terminals/"+session.ID+"/stop", phone.Token, `{}`); status != 404 {
 		t.Fatalf("cross repository: %d %s", status, b)
 	}
-	// The Tailscale listener uses exactly the same grant. An owner token on that listener still cannot attach.
-	priv := "http://" + node.addr()
+	// The relay's phone side uses exactly one grant: an owner token on it still cannot attach. The Tailscale listener does
+	// not serve terminals at all.
+	priv := phoneDoor(t, c)
 	if st, _ := get(t, priv+"/api/terminals", phone.Token); st != 200 {
-		t.Fatalf("private phone: %d", st)
+		t.Fatalf("phone door: %d", st)
 	}
 	if st, _ := get(t, priv+"/api/terminals", owner); st != 403 {
-		t.Fatalf("private owner: %d", st)
+		t.Fatalf("phone door with the owner's token: %d", st)
+	}
+	if st, _ := get(t, "http://"+node.addr()+"/api/terminals", phone.Token); st != 404 {
+		t.Fatalf("the private network served terminals: %d", st)
 	}
 	if status, b = ask("DELETE", "/api/phones/"+phone.ID, owner, ""); status != 204 {
 		t.Fatalf("revoke: %d %s", status, b)
 	}
 	if st, _ := get(t, priv+path+"/output?after=0", phone.Token); st != 401 {
-		t.Fatalf("revoked private access: %d", st)
+		t.Fatalf("revoked phone access: %d", st)
 	}
 	if l, closed := dialPhone(t, pairing); l != nil || closed != relay.CloseKicked {
 		t.Fatalf("revoked relay access: %v %d", l, closed)

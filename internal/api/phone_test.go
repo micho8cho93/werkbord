@@ -179,21 +179,16 @@ func TestAPhoneSignsItselfOut(t *testing.T) {
 	}
 }
 
-// phoneStub is a network that is connected, for the link a code makes.
-type phoneStub struct{ url string }
+// relayStub is a relay, for the link a code makes: connected, and linking to a connector page.
+type relayStub struct{ enabled bool }
 
-func (n phoneStub) Status() netprivate.Status {
-	if n.url == "" {
-		return netprivate.Status{State: netprivate.StateOff}
-	}
-	return netprivate.Status{State: netprivate.StateConnected, URL: n.url}
+func (r relayStub) Status() RelayStatus { return RelayStatus{Enabled: r.enabled, Connected: r.enabled} }
+func (relayStub) Link(code string) (string, error) {
+	return "https://connect.example.pages.dev/connect/#enroll=" + code, nil
 }
-func (phoneStub) Enable(context.Context) error  { return nil }
-func (phoneStub) Disable(context.Context) error { return nil }
-func (phoneStub) Choice(context.Context) string { return "on" }
 
 func TestTheCodeBecomesALinkWithTheCodeInTheFragmentAndNoToken(t *testing.T) {
-	p := newPhoned(t, func(o *Options) { o.Network = phoneStub{url: "https://werkbord-x.tail1.ts.net/"} })
+	p := newPhoned(t, func(o *Options) { o.Relay = relayStub{enabled: true} })
 	status, b := call(t, "POST", p.url+"/api/phones/codes", ownerToken, "{}")
 	var out struct {
 		Link      string    `json:"link"`
@@ -201,7 +196,7 @@ func TestTheCodeBecomesALinkWithTheCodeInTheFragmentAndNoToken(t *testing.T) {
 		ExpiresAt time.Time `json:"expiresAt"`
 	}
 	_ = json.Unmarshal(b, &out)
-	if status != 201 || !strings.HasPrefix(out.Link, "https://werkbord-x.tail1.ts.net/#enroll=") || !strings.HasPrefix(out.QRSVG, "<svg") {
+	if status != 201 || !strings.HasPrefix(out.Link, "https://connect.example.pages.dev/connect/#enroll=") || !strings.HasPrefix(out.QRSVG, "<svg") {
 		t.Fatalf("%d %s", status, b)
 	}
 	if d := time.Until(out.ExpiresAt); d < 4*time.Minute || d > 5*time.Minute+time.Second {
@@ -211,7 +206,7 @@ func TestTheCodeBecomesALinkWithTheCodeInTheFragmentAndNoToken(t *testing.T) {
 		t.Fatal("the controller's token is in the enrollment response")
 	}
 	// The code in the link works, once.
-	code := strings.TrimPrefix(out.Link, "https://werkbord-x.tail1.ts.net/#enroll=")
+	code := strings.TrimPrefix(out.Link, "https://connect.example.pages.dev/connect/#enroll=")
 	if status, b := call(t, "POST", p.url+"/api/phones/enroll", "", `{"code":`+jsonString(code)+`,"name":"A"}`); status != 201 {
 		t.Fatalf("%d %s", status, b)
 	}
@@ -219,13 +214,13 @@ func TestTheCodeBecomesALinkWithTheCodeInTheFragmentAndNoToken(t *testing.T) {
 		t.Fatalf("a replay: %d", status)
 	}
 
-	// No address to open, no link or QR code: only the code, for a client that has its own way to carry it.
-	off := newPhoned(t, func(o *Options) { o.Network = phoneStub{} })
+	// No relay, no link or QR code: only the code, for a client that has its own way to carry it.
+	off := newPhoned(t, func(o *Options) { o.Relay = relayStub{} })
 	status, b = call(t, "POST", off.url+"/api/phones/codes", ownerToken, "{}")
 	var bare struct{ Code, Link, QRSVG string }
 	_ = json.Unmarshal(b, &bare)
 	if status != 201 || bare.Code == "" || bare.Link != "" || bare.QRSVG != "" {
-		t.Fatalf("a code with no network: %d %s", status, b)
+		t.Fatalf("a code with no relay: %d %s", status, b)
 	}
 }
 

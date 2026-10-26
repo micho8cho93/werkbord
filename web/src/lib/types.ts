@@ -345,13 +345,6 @@ export interface NetworkStatus {
   choice: 'on' | 'off' | 'unset' | 'pinned_on' | 'pinned_off';
 }
 
-/** What a phone needs: the address, and a link and QR code that open it already signed in. */
-/** Where a phone reaches this controller. It carries no credential. */
-export interface PhoneAddress {
-  url: string;
-  https: boolean;
-}
-
 /** A phone that has been enrolled. Never its token. */
 export interface PhoneEntry {
   id: string;

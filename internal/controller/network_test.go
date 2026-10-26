@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 
 	"werkbord/internal/config"
 	"werkbord/internal/netprivate"
+	"werkbord/internal/relay/relaytest"
 )
 
 // fakeNode is a private network node that listens on loopback instead of a tailnet.
@@ -124,7 +126,7 @@ func TestPrivateNetworkIsOffByDefault(t *testing.T) {
 	}
 }
 
-func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T) {
+func TestEnablingThePrivateNetworkServesOnlyWhatRemoteRunnersCall(t *testing.T) {
 	node := newFakeNode()
 	c := startWith(t, defaultConfig(t), node)
 	base := "http://" + c.Addr()
@@ -150,97 +152,26 @@ func TestEnablingThePrivateNetworkServesTheAppWithTheTokenRequired(t *testing.T)
 		t.Fatal("the status contains the access token")
 	}
 
-	// On the private network the app shell is public and the API needs the token.
+	// The private network is for the machines that run for this controller. The app, the rest of the API, a phone's
+	// enrollment and the controller's own token are not served there, whatever is presented.
 	priv := "http://" + node.addr()
-	if code, _ := get(t, priv+"/", ""); code != 200 {
-		t.Fatalf("app shell over the private network = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/projects", ""); code != 401 {
-		t.Fatalf("API without a token over the private network = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/projects", "wrong"); code != 401 {
-		t.Fatalf("API with a wrong token = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/projects", tok); code != 200 {
-		t.Fatalf("API with the token = %d", code)
-	}
-	// A phone can be told an update exists, with its token and not without; it can only be told: there is no way to
-	// ask the controller to install anything from here.
-	if code, _ := get(t, priv+"/api/update", ""); code != 401 {
-		t.Fatalf("update status over the private network without a token = %d", code)
-	}
-	if code, body := get(t, priv+"/api/update", tok); code != 200 || !strings.Contains(body, `"current"`) {
-		t.Fatalf("update status over the private network with the token = %d %s", code, body)
-	}
-	if code, _ := post(t, priv+"/api/update", tok); code == 200 {
-		t.Fatalf("POST /api/update was accepted over the private network")
-	}
-
-	// Where a phone reaches the controller carries no credential: a phone is let in with its own, by an enrollment code.
-	code, body := get(t, base+"/api/network/phone", tok)
-	var phone struct {
-		URL   string
-		Link  string
-		QRSVG string
-		HTTPS bool
-	}
-	_ = json.Unmarshal([]byte(body), &phone)
-	if code != 200 || phone.URL != st.URL || phone.Link != "" || phone.QRSVG != "" || strings.Contains(body, tok) {
-		t.Fatalf("phone link = %d %.200s", code, body)
-	}
-	if code, _ := get(t, base+"/api/network/phone", ""); code != 401 {
-		t.Fatalf("the phone link without a token = %d", code)
-	}
-
-	// Scanning the code enrolls a phone over the private network, with no token of the controller's, and the phone's own
-	// token then works there on its reviewed routes and on no others. Revoking it ends it.
-	code, body = post(t, base+"/api/phones/codes", tok)
-	var enrollment struct {
-		Link  string `json:"link"`
-		QRSVG string `json:"qrSvg"`
-	}
-	_ = json.Unmarshal([]byte(body), &enrollment)
-	if code != 201 || !strings.HasPrefix(enrollment.Link, "http://werkbord-test.tail1234.ts.net/#enroll=") || !strings.HasPrefix(enrollment.QRSVG, "<svg") || strings.Contains(body, tok) {
-		t.Fatalf("enrollment code = %d %.200s", code, body)
-	}
-	secret := strings.TrimPrefix(enrollment.Link, "http://werkbord-test.tail1234.ts.net/#enroll=")
-	enroll := func(code string) (int, string) {
-		resp, err := http.Post(priv+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+code+`","name":"Test phone"}`))
-		if err != nil {
-			t.Fatal(err)
+	for _, path := range []string{"/", "/api/projects", "/api/update", "/api/settings", "/api/phones/enroll", "/api/phones", "/api/runners", "/api/runners/pair", "/api/network", "/api/health"} {
+		for _, token := range []string{"", "wrong", tok} {
+			if code, _ := get(t, priv+path, token); code != 404 {
+				t.Errorf("%s over the private network (token %q) = %d, want 404", path, token, code)
+			}
 		}
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		return resp.StatusCode, string(b)
 	}
-	code, body = enroll(secret)
-	var phoneTok struct{ ID, Token string }
-	_ = json.Unmarshal([]byte(body), &phoneTok)
-	if code != 201 || !strings.HasPrefix(phoneTok.Token, "wbp_") {
-		t.Fatalf("enroll = %d %s", code, body)
+	// What a remote runner calls to join and to sync reaches the API, which answers it itself.
+	// (An unknown runner is answered 404 by the API in its own JSON; the listener's own refusal is plain text.)
+	for _, path := range []string{"/api/runner/join", "/api/runner/sync"} {
+		if _, body := post(t, priv+path, ""); strings.HasPrefix(body, "404 page not found") {
+			t.Errorf("%s was not served over the private network: %q", path, body)
+		}
 	}
-	if code, _ := enroll(secret); code != 403 {
-		t.Fatalf("a code used twice = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/projects", phoneTok.Token); code != 200 {
-		t.Fatalf("a phone's token over the private network = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/phones", phoneTok.Token); code != 403 {
-		t.Fatalf("a phone listing phones = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/update", phoneTok.Token); code != 403 {
-		t.Fatalf("a phone reading what is not on its list = %d", code)
-	}
-	if code, body := get(t, base+"/api/phones", tok); code != 200 || !strings.Contains(body, "Test phone") || strings.Contains(body, phoneTok.Token) {
-		t.Fatalf("the owner's list of phones = %d %s", code, body)
-	}
-	req, _ := http.NewRequest("DELETE", base+"/api/phones/"+phoneTok.ID, nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode != 204 {
-		t.Fatalf("revoke: %v %v", err, resp)
-	}
-	if code, _ := get(t, priv+"/api/projects", phoneTok.Token); code != 401 {
-		t.Fatalf("a revoked phone = %d", code)
+	// The same paths on this computer still work for its owner.
+	if code, _ := get(t, base+"/api/projects", tok); code != 200 {
+		t.Fatalf("API on this computer = %d", code)
 	}
 }
 
@@ -255,20 +186,19 @@ func TestPrivateNetworkNeverTrustsTheNetworkEvenWhenLoopbackIsOpen(t *testing.T)
 	if code, _ := get(t, "http://"+c.Addr()+"/api/projects", ""); code != 200 {
 		t.Fatalf("loopback, opened on purpose, = %d", code)
 	}
+	// The open loopback is this computer's alone: the private network serves none of it, with the token or without.
 	priv := "http://" + node.addr()
-	if code, _ := get(t, priv+"/api/projects", ""); code != 401 {
-		t.Fatalf("the private network inherited the open loopback: %d", code)
-	}
 	tok, _ := c.cfg.ResolveToken(false)
-	if code, _ := get(t, priv+"/api/projects", tok); code != 200 {
-		t.Fatalf("with the token = %d", code)
+	for _, token := range []string{"", tok} {
+		if code, _ := get(t, priv+"/api/projects", token); code != 404 {
+			t.Fatalf("the private network answered /api/projects (token %q): %d", token, code)
+		}
+		if code, _ := get(t, priv+"/api/update", token); code != 404 {
+			t.Fatalf("the private network answered /api/update (token %q): %d", token, code)
+		}
 	}
-	// Nor does what is new: the update status is the API's, and is behind the token there as well.
 	if code, _ := get(t, "http://"+c.Addr()+"/api/update", ""); code != 200 {
 		t.Fatalf("update status on the open loopback = %d", code)
-	}
-	if code, _ := get(t, priv+"/api/update", ""); code != 401 {
-		t.Fatalf("the private network answered /api/update without the token: %d", code)
 	}
 }
 
@@ -325,12 +255,47 @@ func TestPrivateNetworkChoiceSurvivesARestartAndConfigCanPinIt(t *testing.T) {
 	}
 }
 
-func TestPhoneLinkNeedsAConnectedNetwork(t *testing.T) {
-	c := startWith(t, defaultConfig(t), newFakeNode())
-	tok, _ := c.cfg.ResolveToken(false)
-	if code, _ := get(t, "http://"+c.Addr()+"/api/network/phone", tok); code != 409 {
-		t.Fatalf("a link before there is a network = %d", code)
-	}
+func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+// withRelay gives cfg a relay to connect to, for tests of what a phone may do. The server is closed with the test.
+func withRelay(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	rl := relaytest.New()
+	t.Cleanup(rl.Close)
+	cfg.Relay.URL, cfg.Relay.ConnectorURL = rl.URL, "https://connect.example.pages.dev"
 }
 
-func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+// phoneDoor serves, on a local port, what a phone meets through the relay: the controller's phone-side handler, whose
+// requests are marked private and whose enrollment binds the phone's secret. The encrypted tunnel in front of it is
+// the relay tests' business; the tests that use this are about what a phone may do once it is in.
+func phoneDoor(t *testing.T, c *Controller) string {
+	t.Helper()
+	if c.relay == nil {
+		t.Fatal("the controller has no relay: give the config one with withRelay")
+	}
+	s := httptest.NewServer(c.relay.srv.Handler)
+	t.Cleanup(s.Close)
+	return s.URL
+}
+
+// enrollPhone makes a code on the controller and enrolls a phone with it at door, and returns the phone's token.
+func enrollPhone(t *testing.T, base, ownerToken, door, name string) string {
+	t.Helper()
+	code, body := post(t, base+"/api/phones/codes", ownerToken)
+	var made struct{ Code string }
+	_ = json.Unmarshal([]byte(body), &made)
+	if code != 201 || made.Code == "" {
+		t.Fatalf("code = %d %.200s", code, body)
+	}
+	resp, err := http.Post(door+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+made.Code+`","name":"`+name+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var enrolled struct{ Token string }
+	_ = json.NewDecoder(resp.Body).Decode(&enrolled)
+	if resp.StatusCode != 201 || enrolled.Token == "" {
+		t.Fatalf("enroll = %d", resp.StatusCode)
+	}
+	return enrolled.Token
+}

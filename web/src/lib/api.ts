@@ -29,7 +29,6 @@ import type {
   RelayStatus,
   Onboarding,
   Overview,
-  PhoneAddress,
   PhoneEnrollment,
   PhoneEntry,
   RepoList,
@@ -312,12 +311,11 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   resetTours: (surface = '') => request<Onboarding>('POST', '/api/onboarding/tours/reset', { surface }),
   resetOnboarding: () => request<Onboarding>('POST', '/api/onboarding/reset', {}),
 
-  // The private network that lets a phone reach this controller.
+  // The private network (Tailscale) that remote runners join this controller over. Phones use the relay.
   network: () => request<NetworkStatus>('GET', '/api/network'),
   relay: () => request<RelayStatus>('GET', '/api/relay'),
   enableNetwork: () => request<NetworkStatus>('POST', '/api/network/enable', {}),
   disableNetwork: () => request<NetworkStatus>('POST', '/api/network/disable', {}),
-  phoneAddress: () => request<PhoneAddress>('GET', '/api/network/phone'),
 
   // Phones: each has a credential of its own, that the owner can see and revoke. A phone enrolls with a single-use code
   // from its QR code and is given its token once; it can then read and rename itself and sign itself out.

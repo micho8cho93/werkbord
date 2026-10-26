@@ -10,23 +10,20 @@ import (
 )
 
 func TestPersonalDataIsWiredOnlyOnTheOwnerLoopbackListener(t *testing.T) {
-	node := newFakeNode()
 	cfg := defaultConfig(t)
-	on := true
-	cfg.Network.Enabled = &on
-	c := startWith(t, cfg, node)
-	waitFor(t, "the private listener", func() bool { return node.addr() != "" })
+	withRelay(t, &cfg)
+	c := startWith(t, cfg, newFakeNode())
 	token, err := c.cfg.ResolveToken(false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, private := "http://"+c.Addr(), "http://"+node.addr()
+	local, private := "http://"+c.Addr(), phoneDoor(t, c)
 	for _, path := range []string{"/api/personal/v1/workspaces", "/api/personal/v1/collections", "/api/personal/v1/capabilities"} {
 		if code, body := get(t, local+path, token); code != 200 {
 			t.Fatal(path, code, body)
 		}
-		// The fake private transport also uses loopback. A source-IP check alone cannot pass this test: the private
-		// listener must refuse the controller's own token, whatever address it comes from.
+		// The phone door here is a local port too. A source-IP check alone cannot pass this test: the phone side must
+		// refuse the controller's own token, whatever address it comes from.
 		if code, body := get(t, private+path, token); code != 403 {
 			t.Fatal(path, code, body)
 		}
@@ -93,34 +90,14 @@ func TestTokenlessControllerDoesNotExposePersonalAssistantTools(t *testing.T) {
 }
 
 // What is made at the computer is open on an enrolled phone, and what the phone writes is what the computer reads: one
-// database behind both, reached through the private network by the phone's own credential and nothing else.
-func TestAnEnrolledPhoneWorksWithPersonalDataOnThePrivateNetwork(t *testing.T) {
-	node := newFakeNode()
+// database behind both, reached through the relay by the phone's own credential and nothing else.
+func TestAnEnrolledPhoneWorksWithPersonalDataThroughTheRelay(t *testing.T) {
 	cfg := defaultConfig(t)
-	on := true
-	cfg.Network.Enabled = &on
-	c := startWith(t, cfg, node)
-	waitFor(t, "the private listener", func() bool { return node.addr() != "" })
+	withRelay(t, &cfg)
+	c := startWith(t, cfg, newFakeNode())
 	token, _ := c.cfg.ResolveToken(false)
-	local, private := "http://"+c.Addr(), "http://"+node.addr()
-	waitFor(t, "connected", func() bool {
-		code, body := get(t, local+"/api/network", token)
-		return code == 200 && strings.Contains(body, `"connected"`)
-	})
-	_, codeBody := post(t, local+"/api/phones/codes", token)
-	var link struct{ Link string }
-	_ = json.Unmarshal([]byte(codeBody), &link)
-	secret := link.Link[strings.Index(link.Link, "#enroll=")+len("#enroll="):]
-	resp, err := http.Post(private+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+secret+`","name":"Phone"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var enrolled struct{ Token string }
-	_ = json.NewDecoder(resp.Body).Decode(&enrolled)
-	resp.Body.Close()
-	if resp.StatusCode != 201 || enrolled.Token == "" {
-		t.Fatalf("enroll = %d", resp.StatusCode)
-	}
+	local, private := "http://"+c.Addr(), phoneDoor(t, c)
+	enrolled := struct{ Token string }{enrollPhone(t, local, token, private, "Phone")}
 	do := func(base, method, path, tok, body string) (int, string) {
 		t.Helper()
 		req, _ := http.NewRequest(method, base+path, strings.NewReader(body))

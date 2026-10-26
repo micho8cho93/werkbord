@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,13 +11,10 @@ import (
 	"werkbord/internal/config"
 )
 
-func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesOnThePrivateNetwork(t *testing.T) {
-	node := newFakeNode()
+func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesThroughTheRelay(t *testing.T) {
 	cfg := defaultConfig(t)
-	on := true
-	cfg.Network.Enabled = &on
-	c := startWith(t, cfg, node)
-	waitFor(t, "the node to be served", func() bool { return node.addr() != "" })
+	withRelay(t, &cfg)
+	c := startWith(t, cfg, newFakeNode())
 	tok, _ := c.cfg.ResolveToken(false)
 	base := "http://" + c.Addr()
 
@@ -30,36 +25,19 @@ func TestTheAssistantIsServedToThePersonOnThisComputerAndToEnrolledPhonesOnThePr
 	if code != 200 || !strings.Contains(body, `"claude-code"`) || !strings.Contains(body, `"codex"`) {
 		t.Fatalf("on this computer: %d %.300s", code, body)
 	}
-	// The controller's own token is still not given the assistant over the private network: only a phone the person has
+	// The controller's own token is still not given the assistant through the relay: only a phone the person has
 	// enrolled is (below), so the assistant is never reached by whoever merely holds a token that was shared or leaked.
-	priv := "http://" + node.addr()
+	priv := phoneDoor(t, c)
 	for _, path := range []string{"/api/assistant/providers", "/api/assistant/sessions", "/api/assistant/audit"} {
 		if code, body := get(t, priv+path, tok); code != 403 {
-			t.Errorf("%s over the private network with the controller's token = %d %s", path, code, body)
+			t.Errorf("%s through the relay with the controller's token = %d %s", path, code, body)
 		}
 	}
 	if code, body := post(t, priv+"/api/assistant/sessions", tok); code != 403 {
-		t.Errorf("creating a conversation over the private network with the controller's token = %d %s", code, body)
+		t.Errorf("creating a conversation through the relay with the controller's token = %d %s", code, body)
 	}
 	// An enrolled phone has all of it.
-	waitFor(t, "connected", func() bool {
-		code, body := get(t, base+"/api/network", tok)
-		return code == 200 && strings.Contains(body, `"connected"`)
-	})
-	_, enrollBody := post(t, base+"/api/phones/codes", tok)
-	var link struct{ Link string }
-	_ = json.Unmarshal([]byte(enrollBody), &link)
-	secret := link.Link[strings.Index(link.Link, "#enroll=")+len("#enroll="):]
-	resp, err := http.Post(priv+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+secret+`","name":"Phone"}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var enrolled struct{ Token string }
-	_ = json.NewDecoder(resp.Body).Decode(&enrolled)
-	resp.Body.Close()
-	if resp.StatusCode != 201 {
-		t.Fatalf("enroll = %d", resp.StatusCode)
-	}
+	enrolled := struct{ Token string }{enrollPhone(t, base, tok, priv, "Phone")}
 	if code, body := get(t, priv+"/api/assistant/providers", enrolled.Token); code != 200 || !strings.Contains(body, `"claude-code"`) {
 		t.Errorf("an enrolled phone's assistant = %d %.200s", code, body)
 	}

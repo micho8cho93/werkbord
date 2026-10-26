@@ -69,17 +69,3 @@ func (s *Server) handleNetworkDisable(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, s.networkStatus(r.Context()))
 }
-
-// handlePhoneLink returns where a phone reaches the controller: its private address. It carries no credential. A phone
-// is let in with an enrollment code, made by POST /api/phones/codes (phone.go), never with the controller's own token.
-func (s *Server) handlePhoneLink(w http.ResponseWriter, r *http.Request) {
-	if !s.networkReady(w) {
-		return
-	}
-	st := s.opt.Network.Status()
-	if st.State != netprivate.StateConnected || st.URL == "" {
-		writeError(w, http.StatusConflict, "conflict", "the private network is not connected yet")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"url": st.URL, "https": st.HTTPS})
-}

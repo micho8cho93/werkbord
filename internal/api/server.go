@@ -217,7 +217,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/network", s.handleNetworkStatus)
 	mux.HandleFunc("POST /api/network/enable", s.handleNetworkEnable)
 	mux.HandleFunc("POST /api/network/disable", s.handleNetworkDisable)
-	mux.HandleFunc("GET /api/network/phone", s.handlePhoneLink)
 	mux.HandleFunc("GET /api/relay", s.handleRelayStatus)
 	mux.HandleFunc("GET /api/deck", s.handleDeck)
 	mux.HandleFunc("PUT /api/deck", s.handleDeck)
