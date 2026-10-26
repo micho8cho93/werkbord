@@ -13,7 +13,8 @@ Werkbord is **one product with one version and one release**. The Mac app, the `
 and the Werkbord Team service (`werkbord-team`, the Workspace Host and its command line) are built, versioned, tagged and
 released together, at all times unified. There is no separate Team version, tag, release or installer.
 
-Every implementation commit MUST have a corresponding version update and Git tag.
+Versions and tags mark **releases**, not individual commits. Ordinary commits do not touch `cmd/werkbord/VERSION` and are
+not tagged; CI (`make check`) validates every push.
 
 Use semantic versions and one tag series:
 
@@ -27,13 +28,17 @@ generic repository-wide tag such as `v2.1.0`.
 
 ### Rules
 
-For EVERY implementation commit:
+Day to day, commit normally: no version bump, no tag. A build made between releases reports the last release plus the
+commits since (`v5.5.0-preview.1-3-g1a2b3c4`), which the updater treats as *built from source*, never as an installed release.
 
-1. Increment the version in `cmd/werkbord/VERSION` (the one version file) before completing the commit.
-2. Ensure the application's version metadata reflects it: both executables and the Mac app are stamped from that file.
-3. Commit the implementation and version change together.
-4. Create the tag with `make tag`, pointing at that commit.
-5. Verify it with `make verify-tag`.
+To cut a release, in one deliberate step:
+
+1. Choose the next version (below) and inspect the existing tags (`git tag --list 'werkbord-v*'`).
+2. Raise it in `cmd/werkbord/VERSION` (the one version file) in a release-preparation commit of its own. Both executables
+   and the Mac app are stamped from that file.
+3. Run `make check`.
+4. Create the tag with `make tag`, pointing at that commit, then verify it with `make verify-tag`.
+5. Push the commit and the tag only when the user asks. Pushing the tag is what starts the release workflow.
 
 Use semantic versioning appropriately:
 
@@ -41,35 +46,21 @@ Use semantic versioning appropriately:
 - **MINOR**: new backward-compatible features or meaningful functionality.
 - **MAJOR**: breaking changes or major product generations.
 
-A change to any part of Werkbord, Team included, bumps the one version. Do not decide per component.
+A release of any part of Werkbord, Team included, raises the one version. Do not decide per component.
 
 ### Agent workflow
 
-Before finishing any coding task:
-
-- inspect the current version in `cmd/werkbord/VERSION`
-- inspect existing Git tags (`git tag --list 'werkbord-v*'`)
-- determine the correct next semantic version
-- update `cmd/werkbord/VERSION`
-- commit
-- run `make tag`, then `make verify-tag`
-
-An implementation task is NOT complete until this process has been performed.
-
-If multiple implementation commits are created during a task, apply this process to EVERY implementation commit rather
-than only the final commit.
-
-Do not create tags for documentation-only commits unless the documentation represents a product release.
+An implementation task is complete when its change is committed and `make check` (or the part of it that covers the change)
+passes. Do not bump the version or create a tag as part of ordinary work; do that only when the user asks for a release
+or a release candidate. Documentation-only changes never need a version.
 
 Tags are created locally. Do not push commits or tags unless the user asks.
 
-### GitHub release presentation
+### GitHub release titles
 
-GitHub release display numbers are separate from the build versions and Git tags.
-Follow `docs/RELEASE_SEQUENCE.md` when preparing or publishing a release: reserve its
-display sequence, apply the presentation title and add the original build
-version note. Preserve the actual tag, VERSION metadata, assets, preview status and
-latest selection. Do not reset build versions to the display sequence.
+A release is titled `Werkbord <version>` (a preview adds ` (macOS preview)`), straight from the tag. There is no second
+numbering. Releases published before this rule keep their titles; their record is `docs/archive/RELEASE_HISTORY.md`.
+Preserve the actual tag, VERSION metadata, assets, preview status and latest selection when editing a release.
 
 ### Where versions live and how to apply the policy here
 
@@ -77,7 +68,7 @@ latest selection. Do not reset build versions to the display sequence.
   `internal/archtest` fails if it comes back. The executable is `werkbord`; `devboard`, its name before the rename, is
   installed beside it and must keep working, as must every `DEVBOARD_*` variable.
 - Existing tags: `git tag --list 'werkbord-v*'`. The `werkbord-team-v*` tags and the bare `v0.7.0` and earlier are history.
-- After committing: `make tag` (annotated tag from the VERSION file, then verified) and `make verify-tag` to check again.
+- When releasing: `make tag` (annotated tag from the VERSION file, then verified) and `make verify-tag` to check again.
   Details: `docs/VERSIONING.md`.
 - The Mac app (`desktop/`) and the Team service are part of the one release and have no version of their own.
 

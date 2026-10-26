@@ -384,7 +384,7 @@ jobs:
         with:
           name: approved-candidate
           path: assets/approved
-      - name: Assemble one release and reserve its display sequence
+      - name: Assemble one release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -392,8 +392,6 @@ jobs:
           set -euo pipefail
           version=${GITHUB_REF_NAME#werkbord-v}
           prerelease=false
-          sequence=$(awk -F '|' -v tag="$GITHUB_REF_NAME" '{ build=$3; gsub(/[[:space:]`]/,"",build); if (build==tag) { display=$4; gsub(/[[:space:]`]/,"",display); print display } }' docs/RELEASE_SEQUENCE.md)
-          printf '%s\n' "$sequence" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-preview\.[1-9][0-9]*)?$' || { echo 'Missing or invalid reserved release display sequence' >&2; exit 1; }
           qualifier=""
           case "$version" in
             *-preview.*) prerelease=true; qualifier=" (macOS preview)" ;;
@@ -414,12 +412,6 @@ jobs:
             test -s "release-assets/$file" || { echo "required release asset is missing: $file" >&2; exit 1; }
           done
           cat > release-notes.md <<EOF
-          **Release sequence:** $sequence · **Original build version:** $version
-
-          The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is \`$GITHUB_REF_NAME\`.
-
-          ---
-
           Werkbord $version is one app with Personal and Team projects, under Free and Premium plans. It includes the local controller and the optional Team coordination service in one release.
 
           Free includes all Personal work and teams of up to two people. Teams of three or more need Premium for every member. Premium uses a per-person key checked offline; a one-time purchase is planned but is not yet on sale. Both plans use the same download.
@@ -445,7 +437,7 @@ jobs:
           The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux packages are opt-in after acceptance; Windows downloads remain deferred.
           EOF
           fi
-          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord — Release $sequence$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
+          gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord $version$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
 
   desktop-publish:
     needs: desktop-draft

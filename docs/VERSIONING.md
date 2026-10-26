@@ -17,27 +17,33 @@ either is always updated upwards.
 
 ## The rule
 
-**Every implementation commit has a version bump and a tag.** For each one:
+**A version and a tag mark a release, not a commit.** Ordinary commits leave `cmd/werkbord/VERSION` alone and are not tagged;
+CI runs `make check` on every push. A build between releases reports the last release plus the commits since it (see
+[Where the version shows up](#where-the-version-shows-up)).
 
-1. Raise the version in `cmd/werkbord/VERSION`, before the commit is complete.
-2. Make sure the version metadata agrees (`VERSION` is the source; both executables and the Mac app are stamped from it).
-3. Commit the change **and** the version bump together.
-4. Tag that commit.
-5. Verify the tag.
+To cut a release (a preview or a stable one):
+
+1. Choose the next version ([Which number](#which-number)).
+2. Raise it in `cmd/werkbord/VERSION`, in a release-preparation commit of its own. `VERSION` is the source; both executables
+   and the Mac app are stamped from it.
+3. Run `make check`.
+4. Tag that commit and verify the tag.
+5. Push the commit and the tag, a separate, deliberate step. Pushing the tag starts the release workflow.
 
 ```bash
-# 1–3: edit cmd/werkbord/VERSION in the same commit as the change
-git commit -am "…"
+# 2: edit cmd/werkbord/VERSION, then
+git commit -am "Prepare 5.6.0-preview.1"
 
-# 4–5: annotated tag on HEAD, named from the VERSION file; make tag then verifies it
+# 4: annotated tag on HEAD, named from the VERSION file; make tag then verifies it
 make tag                  # werkbord-v<cmd/werkbord/VERSION>
 make verify-tag           # run again at any time
+
+# 5: only when you mean to release
+git push origin <branch> werkbord-v5.6.0-preview.1
 ```
 
-A change to Team bumps the same version as a change to the controller or the app: there is nothing to decide per
-component. If several implementation commits are made in a task, every one is bumped and tagged, not only the last.
-Documentation-only commits get no tag (unless the documentation is the release). Tags are created locally; pushing them
-(`git push origin werkbord-v4.0.0-preview.1`) is a separate, deliberate step.
+A release of Team raises the same version as one of the controller or the app: there is nothing to decide per component.
+Several changes can go into one release. Tags are created locally.
 
 ### Which number
 
@@ -66,7 +72,7 @@ this when a tag is pushed.
 `make build` and `make build-team` stamp it. A plain `go build` reports `dev`.
 
 The desktop app (`desktop/`) has no version of its own: the window and the `werkbord` program inside it are stamped with
-the same version, so a change to `desktop/`, `internal/launcher` or any `scripts/*desktop*` script bumps
+the same version, so the next release of the app, `internal/launcher` or any `scripts/*desktop*` script raises
 `cmd/werkbord/VERSION`. The current stable release publishes a universal macOS disk image; Linux and Windows
 packaging remains available in source but public downloads are deferred (see [Releases](#releases) and
 [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)).
@@ -79,10 +85,15 @@ Werkbord Team's service and the installer in the app are stamped with this same 
 
 Pushing a release tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
 build the macOS controller archives, and publish a GitHub release associated with the tag.
-GitHub display titles use the separate presentation sequence recorded in
-[RELEASE_SEQUENCE.md](RELEASE_SEQUENCE.md); build versions and tags keep the semantic
-versions described above. Apply the reserved title and original build version note to
-new releases without changing their assets or latest selection:
+Stable releases are published only after the signed, notarized universal macOS app and the public download and signed
+update-feed checks succeed; a pushed tag is not proof that a release is installable. The first beta invitation scope is
+macOS ([BETA_READINESS.md](BETA_READINESS.md), [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). The GUI app carries the Team service
+and installer, so no standalone Team Host archive is attached. Only stable unified releases become *latest*; the
+`werkbord-preview-feed` release (the update feed preview apps read, [DESKTOP.md](DESKTOP.md)) is not a product release.
+
+A release is titled `Werkbord <version>` (a preview adds ` (macOS preview)`), taken from the tag; there is no second
+numbering. Releases published before this rule keep their titles, recorded in
+[archive/RELEASE_HISTORY.md](archive/RELEASE_HISTORY.md). Assets, preview status and latest selection are not changed by a title:
 
 - `werkbord-vX.Y.Z` → the controller's platform archives and `checksums.txt`. Stable releases are marked **latest** only
   after all desktop builds and public download checks pass. They also include the unified desktop app:

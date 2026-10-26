@@ -1,49 +1,10 @@
-# GitHub release display sequence
+# Release history (retired display sequence)
 
-> **One release.** From `werkbord-v4.0.0-preview.1` there is a single release series, so a single display sequence. The
-> Individual and Team sequences below are history; continue the **Individual** sequence for the unified releases and
-> reserve no more Team numbers.
-
-GitHub release titles use one display sequence for Werkbord, continuing the historical Individual sequence below. The original
-per-product sequences began at `0.1.0`; those published records stay unchanged. This is a presentation convention, not the
-application's semantic version. Product tags, committed VERSION files, archive names,
-embedded versions, checksums, update feeds and installer version checks keep their
-original build versions. Never renumber a Git tag to match a display number.
-
-New titles use `Werkbord — Release <sequence>`. Historical `Werkbord Individual` and `Werkbord Team` titles remain records of
-their publication; neither names a current separate product. Previews include `-preview.N`; additional
-qualifiers such as `unsigned Mac desktop` can follow the title.
-
-Before publishing, reserve the display number in the table below. Keep patch releases
-in their display minor series, advance the display minor for a feature release or new
-product generation, and advance the preview counter for another preview of the same
-release. Count published releases, not every local commit or unpublished tag. Stable
-publication of a preview uses the same display base without the preview suffix.
-
-Each release description begins with:
-
-```markdown
-**Release sequence:** <sequence> · **Original build version:** <build version>
-
-The release sequence is a display label for this product’s published history. Downloads and installed apps use the original build version; the Git tag is `<product tag>`.
-
----
-```
-
-Preserve the existing release notes below that introduction. The publishing workflow
-reads the reserved display sequence from this table when assembling the draft.
-The original build version remains derived from the tag.
-Editing presentation must preserve tags, publication dates, prerelease status, assets
-and latest selection. Only stable unified Werkbord releases may become latest. The `werkbord-preview-feed` release (the update feed
-preview apps read, docs/DESKTOP.md) is not a product release and has no display number.
-
-The first beta invitation scope is macOS. Linux publication is opt-in only after
-its separate acceptance; Windows publication remains deferred. See
-[BETA_READINESS.md](BETA_READINESS.md).
-Stable unified releases are published only after the signed, notarized universal macOS app
-and public download and signed update-feed checks succeed. The GUI app carries the Team
-service and installer; do not attach standalone Team Host CLI archives. A pushed tag
-is not proof that a release is installable.
+> **Historical record. Do not add rows.** GitHub releases used to carry a second "display sequence" (`0.21.0-preview.1`)
+> alongside the real version, reserved in this table before publishing. That is retired: a release is now titled
+> `Werkbord <version>` straight from its tag (see [VERSIONING.md](../VERSIONING.md)). Releases published under the old
+> numbering keep their titles, and this table stays as the record of which tags were published, superseded or abandoned.
+> Never renumber a Git tag to match a display number.
 
 ## Recorded and reserved numbers
 

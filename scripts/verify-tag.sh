@@ -1,5 +1,5 @@
 #!/bin/sh
-# Verifies the release tag, the last step of every implementation commit
+# Verifies the release tag, the last step of cutting a release
 # (see AGENTS.md and docs/VERSIONING.md).
 #
 #   scripts/verify-tag.sh [tag [commit]]
@@ -8,7 +8,7 @@
 # version of the whole release), against HEAD. It fails unless:
 #   - the tag exists and is an annotated tag;
 #   - it points at the commit (default HEAD). With no commit argument HEAD may be later than the tag, if every commit
-#     since changed only documentation (docs/ and top-level *.md), which gets no tag (AGENTS.md). With an explicit commit,
+#     since changed only documentation (docs/ and top-level *.md), which gets no tag of its own (AGENTS.md). With an explicit commit,
 #     as the release workflow gives, the tag must point at exactly that commit;
 #   - the VERSION file AT THAT COMMIT says the tag's version;
 #   - the version is higher than every other release tag;
