@@ -927,7 +927,7 @@ async function loadProject() {
   if (state.tab === 'activity' || state.tab === 'board') {
     d.progressReports = await Promise.all(board.tickets.filter(k => k.assigneeId === state.me.member.id).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) })));
   }
-  if (state.tab === 'people') {
+  if (state.tab === 'people' || state.tab === 'project-settings') {
     d.people = board.people;
     d.invites = board.can.includes('invites.manage') ? await api('GET', '/projects/' + id + '/invites') : [];
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
@@ -962,10 +962,10 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['people', 'People', 0]]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
   const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
-  const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': state.tab === 'project-settings' ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
+  const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
   if (['calendar', 'timeline'].includes(state.tab) && state.ticketId) {
@@ -984,7 +984,7 @@ async function projectScopedView() {
 
 }
 
-// The project itself: what it is, how it relates to other repositories, and archiving it. Who is on it is its People tab.
+// Project administration: details, relationships, people and archiving. Existing People deep links still work.
 function projectSettingsTab(d) {
   const p = d.board.project;
   const details = h('section', { class: 'panel', 'aria-labelledby': 'project-details-h' }, h('h2', { id: 'project-details-h' }, 'Details'),
@@ -994,7 +994,7 @@ function projectSettingsTab(d) {
   const archive = can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-archive-h' }, h('h2', { id: 'project-archive-h' }, p.archived ? 'Unarchive project' : 'Archive project'),
     h('p', { class: 'muted' }, p.archived ? 'Put this project back among the active ones. Its tickets are as they were.' : 'An archived project leaves the sidebar and cannot take new tickets. Nothing is deleted: you can unarchive it.'),
     h('button', { class: 'danger', onclick: () => (p.archived || confirm('Archive ' + p.name + '? It leaves the sidebar and takes no new tickets until you unarchive it.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project')) : '';
-  return h('div', { class: 'project-settings' }, details, h('section', { class: 'panel' }, relationshipSettings(p)), archive);
+  return h('div', { class: 'project-settings' }, details, h('section', { class: 'panel' }, relationshipSettings(p)), peopleTab(d), archive);
 }
 
 // One row of tabs for the sub-areas of a major part. The sidebar lists the major parts; this is the only other navigation, and the
