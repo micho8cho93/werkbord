@@ -213,7 +213,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  // A project invite is a code. The page's own address is this computer's, so a link would be useless to anyone else.
  await page.locator('nav').getByRole('button',{name:'Projects',exact:true}).click();await page.getByText('Join a project with a code',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Open project Customer portal',exact:true}).click();
- await page.getByRole('navigation',{name:'Project sections',exact:true}).getByRole('button',{name:'People',exact:true}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
+ await page.getByRole('button',{name:/^Project settings/}).click();await page.getByRole('button',{name:'Create invite code',exact:true}).click();
  const secret=page.locator('.secret');await secret.waitFor();const secretText=await secret.innerText();
  assert(/wbi_[0-9a-f]{20,}/.test(secretText),'the invite code is shown');assert(!secretText.includes('http')&&!secretText.includes('127.0.0.1'),'no loopback link is offered');assert.equal(await secret.getByRole('button',{name:'Copy link',exact:true}).count(),0);
  console.log('PASS project invite is a code, never a link to this computer');
