@@ -27,10 +27,12 @@ type Env struct {
 	Config config.Config
 	// Agents are the registered agents.
 	Agents *agent.Registry
-	// Network reports the private network; nil, or ok=false, means there is no
-	// running controller to ask.
+	// Network reports the private network (Tailscale, for other computers joining as runners); nil, or ok=false,
+	// means there is no running controller to ask.
 	Network func() (netprivate.Status, bool)
-	GitHub  *service.GitHubSetup
+	// Relay reports phone access, which is the relay; nil, or ok=false, likewise.
+	Relay  func() (PhoneAccess, bool)
+	GitHub *service.GitHubSetup
 	// Settings and Projects need the controller's database.
 	Settings *service.Settings
 	Projects *service.Projects
@@ -42,7 +44,7 @@ type Env struct {
 // Standard returns the checks that need no running controller, in the order a
 // report lists them, plus the ones that use its live parts when Env has them.
 func (e Env) Standard() []Func {
-	return []Func{e.database, e.configCheck, e.git, e.agents, e.network, e.github, e.runner, e.projects}
+	return []Func{e.database, e.configCheck, e.git, e.agents, e.phoneAccess, e.network, e.github, e.runner, e.projects}
 }
 
 func skip(id, name, why string) Check { return Check{ID: id, Name: name, Status: Skip, Summary: why} }
@@ -169,41 +171,69 @@ func trimPrefix(detail string) string {
 	return detail
 }
 
-// ---- private network ----
+// ---- phone access (the relay) ----
+
+// PhoneAccess is the relay as the doctor needs it: phones come in through it.
+type PhoneAccess struct {
+	Enabled, Connected bool
+	Phones             int
+	Error              string
+}
+
+func (e Env) phoneAccess(ctx context.Context) []Check {
+	if e.Relay == nil {
+		return []Check{skip("phones", "phone access", "needs the controller running")}
+	}
+	st, ok := e.Relay()
+	if !ok {
+		return []Check{skip("phones", "phone access", "needs the controller running")}
+	}
+	c := Check{ID: "phones", Name: "phone access"}
+	switch {
+	case !st.Enabled:
+		c.Status, c.Summary = Warn, "phone access is off: the relay is turned off, so a phone cannot reach Werkbord"
+		c.Fix = "Remove relay.disabled from config.json (or unset WERKBORD_RELAY=off), then run `werkbord restart`."
+	case !st.Connected:
+		c.Status, c.Summary = Warn, "phone access is not connected to the relay yet"
+		if st.Error != "" {
+			c.Summary += ": " + clip(st.Error, 160)
+		}
+		c.Fix = "It keeps trying by itself. Check this computer's internet connection, then run doctor again."
+	default:
+		c.Status, c.Summary = OK, fmt.Sprintf("ready through the relay (%d phone(s) enrolled)", st.Phones)
+	}
+	return []Check{c}
+}
+
+// ---- private network (Tailscale, for other computers joining as runners) ----
 
 func (e Env) network(ctx context.Context) []Check {
 	if e.Network == nil {
-		return []Check{skip("network", "network", "needs the controller running")}
+		return []Check{skip("network", "private network", "needs the controller running")}
 	}
 	st, ok := e.Network()
 	if !ok {
-		return []Check{skip("network", "network", "needs the controller running")}
+		return []Check{skip("network", "private network", "needs the controller running")}
 	}
-	c := Check{ID: "network", Name: "network"}
+	c := Check{ID: "network", Name: "private network"}
 	switch st.State {
 	case netprivate.StateOff:
-		c.Status, c.Summary = Warn, "private network is off: Werkbord is reachable on this computer only"
-		c.Fix = "To use it from your phone, run `werkbord open --phone` or turn on phone access in Settings."
+		c.Status, c.Summary = OK, "off (only needed to add another computer as a runner)"
 	case netprivate.StateStarting:
 		c.Status, c.Summary = Warn, "private network is starting"
 		c.Fix = "Give it a few seconds and run doctor again."
 	case netprivate.StateNeedsLogin:
 		// The sign-in link is a credential for the user, so it is not printed here.
-		c.Status, c.Summary = Warn, "private network is waiting for you to sign in"
-		c.Fix = "Run `werkbord open --phone`, or open Werkbord and use \"Sign in\" under Settings → Phone access."
+		c.Status, c.Summary = Warn, "private network is waiting for you to sign in to Tailscale"
+		c.Fix = "Run `werkbord network on` to open the sign-in page."
 	case netprivate.StateNeedsApproval:
 		c.Status, c.Summary = Warn, "private network is waiting for your tailnet's admin to approve this device"
 		c.Fix = "Approve it at https://login.tailscale.com/admin/machines."
 	case netprivate.StateError:
 		c.Status, c.Summary = Fail, "private network failed: "+clip(st.Error, 160)
-		c.Fix = "Run `werkbord restart`. If it persists, turn phone access off and on in Settings."
+		c.Fix = "Run `werkbord restart`. If it persists, run `werkbord network off`, then `werkbord network on`."
 	case netprivate.StateConnected:
-		c.Status, c.Summary = OK, "connected at "+st.URL
-		if !st.HTTPS {
-			c.Status = Warn
-			c.Summary += " (http: encrypted by the tailnet, but a phone cannot install it as an app)"
-			c.Fix = st.HTTPSHint
-		}
+		c.Status, c.Summary = OK, "connected at "+st.URL+" (for your other computers)"
 		if len(st.Health) > 0 {
 			c.Status, c.Summary = Warn, c.Summary+"; Tailscale reports: "+clip(strings.Join(st.Health, "; "), 160)
 		}

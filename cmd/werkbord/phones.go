@@ -69,24 +69,18 @@ func (a *app) cmdPhones(ctx context.Context, args []string) error {
 			}
 			qr = true
 		}
-		n, err := a.ensureNetwork(ctx, c, phoneTimeout, true)
-		if err != nil {
-			return err
-		}
-		if n.State != string(netprivate.StateConnected) {
-			return errors.New("the private network is " + n.State + ": finish signing in, then run this again")
-		}
-		return a.printEnrollment(ctx, c, n, qr)
+		return a.printEnrollment(ctx, c, qr)
 	}
 }
 
-// printEnrollment makes a single-use code and shows it as a link, and as a QR code when asked or on a terminal.
-func (a *app) printEnrollment(ctx context.Context, c *client, n networkInfo, qr bool) error {
+// printEnrollment makes a single-use code and shows it as a link, and as a QR code when asked or on a terminal. The link is
+// the relay's plain https page: the phone needs no app and no account.
+func (a *app) printEnrollment(ctx context.Context, c *client, qr bool) error {
 	e, err := c.enrollment(ctx)
 	if err != nil {
 		return err
 	}
-	a.printf("Scan this with your phone's camera. It opens Werkbord on the phone, signed in. The phone needs the Tailscale app, signed in to the same account.\n\n")
+	a.printf("Scan this with your phone's camera. It opens Werkbord on the phone, signed in. Nothing needs installing on the phone.\n\n")
 	if qr || a.isTerminal(a.out) {
 		text, err := netprivate.QRText(e.Link)
 		if err != nil {
@@ -96,9 +90,6 @@ func (a *app) printEnrollment(ctx context.Context, c *client, n networkInfo, qr 
 	} else {
 		a.printf("Link: %s\n", e.Link)
 	}
-	a.printf("Address: %s\nThe code works for one phone, for %d minutes. `werkbord phones list` shows who is enrolled and `werkbord phones revoke <id>` signs one out.\n", n.URL, int(phoneaccess.CodeTTL/time.Minute))
-	if !n.HTTPS && n.HTTPSHint != "" {
-		a.printf("Note: %s\n", n.HTTPSHint)
-	}
+	a.printf("The code works for one phone, for %d minutes. `werkbord phones list` shows who is enrolled and `werkbord phones revoke <id>` signs one out.\n", int(phoneaccess.CodeTTL/time.Minute))
 	return nil
 }

@@ -12,14 +12,14 @@
 # executable (and the service definition setup writes in your home directory).
 #
 # Pass options to setup using the independently obtained installer, e.g.:
-#   sh /trusted/installer/install.sh --no-network
+#   sh /trusted/installer/install.sh --no-open
 #
 # Environment:
 #   WERKBORD_VERSION      install this release (e.g. v1.2.3, or its tag werkbord-v1.2.3) instead of the latest
 #   WERKBORD_INSTALL_DIR  where the executable goes (default ~/.local/bin)
 #   WERKBORD_BASE_URL     where releases are (default: this project's GitHub releases)
 #   WERKBORD_NO_SETUP=1   only install the executable
-#   WERKBORD_NO_SERVICE, WERKBORD_NO_OPEN, WERKBORD_NO_NETWORK, WERKBORD_NO_START
+#   WERKBORD_NO_SERVICE, WERKBORD_NO_OPEN, WERKBORD_NO_START
 #                         passed on to setup (see `werkbord setup -h`)
 set -eu
 

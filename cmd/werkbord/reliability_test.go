@@ -14,7 +14,7 @@ import (
 
 func TestTokenRotationTakesEffectWithoutRestart(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	old, err := e.app.client()
@@ -46,7 +46,7 @@ func TestTokenRotationTakesEffectWithoutRestart(t *testing.T) {
 
 func TestUpdateRestoresDatabaseAsWellAsBinary(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	setVersion(t, "v1.0.0")
@@ -103,7 +103,7 @@ func TestInterruptionRequiresExplicitForceForUncertainRunnerWork(t *testing.T) {
 }
 func TestInvalidRestoreLeavesControllerRunning(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.app.cmdDB(bg, []string{"restore", filepath.Join(t.TempDir(), "missing.db")}); err == nil {
@@ -116,7 +116,7 @@ func TestInvalidRestoreLeavesControllerRunning(t *testing.T) {
 
 func TestLatestRestoreRejectsAPositionalBackup(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.app.cmdDB(bg, []string{"restore", "--latest", "backup.db"}); err == nil || !strings.Contains(err.Error(), "cannot be combined") {
@@ -175,7 +175,7 @@ func TestNewestCompatibleBackupSkipsDisappearedAndInvalidFiles(t *testing.T) {
 
 func TestCanceledUpdateStillCompletesRollback(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	setVersion(t, "v1.0.0")

@@ -353,6 +353,14 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	env := doctor.Env{
 		Config: c.cfg, Agents: agents, GitHub: setup, Settings: settings, Projects: projects, Git: git,
 		Network: func() (netprivate.Status, bool) { return nw.Status(), true },
+		Relay: func() (doctor.PhoneAccess, bool) {
+			r := c.relay // cleared when the controller shuts down
+			if r == nil {
+				return doctor.PhoneAccess{}, true // no relay configured: phone access is off
+			}
+			st := r.Status()
+			return doctor.PhoneAccess{Enabled: st.Enabled, Connected: st.Connected, Phones: st.Phones, Error: st.Error}, true
+		},
 	}
 	apiOpts.Doctor = func(ctx context.Context) doctor.Report { return doctor.Run(ctx, c.version, env.Standard()...) }
 	privateOpts.Doctor = apiOpts.Doctor

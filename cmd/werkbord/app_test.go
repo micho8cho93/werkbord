@@ -21,6 +21,7 @@ import (
 	"werkbord/internal/controller"
 	"werkbord/internal/daemon"
 	"werkbord/internal/netprivate"
+	"werkbord/internal/relay/relaytest"
 )
 
 var bg = context.Background()
@@ -191,9 +192,12 @@ func newTestEnv(t *testing.T) *testEnv {
 	t.Setenv("WERKBORD_TOKEN", "")
 	t.Setenv("WERKBORD_REQUIRE_TOKEN", "")
 	t.Setenv("WERKBORD_NETWORK", "")
+	rl := relaytest.New() // phone access is the relay: every environment gets one of its own
+	t.Cleanup(rl.Close)
+	t.Setenv("WERKBORD_RELAY_URL", rl.URL)
+	t.Setenv("WERKBORD_CONNECTOR_URL", "https://connect.example.pages.dev")
 	t.Setenv("WERKBORD_NO_SERVICE", "")
 	t.Setenv("WERKBORD_NO_OPEN", "")
-	t.Setenv("WERKBORD_NO_NETWORK", "")
 	t.Setenv("WERKBORD_NO_START", "")
 	t.Setenv("HOME", dir)                        // nothing reads the real home directory
 	if err := os.Chmod(dir, 0o700); err != nil { // as the controller creates its data directory
@@ -245,6 +249,23 @@ func newTestEnv(t *testing.T) *testEnv {
 }
 
 func (e *testEnv) output() string { return e.out.String() }
+
+// waitForRelay waits for the running controller to be connected to the relay, which it does in the background.
+func (e *testEnv) waitForRelay() {
+	e.t.Helper()
+	c, err := e.app.client()
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if r, err := c.relay(bg); err == nil && r.Connected {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	e.t.Fatal("the controller did not connect to the relay")
+}
 
 func (e *testEnv) token() string {
 	b, _ := os.ReadFile(filepath.Join(e.dataDir, "token"))

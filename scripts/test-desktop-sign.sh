@@ -76,7 +76,7 @@ run_app() { # <label> <prefix words…>: the app as that kind of Mac runs it
   PORT2=$(free_port)
   env2() { HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_ADDR="127.0.0.1:$PORT2" "$@"; }
   # A controller of its own (no login service) for the app to find and join: the app must not make one here.
-  env2 "$@" "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >/dev/null 2>&1 || bad "$label: could not set up the controller for the app"
+  env2 "$@" "$APP/Contents/Helpers/werkbord" setup --no-service --no-open >/dev/null 2>&1 || bad "$label: could not set up the controller for the app"
   pid_before=$(cat "$H2/data/controller.pid")
   # The app itself is the background job (not a shell function around it), so that $! is its own process.
   HOME="$H2" WERKBORD_DATA_DIR="$H2/data" WERKBORD_ADDR="127.0.0.1:$PORT2" \
@@ -421,7 +421,7 @@ echo "5. the hardened program and app run"
 H="$WORK/home-run"; mkdir -p "$H"
 PORT=$(free_port)
 envrun() { HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_ADDR="127.0.0.1:$PORT" "$@"; }
-envrun "$APP/Contents/Helpers/werkbord" setup --no-service --no-open --no-network >"$WORK/setup.log" 2>&1 || { cat "$WORK/setup.log" >&2; bad "the hardened program could not set Werkbord up"; }
+envrun "$APP/Contents/Helpers/werkbord" setup --no-service --no-open >"$WORK/setup.log" 2>&1 || { cat "$WORK/setup.log" >&2; bad "the hardened program could not set Werkbord up"; }
 code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/health" || true)
 [ "$code" = 200 ] || bad "the controller started by the hardened program does not answer (HTTP $code)" "$(cat "$WORK/setup.log")"
 health=$(curl -s "http://127.0.0.1:$PORT/api/health")

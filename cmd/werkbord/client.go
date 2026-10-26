@@ -145,6 +145,20 @@ func (c *client) setNetwork(ctx context.Context, on bool) (networkInfo, error) {
 	return n, err
 }
 
+// relayInfo is /api/relay as the CLI reads it: the connection phones come in through.
+type relayInfo struct {
+	Enabled   bool   `json:"enabled"`
+	Connected bool   `json:"connected"`
+	Phones    int    `json:"phones"`
+	Error     string `json:"error"`
+}
+
+func (c *client) relay(ctx context.Context) (relayInfo, error) {
+	var r relayInfo
+	err := c.do(ctx, http.MethodGet, "/api/relay", nil, &r)
+	return r, err
+}
+
 // enrollment is a single-use code for one phone, as the link a QR code carries.
 type enrollment struct {
 	Link      string    `json:"link"`
@@ -155,7 +169,7 @@ func (c *client) enrollment(ctx context.Context) (enrollment, error) {
 	var e enrollment
 	err := c.do(ctx, http.MethodPost, "/api/phones/codes", map[string]string{}, &e)
 	if err == nil && e.Link == "" {
-		err = errors.New("the private network is not connected yet")
+		err = errors.New("phone access needs the relay, which is turned off on this computer (relay.disabled in config.json, or WERKBORD_RELAY=off)")
 	}
 	return e, err
 }

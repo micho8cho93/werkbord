@@ -2,7 +2,7 @@
 //
 //	werkbord setup                 install and start everything, then open the app
 //	werkbord start | stop | restart | status
-//	werkbord open [--phone]        open the app (on this computer, or the address for a phone)
+//	werkbord open [--phone]        open the app (on this computer, or the code that enrolls a phone)
 //	werkbord doctor                check that everything works
 //	werkbord update                install the latest release
 //	werkbord serve                 run the controller in the foreground
@@ -46,7 +46,8 @@ commands:
   start | stop | restart  control the background controller
   status                what is running, and where
   open [--phone] [--qr] open the app; --phone/--qr shows the QR code that enrolls your phone
-  doctor                check the controller, database, Git, agents, network and GitHub
+  network [on|off]      the private network (Tailscale) your other computers join as runners; off by default
+  doctor                check the controller, database, Git, agents, phone access and GitHub
   update                install the latest release
   uninstall             remove the login service (your data stays)
   logs [-n N]           show the end of the controller's log
@@ -105,6 +106,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return a.cmdStatus(ctx, args[1:])
 	case "open":
 		return a.cmdOpen(ctx, args[1:])
+	case "network":
+		return a.cmdNetwork(ctx, args[1:])
 	case "doctor":
 		return a.cmdDoctor(ctx, args[1:])
 	case "update":

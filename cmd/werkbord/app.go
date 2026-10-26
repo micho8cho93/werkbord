@@ -360,6 +360,7 @@ type statusReport struct {
 	Service     daemon.State `json:"service"`
 	URL         string       `json:"url"`
 	DataDir     string       `json:"dataDir"`
+	Phones      *relayInfo   `json:"phones,omitempty"`
 	Network     *networkInfo `json:"network,omitempty"`
 	Runner      *runnerInfo  `json:"runner,omitempty"`
 	Agents      []agentInfo  `json:"agents,omitempty"`
@@ -383,6 +384,9 @@ func (a *app) gatherStatus(ctx context.Context) statusReport {
 	if err != nil {
 		st.Unreachable = err.Error()
 		return st
+	}
+	if r, err := c.relay(ctx); err == nil {
+		st.Phones = &r
 	}
 	if n, err := c.network(ctx); err == nil {
 		n.AuthURL = "" // a one-time sign-in link for the user: not for a status report that may be pasted or logged
@@ -426,20 +430,28 @@ func (a *app) printStatus(st statusReport) {
 		a.step(markWarn, "starts at login", "no: run `werkbord setup` to install the service")
 	}
 	a.step("·", "data", st.DataDir)
-	if st.Network != nil {
+	if st.Phones != nil {
+		switch {
+		case !st.Phones.Enabled:
+			a.step("·", "phone access", "off: the relay is turned off in config.json")
+		case st.Phones.Connected:
+			a.step(markOK, "phone access", fmt.Sprintf("ready (relay): `werkbord phones add --qr` shows the code to scan; %d enrolled", st.Phones.Phones))
+		default:
+			a.step(markWait, "phone access", "connecting to the relay")
+		}
+	}
+	if st.Network != nil && st.Network.State != string(netprivate.StateOff) {
 		switch st.Network.State {
 		case string(netprivate.StateConnected):
-			a.step(markOK, "phone access", st.Network.URL)
-		case string(netprivate.StateOff):
-			a.step("·", "phone access", "off: `werkbord open --phone` turns it on")
+			a.step(markOK, "private network", st.Network.URL+" (for your other computers)")
 		case string(netprivate.StateNeedsLogin):
-			a.step(markWait, "phone access", "waiting for you to sign in: run `werkbord open --phone`")
+			a.step(markWait, "private network", "waiting for you to sign in to Tailscale: run `werkbord network on`")
 		case string(netprivate.StateNeedsApproval):
-			a.step(markWait, "phone access", "waiting for your tailnet's admin to approve this device")
+			a.step(markWait, "private network", "waiting for your tailnet's admin to approve this device")
 		case string(netprivate.StateError):
-			a.step(markFail, "phone access", st.Network.Error)
+			a.step(markFail, "private network", st.Network.Error)
 		default:
-			a.step(markWait, "phone access", st.Network.State)
+			a.step(markWait, "private network", st.Network.State)
 		}
 	}
 	if st.Runner != nil {
@@ -535,7 +547,7 @@ func (a *app) cmdOpen(ctx context.Context, args []string) error {
 		return err
 	}
 	if phone {
-		return a.openPhone(ctx, c, printOnly, qr)
+		return a.printEnrollment(ctx, c, qr)
 	}
 	u, err := a.signInURL()
 	if err != nil {
@@ -550,29 +562,10 @@ func (a *app) cmdOpen(ctx context.Context, args []string) error {
 		return nil
 	}
 	a.printf("Opened Werkbord in your browser (%s).\n", a.controllerURL())
-	if n, err := c.network(ctx); err == nil && n.State == string(netprivate.StateConnected) {
-		a.printf("On your phone: %s (`werkbord open --qr` shows a QR code).\n", n.URL)
-	}
 	return nil
 }
 
-// phoneTimeout is how long `open --phone` waits for the user to sign in to the network.
-const phoneTimeout = 5 * time.Minute
-
-// openPhone gets the private network running and signed in, then shows the
-// QR code that enrolls a phone: a single-use code, not the controller's token.
-func (a *app) openPhone(ctx context.Context, c *client, printOnly, qr bool) error {
-	n, err := a.ensureNetwork(ctx, c, phoneTimeout, !printOnly)
-	if err != nil {
-		return err
-	}
-	if n.State != string(netprivate.StateConnected) {
-		return fmt.Errorf("the private network is %s: finish signing in, then run this again", n.State)
-	}
-	return a.printEnrollment(ctx, c, n, qr)
-}
-
-// ensureNetwork turns the private network on (unless the user turned it off) and,
+// ensureNetwork turns the private network (the one remote runners join) on (unless the user pinned it off) and,
 // if it needs signing in, opens the sign-in page and waits for it to finish. It
 // returns the status it ends with, and does not fail because the user has not
 // signed in yet: that is a state, not an error.
@@ -601,7 +594,7 @@ func (a *app) ensureNetwork(ctx context.Context, c *client, wait time.Duration, 
 		case string(netprivate.StateNeedsLogin):
 			if n.AuthURL != "" && !opened {
 				opened = true
-				a.printf("To reach Werkbord from your phone, sign in to Tailscale (a free account is enough; Werkbord has no account of its own).\n")
+				a.printf("To connect your other computers, sign in to Tailscale (a free account is enough; Werkbord has no account of its own).\n")
 				if open && a.openBrowser(n.AuthURL) == nil {
 					a.printf("Opened the sign-in page in your browser. If it did not appear, open:\n  %s\n", n.AuthURL)
 				} else {

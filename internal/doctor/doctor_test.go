@@ -246,13 +246,13 @@ func TestNetworkChecksNeverShowTheSignInLink(t *testing.T) {
 		want Status
 		in   string
 	}{
-		{netprivate.Status{State: netprivate.StateOff}, Warn, "is off"},
+		{netprivate.Status{State: netprivate.StateOff}, OK, "off"},
 		{netprivate.Status{State: netprivate.StateStarting}, Warn, "starting"},
 		{netprivate.Status{State: netprivate.StateNeedsLogin, AuthURL: "https://login.tailscale.com/a/SECRET"}, Warn, "sign in"},
 		{netprivate.Status{State: netprivate.StateNeedsApproval}, Warn, "approve"},
 		{netprivate.Status{State: netprivate.StateError, Error: "no route"}, Fail, "no route"},
 		{netprivate.Status{State: netprivate.StateConnected, URL: "https://werkbord.ts.net/", HTTPS: true}, OK, "https://werkbord.ts.net/"},
-		{netprivate.Status{State: netprivate.StateConnected, URL: "http://100.1.1.1/", HTTPSHint: "Turn on HTTPS"}, Warn, "http"},
+		{netprivate.Status{State: netprivate.StateConnected, URL: "http://100.1.1.1/", Health: []string{"relay not reachable"}}, Warn, "relay not reachable"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -272,6 +272,30 @@ func TestNetworkChecksNeverShowTheSignInLink(t *testing.T) {
 	e.Network = func() (netprivate.Status, bool) { return netprivate.Status{}, false }
 	if c := one(t, e.network(bg)); c.Status != Skip {
 		t.Fatalf("controller down = %+v", c)
+	}
+}
+
+func TestPhoneAccessIsTheRelay(t *testing.T) {
+	e := env(t)
+	for _, tc := range []struct {
+		st   PhoneAccess
+		want Status
+		in   string
+	}{
+		{PhoneAccess{}, Warn, "turned off"},
+		{PhoneAccess{Enabled: true, Error: "dial tcp: no route"}, Warn, "no route"},
+		{PhoneAccess{Enabled: true, Connected: true, Phones: 2}, OK, "2 phone"},
+	} {
+		tc := tc
+		e.Relay = func() (PhoneAccess, bool) { return tc.st, true }
+		c := one(t, e.phoneAccess(bg))
+		if c.Status != tc.want || !strings.Contains(c.Summary+c.Fix, tc.in) {
+			t.Errorf("%+v = %+v", tc.st, c)
+		}
+	}
+	e.Relay = nil
+	if c := one(t, e.phoneAccess(bg)); c.Status != Skip {
+		t.Fatalf("no controller = %+v", c)
 	}
 }
 

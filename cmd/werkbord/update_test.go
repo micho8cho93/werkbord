@@ -75,7 +75,7 @@ func setVersion(t *testing.T, v string) {
 
 func TestUpdateInstallsTheNewReleaseAndRestartsTheController(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	setVersion(t, "v1.0.0")
@@ -177,7 +177,7 @@ func publishLiar(t *testing.T) *httptest.Server {
 
 func TestUpdateRollsBackWhenTheNewVersionDoesNotStart(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	setVersion(t, "v1.0.0")
@@ -239,7 +239,7 @@ func TestUpdateRetainsRollbackUntilRunnerRestartSucceeds(t *testing.T) {
 	for _, failure := range []string{"status", "restart", "crash", "none"} {
 		t.Run(failure, func(t *testing.T) {
 			e := newTestEnv(t)
-			if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+			if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 				t.Fatal(err)
 			}
 			setVersion(t, "v1.0.0")
@@ -333,7 +333,7 @@ func TestUpdateDowngradeAndBadVersionNeedCare(t *testing.T) {
 // Releases are named by a product tag, but the program reports the bare version.
 func TestUpdateInstallsAReleaseNamedByAProductTag(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	setVersion(t, "v0.8.0")
@@ -407,7 +407,7 @@ func TestUpdatePreservesExistingProjectsTasksIdentityAndGit(t *testing.T) {
 	for _, rollback := range []bool{false, true} {
 		t.Run(fmt.Sprintf("rollback=%v", rollback), func(t *testing.T) {
 			e := newTestEnv(t)
-			if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+			if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 				t.Fatal(err)
 			}
 			repo := newGitRepo(t)
@@ -494,7 +494,7 @@ func TestInstallerUpgradeUsesCurrentRecoveryOnExistingExecutable(t *testing.T) {
 			if err := os.WriteFile(self, []byte("#!/bin/sh\necho v1.0.0\n"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+			if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 				t.Fatal(err)
 			}
 			setVersion(t, "v1.1.0")

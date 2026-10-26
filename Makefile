@@ -145,7 +145,7 @@ desktop-preview: web web-embed web-shell
 desktop-dev: build web-shell
 	@mkdir -p $(DESKTOP_DEV_DATA)
 	@curl -fs -m 2 http://$(DESKTOP_DEV_ADDR)/api/health >/dev/null || \
-		WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) $(BIN) setup --no-service --no-open --no-network >/dev/null
+		WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) $(BIN) setup --no-service --no-open >/dev/null
 	cd desktop && WERKBORD_DESKTOP_CLI=$(CURDIR)/$(BIN) WERKBORD_DATA_DIR=$(DESKTOP_DEV_DATA) WERKBORD_ADDR=$(DESKTOP_DEV_ADDR) \
 		CGO_ENABLED=1 CGO_CFLAGS="$(DESKTOP_CGO_CFLAGS)" CGO_LDFLAGS="$(DESKTOP_CGO_LDFLAGS)" \
 		$(GO) run -tags desktop,production,debug -ldflags "-X main.version=$(WERKBORD_VERSION)" .

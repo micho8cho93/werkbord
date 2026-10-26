@@ -385,7 +385,7 @@ func (l *Launcher) Connect(ctx context.Context, report func(Step)) (Connection, 
 	say(PhaseStarting, "Starting Werkbord…")
 	args := []string{"start"}
 	if l.needsSetup(ctx, cfg, inst) {
-		args = []string{"setup", "--no-open", "--no-network"}
+		args = []string{"setup", "--no-open"}
 		if l.opt.NoService {
 			args = append(args, "--no-service")
 		}

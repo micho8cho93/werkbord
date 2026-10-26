@@ -9,11 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"werkbord/internal/config"
 	"werkbord/internal/daemon"
-	"werkbord/internal/netprivate"
 	"werkbord/internal/store/sqlite"
 )
 
@@ -27,8 +25,7 @@ func envOn(name string) bool {
 }
 
 type setupFlags struct {
-	noService, noStart, noOpen, noNetwork bool
-	networkWait                           time.Duration
+	noService, noStart, noOpen bool
 }
 
 // cmdSetup is everything between "the binary is on this computer" and "Werkbord
@@ -43,13 +40,11 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 	fs.BoolVar(&f.noService, "no-service", envOn("NO_SERVICE"), "run in the background without installing a login service")
 	fs.BoolVar(&f.noStart, "no-start", envOn("NO_START"), "set everything up but do not start the controller")
 	fs.BoolVar(&f.noOpen, "no-open", envOn("NO_OPEN"), "do not open a browser")
-	fs.BoolVar(&f.noNetwork, "no-network", envOn("NO_NETWORK"), "do not set up phone access (the private network)")
-	fs.DurationVar(&f.networkWait, "network-wait", 3*time.Minute, "how long to wait for you to sign in to the private network")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return errors.New("usage: werkbord setup [--no-service] [--no-start] [--no-open] [--no-network]")
+		return errors.New("usage: werkbord setup [--no-service] [--no-start] [--no-open]")
 	}
 
 	a.printf("Setting up Werkbord %s\n", version)
@@ -136,16 +131,8 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		a.step(markWarn, "runner", "could not confirm that this computer is registered: run `werkbord doctor`")
 	}
 
-	// 6. Phone access: the private network, signed in through the browser if needed.
-	var net networkInfo
-	if f.noNetwork {
-		a.step("·", "phone access", "skipped (--no-network): turn it on later with `werkbord open --phone`")
-	} else {
-		net, err = a.setupNetwork(ctx, c, f)
-		if err != nil {
-			a.step(markWarn, "phone access", err.Error())
-		}
-	}
+	// 6. Phone access comes through the relay: nothing to install or sign in to. Say whether it is up.
+	a.setupPhones(ctx, c)
 
 	// 7. Open the app, to finish in the browser: GitHub, agents, repositories. The link that
 	// signs the browser in carries the access token, so it goes to the browser and never to
@@ -162,9 +149,6 @@ func (a *app) cmdSetup(ctx context.Context, args []string) error {
 		a.printf("Could not open a browser here. Run `werkbord open --print` on a computer with one, or `werkbord open` here to try again.\n")
 	} else {
 		a.printf("Opened Werkbord in your browser to finish setup (GitHub, your coding agents, your repositories).\nIf it did not appear, run `werkbord open`.\n")
-	}
-	if net.State == string(netprivate.StateConnected) {
-		a.showPhone(ctx, c, net)
 	}
 	a.printf("\nUseful commands: werkbord status · open · doctor · restart · stop · update\n")
 	return nil
@@ -200,49 +184,20 @@ func (a *app) chooseAddr(ctx context.Context) error {
 	return errors.New("no free port between 7420 and 7439: set addr in " + cfgFile)
 }
 
-// setupNetwork brings the private network up, signing the user in to it through
-// the browser if that is needed, and waits for them. Not finishing is not a
-// failure: the app shows the same state and carries on from there.
-func (a *app) setupNetwork(ctx context.Context, c *client, f setupFlags) (networkInfo, error) {
-	n, err := c.network(ctx)
-	if err != nil {
-		return n, err
-	}
-	if n.Choice == "off" {
-		a.step("·", "phone access", "off, as you left it: `werkbord open --phone` turns it on")
-		return n, nil
-	}
-	if n.Choice == "pinned_off" {
-		a.step("·", "phone access", "turned off in config.json")
-		return n, nil
-	}
-	n, err = a.ensureNetwork(ctx, c, f.networkWait, !f.noOpen)
-	if err != nil {
-		return n, err
-	}
-	switch n.State {
-	case string(netprivate.StateConnected):
-		a.step(markOK, "phone access", n.URL)
-	case string(netprivate.StateNeedsLogin):
-		a.step(markWait, "phone access", "waiting for you to sign in: Werkbord shows it in Settings, or run `werkbord open --phone`")
-	case string(netprivate.StateNeedsApproval):
-		a.step(markWait, "phone access", "waiting for your tailnet's admin to approve this device")
-	case string(netprivate.StateError):
-		a.step(markWarn, "phone access", n.Error+": run `werkbord doctor`")
+// setupPhones reports phone access, which is the relay: the controller connects to it by itself, and a phone needs no app and
+// no account. Not being connected yet is not a failure: it connects in the background.
+func (a *app) setupPhones(ctx context.Context, c *client) {
+	r, err := c.relay(ctx)
+	switch {
+	case err != nil:
+		a.step(markWarn, "phone access", "could not check the relay: run `werkbord doctor`")
+	case !r.Enabled:
+		a.step("·", "phone access", "off: the relay is turned off in config.json")
+	case r.Connected:
+		a.step(markOK, "phone access", "ready: `werkbord phones add --qr` shows the code to scan")
 	default:
-		a.step(markWait, "phone access", "starting")
+		a.step(markWait, "phone access", "connecting to the relay: `werkbord phones add --qr` works once it is up")
 	}
-	return n, nil
-}
-
-// showPhone prints the phone address and, on a terminal, its QR code.
-func (a *app) showPhone(ctx context.Context, c *client, n networkInfo) {
-	if !a.isTerminal(a.out) {
-		a.printf("\nOn your phone (same Tailscale account): %s\nRun `werkbord phones add --qr` for the code to scan.\n", n.URL)
-		return
-	}
-	a.printf("\n")
-	_ = a.printEnrollment(ctx, c, n, false)
 }
 
 // writeConfig writes config.json atomically, readable by the user only.

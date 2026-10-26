@@ -401,10 +401,10 @@ func TestFirstRunInstallsTheBundledProgramWhereTheInstallerPutsItAndSetsUp(t *te
 		t.Fatal("a staging file was left behind")
 	}
 	// The service runs the installed copy, never the one inside the .app.
-	if w.count(dst+" setup --no-open --no-network") != 1 || w.count(bundled+" setup") != 0 || w.count(bundled+" start") != 0 {
+	if w.count(dst+" setup --no-open") != 1 || w.count(bundled+" setup") != 0 || w.count(bundled+" start") != 0 {
 		t.Fatalf("calls: %v", w.mutations())
 	}
-	if !contains(w.envs[dst+" setup --no-open --no-network"], "PATH=/shell/bin:/usr/bin") {
+	if !contains(w.envs[dst+" setup --no-open"], "PATH=/shell/bin:/usr/bin") {
 		t.Fatalf("setup was not given the login shell's PATH, so the service could not find the agents: %v", w.envs)
 	}
 	if conn.Version != "v1.1.0" || !contains(phases(steps), "installing") {
@@ -427,7 +427,7 @@ func TestFirstRunWithoutALoginServiceWhenAskedNotTo(t *testing.T) {
 	if _, err := l.Connect(bg, nil); err != nil {
 		t.Fatal(err)
 	}
-	if w.count("setup --no-open --no-network --no-service") != 1 {
+	if w.count("setup --no-open --no-service") != 1 {
 		t.Fatalf("calls: %v", w.mutations())
 	}
 }
@@ -471,7 +471,7 @@ func TestAServiceThatPointsAtAProgramThatIsGoneIsSetUpAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(w.installDir(), "werkbord")
-	if w.count(dst+" setup --no-open --no-network") != 1 {
+	if w.count(dst+" setup --no-open") != 1 {
 		t.Fatalf("a service that would start nothing was not replaced: %v", w.mutations())
 	}
 }

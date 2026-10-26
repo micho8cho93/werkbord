@@ -38,7 +38,6 @@ func TestDoctorOnAHealthySetup(t *testing.T) {
 	e := newTestEnv(t)
 	e.fakeAgent("codex", fakeCodex)
 	e.fakeAgent("claude-code", fakeClaude)
-	e.signInWhenOpened()
 	if err := e.app.cmdSetup(bg, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -52,10 +51,11 @@ func TestDoctorOnAHealthySetup(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	e.waitForRelay()
 	r := e.doctorReport()
 	want := map[string]doctor.Status{
 		"controller": doctor.OK, "service": doctor.OK, "database": doctor.OK, "config": doctor.OK, "git": doctor.OK,
-		"codex": doctor.OK, "claude-code": doctor.OK, "network": doctor.OK, "runner": doctor.OK, "projects": doctor.OK,
+		"codex": doctor.OK, "claude-code": doctor.OK, "phones": doctor.OK, "network": doctor.OK, "runner": doctor.OK, "projects": doctor.OK,
 		"github": doctor.Warn, // gh is not installed in this test: optional, so a warning, never a failure
 	}
 	for id, st := range want {
@@ -66,8 +66,11 @@ func TestDoctorOnAHealthySetup(t *testing.T) {
 	if r.Worst() != doctor.Warn {
 		t.Errorf("worst = %s", r.Worst())
 	}
-	if s := status(t, r, "network").Summary; !strings.Contains(s, "https://werkbord-test.tail1234.ts.net/") {
-		t.Errorf("network = %s", s)
+	if s := status(t, r, "phones").Summary; !strings.Contains(s, "relay") {
+		t.Errorf("phones = %s", s)
+	}
+	if s := status(t, r, "network").Summary; !strings.Contains(s, "off") {
+		t.Errorf("network = %s: the private network is only for other computers and is off until asked for", s)
 	}
 	if s := status(t, r, "projects").Summary; !strings.Contains(s, "1 configured") {
 		t.Errorf("projects = %s", s)
@@ -89,7 +92,7 @@ func TestDoctorNeverPrintsASecret(t *testing.T) {
 	e := newTestEnv(t)
 	e.fakeAgent("codex", fakeCodex)
 	// The private network is waiting for the user to sign in, so its one-time link exists.
-	if err := e.app.cmdSetup(bg, []string{"--no-open", "--network-wait", "200ms"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	tok := e.token()
@@ -103,14 +106,15 @@ func TestDoctorNeverPrintsASecret(t *testing.T) {
 			}
 		}
 	}
-	if c := status(t, e.doctorReport(), "network"); c.Status != doctor.Warn || !strings.Contains(c.Summary, "sign in") {
+	// The private network is off until asked for, and a one-time sign-in link, when there is one, is never in a report.
+	if c := status(t, e.doctorReport(), "network"); c.Status != doctor.OK || !strings.Contains(c.Summary, "off") {
 		t.Fatalf("network = %+v", c)
 	}
 }
 
 func TestDoctorWithNoAgentAtAllFails(t *testing.T) {
 	e := newTestEnv(t) // all agent CLIs point at commands that do not exist
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	r := e.doctorReport()
@@ -165,7 +169,7 @@ func TestDoctorWhenTheControllerIsNotRunningStillChecksWhatItCan(t *testing.T) {
 func TestDoctorFindsABrokenDatabaseAndProject(t *testing.T) {
 	e := newTestEnv(t)
 	e.fakeAgent("codex", fakeCodex)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	repo := newGitRepo(t)

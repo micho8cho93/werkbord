@@ -7,28 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"werkbord/internal/store/sqlite"
 )
 
-// signInWhenOpened makes the fake private network sign in once the browser has been
-// sent to its sign-in link, as a user does.
-func (e *testEnv) signInWhenOpened() {
-	e.browseFn = func(url string) error {
-		if url == e.node.authURL {
-			go func() {
-				time.Sleep(50 * time.Millisecond)
-				e.node.signIn()
-			}()
-		}
-		return nil
-	}
-}
-
 func TestSetupFromACleanMachine(t *testing.T) {
 	e := newTestEnv(t)
-	e.signInWhenOpened()
 	// A computer with nothing: no data directory content but what the test put in config.
 	if _, err := os.Stat(filepath.Join(e.dataDir, "werkbord.db")); err == nil {
 		t.Fatal("the database exists before setup")
@@ -72,23 +56,23 @@ func TestSetupFromACleanMachine(t *testing.T) {
 		t.Fatalf("runners = %+v, %v", rs, err)
 	}
 
-	// Private networking: the browser was sent to sign in, and then to the app.
+	// The browser was sent to the app, signed in. Setup does not touch the private network (Tailscale): phones come in
+	// through the relay, and the private network is only for other computers, which the user turns on on purpose.
 	opened := e.opened()
-	if len(opened) != 2 || opened[0] != e.node.authURL {
-		t.Fatalf("browser opened %v: first the sign-in page", opened)
-	}
-	// The Tailscale sign-in link is shown to the user (they need it if the browser does not open) and the access token never is.
-	if !strings.HasPrefix(opened[1], e.app.controllerURL()+"/#token="+e.token()) {
-		t.Fatalf("the app was opened at %s", opened[1])
+	if len(opened) != 1 || !strings.HasPrefix(opened[0], e.app.controllerURL()+"/#token="+e.token()) {
+		t.Fatalf("browser opened %v: the app, signed in", opened)
 	}
 	n, err := c.network(bg)
-	if err != nil || n.State != "connected" || n.URL != "https://werkbord-test.tail1234.ts.net/" || n.Choice != "on" {
-		t.Fatalf("network = %+v, %v", n, err)
+	if err != nil || n.State != "off" || n.Choice != "unset" {
+		t.Fatalf("network = %+v, %v: setup must not join a network the user did not ask for", n, err)
 	}
-	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "https://werkbord-test.tail1234.ts.net/", "Opened Werkbord in your browser"} {
+	for _, want := range []string{"database", "service", "controller", "runner", "phone access", "Opened Werkbord in your browser"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "Tailscale") {
+		t.Errorf("setup mentions Tailscale:\n%s", out)
 	}
 	// What was printed never includes the access token.
 	if strings.Contains(out, e.token()) {
@@ -105,7 +89,7 @@ func TestSetupFromACleanMachine(t *testing.T) {
 
 func TestSetupSkipsWhatIsAskedToBeSkipped(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
 	if len(e.opened()) != 0 {
@@ -138,21 +122,20 @@ func TestSetupWithNoStartOnlyPreparesEverything(t *testing.T) {
 func TestSetupHonoursTheEnvironmentFlagsTheInstallerUses(t *testing.T) {
 	e := newTestEnv(t)
 	t.Setenv("WERKBORD_NO_OPEN", "1")
-	t.Setenv("WERKBORD_NO_NETWORK", "true")
 	if err := e.app.cmdSetup(bg, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.opened()) != 0 || !e.running() {
 		t.Fatalf("opened %v, running %v", e.opened(), e.running())
 	}
-	if !strings.Contains(e.output(), "skipped") {
+	if !strings.Contains(e.output(), "phone access") {
 		t.Fatalf("output:\n%s", e.output())
 	}
 }
 
 func TestSetupTwiceIsAnUpgradeNotASecondController(t *testing.T) {
 	e := newTestEnv(t)
-	args := []string{"--no-network", "--no-open"}
+	args := []string{"--no-open"}
 	if err := e.app.cmdSetup(bg, args); err != nil {
 		t.Fatal(err)
 	}
@@ -179,9 +162,9 @@ func TestSetupTwiceIsAnUpgradeNotASecondController(t *testing.T) {
 	}
 }
 
-func TestSetupDoesNotTurnBackOnWhatTheUserTurnedOff(t *testing.T) {
+func TestSetupLeavesThePrivateNetworkAlone(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	c, _ := e.app.client()
@@ -198,37 +181,9 @@ func TestSetupDoesNotTurnBackOnWhatTheUserTurnedOff(t *testing.T) {
 	if n, _ := c.network(bg); n.State != "off" || n.Choice != "off" {
 		t.Fatalf("network = %+v", n)
 	}
-	if !strings.Contains(e.output(), "as you left it") {
-		t.Fatalf("output:\n%s", e.output())
+	if strings.Contains(e.output(), "Tailscale") {
+		t.Fatalf("setup talked about the private network:\n%s", e.output())
 	}
-}
-
-func TestSetupWhenTheUserDoesNotSignInYetCarriesOn(t *testing.T) {
-	e := newTestEnv(t) // nobody signs in
-	if err := e.app.cmdSetup(bg, []string{"--network-wait", "300ms"}); err != nil {
-		t.Fatalf("%v\n%s", err, e.output())
-	}
-	opened := e.opened()
-	if len(opened) != 2 || opened[0] != e.node.authURL {
-		t.Fatalf("opened %v", opened)
-	}
-	c, _ := e.app.client()
-	if n, _ := c.network(bg); n.State != "needs_login" {
-		t.Fatalf("network = %+v", n)
-	}
-	if !strings.Contains(e.output(), "waiting for you to sign in") {
-		t.Fatalf("output:\n%s", e.output())
-	}
-	// Signing in later is picked up with nothing more to do.
-	e.node.signIn()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if n, _ := c.network(bg); n.State == "connected" {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatal("the network did not come up after signing in")
 }
 
 func TestSetupMovesToAnotherPortWhenTheDefaultIsTaken(t *testing.T) {

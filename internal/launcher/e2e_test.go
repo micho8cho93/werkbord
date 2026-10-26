@@ -328,7 +328,7 @@ func TestTheAppJoinsAnInstallationMadeByTheTerminal(t *testing.T) {
 	t.Setenv("WERKBORD_ADDR", addr)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	if out, err := exec.CommandContext(ctx, cli, "setup", "--no-service", "--no-open", "--no-network").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, cli, "setup", "--no-service", "--no-open").CombinedOutput(); err != nil {
 		t.Fatalf("setup: %v\n%s", err, out)
 	}
 	t.Cleanup(func() { _ = exec.Command(cli, "stop").Run() })

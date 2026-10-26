@@ -116,11 +116,10 @@ func TestStartNeverDuplicatesAControllerStartedByHand(t *testing.T) {
 
 func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 	e := newTestEnv(t)
-	e.signInWhenOpened()
 	if err := e.app.cmdOpen(bg, nil); err == nil || !strings.Contains(err.Error(), "not running") {
 		t.Fatalf("open with nothing running: %v", err)
 	}
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	e.out.Reset()
@@ -140,31 +139,24 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 		t.Fatalf("opened %v; output:\n%s", o, e.output())
 	}
 
-	// --phone turns the network on, sends the browser to sign in, waits, and shows the address and a QR code.
+	// --qr shows the code that enrolls a phone, as the relay's link: nothing to install on the phone, no network to sign in to.
+	e.waitForRelay()
 	e.out.Reset()
 	if err := e.app.cmdOpen(bg, []string{"--qr"}); err != nil {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
 	out := e.output()
-	if !strings.Contains(out, "https://werkbord-test.tail1234.ts.net/") || !strings.Contains(out, "Scan this") || !strings.Contains(out, "█") {
+	if !strings.Contains(out, "Scan this") || !strings.Contains(out, "█") || strings.Contains(out, "Tailscale") {
 		t.Fatalf("phone output:\n%s", out)
 	}
 	if strings.Contains(out, e.token()) {
 		t.Fatalf("the token was printed (it is in the QR code, not as text):\n%s", out)
 	}
-	if strings.Contains(out, "#enroll=") || strings.Contains(out, "#token=") {
-		t.Fatalf("a credential was printed as text (it is in the QR code):\n%s", out)
+	if strings.Contains(out, "#enroll=") || strings.Contains(out, "#token=") || strings.Contains(out, "connect.example.pages.dev") {
+		t.Fatalf("a credential or link was printed as text (it is in the QR code):\n%s", out)
 	}
-	if o := e.opened(); o[len(o)-1] != e.node.authURL {
-		t.Fatalf("the sign-in page was not opened: %v", o)
-	}
-	if n, _ := mustClient(t, e).network(bg); n.Choice != "on" {
-		t.Fatalf("choice = %s", n.Choice)
-	}
-	// With the network connected, plain `open` mentions the phone address.
-	e.out.Reset()
-	if err := e.app.cmdOpen(bg, nil); err != nil || !strings.Contains(e.output(), "On your phone: https://werkbord-test") {
-		t.Fatalf("%v\n%s", err, e.output())
+	if n, _ := mustClient(t, e).network(bg); n.State != "off" {
+		t.Fatalf("enrolling a phone turned the private network on: %+v", n)
 	}
 	if err := e.app.cmdOpen(bg, []string{"--bogus"}); err == nil {
 		t.Fatal("an unknown flag was accepted")
@@ -179,11 +171,14 @@ func TestOpenOnThisComputerAndForAPhone(t *testing.T) {
 	if err := e.app.cmdPhones(bg, []string{"add", "--qr"}); err != nil || !strings.Contains(e.output(), "█") || !strings.Contains(e.output(), "5 minutes") {
 		t.Fatalf("%v\n%s", err, e.output())
 	}
-	enr, err := mustClient(t, e).enrollment(bg)
-	if err != nil || !strings.Contains(enr.Link, "/#enroll=") {
-		t.Fatalf("%+v %v", enr, err)
+	var made struct {
+		Code string `json:"code"`
+		Link string `json:"link"`
 	}
-	code := enr.Link[strings.Index(enr.Link, "#enroll=")+len("#enroll="):]
+	if err := mustClient(t, e).do(bg, http.MethodPost, "/api/phones/codes", map[string]string{}, &made); err != nil || made.Code == "" || !strings.HasPrefix(made.Link, "https://connect.example.pages.dev/connect/#") {
+		t.Fatalf("%+v %v", made, err)
+	}
+	code := made.Code
 	resp, err := http.Post(e.app.controllerURL()+"/api/phones/enroll", "application/json", strings.NewReader(`{"code":"`+code+`","name":"Test phone"}`))
 	if err != nil || resp.StatusCode != 201 {
 		t.Fatalf("enroll: %v %v", resp, err)
@@ -233,7 +228,7 @@ func mustClient(t *testing.T, e *testEnv) *client {
 
 func TestUninstallRemovesTheServiceAndKeepsTheData(t *testing.T) {
 	e := newTestEnv(t)
-	if err := e.app.cmdSetup(bg, []string{"--no-network", "--no-open"}); err != nil {
+	if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
 		t.Fatal(err)
 	}
 	e.out.Reset()

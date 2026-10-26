@@ -18,7 +18,7 @@ func (s *Server) handlePairRunner(w http.ResponseWriter, r *http.Request) {
 	}
 	status := s.opt.Network.Status()
 	if status.State != netprivate.StateConnected || status.URL == "" {
-		writeError(w, 409, "network_offline", "Connect the private network in Settings before pairing a runner")
+		writeError(w, 409, "network_offline", "Connect the private network first: run `werkbord network on` on this computer and sign in to Tailscale")
 		return
 	}
 	var req struct {

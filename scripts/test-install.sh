@@ -103,7 +103,7 @@ freeport() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0
 newhome() {
   H="$WORK/home$1"; mkdir -p "$H"
   export HOME="$H" WERKBORD_DATA_DIR="$H/data" WERKBORD_ADDR="127.0.0.1:$(freeport)" WERKBORD_BASE_URL="$BASE"
-  export WERKBORD_NO_SERVICE=1 WERKBORD_NO_OPEN=1 WERKBORD_NO_NETWORK=1
+  export WERKBORD_NO_SERVICE=1 WERKBORD_NO_OPEN=1
   unset WERKBORD_VERSION WERKBORD_NO_SETUP WERKBORD_INSTALL_DIR WERKBORD_VERSION WERKBORD_NO_SETUP || true
 }
 api() { curl -fsS "http://$WERKBORD_ADDR$1"; }
