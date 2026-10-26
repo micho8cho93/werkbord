@@ -52,3 +52,8 @@
 .section-tabs > a, .section-tabs > button { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 44px; min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; box-shadow: none; color: var(--text-2); font: 500 13px var(--font); text-decoration: none; white-space: nowrap; cursor: pointer; transition: color .12s, border-color .12s; }
 .section-tabs > :hover { color: var(--text); }
 .section-tabs > [aria-current='page'] { color: var(--text); border-bottom-color: var(--accent); }
+
+/* Compact desktop controls retain a touch-sized target in a narrow window. */
+@media (max-width: 899px) {
+  .seg > button, .seg > a { min-height: 44px; }
+}

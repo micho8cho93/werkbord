@@ -111,7 +111,17 @@ let browser, activePage;
  await member.getByText('Phone connection unknown',{exact:true}).waitFor();
  await page.evaluate(()=>setOnline(false));
  await member.getByText('Runner connection unknown',{exact:true}).waitFor();
+ const touchProject=await coord('POST','/projects',{name:'Touch controls'});
+ await page.goto(team+'/?tab=calendar&project='+touchProject.id);
+ await page.getByRole('group',{name:'Calendar presentation'}).waitFor();
+ const teamTargets=await page.locator('.seg > button:visible').evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().height));
+ assert(teamTargets.length>0&&teamTargets.every(height=>height>=44),'Team compact segments retain 44px phone targets');
+ await page.goto(individual+'/#/p/'+p.id+'/calendar');
+ await page.locator('.seg > button').first().waitFor();
+ const personalTargets=await page.locator('.seg > button:visible').evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().height));
+ assert(personalTargets.length>0&&personalTargets.every(height=>height>=40),'Personal phone segments retain their touch targets');
  assert.deepEqual(errors,[]);
+ console.log('PASS shared segmented controls retain phone touch targets in Personal and Team');
  console.log('PASS Team member connection rendering, stale/legacy states, both themes and phone/desktop widths');
 })().catch(async e=>{
  console.error(e); process.exitCode=1;
