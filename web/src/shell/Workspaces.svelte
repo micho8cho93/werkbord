@@ -73,10 +73,6 @@
             <dd>{host.hosts}</dd>
             <dt>Saving changes</dt>
             <dd class:bad={!host.writable}>{host.writable ? 'Available' : 'Read-only until enough Hosts return'}</dd>
-            {#each e?.summary?.infra?.checks ?? [] as c (c.label)}
-              <dt>{c.label}</dt>
-              <dd data-check={c.state}>{c.value}</dd>
-            {/each}
           </dl>
           {#each host.warnings.slice(0, 3) as w (w)}
             <p class="warn">{w}</p>
@@ -91,8 +87,7 @@
             <button class="btn" type="button" onclick={() => model.openSettings('personal/runners')} data-testid="manage-runners">Runners</button>
           {/if}
           {#if i.kind === 'team' && i.state !== 'setup'}
-            <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Hosts and devices</button>
-            <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=connectivity')}>Connectivity</button>
+            <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=devices')}>Devices</button>
             <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=backups')}>Backups</button>
             <button class="btn warn" type="button" onclick={() => model.open(i.id, '?tab=settings')}>Settings and leaving</button>
             {#if i.state !== 'leaving' && !roles.includes('runner')}
@@ -103,6 +98,22 @@
             <button class="btn quiet" type="button" onclick={() => model.forget(i.id)}>Remove from this list</button>
           {/if}
         </div>
+        {#if i.kind === 'team' && i.state !== 'setup'}
+          <details class="advanced-hosting">
+            <summary>Advanced hosting</summary>
+            {#if host}
+              <dl class="infra">
+                {#each e?.summary?.infra?.checks ?? [] as c (c.label)}
+                  <dt>{c.label}</dt><dd data-check={c.state}>{c.value}</dd>
+                {/each}
+              </dl>
+            {/if}
+            <div class="actions">
+              <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=hosts')} data-testid="manage-hosts">Workspace Hosts</button>
+              <button class="btn" type="button" onclick={() => model.open(i.id, '?tab=connectivity')}>Connectivity</button>
+            </div>
+          </details>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -111,6 +122,8 @@
 </section>
 
 <style>
+  .advanced-hosting { margin-top: 16px; }
+  .advanced-hosting summary { color: var(--text-2); font-size: 12px; cursor: pointer; }
   .page {
     padding: 24px clamp(16px, 2.5vw, 40px);
     overflow-y: auto;

@@ -29,6 +29,8 @@ export interface Group {
   label: string;
   /** Which workspace a group of Home's list belongs to, when there is more than one to tell apart. */
   owner?: string;
+  /** Optional hosting configuration, revealed on demand or by a direct section link. */
+  advanced?: boolean;
   sections: Section[];
 }
 
@@ -53,10 +55,11 @@ function team(id: string): Group[] {
     { label: 'Work', sections: [at('labels', 'Labels', 'labels'), at('history', 'Project history', 'projects')] },
     {
       label: 'Machines',
-      sections: [at('computer', 'This computer', 'settings&part=computer'), at('devices', 'Devices', 'devices'), at('hosts', 'Workspace Hosts', 'hosts'), at('connectivity', 'Connectivity', 'connectivity')],
+      sections: [at('computer', 'This computer', 'settings&part=computer'), at('devices', 'Devices', 'devices')],
     },
     { label: 'Connections', sections: [at('phones', 'Phones', 'settings&part=phones'), at('mcp', 'MCP clients', 'mcp'), at('memory', 'Team memory', 'settings&part=memory')] },
     { label: 'Workspace', sections: [at('backups', 'Backups', 'backups')] },
+    { label: 'Advanced', advanced: true, sections: [at('hosts', 'Workspace Hosts', 'hosts'), at('connectivity', 'Connectivity', 'connectivity')] },
   ];
 }
 

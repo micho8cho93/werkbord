@@ -55,7 +55,7 @@ function onboardingScreen() {
     const name = h('input', { name: 'setup-team', required: true, maxlength: 80, autocomplete: 'organization', placeholder: 'Your team name' });
     const owner = h('input', { name: 'setup-owner', required: true, maxlength: 80, autocomplete: 'name' });
     const email = h('input', { name: 'setup-email', type: 'email', maxlength: 254, autocomplete: 'email' });
-    return setupShell(setupBack(), h('h1', {}, 'Create your workspace'), h('p', { class: 'muted' }, 'This computer becomes your first Workspace Host. You will be the owner. Invite your teammates after setup.'), h('p', { class: 'muted' }, 'The Free plan allows a team of two people: you and a partner. A team of three or more needs Premium.'),
+    return setupShell(setupBack(), h('h1', {}, 'Create your workspace'), h('p', { class: 'muted' }, 'Start with this computer as your only host. Keep it online while your team works. Invite your teammates after setup; the device service enables daily backups by default.'), h('p', { class: 'muted' }, 'The Free plan allows a team of two people: you and a partner. A team of three or more needs Premium.'),
       error ? h('p', { class: 'error', role: 'alert' }, error) : '',
       h('form', { onsubmit: e => { e.preventDefault(); act(() => deviceApi('POST', '/create', { name: name.value, owner: owner.value, email: email.value })); } }, field('Team name', name), field('Your name', owner), field('Email (optional)', email), h('button', { class: 'primary' }, 'Create workspace')), alwaysOnHelp());
   }
@@ -86,9 +86,9 @@ function desktopConnecting(serviceRunning = true) {
 }
 
 function alwaysOnHelp() {
-  return h('details', { class: 'always-on' }, h('summary', {}, 'Hosting details'),
+  return h('details', { class: 'always-on' }, h('summary', {}, 'Advanced hosting'),
     h('p', {}, 'Runners perform work; Workspace Hosts keep Team available; Connectivity Hosts enable remote access.'),
-    h('p', {}, 'Three Workspace Hosts tolerate one going offline. Sleeping computers pause hosting and runner work.'));
+    h('p', {}, 'One host is enough to start. Add two more hosts if your team needs to keep working when one goes offline. Sleeping computers pause hosting and runner work.'));
 }
 
 function availabilityText(r) {
@@ -100,7 +100,7 @@ function availabilityText(r) {
 function healthWords(text) { return text.replace(/\bquorum returns\b/g, 'enough Hosts reconnect').replace(/\bquorum\b/g, 'enough Hosts to agree on changes').replace(/\bfault tolerance\b/g, 'protection when a Host goes offline'); }
 async function resiliencePanel(compact = false) {
   const r = await api('GET', '/resilience');
-  const firstHost = r.workspaceHosts.configured === 1 ? h('p', { class: 'advice' }, 'Your workspace currently has one host. Add two more hosts for fault tolerance. ', h('span', {}, 'Three Hosts keep Team available if one goes offline. '), h('button', { class: 'link', onclick: () => go('hosts') }, 'Add hosts')) : '';
+  const firstHost = r.workspaceHosts.configured === 1 ? h('p', { class: 'advice' }, 'One host is enough to start. Keep it online while your team works. ', h('span', {}, 'For availability when a host goes offline, you can add two more. '), h('button', { class: 'link', onclick: () => go('hosts') }, 'Manage hosts')) : '';
   if (compact) return h('section', { class: 'panel resilience compact-health', 'aria-label': 'Workspace health summary' },
     h('div', { class: 'actions' }, h('strong', { class: 'check-' + (r.writable ? 'ok' : 'bad') }, r.writable ? 'Workspace available' : 'Workspace is read-only'), h('span', { class: 'muted' }, r.hosts.value), h('button', { class: 'link', onclick: () => go('hosts') }, 'View workspace health')),
     firstHost,
@@ -221,13 +221,47 @@ async function connectivityView() {
     }) }, enabled ? 'Disable' : 'Enable Connectivity Host') : ''); })), alwaysOnHelp());
 }
 
+function startupBackupText(backup) {
+  return !backup ? 'Backup status could not be checked. Open Backups to try again.'
+    : !backup.configured ? 'Set up a backup destination in Backups.'
+    : backup.lastError ? 'The last backup failed. Open Backups to check it.'
+    : backup.automatic ? (backup.lastOk ? 'Automatic backups are on; the latest backup was checked.' : 'Automatic backups are on; the first backup is being prepared.')
+    : backup.automatic === false ? 'Automatic backups are off. You can take a backup from Backups.'
+    : 'A backup folder is configured. Open Backups to check the schedule.';
+}
+async function startupBackup() {
+  try { return (await api('GET', '/storage')).backup; } catch (_) { return undefined; }
+}
+// Use the existing health tick to update the result without rebuilding focused buttons.
+async function refreshTeamStart() {
+  const status = app.querySelector('[data-startup-backup]');
+  if (!status) return;
+  const backup = await startupBackup();
+  if (!status.isConnected) return;
+  const text = startupBackupText(backup);
+  if (status.textContent !== text) status.textContent = text;
+  status.className = backup?.lastError ? 'error' : 'muted';
+}
+// The first workspace has a short path from creation to people and backup checks.
+async function teamStart() {
+  if (!state.desktop || !can('members.manage') || state.ov.projects.some(p => !p.project.archived)) return '';
+  const backup = await startupBackup();
+  return h('section', { class: 'team-start', 'aria-label': 'Set up your team' },
+    h('h2', {}, 'Your team is ready'), h('p', { class: 'muted' }, 'Invite people, approve their computers in Devices, then let each person connect their own runner. Keep a host online while your team works.'),
+    h('p', { class: backup?.lastError ? 'error' : 'muted', role: 'status', 'data-startup-backup': true }, startupBackupText(backup)),
+    h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => go('members') }, 'Invite people'),
+      h('button', { class: 'plain', onclick: () => go('devices') }, 'Devices'), h('button', { class: 'plain', onclick: () => go('backups') }, 'Check backups')));
+}
+
 async function backupsView() {
   const s = await api('GET', '/storage'); const b = s.backup;
   return h('section', { class: 'panel' }, h('h2', {}, 'Workspace backups'),
-    h('p', {}, b?.lastOk ? 'The last backup succeeded ' + ago(new Date(b.lastAt).toISOString()) + '.' : b?.lastError || 'No successful backup has been taken yet.'),
-    h('p', { class: 'muted' }, b?.configured ? 'This host takes backups automatically. Replication keeps Team available; backups protect against accidental changes and disk loss. Keep an additional copy on a separate disk.' : 'Backups have not been configured on this host. Use the desktop service to enable automatic backups.'),
+    h('p', { role: 'status' }, b?.lastOk ? 'The last backup succeeded ' + ago(new Date(b.lastAt).toISOString()) + '.' : b?.lastError || 'No successful backup has been taken yet.'),
+    h('p', { class: 'muted' }, !b?.configured ? 'Backups have not been configured on this host. The desktop device service sets up a backup folder by default.'
+      : b.automatic ? 'Automatic backups are on. Each backup is read back and checked. Keep an additional copy on a separate disk.'
+      : 'Automatic backups are off. You can take a backup now. Keep an additional copy on a separate disk.'),
     b?.configured ? h('p', { class: 'muted' }, 'Backup folder: ' + b.destination + ' · ' + b.count + ' retained') : '',
-    can('devices.manage') ? h('button', { class: 'primary', onclick: () => act(async () => { await api('POST', '/storage/backup'); state.info = 'Your backup was taken and checked.'; }) }, 'Back up now') : '');
+    can('devices.manage') ? h('button', { class: 'primary', disabled: !b?.configured, onclick: () => act(async () => { await api('POST', '/storage/backup'); state.info = 'Your backup was taken and checked.'; }) }, 'Back up now') : '');
 }
 
 let nativeTransport;

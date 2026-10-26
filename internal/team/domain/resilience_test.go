@@ -117,7 +117,9 @@ func TestEachWarningSaysWhatIsWrongAndWhatToDo(t *testing.T) {
 		severity Severity
 	}{
 		{"one host", ResilienceInput{Devices: oneHost, Storage: cluster(1, 1, goodBackup()), Network: net(RemoteAccessAvailable)},
-			AdviceCodeOneHost, "Only one Workspace Host is configured.", "add_hosts", SeverityWarning},
+			AdviceCodeOneHost, "This workspace uses one Host.", "add_hosts", SeverityInfo},
+		{"single host offline", ResilienceInput{Devices: []Device{host("dev_a", "Mini", false, CapabilityWorkspaceHost)}, Storage: cluster(1, 0, goodBackup()), Network: net(RemoteAccessAvailable)},
+			AdviceCodeReadOnly, "One host is offline. Workspace is read-only until quorum returns.", "bring_hosts_back", SeverityCritical},
 		{"two hosts offline", ResilienceInput{Devices: threeHosts, Storage: cluster(3, 1, goodBackup()), Network: net(RemoteAccessAvailable)},
 			AdviceCodeReadOnly, "Two hosts are offline. Workspace is read-only until quorum returns.", "bring_hosts_back", SeverityCritical},
 		{"one host offline", ResilienceInput{Devices: threeHosts, Storage: cluster(3, 2, goodBackup()), Network: net(RemoteAccessAvailable)},

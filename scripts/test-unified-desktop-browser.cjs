@@ -224,7 +224,13 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // Settings is one screen of the window, whichever part of Werkbord it is opened from; Team's sections are shown by Team's own page.
  await switchTo('team:main'); await side.locator('[data-page=settings]').click();
  await sections.waitFor();
- for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Workspace Hosts', 'Phones', 'MCP clients', 'Team memory', 'Backups']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Phones', 'MCP clients', 'Team memory', 'Backups']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ assert.equal(await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).isVisible(), false, 'optional host configuration is under Advanced');
+ await sections.locator('details.advanced summary').click();
+ await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).waitFor();
+ await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).click();
+ await page.frameLocator('iframe[data-hosted="team:main"]').getByRole('heading', { name: 'Choose Workspace Hosts', exact: true }).waitFor();
+ assert(await sections.locator('details.advanced').getAttribute('open') !== null, 'a selected advanced section stays revealed');
  for (const label of ['Task defaults', 'Routing rules', 'Personal memory', 'GitHub']) assert.equal(await sections.getByRole('button', { name: label, exact: true }).count(), 0, label + ' is Individual\'s, not Team\'s');
  const hostedMain = page.frameLocator('iframe[data-hosted="team:main"]');
  await sections.getByRole('button', { name: 'This computer', exact: true }).click();
@@ -270,8 +276,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await secondFrame.getByRole('button', { name: 'Make Workspace Host', exact: true }).count(), 0, 'member has no host authority');
  await secondFrame.locator('[name=offer-workspace-host]').check(); await secondFrame.locator('[name=computer-sleeps]').check(); await secondFrame.getByRole('button', { name: 'Save settings', exact: true }).click();
  await wait(async () => (await secondDev('GET', '/state')).settings.offerWorkspaceHost, 'volunteer persisted');
- await switchTo('team:main'); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await switchTo('team:main');
  assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'workspace switching leaves execution alive');
+ // The workspace heading opens Workspace, as designed; reopen the ticket to inspect its still-running process.
+ await openTeamTicket();await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  const artifacts = process.env.BROWSER_ARTIFACT_DIR || path.join(root, '.impeccable/review'); fs.mkdirSync(artifacts, { recursive: true });
  const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
  assert(importedTask, 'the execution belongs to an imported local task');
@@ -380,4 +388,4 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await wait(async () => !(await reopened.locator('iframe[data-workspace="team:' + slot + '"]').count()), 'retired frame gone');
  assert((await dev('GET', '/state')).enrolled); assert((await api(individualURL, full, 'GET', '/api/projects')).projects.length);
  assert.equal(errors.length, 0, errors.join('\n')); console.log('PASS unified desktop: real multi-team membership, permissions, explicit grant, Team agent controls, workspace/project routes, retained frames, restart, background survival, volunteering and isolated leave');
-})().catch(async e => { if (testPage && !testPage.isClosed()) { console.error('Shell alerts: ' + await testPage.locator('[role=alert]').allTextContents()); console.error('Visible frame titles: ' + await testPage.locator('iframe:visible').evaluateAll(frames => frames.map(f => f.getAttribute('data-workspace')))); } console.error(e.stack); console.error('Fixture directory: ' + temp); for (const c of children) console.error(c.diagnostics.slice(-5000)); process.exitCode = 1; }).finally(async () => { await browser?.close(); fs.writeFileSync(path.join(temp, 'done'), 'done'); await delay(1000); for (const c of children) if (c.exitCode === null) c.kill('SIGTERM'); if (!process.exitCode) fs.rmSync(temp, { recursive: true, force: true }); });
+})().catch(async e => { if (testPage && !testPage.isClosed()) { console.error('Shell alerts: ' + await testPage.locator('[role=alert]').allTextContents()); console.error('Visible frame titles: ' + await testPage.locator('iframe:visible').evaluateAll(frames => frames.map(f => f.getAttribute('data-workspace')))); const diagnosticDir=process.env.BROWSER_ARTIFACT_DIR||temp;fs.mkdirSync(diagnosticDir,{recursive:true});await testPage.screenshot({path:path.join(diagnosticDir,'failure.png'),fullPage:true});for(const frame of testPage.frames().slice(1)){try{console.error('Frame state: '+JSON.stringify(await frame.evaluate(()=>({path:location.pathname+location.search,tab:typeof state==='undefined'?null:state.tab,ticket:typeof state==='undefined'?null:state.ticketId,headings:[...document.querySelectorAll('h1,h2')].map(h=>h.textContent),buttons:[...document.querySelectorAll('button')].filter(b=>b.getBoundingClientRect().width>0).map(b=>b.textContent).slice(-25)}))));}catch{}} } console.error(e.stack); console.error('Fixture directory: ' + temp); for (const c of children) console.error(c.diagnostics.slice(-5000)); process.exitCode = 1; }).finally(async () => { await browser?.close(); fs.writeFileSync(path.join(temp, 'done'), 'done'); await delay(1000); for (const c of children) if (c.exitCode === null) c.kill('SIGTERM'); if (!process.exitCode) fs.rmSync(temp, { recursive: true, force: true }); });

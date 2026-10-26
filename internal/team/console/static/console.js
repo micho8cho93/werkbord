@@ -40,6 +40,7 @@ const FRAMED = window.parent !== window;
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
 const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
+const ADVANCED_TABS = new Set(['hosts', 'connectivity']);
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
 const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people', 'project-settings']);
 // The team's own sub-areas, in the order of their tabs. They are the team as a major part; a project's are PROJECT_TABS.
@@ -53,6 +54,7 @@ const state = {
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
+  advancedSettings: false,
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
   filter: { labels: [], match: 'any' }, // the board's and the timeline's label filter: a way of looking, never stored
   calendarMode: 'calendar', calendarAnchor: null,
@@ -204,12 +206,18 @@ function navigation(counts) {
 }
 
 function settingsLayout(body) {
-  // Shown by the window's Settings, which lists the sections itself: only the section is here.
+  // A hosted section uses the window's navigation. Direct links reveal Advanced automatically.
+  const choices = availableSettings();
+  const button = ([id, label]) => h('button', { type: 'button', 'aria-current': state.tab === id ? 'page' : null, onclick: () => go(id) }, label);
+  const advanced = choices.filter(([id]) => ADVANCED_TABS.has(id));
   return h('div', { class: 'settings-layout' + (HOSTED ? ' hosted' : '') },
-    HOSTED ? '' : h('nav', { class: 'settings-sections', 'aria-label': 'Team administration' }, availableSettings().map(([id, label]) =>
-      h('button', { type: 'button', 'aria-current': state.tab === id ? 'page' : null, onclick: () => go(id) }, label))),
+    HOSTED ? '' : h('nav', { class: 'settings-sections', 'aria-label': 'Team administration' },
+      choices.filter(([id]) => !ADVANCED_TABS.has(id)).map(button),
+      advanced.length ? h('details', { class: 'advanced-settings', open: state.advancedSettings || ADVANCED_TABS.has(state.tab), ontoggle: e => { state.advancedSettings = e.currentTarget.open; } },
+        h('summary', {}, 'Advanced'), advanced.map(button)) : ''),
     h('div', { class: 'settings-content' }, body));
 }
+
 function sectionButtons(key, choices, label) {
   return h('nav', { class: 'section-controls', 'aria-label': label, 'data-scroll-key': 'section-' + key }, choices.map(([id, title, count]) =>
     h('button', { type: 'button', 'aria-current': state[key] === id ? 'page' : null, onclick: () => { state[key] = id; render(); } }, title,
@@ -423,6 +431,7 @@ async function checkReadOnly() {
     const previouslyReadOnly = !readOnly.hidden;
     readOnly.hidden = !(st && st.readOnly);
     if (state.desktop && state.me && !actionBusy && previouslyReadOnly !== !readOnly.hidden) await render();
+    if (state.me && !actionBusy) await refreshTeamStart();
     const panel = app.querySelector('.resilience');
     if (panel && !actionBusy && state.me) panel.replaceWith(await resiliencePanel(panel.classList.contains('compact-health')));
     if (!readOnly.hidden) readOnly.textContent = state.desktop ? 'This workspace is read-only for now. You can keep reading. Keep the Workspace Hosts online so Team can safely save changes again.' : 'This workspace is read-only for now: ' + (st.reason || 'its storage has no quorum') + '. You can read; changes are refused until it is back.';
@@ -736,7 +745,7 @@ const ACTION_WORDS = { changes_requested: 'Changes requested', conflict: 'Confli
 
 async function workspaceView() {
   const ov = state.ov, me = state.me.member.id;
-  const [w, mentions] = await Promise.all([api('GET', '/my-work'), loadMentions()]);
+  const [w, mentions, start] = await Promise.all([api('GET', '/my-work'), loadMentions(), teamStart()]);
   const mine = sum(ov.projects, (p) => p.mine), toReview = sum(ov.projects, (p) => p.toReview);
   const best = ov.projects.filter((p) => !p.project.archived).sort((a, b) => (b.counts.available || 0) - (a.counts.available || 0))[0];
   const unread = mentions ? mentions.unread : 0;
@@ -776,7 +785,7 @@ async function workspaceView() {
   const shortcut = (label, count, click, tone) => h('button', { type: 'button', class: 'cc-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
 
   const totals = [['Available', ov.available], ['In progress', sum(ov.projects, p => p.counts.in_progress || 0)], ['To review', toReview], ['Your tickets', mine]];
-  return h('div', { class: 'cc' }, h('dl', { class: 'workspace-statistics' }, totals.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))), bar, h('div', { class: 'cc-split' },
+  return h('div', { class: 'cc' }, start, h('dl', { class: 'workspace-statistics' }, totals.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))), bar, h('div', { class: 'cc-split' },
     h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, h('h2', {}, 'Needs you'), feed),
     h('aside', { class: 'cc-pane cc-side', 'aria-label': 'What is going on' },
       h('section', { class: 'cc-panel', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'cc-ph' }, 'Working now', h('span', { class: 'cc-chip' }, String(ov.working.length))), working),

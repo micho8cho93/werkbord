@@ -397,9 +397,9 @@ func adviceFor(in ResilienceInput, r Resilience, runnersTotal, runnersOnline int
 		add(Advice{Code: AdviceCodeNoHost, Severity: SeverityCritical, Title: "No Workspace Host is configured.",
 			Detail: "Nothing is keeping the workspace available.", Action: &AdviceAction{Kind: "add_hosts", Label: "Add a Workspace Host"}})
 	case in.Storage.Topology.Voters == 1 || (in.Storage.State != StorageSingleFile && in.Storage.Topology.Voters == 0 && r.WorkspaceHosts.Configured == 1):
-		add(Advice{Code: AdviceCodeOneHost, Severity: SeverityWarning, Title: "Only one Workspace Host is configured.",
-			Detail: "Add two more hosts for availability; backups are still required to recover lost data.",
-			Action: &AdviceAction{Kind: "add_hosts", Label: "Add two more hosts"}})
+		add(Advice{Code: AdviceCodeOneHost, Severity: SeverityInfo, Title: "This workspace uses one Host.",
+			Detail: "Keep it online while your team works. Backups protect against accidental changes; keep an additional copy on a separate disk. To stay available when a host goes offline, you can add two more hosts in Advanced settings.",
+			Action: &AdviceAction{Kind: "add_hosts", Label: "Advanced hosting"}})
 	case in.Storage.Topology.Voters == 2:
 		add(Advice{Code: AdviceCodeTwoHosts, Severity: SeverityWarning, Title: "Only two Workspace Hosts are configured.",
 			Detail: "A change needs both of them, so losing either stops the workspace: two hosts are no more available than one. Add a third.",

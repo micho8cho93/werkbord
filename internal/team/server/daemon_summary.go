@@ -237,6 +237,11 @@ func buildSummary(in summaryInputs) workspace.Summary {
 			infra.Checks = append(infra.Checks, workspace.Check{Label: c.Label, Value: c.Value, State: string(c.State)})
 		}
 		for _, a := range r.Advice {
+			// One healthy host is the normal starting topology. Its availability
+			// trade-off is explained in Advanced, rather than listed as a warning.
+			if a.Code == domain.AdviceCodeOneHost && a.Severity == domain.SeverityInfo {
+				continue
+			}
 			text := a.Title
 			if a.Detail != "" {
 				text += " " + a.Detail

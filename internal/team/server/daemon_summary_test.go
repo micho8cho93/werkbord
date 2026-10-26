@@ -19,6 +19,20 @@ func ticketItem(id, pid, key, title string, st domain.TicketStatus) service.Work
 	return service.WorkItem{Ticket: domain.Ticket{ID: id, ProjectID: pid, Key: key, Title: title, Status: st, UpdatedAt: time.Unix(1_800_000_000, 0)}, Project: service.ProjectRef{ID: pid, Name: "Platform"}}
 }
 
+func TestSingleHostAdviceDoesNotHideBackupFailures(t *testing.T) {
+	out := buildSummary(summaryInputs{Slot: "main", Name: "Acme", State: workspace.StateReady, Now: time.Now(),
+		Resilience: &domain.Resilience{Writable: true, WorkspaceHosts: domain.HostCounts{Configured: 1, Online: 1}, Advice: []domain.Advice{
+			{Code: domain.AdviceCodeOneHost, Severity: domain.SeverityInfo, Title: "One Host"},
+			{Code: domain.AdviceCodeBackupsFailed, Severity: domain.SeverityCritical, Title: "Backup failed", Action: &domain.AdviceAction{Kind: "back_up_now"}},
+		}}})
+	if out.Infra == nil || len(out.Infra.Warnings) != 1 || out.Infra.Warnings[0] != "Backup failed" {
+		t.Fatalf("warnings: %+v", out.Infra)
+	}
+	if len(out.Attention) != 1 || out.Attention[0].Severity != workspace.SeverityCritical || out.Attention[0].Href != "?tab=backups" {
+		t.Fatalf("attention: %+v", out.Attention)
+	}
+}
+
 func TestATeamWorkspaceIsTranslatedIntoTheShellsWordsAndPassesItsStrictReader(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	in := summaryInputs{

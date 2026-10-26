@@ -533,10 +533,13 @@ Workspace resilience
 ```
 
 Every weakness comes with what to do about it, and a button the screen can offer. The words are fixed so every screen says the
-same thing: *"Only one Workspace Host is configured."* · *"Two hosts are offline. Workspace is read-only until quorum returns."* ·
+same thing: *"Two hosts are offline. Workspace is read-only until quorum returns."* ·
  *"No Connectivity Host is reachable."* ·
 *"This device sleeps automatically. It is not ideal as a Workspace Host."* The judgement is one pure function
 (`domain.AssessResilience`), tested on its own.
+
+One healthy host is the default starting arrangement. Its availability trade-off is informational in Advanced hosting;
+it does not create an attention item. Offline hosts, a lost quorum and failed or stale backups still do.
 
 Each device reports, about itself and with its own credential, that it is there and what kind of machine it is (`POST
 /device/heartbeat`: a platform, a kind (desktop, laptop, server), whether it has been seen to go to sleep, a count, a version). That

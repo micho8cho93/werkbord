@@ -12,7 +12,7 @@ describe('what Settings lists', () => {
     const personal = groupsFor({ kind: 'personal' }, items).map((g) => g.label);
     const acme = groupsFor({ kind: 'team', id: 'team:a' }, items).map((g) => g.label);
     expect(personal).toEqual(['General', 'Work', 'Machines', 'Connections']);
-    expect(acme).toEqual(['General', 'Work', 'Machines', 'Connections', 'Workspace']);
+    expect(acme).toEqual(['General', 'Work', 'Machines', 'Connections', 'Workspace', 'Advanced']);
     expect(labels({ kind: 'personal' })).toContain('Task defaults');
     expect(labels({ kind: 'personal' })).toContain('Personal memory');
     expect(labels({ kind: 'personal' })).not.toContain('Labels');
@@ -26,6 +26,13 @@ describe('what Settings lists', () => {
     for (const scope of [{ kind: 'personal' }, { kind: 'universal' }, { kind: 'team', id: 'team:a' }] as const) {
       expect(sectionsOf(groupsFor(scope, items)).filter((s) => s.label === 'Plan')).toEqual([{ id: 'general/plan', label: 'Plan', where: { native: 'plan' } }]);
     }
+  });
+
+  it('keeps backups and devices in ordinary settings, with optional hosting in Advanced', () => {
+    const groups = groupsFor({ kind: 'team', id: 'team:a' }, items);
+    expect(groups.filter((g) => g.advanced).flatMap((g) => g.sections.map((s) => s.label))).toEqual(['Workspace Hosts', 'Connectivity']);
+    expect(groups.filter((g) => !g.advanced).flatMap((g) => g.sections.map((s) => s.label))).toEqual(expect.arrayContaining(['Devices', 'Backups']));
+    expect(sectionForPlace(groups, 'team:a', '?tab=hosts')?.id).toBe('team:a/hosts');
   });
 
   it('always has the window’s own settings first, so Appearance and Alerts are the same everywhere', () => {

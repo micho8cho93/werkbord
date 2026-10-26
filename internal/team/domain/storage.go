@@ -239,7 +239,9 @@ type LocalCopy struct {
 
 // BackupStatus describes a workspace's backups.
 type BackupStatus struct {
-	Configured  bool   `json:"configured"`
+	Configured bool `json:"configured"`
+	// Automatic distinguishes a configured destination from an enabled schedule.
+	Automatic   bool   `json:"automatic"`
 	Destination string `json:"destination,omitempty"`
 	LastAt      int64  `json:"lastAt,omitempty"`
 	LastOK      bool   `json:"lastOk"`

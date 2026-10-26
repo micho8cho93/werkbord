@@ -2,7 +2,9 @@
 
 Customers own and operate backups; Werkbord has no backup service or copy of their data. Replication tolerates host failures but also replicates accidental deletion, malicious metadata and a bad authorized restore. It is not a backup.
 
-Configure a private mounted destination with `WERKBORD_TEAM_BACKUP_DIR`, `WERKBORD_TEAM_BACKUP_EVERY`, `WERKBORD_TEAM_BACKUP_KEEP` and `WERKBORD_TEAM_BACKUP_KEEP_FOR`. Scheduled backups are checked by hash, SQLite integrity, history position and a scratch restore/migration. Keep an off-machine/offline generation and test restoration periodically. The checksum record detects corruption; it is not a signature against an attacker who replaces both files.
+The desktop device service sets up a `backups/` directory beside its `workspace/` directory automatically. By default it takes a backup every 24 hours, keeps at least the latest 14 and keeps any less than 30 days old. The first backup is scheduled shortly after the workspace starts. **Settings → Backups** reports whether the schedule is on, the latest result and the destination; a configured folder alone does not mean automatic backups are on. Keep an additional copy on another disk: a backup beside the database does not protect against loss of that disk.
+
+For an operator-managed service, configure a private mounted destination with `WERKBORD_TEAM_BACKUP_DIR`, `WERKBORD_TEAM_BACKUP_EVERY`, `WERKBORD_TEAM_BACKUP_KEEP` and `WERKBORD_TEAM_BACKUP_KEEP_FOR`. Setting the interval to `0` disables the schedule and preserves manual backup. Scheduled backups are checked by hash, SQLite integrity, history position and a scratch restore/migration. Keep an off-machine/offline generation and test restoration periodically. The checksum record detects corruption; it is not a signature against an attacker who replaces both files.
 
 ```sh
 werkbord-team storage backup

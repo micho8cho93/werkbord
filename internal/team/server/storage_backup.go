@@ -85,7 +85,7 @@ func (b *backupRunner) status(ctx context.Context) *domain.BackupStatus {
 		return &domain.BackupStatus{Configured: false}
 	}
 	b.mu.Lock()
-	st := domain.BackupStatus{Configured: true, Destination: dest.Describe(), LastOK: b.lastOK, LastError: b.lastErr}
+	st := domain.BackupStatus{Configured: true, Automatic: b.st.cfg.BackupEvery > 0, Destination: dest.Describe(), LastOK: b.lastOK, LastError: b.lastErr}
 	if !b.lastAt.IsZero() {
 		st.LastAt = b.lastAt.UnixMilli()
 	}

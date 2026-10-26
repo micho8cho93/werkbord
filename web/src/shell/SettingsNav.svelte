@@ -1,5 +1,6 @@
 <script lang="ts">
   import { model } from './model.svelte';
+  import type { Group } from './settings';
 
   // The sections of Settings for where the person is: the same groups everywhere, and in each only what changes something there.
   // Home lists everything, a workspace at a time. On a narrow window the list becomes a menu.
@@ -7,6 +8,12 @@
   const shown = $derived(model.settingsShown);
   const many = $derived(new Set(groups.map((g) => g.owner).filter(Boolean)).size > 1);
 </script>
+
+{#snippet sectionButtons(g: Group)}
+  {#each g.sections as s (s.id)}
+    <button class="item" type="button" aria-current={shown.id === s.id ? 'page' : undefined} data-section={s.id} onclick={() => model.openSettings(s.id)}>{s.label}</button>
+  {/each}
+{/snippet}
 
 <label class="narrow">
   <span>Settings section</span>
@@ -22,12 +29,17 @@
 <nav class="sections" aria-label="Settings sections" data-testid="settings-sections">
   {#each groups as g, i (g.label + (g.owner ?? ''))}
     {#if many && g.owner && g.owner !== groups[i - 1]?.owner}<p class="owner" data-owner={g.owner}>{g.owner}</p>{/if}
-    <div class="group" role="group" aria-label={g.owner ? `${g.owner} ${g.label}` : g.label}>
+    {#if g.advanced}
+      <details class="group advanced" open={g.sections.some((s) => s.id === shown.id)}>
+        <summary>{g.label}</summary>
+        {@render sectionButtons(g)}
+      </details>
+    {:else}
+      <div class="group" role="group" aria-label={g.owner ? `${g.owner} ${g.label}` : g.label}>
       <h2>{g.label}</h2>
-      {#each g.sections as s (s.id)}
-        <button class="item" type="button" aria-current={shown.id === s.id ? 'page' : undefined} data-section={s.id} onclick={() => model.openSettings(s.id)}>{s.label}</button>
-      {/each}
-    </div>
+      {@render sectionButtons(g)}
+      </div>
+    {/if}
   {/each}
 </nav>
 
@@ -44,6 +56,9 @@
   .owner + .group {
     margin-top: 24px;
   }
+  .advanced { margin: 24px 8px 0; }
+  .advanced summary { padding: 8px 0; color: var(--text-2); font-size: 12px; cursor: pointer; }
+  .advanced .item { margin-left: 8px; width: calc(100% - 8px); }
   .owner {
     margin: 22px 8px 6px;
     padding-top: 14px;

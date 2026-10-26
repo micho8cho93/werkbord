@@ -3,6 +3,10 @@
 Continuation of the October 26 simplification plan. Phases 0–3 and 4C are committed through `5651946`.
 Personal phones use the relay; Tailscale remains an optional connection for remote runners.
 
+4A is implemented in `8b02876`, with `make check` and the real Team desktop browser suite passing.
+Validation also found and fixed certificate timestamp precision and overlay test port reservation (`2932cdd`):
+the enrollment failures passed 20 repetitions under the race detector and the overlay suite passed five repetitions.
+
 ## 4A: shared presentation
 
 Use the existing `internal/uipresentation` library rather than introduce a second Svelte build for Team.
