@@ -26,10 +26,17 @@ func Run(ctx context.Context, path string, args ...string) (string, error) {
 
 // RunCombined is Run for a command that says what it means on stderr as well (a status line, a usage error).
 func RunCombined(ctx context.Context, path string, args ...string) (string, error) {
+	return RunCombinedIn(ctx, "", path, args...)
+}
+
+// RunCombinedIn is RunCombined in the directory dir ("" is the controller's own), for a question whose answer can depend
+// on the directory it is asked in.
+func RunCombinedIn(ctx context.Context, dir, path string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = SanitizedEnv(os.Environ())
+	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }

@@ -79,7 +79,7 @@ func (a *Adapter) Options(ctx context.Context) domain.AgentOptions {
 	o := domain.AgentOptions{AgentID: a.cfg.ID, Models: append([]domain.AgentOption(nil), a.cfg.Models...), Reasoning: stringOptions(a.cfg.Reasoning), CustomModels: true}
 	if a.cfg.ListModels {
 		if path, err := exec.LookPath(a.cfg.Command); err == nil {
-			if out, err := commandOutput(ctx, path, a.cfg.Command, "models"); err == nil {
+			if out, err := agentkit.RunCombinedIn(ctx, os.TempDir(), path, "models"); err == nil {
 				if listed := parseModels(out); len(listed) > 0 {
 					o.Models = listed
 					o.ModelsSource = domain.OptionsFromAgent

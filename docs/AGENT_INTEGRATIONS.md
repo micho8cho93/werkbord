@@ -103,6 +103,23 @@ local tests and disposable fixtures. The catalogue is documentation-verified; th
 does not claim a paid-account end-to-end run against all 25 vendors. Existing trust
 boundary tests remain in force, and Team does not run models or hold credentials.
 
+## One description of each agent, two ways to run it
+
+A coding agent is used in two ways, and the code keeps them apart on purpose. An **adapter** (`internal/agent`) keeps a
+long-lived interactive session in a task's worktree. A **provider** (`internal/assistant/provider`) answers one isolated
+Salie turn in an empty directory with its tools off. Their runtimes, their guards and their errors differ.
+
+What they share is the **facts about the command line**, and those live in one place (`internal/agentkit`): is the command
+there, which version is it, is anyone signed in and how, which reasoning levels does it take, what do we tell the person
+when it is not usable. `agentkit.Prober` asks the CLI once and remembers the answer for 30 seconds; the controller gives
+the same Prober to every adapter and provider, so `claude --version`, `claude auth status` and `claude --help` each run
+once, not once per family. Agents known by name (Gemini CLI, OpenCode) are described once in `agentcatalog.Builtin`,
+and the reviewed catalogue entries in `agents.json`.
+
+To add an agent that speaks ACP, add its entry to `agents.json`: nothing else is needed. To add one with its own protocol,
+write the adapter (and, if Salie may use it, the provider) and ask `agentkit` for the facts; do not run `--version` or a
+sign-in status command from either. `internal/archtest` fails if an adapter or a provider does.
+
 ## Salie Sessions Phase 1: direct CLI availability
 
 Settings → Agents separately stores direct CLI opt-in and an optional owner declaration that the CLI

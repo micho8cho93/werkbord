@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"werkbord/internal/agentkit"
 	"werkbord/internal/domain"
 )
 
@@ -222,28 +223,6 @@ func (b *Base) Stop(ctx context.Context) error {
 	}
 }
 
-// SanitizedEnv returns env without the variables that make Git act on a
-// repository other than the one in the agent's working directory (as happens
-// when the controller was started from a Git hook), and without variables that
-// would confuse a nested agent. Everything else, including PATH, credentials
-// and the user's own configuration, is kept: the agent runs as the user.
-func SanitizedEnv(env []string) []string {
-	out := make([]string, 0, len(env)+1)
-	for _, kv := range env {
-		name, _, _ := strings.Cut(kv, "=")
-		if domain.IsControllerSecret(kv) {
-			continue
-		}
-		if strings.HasPrefix(name, "GIT_CONFIG_KEY_") || strings.HasPrefix(name, "GIT_CONFIG_VALUE_") {
-			continue
-		}
-		switch name {
-		case "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-			"GIT_COMMON_DIR", "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_QUARANTINE_PATH",
-			"GIT_IMPLICIT_WORK_TREE", "GIT_INTERNAL_SUPER_PREFIX":
-			continue
-		}
-		out = append(out, kv)
-	}
-	return out
-}
+// SanitizedEnv returns env without the variables that make Git act on a repository other than the one in the agent's
+// working directory and without variables that would confuse a nested agent (see agentkit.SanitizedEnv).
+func SanitizedEnv(env []string) []string { return agentkit.SanitizedEnv(env) }

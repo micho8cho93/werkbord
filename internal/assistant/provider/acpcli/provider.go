@@ -86,7 +86,7 @@ func (p *Provider) Models(ctx context.Context) provider.Models {
 	note := ""
 	if p.cfg.ListModels {
 		if path, err := exec.LookPath(p.cfg.Command); err == nil {
-			if out, err := commandOutput(ctx, path, nil, "models"); err == nil {
+			if out, err := agentkit.RunCombined(ctx, path, "models"); err == nil {
 				listed := parseModels(out)
 				if len(listed) > 0 {
 					models, source = listed, "provider"
@@ -337,18 +337,6 @@ func replaceEnv(in []string, name, value string) []string {
 		}
 	}
 	return append(out, prefix+value)
-}
-
-func commandOutput(ctx context.Context, path string, env []string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agent.SanitizedEnv(os.Environ())
-	if env != nil {
-		cmd.Env = env
-	}
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
 }
 
 func classifyStart(p *Provider, err error, stderr string) error {

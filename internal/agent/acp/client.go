@@ -639,17 +639,6 @@ func (b *tailBuffer) snapshot() (string, bool) {
 	return b.b.String(), b.truncated
 }
 
-func commandOutput(ctx context.Context, path, command string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = agentapi.SanitizedEnv(os.Environ())
-	cmd.Dir = os.TempDir()
-	cmd.Dir = os.TempDir()
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
-}
-
 func classifyStart(cfg Config, err error, stderr string) error {
 	msg := clip(strings.TrimSpace(err.Error()+" "+stderr), 400)
 	low := strings.ToLower(msg)
