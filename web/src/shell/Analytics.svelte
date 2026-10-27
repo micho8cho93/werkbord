@@ -159,7 +159,7 @@
       {/if}
     {:else if !canRuns || !runs}
       <p class="notice" role="status" data-testid="analytics-runs-personal-only">
-        Runs, tokens and cost are reported by Personal only: a team records coordination, not what anyone’s agents did. Choose Personal, or Personal and all teams, to see them.
+        Agent usage is available in Personal. Choose Personal to view it.
       </p>
     {:else}
       <dl class="statistics">
@@ -168,7 +168,8 @@
         <StatTile label="Failed runs" value={(runs.totals.outcomes as Record<string, number | undefined>).failed ?? 0} tone="var(--danger)" />
         <StatTile label="Reported API cost" value={measuredCost(runs.totals.actualCostUsd)} tone="var(--warn)" />
       </dl>
-      <p class="muted">These are Personal’s alone, whatever place is chosen: runs started in the period, and what their agents reported. Missing reports stay unknown, and a run that finished normally does not mean the task is done.</p>
+      <p class="muted">Runs started in this period. A run that finished normally does not mean the task is done.</p>
+      <details class="disclosure"><summary>Reporting details</summary><p class="muted">These figures come from Personal only, whatever place is chosen, and show what agents reported. Missing reports stay unknown. {runs.totals.partialRuns} partial reports across {runs.totals.attempts} runs.</p></details>
       <div class="board">
         <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>
           {#if runs.totals.attempts}<Donut slices={outcomeSlices} centre={String(runs.totals.attempts)} caption={runs.totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs in this period.</p>{/if}

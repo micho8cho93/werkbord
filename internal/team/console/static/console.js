@@ -2241,7 +2241,7 @@ async function analyticsView() {
       h('div', { class: 'analytics-board' },
         panel('Recorded completion signals', 'Separate coordination signals, rather than steps of a funnel', 'var(--ok)', 7, comparison([['Completed tickets', r.completed, 'First recorded completion in the selected period', 'var(--ok)'], ['Human completion decisions', r.humanCompletionDecisions, 'Reopened tickets count once', 'var(--accent)']])),
         panel('Completion duration', 'From creation to first completion, including waiting', 'var(--block)', 5, h('dl', { class: 'analytics-facts' }, [['Median', duration(r.medianTicketSeconds)], ['Average', duration(r.averageTicketSeconds)], ['Samples', r.durationSamples]].map(([name, value]) => h('div', {}, h('dt', {}, name), h('dd', {}, String(value))))))),
-      h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'), h('p', {}, 'Team records coordination only. Execution history, agent usage and verified local merges live in Individual analytics.'))];
+      h('details', { class: 'analytics-disclosure' }, h('summary', {}, 'Coordination details'), h('p', {}, 'Agent usage is available in Personal. Team records coordination only: execution history and verified local merges are in Personal too.'))];
   }
   return h('div', { class: 'coordination-analytics' }, tabs,
     h('div', { id: 'analytics-panel', role: 'tabpanel', 'aria-labelledby': 'analytics-tab-' + analyticsState.view, tabindex: '0' },
