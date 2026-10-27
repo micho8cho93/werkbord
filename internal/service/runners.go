@@ -542,7 +542,9 @@ func (s *Runners) Sync(ctx context.Context, body []byte, signature string) (runn
 
 		r.LastSequence = in.Sequence
 		r.LastSeenAt = s.now()
+		offlineContinuation := r.Capabilities.OfflineContinuation || in.Capabilities.OfflineContinuation
 		r.Capabilities = in.Capabilities
+		r.Capabilities.OfflineContinuation = offlineContinuation
 		r.Version = truncate(in.Version, 100)
 		if out.StateLost {
 			r.Capabilities.Diagnostics = "Controller database was restored; this runner must quarantine work and be recovered or revoked."
@@ -585,6 +587,7 @@ func (s *Runners) Sync(ctx context.Context, body []byte, signature string) (runn
 			}
 			out.Acks[run.ID] = job.Ack
 		}
+		out.OfflineContinuation = r.Capabilities.OfflineContinuation
 		out.Projects = r.Projects
 		out.AllowClone = r.AllowClone
 		out.Capacity = r.Capacity
@@ -653,8 +656,8 @@ func (s *Runners) applyReport(ctx context.Context, tx store.Tx, em *emitter, run
 	return nil
 }
 
-// Revoke immediately fences the credential. Capacity remains reserved until all
-// leases and in-flight requests have expired. It never reassigns an execution.
+// Revoke immediately fences the credential. Offline-capable execution stays
+// reserved until the owner verifies it has stopped; elapsed time is not proof.
 func (s *Runners) Revoke(ctx context.Context, id string) error {
 	return s.update(ctx, func(tx store.Tx, em *emitter) error {
 		r, err := tx.Runners().Get(ctx, id)
@@ -688,7 +691,7 @@ func (s *Runners) ReleaseRevoked(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if !r.Removed {
+			if !r.Removed || r.Capabilities.OfflineContinuation {
 				continue
 			}
 			var fence time.Time
@@ -703,5 +706,31 @@ func (s *Runners) ReleaseRevoked(ctx context.Context) error {
 			}
 		}
 		return nil
+	})
+}
+
+// ResolveRevoked is a local owner's explicit assertion after inspecting the runner.
+// Revocation has already fenced reports; this is the only way to release its
+// offline-capable execution without trusting an elapsed timeout.
+func (s *Runners) ResolveRevoked(ctx context.Context, runnerID, runID string) error {
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		r, err := tx.Runners().Get(ctx, runnerID)
+		if err != nil {
+			return err
+		}
+		if !r.Removed {
+			return fmt.Errorf("%w: revoke this runner before resolving ownership", domain.ErrConflict)
+		}
+		run, err := tx.Runs().Get(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if !run.Remote || run.RunnerID != runnerID {
+			return domain.ErrNotFound
+		}
+		if run.State.Terminal() {
+			return nil
+		}
+		return s.Runs.end(ctx, tx, em, run, Ended{State: domain.RunFailed, Reason: "owner verified execution stopped on revoked runner"}, domain.CancelRunEnded)
 	})
 }

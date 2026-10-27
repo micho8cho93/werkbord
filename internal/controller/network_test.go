@@ -16,6 +16,7 @@ import (
 
 	"werkbord/internal/config"
 	"werkbord/internal/netprivate"
+
 	"werkbord/internal/relay/relaytest"
 )
 
@@ -126,7 +127,7 @@ func TestPrivateNetworkIsOffByDefault(t *testing.T) {
 	}
 }
 
-func TestEnablingThePrivateNetworkServesOnlyWhatRemoteRunnersCall(t *testing.T) {
+func TestPrivateNetworkSeparatesRunnerAndDesktopCredentials(t *testing.T) {
 	node := newFakeNode()
 	c := startWith(t, defaultConfig(t), node)
 	base := "http://" + c.Addr()
@@ -157,8 +158,12 @@ func TestEnablingThePrivateNetworkServesOnlyWhatRemoteRunnersCall(t *testing.T) 
 	priv := "http://" + node.addr()
 	for _, path := range []string{"/", "/api/projects", "/api/update", "/api/settings", "/api/phones/enroll", "/api/phones", "/api/runners", "/api/runners/pair", "/api/network", "/api/health"} {
 		for _, token := range []string{"", "wrong", tok} {
-			if code, _ := get(t, priv+path, token); code != 404 {
-				t.Errorf("%s over the private network (token %q) = %d, want 404", path, token, code)
+			want := 404
+			if path == "/api/projects" || path == "/api/settings" || path == "/api/runners" {
+				want = 401
+			}
+			if code, _ := get(t, priv+path, token); code != want {
+				t.Errorf("%s over the private network = %d, want %d", path, code, want)
 			}
 		}
 	}
@@ -190,7 +195,7 @@ func TestPrivateNetworkNeverTrustsTheNetworkEvenWhenLoopbackIsOpen(t *testing.T)
 	priv := "http://" + node.addr()
 	tok, _ := c.cfg.ResolveToken(false)
 	for _, token := range []string{"", tok} {
-		if code, _ := get(t, priv+"/api/projects", token); code != 404 {
+		if code, _ := get(t, priv+"/api/projects", token); code != 401 {
 			t.Fatalf("the private network answered /api/projects (token %q): %d", token, code)
 		}
 		if code, _ := get(t, priv+"/api/update", token); code != 404 {

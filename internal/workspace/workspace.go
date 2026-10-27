@@ -533,7 +533,7 @@ func (e Entry) validate() error {
 	}
 	for _, r := range e.DeviceRoles {
 		switch r {
-		case "runner", "workspace_host", "connectivity_host":
+		case "runner", "control_client", "workspace_host", "connectivity_host":
 		default:
 			return fmt.Errorf("workspace: device role %q is not one", r)
 		}

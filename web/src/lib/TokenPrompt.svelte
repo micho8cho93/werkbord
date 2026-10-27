@@ -17,14 +17,18 @@
   <form class="card" onsubmit={submit}>
     <div class="brand"><Mark height={22} /><span class="wm">werkbord</span></div>
     <h1>Connect to Werkbord</h1>
-    {#if enrollment.state === 'failed'}
+    {#if app.remote}
+      <p class="muted">Desktop control was refused by {app.device.controller}. If this grant was revoked, create a new desktop code on the controller.</p>
+      <p class="muted">On this computer, run <code>werkbord device connect {app.device.controller} --pair{app.device.runnerId ? ' --runner' : ''}</code>, then reopen Werkbord. The runner has its own permission.</p>
+      <button class="btn primary" type="button" onclick={() => app.reconnect()}>Reconnect</button>
+    {:else if enrollment.state === 'failed'}
       <p class="error" role="alert" data-testid="enroll-failed">{enrollment.error}</p>
     {:else}
       <p class="muted" data-testid="signed-out">
         On a phone, scan a new code: Settings → Phones on your computer. A phone that was revoked is signed out for good.
       </p>
     {/if}
-    <p class="muted">
+    {#if !app.remote}<p class="muted">
       On the computer running Werkbord, run <code>werkbord token</code> and paste the token here. Or run
       <code>werkbord token --url</code> to create a sign-in link for this browser.
     </p>
@@ -37,7 +41,7 @@
       placeholder="Access token"
       bind:value={token}
     />
-    <button class="btn primary" type="submit" disabled={!token.trim()}>Sign in</button>
+    <button class="btn primary" type="submit" disabled={!token.trim()}>Sign in</button>{/if}
   </form>
 </div>
 

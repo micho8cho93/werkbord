@@ -8,6 +8,7 @@ export const PHONE_QUERY = '(max-width: 899px)';
 const query = typeof matchMedia === 'function' ? matchMedia(PHONE_QUERY) : null;
 
 class Phone {
+  desktopClient = $state(false);
   private narrow = $state(query?.matches ?? false);
 
   constructor() {
@@ -15,7 +16,7 @@ class Phone {
   }
 
   get on(): boolean {
-    return this.narrow && !embedded();
+    return this.narrow && !embedded() && !this.desktopClient;
   }
 }
 

@@ -91,17 +91,18 @@ type Sync struct {
 	Reports            []Report                  `json:"reports"`
 }
 type SyncReply struct {
-	Protocol     int               `json:"protocol"`
-	Sequence     int64             `json:"sequence"`
-	StateLost    bool              `json:"stateLost,omitempty"`
-	Rejected     map[string]string `json:"rejected"`
-	Jobs         []Job             `json:"jobs"`
-	Acks         map[string]int64  `json:"acks"`
-	LeaseSeconds int               `json:"leaseSeconds"`
-	Projects     []string          `json:"projects"`
-	AllowClone   bool              `json:"allowClone"`
-	Capacity     int               `json:"capacity"`
-	Disabled     bool              `json:"disabled"`
+	OfflineContinuation bool              `json:"offlineContinuation,omitempty"`
+	Protocol            int               `json:"protocol"`
+	Sequence            int64             `json:"sequence"`
+	StateLost           bool              `json:"stateLost,omitempty"`
+	Rejected            map[string]string `json:"rejected"`
+	Jobs                []Job             `json:"jobs"`
+	Acks                map[string]int64  `json:"acks"`
+	LeaseSeconds        int               `json:"leaseSeconds"`
+	Projects            []string          `json:"projects"`
+	AllowClone          bool              `json:"allowClone"`
+	Capacity            int               `json:"capacity"`
+	Disabled            bool              `json:"disabled"`
 }
 
 func Signature(key ed25519.PrivateKey, body []byte) string {

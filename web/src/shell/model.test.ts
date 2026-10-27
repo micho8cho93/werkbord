@@ -429,3 +429,20 @@ describe('the one create-and-join flow', () => {
     expect(model.addOpen).toBe(false);
   });
 });
+
+it('remote Personal capability avoids private workspace and Salie requests', async () => {
+  const model = new Model();
+  model.view = view([{...individual, deviceRoles: ['control_client', 'runner']}, team]);
+  const privateCall = vi.fn();
+  native.app.PersonalWorkspaceCall = privateCall;
+  expect(model.remotePersonal).toBe(true);
+  const settings = model.settingsGroups.flatMap(g => g.sections.map(s => s.id));
+  expect(settings).not.toContain('personal/defaults');
+  expect(settings).toContain('personal/runners');
+  await model.refreshGenerated();
+  await model.prepareAssistant();
+  await model.toggleAssistant({x:0,y:0,width:0,height:0});
+  expect(privateCall).not.toHaveBeenCalled();
+  expect(model.generated).toEqual([]);
+  expect(model.assistantFrame).toBeNull();
+});

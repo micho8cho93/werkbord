@@ -15,6 +15,7 @@ import (
 	"werkbord/internal/browser"
 	"werkbord/internal/config"
 	"werkbord/internal/daemon"
+	"werkbord/internal/device"
 	"werkbord/internal/netprivate"
 )
 
@@ -32,7 +33,9 @@ type app struct {
 	// runnerDaemon manages the separate runner process after a binary update.
 	runnerDaemon func(ctx context.Context) daemon.Manager
 	// installed returns the manager and whether the service is installed.
-	installed func(ctx context.Context) (daemon.Manager, bool)
+	installed      func(ctx context.Context) (daemon.Manager, bool)
+	describe       func(ctx context.Context) (daemon.Definition, bool)
+	describeRunner func(ctx context.Context) (daemon.Definition, bool)
 	// executable is the path of the running werkbord.
 	executable func() (string, error)
 	// openBrowser opens a URL in the user's browser.
@@ -61,13 +64,19 @@ func newApp(cfg config.Config, out, errOut io.Writer) *app {
 		return daemon.ServicePATH(os.Getenv("PATH"), home)
 	}
 	a.daemon = func(ctx context.Context) daemon.Manager {
-		return daemon.Detect(ctx, daemon.Options{DataDir: cfg.DataDir})
+		return daemon.Detect(ctx, daemon.Options{DataDir: a.cfg.DataDir})
 	}
 	a.runnerDaemon = func(ctx context.Context) daemon.Manager {
-		return daemon.Detect(ctx, daemon.Options{DataDir: runnerDir(cfg), Label: daemon.RunnerLabel})
+		return daemon.Detect(ctx, daemon.Options{DataDir: runnerDir(a.cfg), Label: daemon.RunnerLabel})
 	}
 	a.installed = func(ctx context.Context) (daemon.Manager, bool) {
-		return daemon.Installed(ctx, daemon.Options{DataDir: cfg.DataDir})
+		return daemon.Installed(ctx, daemon.Options{DataDir: a.cfg.DataDir})
+	}
+	a.describe = func(ctx context.Context) (daemon.Definition, bool) {
+		return daemon.Describe(ctx, daemon.Options{DataDir: a.cfg.DataDir})
+	}
+	a.describeRunner = func(ctx context.Context) (daemon.Definition, bool) {
+		return daemon.Describe(ctx, daemon.Options{Label: daemon.RunnerLabel})
 	}
 	return a
 }
@@ -203,6 +212,11 @@ func indent(s, prefix string) string {
 const startTimeout = 45 * time.Second
 
 func (a *app) cmdStart(ctx context.Context, args []string) error {
+	if state, err := device.Load(a.cfg.DataDir); err != nil {
+		return err
+	} else if state.Remote() {
+		return a.cmdDevice(ctx, append([]string{"start"}, args...))
+	}
 	if err := noArgs("start", args); err != nil {
 		return err
 	}

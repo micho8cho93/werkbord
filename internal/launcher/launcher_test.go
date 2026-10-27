@@ -1017,6 +1017,7 @@ func TestUpdateStatusAsksNobodyWhenLookingForUpdatesIsTurnedOff(t *testing.T) {
 // cannot grow by accident. The web app calls the shell through desktop/internal/shell, which has its own list.
 func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 	allowed := map[string]bool{
+		"/api/device":              true, // local device gateway identity, only after remote mode was explicitly selected
 		"/api/health":              true, // public; says it is a controller and what version
 		"/api/control-center":      true, // read-only desktop update preflight; backend replacement rechecks independently
 		"/api/projects":            true, // needs the token: does this controller accept this computer's?
@@ -1043,7 +1044,7 @@ func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 		}
 	}
 	// and the commands it runs on the installed program, which older programs have too
-	cmds := map[string]bool{"version": true, "start": true, "setup": true, "install-release": true, "update": true}
+	cmds := map[string]bool{"version": true, "start": true, "setup": true, "install-release": true, "update": true, "device": true}
 	for _, m := range regexp.MustCompile(`(?:Run\(\w+,[^,]+,[^,]+, |args = \[\]string\{|opt\.Run\([^)]*?)"([a-z-]+)"`).FindAllStringSubmatch(string(src), -1) {
 		if !cmds[m[1]] {
 			t.Errorf("launcher.go runs `werkbord %s`", m[1])

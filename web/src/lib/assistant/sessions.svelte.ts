@@ -72,6 +72,7 @@ export class AssistantSessions {
     const tab = this.add(); tab.terminal = session; this.save();
   }
   async discoverTerminals(): Promise<void> {
+    if (app.remote) return;
     try {
       const sessions = await terminalApi.list();
       for (const session of sessions) {

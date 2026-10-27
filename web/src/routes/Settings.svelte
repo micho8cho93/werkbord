@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ClientsPanel from '../lib/ClientsPanel.svelte';
   import ProjectHistory from '../lib/ProjectHistory.svelte';
   import MemorySharing from '../lib/MemorySharing.svelte';
   import Tour from '../lib/Tour.svelte';
@@ -172,6 +173,7 @@
       <ProjectHistory />
     {:else if section === 'runners'}
       <RunnersPanel />
+ {#if !isPhone() && !app.remote}<ClientsPanel />{/if}
     {:else if section === 'routing'}
       <RoutingRules />
     {:else if section === 'phones'}

@@ -96,7 +96,9 @@ export class Model {
     if (signature === this.contextsSent && Date.now() - this.contextsAt < 30_000) return;
     try { await shellPersonalAPI.setDisplayContexts(teams); this.contextsSent = signature; this.contextsAt = Date.now(); } catch { /* tried again on the next refresh */ }
   }
+  get remotePersonal(): boolean { return this.view?.items.find(i => i.id === 'personal')?.deviceRoles?.includes('control_client') ?? false; }
   async refreshGenerated(): Promise<void> {
+    if (this.remotePersonal) { this.generated = []; this.generatedError = ''; return; }
     void this.publishContexts();
     try { this.generated = await shellPersonalAPI.workspaces(); this.generatedError = ''; }
     catch (e) { this.generated = []; this.generatedError = (e as Error).message; }
@@ -183,7 +185,9 @@ export class Model {
   }
 
   get settingsGroups(): Group[] {
-    return groupsFor(this.scope, this.view?.items);
+    return groupsFor(this.scope, this.view?.items)
+      .map(g => ({...g, sections: g.sections.filter(s => !this.remotePersonal || !s.id.startsWith('personal/') || s.id === 'personal/runners')}))
+      .filter(g => g.sections.length);
   }
 
   get settingsShown(): Section {
@@ -209,11 +213,13 @@ export class Model {
    * is (in the window's coordinates, which are the frame's) so that it grows out of it and collapses back into it.
    */
   async prepareAssistant(): Promise<void> {
+    if (this.remotePersonal) return;
     if (this.assistantFrame) return;
     const target = await ask(a => a.LoadWorkspace('personal'));
     this.assistantFrame = { url: surfaceUrl(target.url), origin: target.origin };
   }
   async openRunSession(projectId: string, runId: string): Promise<void> {
+    if (this.remotePersonal) { await this.open('personal', `#/p/${encodeURIComponent(projectId)}/runs`); return; }
     try { await this.prepareAssistant(); }
     catch (e) { this.error = (e as Error).message; return; }
     this.assistantShown = true;
@@ -226,6 +232,7 @@ export class Model {
     this.assistantAsk = { action: 'open', run: { projectId, runId }, rect: { x: 24, y: 24, width: 0, height: 0 } };
   }
   async toggleAssistant(rect: Anchor, personalWorkspace?: string, personalRevision?: number, personalPrompt?: string): Promise<void> {
+    if (this.remotePersonal) return;
     if (this.setupRequired && !this.setupPaused) { await this.open('personal', '#/onboarding'); return; }
     if (this.assistantShown && personalWorkspace === undefined) {
       this.assistantAsk = { action: 'close', rect };

@@ -25,7 +25,7 @@
   const agents = $derived([...new Set(scope.history.map((r) => r.agentId))]);
   const runnerName = (id: string | undefined, remote?: boolean) => {
     const m = app.runners.find((x) => x.id === id);
-    return m ? (m.kind === 'local' ? 'this computer' : m.name) : remote ? (id ?? 'remote') : 'this computer';
+    return m ? app.runnerName(m) : remote ? (id ?? 'remote') : (app.remote ? 'controller' : 'this computer');
   };
 
   const rows = $derived(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eligibleRunners, executionAgents, onlyBusy } from './execution';
-import { normalizeRunner, normalizeRunners } from './runners';
+import { runnerLabel, normalizeRunner, normalizeRunners } from './runners';
 import type { Runner } from './types';
 
 // What the Go controller sends for a runner that has reported nothing: nil slices are `null`.
@@ -42,4 +42,14 @@ describe('runner helpers given null lists', () => {
     expect(executionAgents([], [bare], 'p')).toEqual([]);
     expect(onlyBusy([], [bare], 'p')).toBe(false);
   });
+});
+
+
+it('labels execution relative to the viewing computer', () => {
+  const home = {...bare, id: 'home', kind: 'local', name: 'Home desktop'} as unknown as Runner;
+  const laptop = {...bare, id: 'laptop', kind: 'remote', name: 'Work laptop'} as unknown as Runner;
+  expect(runnerLabel(home, false)).toBe('this computer');
+  expect(runnerLabel(home, true, 'laptop')).toBe('Home desktop (controller)');
+  expect(runnerLabel(laptop, true, 'laptop')).toBe('Work laptop (this computer)');
+  expect(runnerLabel(laptop, true)).toBe('Work laptop');
 });

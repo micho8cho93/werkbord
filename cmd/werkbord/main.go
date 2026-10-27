@@ -43,6 +43,7 @@ const usage = `usage: werkbord <command> [flags]
 
 commands:
   setup                 install the service, start Werkbord and open it (safe to run again)
+  device                 connect a desktop to a fixed controller (connect, local, start, stop, status)
   start | stop | restart  control the background controller
   status                what is running, and where
   open [--phone] [--qr] open the app; --phone/--qr shows the QR code that enrolls your phone
@@ -90,6 +91,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 	a := newApp(cfg, stdout, stderr)
 	ctx := context.Background()
 	switch args[0] {
+	case "device":
+		return a.cmdDevice(ctx, args[1:])
 	case "join":
 		return cmdJoin(cfg, args[1:], stdout, stderr)
 	case "runner":

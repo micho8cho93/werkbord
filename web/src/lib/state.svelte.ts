@@ -8,6 +8,9 @@
 // ProjectScope (see scope.svelte.ts), one per project visited, and is never
 // mixed with another's.
 
+import { phone } from './mobile/phone.svelte';
+import { isPhone } from './phones/capability';
+import { runnerLabel } from './runners';
 import { SvelteMap } from 'svelte/reactivity';
 import { ApiError, api, eventsURL } from './api';
 import { gitEvent } from './git/store.svelte';
@@ -109,6 +112,9 @@ function readDismissedUpdate(): string {
 }
 
 class AppState {
+  device = $state<{remote:boolean; controller?:string; runnerId?:string}>({remote:false});
+  remote = $derived(this.device.remote);
+  runnerName(r: Runner): string { return runnerLabel(r, this.remote, this.device.runnerId); }
   connection = $state<Connection>('connecting');
   lastSyncedAt = $state('');
   projects = $state<Project[]>([]);
@@ -246,9 +252,14 @@ class AppState {
 
   // ---- refreshing ----
 
+  async loadDevice(): Promise<void> {
+    if (typeof api.device === 'function' && !isPhone()) this.device = await api.device().catch(() => this.device);
+    phone.desktopClient = this.remote;
+  }
   async refresh(): Promise<boolean> {
     try {
       const sync = this.book.beginSync();
+      await this.loadDevice();
       const [projects, agents, overview, execution, onboarding, labels] = await Promise.all([
         api.listProjects(),
         api.listAgents(),
@@ -263,7 +274,8 @@ class AppState {
       this.overview = overview;
  this.runners=overview.runners??[];
       this.globalExecution = execution;
-      if (onboarding) this.onboarding = onboarding;
+      if (onboarding && !this.remote) this.onboarding = onboarding;
+      if (this.remote) this.onboarding = null;
       if (this.book.replace(sync, overview.questions.map((q) => q.question))) this.questions = this.book.pending;
       this.error = '';
       void this.checkUpdate();
@@ -317,6 +329,7 @@ class AppState {
 
   /** Asks the controller whether a newer release exists. Informational: a failure shows nothing. */
   async checkUpdate(refresh = false): Promise<void> {
+    if (this.remote) return;
     if (!refresh && Date.now() - this.updateCheckedAt < UPDATE_RECHECK_MS) return;
     this.updateCheckedAt = Date.now();
     try {
@@ -366,6 +379,7 @@ class AppState {
 
   /** Team tickets waiting for their repository. An older controller has no such list: then there are none. */
   private async loadWaiting(): Promise<WaitingItem[]> {
+    if (this.remote) return [];
     try {
       return (await api.waiting()).items ?? [];
     } catch {

@@ -106,6 +106,7 @@ type Manager struct {
 	live           map[string]*live // by run ID
 	locks          map[string]chan struct{}
 	scheduleCursor int
+	paused         bool
 	closing        bool
 	wg             sync.WaitGroup // in-flight starts and resumes
 }
@@ -683,7 +684,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 func (m *Manager) enter() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.closing {
+	if m.closing || m.paused {
 		return fmt.Errorf("%w: the controller is shutting down", domain.ErrConflict)
 	}
 	m.wg.Add(1)
@@ -868,3 +869,19 @@ func (m *Manager) recordSelection(run *domain.Run, choice *domain.SelectionDecis
 		m.log().Warn("record selection explanation", "run", run.ID, "err", err)
 	}
 }
+
+// PauseStarts fences new dispatch and waits for accepted starts to settle.
+func (m *Manager) PauseStarts(ctx context.Context) error {
+	m.mu.Lock()
+	m.paused = true
+	m.mu.Unlock()
+	done := make(chan struct{})
+	go func() { m.wg.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func (m *Manager) ResumeStarts() { m.mu.Lock(); m.paused = false; m.mu.Unlock() }

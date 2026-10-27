@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"werkbord/internal/device"
 	"werkbord/internal/domain"
 )
 
@@ -34,6 +35,11 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 		if journal.Phase != "ended" && journal.Phase != "resolved" {
 			return errors.New("update deferred: finish or resolve this runner's work first")
 		}
+	}
+	if mode, e := device.Load(cfg.DataDir); e != nil {
+		return e
+	} else if mode.Remote() {
+		return nil
 	}
 	if _, ok := l.Health(ctx, cfg.ControllerURL()); !ok {
 		return errors.New("update deferred: your own Werkbord cannot be checked")

@@ -17,7 +17,7 @@
   let el: HTMLIFrameElement | undefined = $state();
   let preparing = false;
   $effect(() => {
-    if (!model.assistantFrame && model.view?.items.some(i => i.id === 'personal' && i.state === 'ready') && !preparing) {
+    if (!model.remotePersonal && !model.assistantFrame && model.view?.items.some(i => i.id === 'personal' && i.state === 'ready') && !preparing) {
       preparing = true;
       void model.prepareAssistant().catch(() => {}).finally(() => { preparing = false; });
     }

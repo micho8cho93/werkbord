@@ -18,8 +18,9 @@ adoptTokenFromURL();
 // A phone that scanned its QR code is signed in before anything is asked of the controller.
 async function boot() {
   await enrollFromURL();
+  await app.loadDevice();
 
-  if (surface) {
+  if (surface && !app.remote) {
     // The assistant's own frame in the desktop window: the assistant over the whole window and nothing else, started by the window's
     // sidebar button. It needs the sign-in, the theme the person chose, and to know it is in the app (for its file dialog); the board,
     // its live updates and the service worker are the workspace page's business.
@@ -39,7 +40,7 @@ async function boot() {
     followShell();
     // A conversation this tab already had (a reload, a return) is picked up where it was; nothing starts until the person opens it.
     // (In the desktop window the assistant is the shell's own frame, not this page's.)
-    if (!embedded()) assistant.init();
+    if (!embedded() && !app.remote) assistant.init();
     mount(App, { target: document.getElementById('app')! });
   }
 }

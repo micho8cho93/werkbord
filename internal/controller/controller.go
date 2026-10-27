@@ -25,8 +25,10 @@ import (
 	"werkbord/internal/api"
 	"werkbord/internal/appops"
 	"werkbord/internal/assistant"
+	"werkbord/internal/clientaccess"
 	"werkbord/internal/config"
 	"werkbord/internal/connections"
+	"werkbord/internal/device"
 	"werkbord/internal/doctor"
 	"werkbord/internal/domain"
 	"werkbord/internal/events"
@@ -87,6 +89,11 @@ func New(cfg config.Config, log *slog.Logger, version string) *Controller {
 // database, reconcile state left by a previous process, then listen. On
 // error, everything started so far is torn down.
 func (c *Controller) Start(ctx context.Context) (err error) {
+	if mode, e := device.Load(c.cfg.DataDir); e != nil {
+		return e
+	} else if mode.Remote() {
+		return fmt.Errorf("this installation uses a remote controller; use werkbord device start or switch back with werkbord device local")
+	}
 	if err := c.cfg.Validate(); err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
@@ -346,8 +353,15 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("phone access: %w", err)
 	}
 	apiOpts.Phones, privateOpts.Phones = phones, phones
+	clients, err := clientaccess.Open(filepath.Join(c.cfg.DataDir, "clients.json"))
+	if err != nil {
+		return err
+	}
+	apiOpts.Clients = clients
+	apiOpts.PrepareDeviceSwitch, apiOpts.ResumeDeviceSwitch = c.prepareDeviceSwitch, c.resumeDeviceSwitch
 	privateHandler := &lateHandler{}
-	c.network = newNetworkControl(c.cfg, settings, runnerDoor(privateHandler), c.networkBackend, c.log)
+	clientHandler := &lateHandler{}
+	c.network = newNetworkControl(c.cfg, settings, deviceDoor(privateHandler, clientHandler), c.networkBackend, c.log)
 	apiOpts.Network, privateOpts.Network = c.network, c.network
 	nw := c.network // not c.network: that is cleared when the controller shuts down
 	env := doctor.Env{
@@ -370,6 +384,11 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	apiOpts.Update = checker.Status
 	privateOpts.Update = apiOpts.Update
 	privateHandler.set(api.New(privateOpts).Handler())
+	clientOpts := privateOpts
+	clientOpts.Clients, clientOpts.ClientListener = clients, true
+	clientOpts.Phones, clientOpts.LocalAccess, clientOpts.Personal, clientOpts.Terminals = nil, nil, nil, nil
+	clientOpts.Assistant, clientOpts.Memory, clientOpts.Connections, clientOpts.Web = nil, nil, nil, nil
+	clientHandler.set(api.New(clientOpts).Handler())
 	if c.relay, err = newRelayControl(c.cfg.Relay, c.cfg.DataDir, phones, privateHandler, c.log); err != nil {
 		return fmt.Errorf("relay: %w", err)
 	}
@@ -604,9 +623,9 @@ func choices(in []config.ModelChoice) []domain.AgentOption {
 	return out
 }
 
-// runnerDoor is all that is served on the private network (Tailscale): what a remote runner calls to join a controller
-// and to sync with it, each of which proves itself with a key of its own. The app and the rest of the API are not served
-// there, and phones do not use it: they come in through the relay.
+// runnerDoor is the runner portion of the private network (Tailscale): joining
+// and signed sync. deviceDoor dispatches desktop clients separately; the phone
+// relay retains its original handler. No runner key opens the client API.
 func runnerDoor(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -626,3 +645,55 @@ type lateHandler struct{ h http.Handler }
 func (l *lateHandler) set(h http.Handler) { l.h = h }
 
 func (l *lateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) { l.h.ServeHTTP(w, r) }
+
+// deviceDoor keeps signed runner traffic and scoped client traffic on separate
+// handlers. The relay retains its original handler and accepts no client grants.
+func deviceDoor(runners, clients http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/runner/join" || r.URL.Path == "/api/runner/sync" {
+			runnerDoor(runners).ServeHTTP(w, r)
+			return
+		}
+		clients.ServeHTTP(w, r)
+	})
+}
+
+func (c *Controller) resumeDeviceSwitch() {
+	c.runner.ResumeStarts()
+	if c.terminals != nil {
+		c.terminals.ResumeStarts()
+	}
+	if c.assistant != nil {
+		c.assistant.ResumeStarts()
+	}
+}
+func (c *Controller) prepareDeviceSwitch(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			c.resumeDeviceSwitch()
+		}
+	}()
+	if err = c.runner.PauseStarts(ctx); err != nil {
+		return err
+	}
+	if c.terminals != nil {
+		if err = c.terminals.PauseStarts(); err != nil {
+			return err
+		}
+	}
+	if c.assistant != nil {
+		if err = c.assistant.PauseStarts(); err != nil {
+			return err
+		}
+	}
+	return c.db.View(ctx, func(tx store.Tx) error {
+		active, e := tx.Runs().ListActive(ctx)
+		if e != nil {
+			return e
+		}
+		if len(active) > 0 {
+			return fmt.Errorf("%w: finish controller-owned runs before switching controller", domain.ErrConflict)
+		}
+		return nil
+	})
+}

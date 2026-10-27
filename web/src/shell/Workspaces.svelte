@@ -10,8 +10,9 @@
   const items = $derived((model.view?.items ?? []).filter((i) => i.state !== 'setup' || i.id === model.current));
   const entry = (i: Item) => overview?.entries.find((e) => e.workspace.id === i.id);
   const teamState = $derived(model.view?.team);
-  const roleName: Record<string, string> = { runner: 'Runner', workspace_host: 'Workspace Host', connectivity_host: 'Connectivity Host' };
+  const roleName: Record<string, string> = { control_client: 'Desktop control', runner: 'Runner', workspace_host: 'Workspace Host', connectivity_host: 'Connectivity Host' };
   const roleHelp: Record<string, string> = {
+    control_client: 'Controls the fixed controller workspace using a separate device grant.',
     runner: 'Runs your own agents with your own credentials.',
     workspace_host: 'Keeps this workspace’s shared data and coordinates it.',
     connectivity_host: 'Helps devices find and reach one another.',
@@ -55,7 +56,7 @@
       <li class="card" data-workspace={i.id} data-state={i.state}>
         <header>
           <h2>{i.name}</h2>
-          <span class="kind">{i.kind === 'personal' ? 'Personal · this computer' : i.role ? `Team · ${i.role}` : 'Team'}</span>
+          <span class="kind">{i.kind === 'personal' ? (model.remotePersonal ? 'Personal · connected controller' : 'Personal · this computer') : i.role ? `Team · ${i.role}` : 'Team'}</span>
         </header>
         <p class="standing" data-state={i.state}>{e ? standing(e) : i.detail || i.state}</p>
 

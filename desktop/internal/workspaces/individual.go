@@ -27,6 +27,8 @@ type Access struct {
 
 // Individual is the person's own Werkbord on this computer: the one workspace that is always there.
 type Individual struct {
+	DeviceRoles func() []string
+
 	// Access finds the controller as it is now (the app may have started it a moment ago, or the token may have been rotated).
 	Access func(ctx context.Context) (Access, error)
 	hc     *http.Client
@@ -41,8 +43,12 @@ func NewIndividual(access func(ctx context.Context) (Access, error)) *Individual
 func (p *Individual) Name() string { return "Werkbord" }
 
 func (p *Individual) entry(state workspace.State, detail string) workspace.Listed {
+	roles := []string{"runner"}
+	if p.DeviceRoles != nil {
+		roles = p.DeviceRoles()
+	}
 	return workspace.Listed{
-		Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Personal", State: state, Detail: detail, DeviceRoles: []string{"runner"}},
+		Entry: workspace.Entry{ID: workspace.IndividualID, Kind: workspace.KindIndividual, Name: "Personal", State: state, Detail: detail, DeviceRoles: roles},
 		Root:  "/", SummaryPath: "/api/workspace/v1/summary",
 	}
 }
@@ -107,6 +113,9 @@ func (p *Individual) Summary(ctx context.Context, l workspace.Listed) (workspace
 	}
 	defer body.Close()
 	s, _, err := workspace.Decode(body, l.Entry.ID)
+	if err == nil && p.DeviceRoles != nil {
+		s.Workspace.DeviceRoles = p.DeviceRoles()
+	}
 	return s, err
 }
 

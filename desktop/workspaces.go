@@ -13,6 +13,7 @@ import (
 	"werkbord/desktop/internal/shell"
 	"werkbord/desktop/internal/teamlink"
 	"werkbord/desktop/internal/workspaces"
+	"werkbord/internal/device"
 	"werkbord/internal/launcher"
 )
 
@@ -66,6 +67,24 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 		tok, _ := cfg.ResolveToken(false)
 		return workspaces.Access{Base: cfg.ControllerURL(), Token: tok}, nil
 	})
+	individual.DeviceRoles = func() []string {
+		cfg, err := l.Config(context.Background())
+		if err != nil {
+			return nil
+		}
+		mode, err := device.Load(cfg.DataDir)
+		if err != nil {
+			return nil
+		}
+		if !mode.Remote() {
+			return []string{"runner"}
+		}
+		roles := []string{"control_client"}
+		if mode.Runner {
+			roles = append(roles, "runner")
+		}
+		return roles
+	}
 	// Where Team's service is and where its credential for this person is can be pointed elsewhere for development and tests.
 	base, keyFile := teamlink.DefaultBase, teamlink.KeyFile(home)
 	if v := os.Getenv("WERKBORD_DESKTOP_TEAM_BASE"); v != "" {

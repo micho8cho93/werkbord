@@ -24,6 +24,7 @@ import (
 	"werkbord/internal/config"
 	"werkbord/internal/controller"
 	"werkbord/internal/daemon"
+	"werkbord/internal/device"
 	"werkbord/internal/domain"
 	"werkbord/internal/gitrepo"
 	"werkbord/internal/netprivate"
@@ -192,6 +193,11 @@ func cmdJoin(cfg config.Config, args []string, out, errOut io.Writer) error {
 }
 
 func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
+	if state, e := device.Load(cfg.DataDir); e != nil {
+		return e
+	} else if state.Remote() && len(args) > 0 && (args[0] == "serve" || args[0] == "start" || args[0] == "stop") {
+		return newApp(cfg, out, errOut).cmdDevice(context.Background(), args)
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("usage: werkbord runner <serve|start|stop|status|repo|resolve>")
 	}

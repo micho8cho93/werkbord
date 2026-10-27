@@ -53,7 +53,7 @@
       <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
     {/if}
-    <a
+    {#if !app.remote}<a
       class="btn icon gear"
       href={projectHref(project.id, 'defaults')}
       aria-label="Project settings: defaults for {project.name}"
@@ -61,7 +61,7 @@
       aria-current={router.view === 'defaults' ? 'page' : undefined}
     >
       <Icon name="defaults" />
-    </a>
+    </a>{/if}
     <button class="btn primary new" type="button" onclick={() => (app.newTaskOpen = true)} title="New task (N)">
       <Icon name="plus" /><span>New task</span>
     </button>
@@ -71,7 +71,7 @@
 <TabRow
   label="{project.name} sections"
   tabs={[
-    ...tabsFor(project.kind).map((t) => ({ id: t.id, label: t.label, href: projectHref(project.id, t.id), ...(t.id === 'git' ? { count: gitItems, countLabel: `${gitItems} Git items need attention` } : {}) })),
+    ...tabsFor(project.kind).filter(t => !app.remote || t.id !== 'git').map((t) => ({ id: t.id, label: t.label, href: projectHref(project.id, t.id), ...(t.id === 'git' ? { count: gitItems, countLabel: `${gitItems} Git items need attention` } : {}) })),
     ...(phone.on ? [{ id: 'defaults', label: 'Settings', href: projectHref(project.id, 'defaults') }] : []),
   ]}
   current={active}

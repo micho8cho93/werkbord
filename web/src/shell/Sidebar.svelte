@@ -74,7 +74,7 @@
   </button>
 
   <div class="top">
-  {#if sidebarSalie}
+  {#if sidebarSalie && !model.remotePersonal}
     <button bind:this={salieButton} class="nav salie-nav" type="button" title="Salie" aria-haspopup="dialog" aria-expanded={model.assistant.open} disabled={model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
       model.assistantButton = salieButton;
       const rect = salieButton?.getBoundingClientRect();
@@ -93,7 +93,7 @@
     {#each model.generatedFor('universal') as workspace (workspace.id)}
       {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
     {/each}
-    {@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}
+    {#if !model.remotePersonal}{@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}{/if}
     {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
   </div>
 
@@ -119,7 +119,7 @@
             <span class="sq" aria-hidden="true"></span><span class="label">{p.name}</span>
           </button><button class="move-project" type="button" title="Move {p.name}…" aria-label="Move {p.name}…" onclick={() => moving = {source: i.id, project: p.id, name: p.name}}><Icon name="right" size={14} /></button></div>
         {/each}
-        {#if kind === 'personal'}
+        {#if kind === 'personal' && !model.remotePersonal}
           <button class="nav proj add" type="button" onclick={() => model.goTo(i.id, '#/projects')} title="New personal project" data-page="add-project">
             <Icon name="plus" size={14} /><span class="label">New personal project</span>
           </button>
@@ -137,7 +137,7 @@
       <Icon name="plus" /><span class="label">New team or join…</span>
     </button>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
-    {@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}
+    {#if !model.remotePersonal}{@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}{/if}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
     <button class="plan" class:on={plan.premium} type="button" onclick={() => model.openSettings('general/plan')} data-testid="plan-chip" aria-label={plan.premium ? 'Plan: Premium' : 'Plan: Free. See Premium'}>
       <span class="label">{plan.premium ? 'Premium' : 'Free plan'}</span><span class="pill"><span class="full">{plan.premium ? 'Active' : 'Upgrade'}</span><span class="short">Free</span></span>

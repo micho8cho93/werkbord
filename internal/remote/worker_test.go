@@ -213,9 +213,10 @@ func TestWorkerReconnectAndControllerRestartNeverLaunchDuplicate(t *testing.T) {
 		t.Fatal("terminal ownership not durable")
 	}
 }
-func TestWorkerLeaseExpiryStopsProcessAndReportsWhenNetworkReturns(t *testing.T) {
+func TestLegacyWorkerLeaseExpiryStopsProcessAndReportsWhenNetworkReturns(t *testing.T) {
 	e := workerFixture(t)
 	run := e.start()
+	e.worker.Identity.OfflineContinuation = false // old controller did not negotiate continuation
 	e.clock.Add(int64((runnerwire.Lease + time.Second) / time.Millisecond))
 	e.handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
 	if err := e.worker.Tick(testCtx); err == nil {
@@ -354,5 +355,80 @@ func TestRunnerCrashJournalNeverRelaunchesUncertainJob(t *testing.T) {
 	json.Unmarshal(raw, &saved)
 	if saved.Phase != "ended" {
 		t.Fatal("journal not durable")
+	}
+}
+
+func TestOfflineContinuationSurvivesPartitionAndReconcilesWithoutRelaunch(t *testing.T) {
+	e := workerFixture(t)
+	first := e.start()
+	second := e.start()
+	if !e.worker.Identity.OfflineContinuation {
+		t.Fatal("continuation not negotiated")
+	}
+	e.clock.Add(int64((10 * time.Minute) / time.Millisecond))
+	e.handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
+	if err := e.worker.Tick(testCtx); err == nil {
+		t.Fatal("partition hidden")
+	}
+	for _, s := range e.fake.Sessions() {
+		if s.StopRequested() {
+			t.Fatal("partition killed execution")
+		}
+		s.Assistant("progress while disconnected")
+	}
+	waitPending(t, e.worker, first.ID, "event")
+	waitPending(t, e.worker, second.ID, "event")
+	if _, err := e.runs.RecoverAfterRestart(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.Revoke(testCtx, e.runner.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Add(int64(time.Hour / time.Millisecond))
+	if err := e.svc.ReleaseRevoked(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	for _, run := range []*domain.Run{first, second} {
+		got, err := e.runs.Get(testCtx, run.ID)
+		if err != nil || got.State.Terminal() {
+			t.Fatal("timeout released uncertain execution", got, err)
+		}
+	}
+	// Explicit local confirmation, after revocation, is required to release it.
+	if err := e.svc.ResolveRevoked(testCtx, e.runner.ID, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := e.runs.Get(testCtx, first.ID)
+	if !got.State.Terminal() {
+		t.Fatal("confirmed recovery did not release reservation")
+	}
+	if len(e.fake.Sessions()) != 2 {
+		t.Fatal("duplicate execution")
+	}
+}
+
+func TestOfflineOutputAndCompletionReplayAfterControllerRestart(t *testing.T) {
+	e := workerFixture(t)
+	run := e.start()
+	e.clock.Add(int64((5 * time.Minute) / time.Millisecond))
+	e.handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(503) }))
+	_ = e.worker.Tick(testCtx)
+	e.fake.Last().Assistant("offline output")
+	e.fake.Last().Exit(0, "")
+	waitPending(t, e.worker, run.ID, "ended")
+	restarted := &service.Runners{Deps: e.svc.Deps, Runs: e.runs}
+	e.handler.Store(api.New(api.Options{Store: e.db, Distributed: restarted, AuthRequired: true, Token: "owner"}).Handler())
+	if err := e.worker.Tick(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.runs.Get(testCtx, run.ID)
+	if err != nil || got.State != domain.RunCompleted {
+		t.Fatal(got, err)
+	}
+	if err := e.worker.Tick(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.fake.Sessions()) != 1 {
+		t.Fatal("completion replay duplicated execution")
 	}
 }

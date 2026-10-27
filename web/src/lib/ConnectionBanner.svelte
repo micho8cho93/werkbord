@@ -3,6 +3,11 @@
   import { timeAgo } from './format';
 </script>
 
+{#if app.remote}
+  <div class="connection-note" role="status" data-testid="controller-location">
+    <div><strong>Connected controller</strong><p>{app.device.controller} · {app.device.runnerId ? 'This computer also runs agents.' : 'Desktop control only.'} Each run shows its execution machine.</p></div>
+  </div>
+{/if}
 {#if app.connection !== 'live' && app.connection !== 'unauthorized'}
   <div class="connection-note" role="status" data-testid="connection-status">
     <div>

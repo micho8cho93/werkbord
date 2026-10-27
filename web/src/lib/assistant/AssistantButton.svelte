@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { app } from '../state.svelte';
   import Icon from '../Icon.svelte';
   import { assistant } from './sessions.svelte';
   import { originOf } from './transition';
@@ -16,6 +17,7 @@
   }
 </script>
 
+{#if !app.remote}
 <button bind:this={el} class="ab {variant}" type="button" aria-haspopup="dialog" aria-expanded={assistant.isOpen} aria-label={label} title="Salie" onclick={press} data-testid="assistant-button">
   <span class="ico"><Icon name="assistant" /></span>
   {#if variant !== 'icon'}<span class="text">Salie</span>{/if}
@@ -25,6 +27,7 @@
     <span class="live" aria-hidden="true"></span>
   {/if}
 </button>
+{/if}
 {#if waiting && !assistant.isOpen}<button class="btn small bubble" onclick={() => assistant.compact = !assistant.compact}>Needs attention · {waiting}</button>{/if}
 
 <style>

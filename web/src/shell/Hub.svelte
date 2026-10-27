@@ -46,7 +46,7 @@
     {/if}
   </header>
 
-  <div class="places-heading"><h2>Places</h2><button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button></div>
+  <div class="places-heading"><h2>Places</h2>{#if !model.remotePersonal}<button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button>{/if}</div>
   <ul class="shelf" aria-label="Places to go">
     {#each places as i (i.id)}
       <li>
@@ -65,12 +65,12 @@
         </button>
       </li>
     {/each}
-    <li>
+    {#if !model.remotePersonal}<li>
       <button class="tile" type="button" data-kind="library" onclick={() => model.go('personal-library')} data-testid="hub-library">
         <span class="gi"><Icon name="database" size={18} /></span>
         <span class="tx"><strong>Data library</strong><small>Collections your workspaces share</small></span>
       </button>
-    </li>
+    </li>{/if}
   </ul>
 
   {#if model.generatedError}<p class="error" role="status">Saved workspaces are unavailable. {model.generatedError} <button class="btn small quiet" type="button" onclick={() => model.refreshGenerated()}>Retry saved workspaces</button></p>{/if}

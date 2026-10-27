@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"werkbord/internal/clientpolicy"
 	"werkbord/internal/domain"
 	"werkbord/internal/store"
 )
@@ -38,7 +39,12 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 
 	credential := s.currentToken()
-	credentialValid := func() bool { return !s.opt.AuthRequired || credential == s.currentToken() && credential != "" }
+	credentialValid := func() bool {
+		if clientRequest(r) {
+			return ctx.Err() == nil
+		}
+		return !s.opt.AuthRequired || credential == s.currentToken() && credential != ""
+	}
 	project := r.URL.Query().Get("project")
 	if project != "" {
 		if _, err := s.opt.Projects.Get(ctx, project); err != nil {
@@ -49,6 +55,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	write := func(e domain.Event) error {
 		if !credentialValid() {
 			return fmt.Errorf("credential replaced")
+		}
+		if clientRequest(r) && !clientpolicy.EventAllowed(e) {
+			return nil
 		}
 		if project != "" && e.ProjectID != project {
 			return nil

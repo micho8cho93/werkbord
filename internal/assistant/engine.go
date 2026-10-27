@@ -92,6 +92,7 @@ type Engine struct {
 	wg         sync.WaitGroup
 
 	mu        sync.Mutex
+	paused    bool
 	runs      map[string]*activeTurn
 	hubs      map[string]*hub
 	wrequests workspaceRequests
@@ -627,7 +628,7 @@ func (e *Engine) SendMessageWithPersonalContext(ctx context.Context, sessionID, 
 	}
 
 	e.mu.Lock()
-	if e.base.Err() != nil {
+	if e.base.Err() != nil || e.paused {
 		e.mu.Unlock()
 		return "", fmt.Errorf("%w: the controller is shutting down", domain.ErrConflict)
 	}
@@ -900,3 +901,15 @@ func (e *Engine) Audit(ctx context.Context, sessionID string, before int64, limi
 func (e *Engine) VerifyAudit(ctx context.Context) (appops.AuditReport, error) {
 	return e.ops.VerifyAudit(ctx)
 }
+
+// PauseStarts refuses a switch while Salie has an active turn.
+func (e *Engine) PauseStarts() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.runs) > 0 {
+		return fmt.Errorf("%w: wait for Salie before switching controller", domain.ErrConflict)
+	}
+	e.paused = true
+	return nil
+}
+func (e *Engine) ResumeStarts() { e.mu.Lock(); e.paused = false; e.mu.Unlock() }

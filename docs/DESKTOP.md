@@ -292,7 +292,7 @@ number are each refused, and the app and the controller stay as they were (`scri
 (authenticated, read-only update safety), `GET /api/projects` (does it accept this computer's token), and
 `GET /api/assistant/sessions/{id}/workspace-requests/{request}` (authenticated; checks that a Team task's stored proposal is still
 live before the desktop bridge creates it). The shell also shares the files `token` and `config.json` in the data directory, and the commands
-`version`, `start`, `setup`, `update` and `install-release` of the installed program. Nothing else: the launcher's source is
+`version`, `start`, `setup`, `update` and `install-release` of the installed program. When remote controller mode has explicitly been selected, it additionally uses `device start` and authenticated `GET /api/device` on the local gateway. This identifies the selected controller without requiring that controller to be online; the launcher never starts a local controller as a fallback. See [MULTI_DEVICE.md](MULTI_DEVICE.md). Nothing else: the launcher's source is
 checked against that list by a test (`TestTheLauncherAsksTheControllerForOnlyTheseThings`), and the shell may not touch the
 network or the controller except through the launcher. What a page may ask of the shell is the other short list
 ([above](#what-a-page-may-ask-of-the-app)); `Info` gained one optional field (`updater`) that older pages ignore. A newer shell

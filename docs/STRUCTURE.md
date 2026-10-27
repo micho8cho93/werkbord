@@ -289,7 +289,7 @@ from, which is what these checks inspect.
 - **Something both need**: make it a shared package with no product behaviour; add it to `teamAllowed` in
   `internal/archtest/boundary_test.go`; migrate the controller onto it if it already had a copy.
 
-Every implementation commit bumps the one version and tags it: [VERSIONING.md](VERSIONING.md) and [AGENTS.md](../AGENTS.md).
+Ordinary implementation commits do not bump versions or create tags. Release preparation follows [VERSIONING.md](VERSIONING.md) and [AGENTS.md](../AGENTS.md).
 
 ## Moving between Personal and Team
 

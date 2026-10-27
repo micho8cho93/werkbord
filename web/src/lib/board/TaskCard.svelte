@@ -65,7 +65,7 @@
   const status: CardStatus = $derived(
     cardStatus(task, run, {
       now: app.now,
-      runnerName: app.runners.length > 1 && runner ? (runner.kind === 'local' ? 'this computer' : runner.name) : undefined,
+      runnerName: (app.remote || app.runners.length > 1) && runner ? app.runnerName(runner) : undefined,
       questions,
       decision,
       waitingFor,

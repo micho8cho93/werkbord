@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"werkbord/internal/controller"
+	"werkbord/internal/device"
 	"werkbord/internal/service"
 	"werkbord/internal/store/sqlite"
 )
@@ -30,6 +31,11 @@ func interruptionFlags(name string, args []string, out io.Writer) (bool, error) 
 	return *force, nil
 }
 func (a *app) checkInterruption(ctx context.Context, force bool) error {
+	if mode, err := device.Load(a.cfg.DataDir); err != nil {
+		return err
+	} else if mode.Remote() {
+		return fmt.Errorf("switch safely with werkbord device local before updating or restoring this installation")
+	}
 	if force {
 		return nil
 	}

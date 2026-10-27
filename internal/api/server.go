@@ -11,6 +11,7 @@ import (
 
 	"werkbord/internal/agent"
 	"werkbord/internal/assistant"
+	"werkbord/internal/clientaccess"
 	"werkbord/internal/connections"
 	"werkbord/internal/doctor"
 	"werkbord/internal/events"
@@ -27,6 +28,12 @@ import (
 
 // Options configures a Server.
 type Options struct {
+	PrepareDeviceSwitch func(context.Context) error
+	ResumeDeviceSwitch  func()
+
+	Clients        *clientaccess.Store
+	ClientListener bool // dedicated tsnet client door, never the phone relay
+
 	Terminals   *terminal.Manager // local owner only; never copied to network listeners
 	Personal    *service.Personal // owner-only loopback persistence; nil on network listeners
 	Distributed *service.Runners
@@ -124,7 +131,14 @@ func New(opt Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.personalRoutes(mux)
+	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]bool{"remote": false}) })
+	mux.HandleFunc("POST /api/device/switch/prepare", s.handleDeviceSwitch)
+	mux.HandleFunc("POST /api/device/switch/resume", s.handleDeviceSwitch)
 	s.terminalRoutes(mux)
+	mux.HandleFunc("GET /api/clients", s.handleClients)
+	mux.HandleFunc("POST /api/clients/codes", s.handleClients)
+	mux.HandleFunc("DELETE /api/clients/{id}", s.handleClients)
+	mux.HandleFunc("POST /api/runners/{id}/runs/{run}/resolve", s.handleResolveRevokedRunner)
 
 	// Everything that belongs to a project is reached through that project: the
 	// project in the path is checked against the thing asked for, and a mismatch

@@ -46,7 +46,7 @@
     finally { busy = ''; }
   }
   async function revoke(r: Runner) {
-    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Active capacity is released after 120 seconds. Inspect any work on that machine before running the task again.`)) return;
+    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Offline-capable runs remain reserved until you verify execution has stopped. Inspect that machine before resolving ownership.`)) return;
     busy = r.id;
     try { await api.revokeRunner(r.id); await refresh(); }
     catch (e) { error = e instanceof Error ? e.message : String(e); }
@@ -66,7 +66,7 @@
 </script>
 
 <section class="pn runners" aria-labelledby="runners-title">
-  <div class="heading"><div><h3 id="runners-title">Runners</h3><p class="muted">Your machines. Each uses its own Git and agent sign-ins.</p></div>{#if !isPhone()}<button class="btn" onclick={() => (adding = !adding)}>{adding ? 'Close pairing' : 'Add runner'}</button>{/if}</div>
+  <div class="heading"><div><h3 id="runners-title">Runners</h3><p class="muted">Your machines. Each uses its own Git and agent sign-ins.</p></div>{#if !isPhone() && !app.remote}<button class="btn" onclick={() => (adding = !adding)}>{adding ? 'Close pairing' : 'Add runner'}</button>{/if}</div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if adding}
     <div class="pairing">
@@ -90,8 +90,8 @@
   {#each runners as r (r.id)}
     <div class="runner">
       <div class="heading"><strong>{r.name}</strong><span class="state" data-online={app.connection === 'live' && r.online && !r.disabled}>{runnerConnection(r, app.connection === 'live')}</span></div>
-      <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Werkbord computer' : ''}</p>
-      {#if !isPhone()}
+      <p class="muted">{r.os}/{r.arch} · {(r.capabilities?.agents ?? []).filter(a=>a.available).map(a=>a.name).join(', ') || 'No available agents'}{r.kind === 'local' ? ' · Controller' : r.capabilities?.offlineContinuation ? ' · Continues running offline' : ' · Stops after a lost controller lease'}</p>
+      {#if !isPhone() && !app.remote}
       <details ontoggle={e=>{expanded=e.currentTarget.open?[...expanded.filter(id=>id!==r.id),r.id]:expanded.filter(id=>id!==r.id)}}>
         <summary>Manage and inspect {r.name}</summary>
         <div class="controls">

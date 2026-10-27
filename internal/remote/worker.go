@@ -25,14 +25,15 @@ import (
 )
 
 type Identity struct {
-	Controller         string   `json:"controller"`
-	RunnerID           string   `json:"runnerId"`
-	PrivateKey         []byte   `json:"privateKey"`
-	Sequence           int64    `json:"sequence"`
-	RequiresRecovery   bool     `json:"requiresRecovery,omitempty"`
-	ControllerSequence int64    `json:"controllerSequence,omitempty"`
-	Projects           []string `json:"projects"`
-	AllowClone         bool     `json:"allowClone"`
+	OfflineContinuation bool     `json:"offlineContinuation,omitempty"`
+	Controller          string   `json:"controller"`
+	RunnerID            string   `json:"runnerId"`
+	PrivateKey          []byte   `json:"privateKey"`
+	Sequence            int64    `json:"sequence"`
+	RequiresRecovery    bool     `json:"requiresRecovery,omitempty"`
+	ControllerSequence  int64    `json:"controllerSequence,omitempty"`
+	Projects            []string `json:"projects"`
+	AllowClone          bool     `json:"allowClone"`
 }
 type Record struct {
 	Diagnostic     string                   `json:"diagnostic,omitempty"`
@@ -65,6 +66,7 @@ type Worker struct {
 	records         map[string]*Record
 	sessions        map[string]agent.Session
 	lease           time.Time
+	paused          bool
 	disabled        bool
 	stopKind        map[string]string
 	workspaceCursor int
@@ -158,6 +160,7 @@ func (w *Worker) capabilities(ctx context.Context) domain.RunnerCapabilities {
 	} else {
 		c = machine.Capabilities(ctx, w.Agents, w.Dir)
 	}
+	c.OfflineContinuation = true
 	c.Repositories = []string{}
 	for id, path := range w.Bindings {
 		if _, e := os.Stat(path); e == nil {
@@ -288,7 +291,7 @@ func (w *Worker) Tick(ctx context.Context) error {
 	}
 	if e != nil {
 		_ = AtomicJSON(filepath.Join(w.Dir, "last-error.json"), map[string]any{"at": w.now(), "error": e.Error()})
-		if !w.lease.IsZero() && !w.now().Before(w.lease) {
+		if !w.Identity.OfflineContinuation && !w.lease.IsZero() && !w.now().Before(w.lease) {
 			for id, sess := range w.sessions {
 				w.stopKind[id] = "lease expired"
 				go sess.Stop(context.Background())
@@ -298,6 +301,7 @@ func (w *Worker) Tick(ctx context.Context) error {
 	}
 	_ = os.Remove(filepath.Join(w.Dir, "last-error.json"))
 	w.lease = w.now().Add(time.Duration(reply.LeaseSeconds) * time.Second)
+	w.Identity.OfflineContinuation = reply.OfflineContinuation
 	w.Identity.ControllerSequence = reply.Sequence
 	if e := AtomicJSON(filepath.Join(w.Dir, "identity.json"), w.Identity); e != nil {
 		return e
@@ -374,7 +378,7 @@ func (w *Worker) Tick(ctx context.Context) error {
 			}
 			continue
 		}
-		if r.Phase == "accepted" && j.Ack > 0 {
+		if r.Phase == "accepted" && j.Ack > 0 && !w.paused {
 			r.Phase = "ready"
 			if e := w.save(r); e != nil {
 				return e
@@ -664,3 +668,19 @@ func (w *Worker) quarantineLocked(id, reason string) {
 		go sess.Stop(context.Background())
 	}
 }
+
+// PauseStarts atomically refuses capability changes while execution is owned.
+// Already-finished journals remain available for controller reconciliation.
+func (w *Worker) PauseStarts() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for _, r := range w.records {
+		if r.Phase != "ended" && r.Phase != "resolved" {
+			return fmt.Errorf("finish or resolve runner work before switching this device")
+		}
+	}
+	w.paused = true
+	return nil
+}
+
+func (w *Worker) ResumeStarts() { w.mu.Lock(); w.paused = false; w.mu.Unlock() }

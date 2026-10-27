@@ -73,7 +73,7 @@
 
 <div class="layout">
   <section class="pn">
-    <a class="btn" href="#/settings?history">Project history</a>
+    {#if !app.remote}<a class="btn" href="#/settings?history">Project history</a>{/if}
     <div class="ph">Projects<span class="chip">{app.projects.length}</span></div>
     {#if app.projects.length}
       <ul class="list">
@@ -95,11 +95,11 @@
         {/each}
       </ul>
     {:else}
-      <p class="muted">No projects yet. Register a local Git repository to get a board, a calendar and its Git, or start a work project for anything that is not code.</p>
+      <p class="muted">{#if app.remote}No projects yet. Add projects on the controller, then refresh this workspace.{:else}No projects yet. Register a local Git repository to get a board, a calendar and its Git, or start a work project for anything that is not code.{/if}</p>
     {/if}
   </section>
 
-  {#if !isPhone()}
+  {#if !isPhone() && !app.remote}
   <section class="pn register" id="add-project">
     <h3>Add a project</h3>
     <div class="seg" role="group" aria-label="Project source">

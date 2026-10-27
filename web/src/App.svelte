@@ -4,6 +4,7 @@
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
   import Settling from './lib/Settling.svelte';
+  import RunnersPanel from './lib/RunnersPanel.svelte';
   import PendingInteraction from './lib/assistant/PendingInteraction.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
   import AssistantButton from './lib/assistant/AssistantButton.svelte';
@@ -241,7 +242,11 @@
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
         {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
-        {#if router.view === 'personal'}
+        {#if app.remote && ['git', 'defaults', 'onboarding', 'personal'].includes(router.view)}
+          <div class="empty"><p>This desktop can control tasks and managed runs.</p><p>Git, terminals, private workspaces and controller settings are managed on the controller.</p></div>
+        {:else if app.remote && router.view === 'settings'}
+          <div class="page"><RunnersPanel /></div>
+        {:else if router.view === 'personal'}
           {#key router.query}<PersonalWorkspace id={new URLSearchParams(router.query).get('id') ?? ''} />{/key}
         {:else if router.view === 'deck'}
           {#if deck}<Deck />{/if}

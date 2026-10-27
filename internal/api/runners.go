@@ -166,5 +166,27 @@ func (s *Server) handleRevokeRunner(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]string{"status": "revoked", "message": "Identity fenced immediately; active ownership released after 120 seconds. Work remains unverified."})
+	writeJSON(w, 200, map[string]string{"status": "revoked", "message": "Identity fenced immediately. Offline-capable work remains reserved until you verify execution has stopped."})
+}
+
+func (s *Server) handleResolveRevokedRunner(w http.ResponseWriter, r *http.Request) {
+	if !s.clientManagementReady(w, r) {
+		return
+	}
+	var in struct {
+		ConfirmStopped bool `json:"confirmStopped"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if !in.ConfirmStopped || s.opt.Distributed == nil {
+		s.fail(w, r, domain.ErrInvalid)
+		return
+	}
+	if err := s.opt.Distributed.ResolveRevoked(r.Context(), r.PathValue("id"), r.PathValue("run")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"resolved": true})
 }

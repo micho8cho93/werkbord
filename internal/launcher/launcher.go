@@ -44,6 +44,7 @@ import (
 
 	"werkbord/internal/config"
 	"werkbord/internal/daemon"
+	"werkbord/internal/device"
 	"werkbord/internal/update"
 )
 
@@ -107,7 +108,8 @@ type Options struct {
 	Run       Runner
 	ShellPATH func(ctx context.Context) string
 	// Describe reads the installed service's definition (default: launchd's).
-	Describe func(ctx context.Context) (daemon.Definition, bool)
+	Describe       func(ctx context.Context) (daemon.Definition, bool)
+	DescribeRunner func(ctx context.Context) (daemon.Definition, bool)
 	// ServiceInstalled says whether a login service is installed for this data directory.
 	ServiceInstalled func(ctx context.Context, dataDir string) bool
 	// HTTP is the client for the controller (default: a short timeout).
@@ -159,6 +161,11 @@ func New(opt Options) *Launcher {
 			return daemon.Describe(ctx, daemon.Options{Home: opt.Home})
 		}
 	}
+	if opt.DescribeRunner == nil {
+		opt.DescribeRunner = func(ctx context.Context) (daemon.Definition, bool) {
+			return daemon.Describe(ctx, daemon.Options{Home: opt.Home, Label: daemon.RunnerLabel})
+		}
+	}
 	if opt.ServiceInstalled == nil {
 		opt.ServiceInstalled = func(ctx context.Context, dataDir string) bool {
 			_, ok := daemon.Installed(ctx, daemon.Options{Home: opt.Home, DataDir: dataDir})
@@ -186,6 +193,8 @@ func (l *Launcher) Config(ctx context.Context) (config.Config, error) {
 	dir := l.opt.DataDir
 	if dir == "" && config.Getenv("DATA_DIR") == "" {
 		if def, ok := l.opt.Describe(ctx); ok && def.DataDir != "" {
+			dir = def.DataDir
+		} else if def, ok := l.opt.DescribeRunner(ctx); ok && def.DataDir != "" {
 			dir = def.DataDir
 		}
 	}
@@ -333,6 +342,51 @@ func (l *Launcher) Connect(ctx context.Context, report func(Step)) (Connection, 
 	cfg, err := l.Config(ctx)
 	if err != nil {
 		return Connection{}, fmt.Errorf("Werkbord's settings could not be read: %w", err)
+	}
+	state, err := device.Load(cfg.DataDir)
+	if err != nil {
+		return Connection{}, err
+	}
+	if state.Remote() {
+		if state.Mode != "remote" {
+			return Connection{}, errors.New("controller switch needs recovery: use werkbord device connect or werkbord device local")
+		}
+		inst := l.FindInstall(ctx)
+		l.install = inst
+		if inst.Path == "" {
+			return Connection{}, errors.New("Werkbord device runtime is not installed")
+		}
+		if _, ok := l.Health(ctx, cfg.ControllerURL()); !ok {
+			say(PhaseStarting, "Starting desktop control…")
+			if out, e := l.opt.Run(ctx, l.childEnv(ctx, cfg), inst.Path, "device", "start"); e != nil {
+				return Connection{}, fmt.Errorf("start device runtime: %s: %w", out, e)
+			}
+			if _, e := l.waitHealthy(ctx, cfg.ControllerURL()); e != nil {
+				return Connection{}, e
+			}
+		}
+		tok, e := cfg.ResolveToken(false)
+		if e != nil {
+			return Connection{}, e
+		}
+		req, e := http.NewRequestWithContext(ctx, "GET", cfg.ControllerURL()+"/api/device", nil)
+		if e != nil {
+			return Connection{}, e
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+		response, e := l.opt.HTTP.Do(req)
+		if e != nil {
+			return Connection{}, e
+		}
+		defer response.Body.Close()
+		var local struct {
+			Remote     bool
+			Controller string
+		}
+		if response.StatusCode != 200 || json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&local) != nil || !local.Remote || local.Controller != state.Controller {
+			return Connection{}, ErrAuth
+		}
+		return connection(cfg, l.opt.Version, "")
 	}
 	inst := l.FindInstall(ctx)
 	l.install = inst

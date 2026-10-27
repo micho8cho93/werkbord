@@ -79,6 +79,7 @@ type Manager struct {
 	mu       sync.Mutex
 	opt      Options
 	sessions map[string]*session
+	paused   bool
 	closed   bool
 	readers  chan struct{}
 	now      func() time.Time
@@ -240,7 +241,7 @@ func (m *Manager) Create(ctx context.Context, projectID, agentID, device string,
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.closed {
+	if m.closed || m.paused {
 		return Metadata{}, domain.ErrConflict
 	}
 	count := 0
@@ -639,3 +640,17 @@ func (m *Manager) InputOnce(project, id, client string, sequence uint64, data []
 		return domain.ErrConflict
 	}
 }
+
+// PauseStarts refuses a controller switch while any native terminal is running.
+func (m *Manager) PauseStarts() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.sessions {
+		if s.State == "running" {
+			return fmt.Errorf("%w: finish native terminals before switching controller", domain.ErrConflict)
+		}
+	}
+	m.paused = true
+	return nil
+}
+func (m *Manager) ResumeStarts() { m.mu.Lock(); m.paused = false; m.mu.Unlock() }

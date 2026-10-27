@@ -67,7 +67,7 @@
 <!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
 <div class="shell" inert={model.assistantShown}>
   <Sidebar />
-  {#if salie.placements[model.universal ? 'universal' : 'workspace'] !== 'sidebar'}<FloatingSalie />{/if}
+  {#if !model.remotePersonal && salie.placements[model.universal ? 'universal' : 'workspace'] !== 'sidebar'}<FloatingSalie />{/if}
   <div class="content">
     {#if model.error}
       <div class="message error" role="alert">{model.error}<button class="btn" type="button" onclick={() => (model.error = '')}>Dismiss</button></div>

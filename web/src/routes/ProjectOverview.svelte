@@ -20,7 +20,7 @@
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
   const git = $derived(gitStore(project.id));
-  $effect(() => git.watch());
+  $effect(() => { if (!app.remote) return git.watch(); });
 
   const items = $derived(attentionItems(app.overview, app.questions, { project: project.id }, app.runners));
   const attentionCurrent = $derived(app.connection === 'live' && !!app.overview && scope.loaded && !scope.history.some(r => runReportStale(r, true, app.runners)));
@@ -32,7 +32,7 @@
   const findings = $derived(splitFindings(health).needs);
   const runnerName = (r: Run) => {
     const m = app.runners.find((x) => x.id === r.runnerId);
-    return m ? (m.kind === 'local' ? 'this computer' : m.name) : r.remote ? (r.runnerId ?? 'remote') : 'this computer';
+    return m ? app.runnerName(m) : r.remote ? (r.runnerId ?? 'remote') : (app.remote ? 'controller' : 'this computer');
   };
 
   /** What happened lately, from the runs themselves: started, asked, finished. */
@@ -107,7 +107,7 @@
   </div>
 
   <aside class="pane" aria-label="Project">
-    <section class="pn">
+    {#if !app.remote}<section class="pn">
       <div class="ph">Git{#if project.repository?.currentBranch}<span class="chip">{project.repository.currentBranch}</span>{/if}<a class="end small" href={projectHref(project.id, 'git')}>Open →</a></div>
       {#if health}
         <p class="big"><span class="dot" data-tone={headlineTone(health)}></span>{health.summary.headline}</p>
@@ -125,8 +125,9 @@
       {/if}
     </section>
 
+    {/if}
     <section class="pn">
-      <div class="ph">Agents</div>
+      <div class="ph">Agents on the controller</div>
       {#each app.agents as a (a.id)}
         <div class="agent">
           <span class="dot" data-tone={a.available ? 'ok' : 'bad'}></span>
@@ -135,7 +136,7 @@
           <span class="mm end">{agentRuns(a.id)} active</span>
         </div>
       {:else}
-        <p class="muted small">No agents found on this computer.</p>
+        <p class="muted small">No agents found on the controller.</p>
       {/each}
     </section>
 

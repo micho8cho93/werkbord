@@ -136,7 +136,7 @@
     <select id="{idPrefix}-runner" class="select" {disabled} value={value.runner ?? ''} onchange={e=>set({runner:e.currentTarget.value})}>
       <option value="">{hasBelow ? 'Use inherited defaults' : 'Automatic'}</option>
       {#if hasBelow}<option value="automatic">Automatic</option>{/if}
-      {#each app.runners as r (r.id)}<option value={r.id}>{r.name} · {r.disabled ? 'Disabled' : app.connection !== 'live' ? 'Connection unknown' : r.online ? 'Connected' : 'Disconnected'}</option>{/each}
+      {#each app.runners as r (r.id)}<option value={r.id}>{app.runnerName(r)} · {r.disabled ? 'Disabled' : app.connection !== 'live' ? 'Connection unknown' : r.online ? 'Connected' : 'Disconnected'}</option>{/each}
       {#if value.runner && value.runner !== 'automatic' && !app.runners.some(r=>r.id===value.runner)}<option value={value.runner}>Unavailable runner ({value.runner})</option>{/if}
     </select>
     <p class="hint">A specific runner keeps the task queued when unavailable. Automatic uses eligible machines with automatic routing enabled.</p>

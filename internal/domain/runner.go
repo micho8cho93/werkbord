@@ -41,15 +41,16 @@ type Runner struct {
 }
 
 type RunnerCapabilities struct {
-	CloneEnabled      bool           `json:"cloneEnabled"`
-	CPU               int            `json:"cpu"`
-	RAMBytes          *int64         `json:"ramBytes,omitempty"`
-	AvailableRAMBytes *int64         `json:"availableRamBytes,omitempty"`
-	StorageBytes      *int64         `json:"storageBytes,omitempty"`
-	Agents            []Agent        `json:"agents"`
-	Options           []AgentOptions `json:"options"`
-	Repositories      []string       `json:"repositories"`
-	Diagnostics       string         `json:"diagnostics,omitempty"`
+	OfflineContinuation bool           `json:"offlineContinuation,omitempty"`
+	CloneEnabled        bool           `json:"cloneEnabled"`
+	CPU                 int            `json:"cpu"`
+	RAMBytes            *int64         `json:"ramBytes,omitempty"`
+	AvailableRAMBytes   *int64         `json:"availableRamBytes,omitempty"`
+	StorageBytes        *int64         `json:"storageBytes,omitempty"`
+	Agents              []Agent        `json:"agents"`
+	Options             []AgentOptions `json:"options"`
+	Repositories        []string       `json:"repositories"`
+	Diagnostics         string         `json:"diagnostics,omitempty"`
 }
 
 // Settings keys. Each value is one small JSON document.

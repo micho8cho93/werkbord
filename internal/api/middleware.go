@@ -50,6 +50,9 @@ func (s *Server) checkOrigin(next http.Handler) http.Handler {
 }
 
 func (s *Server) authenticate(next http.Handler) http.Handler {
+	if s.opt.ClientListener {
+		return s.clientAuthenticate(next)
+	}
 	if !s.opt.AuthRequired {
 		return next
 	}

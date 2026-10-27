@@ -18,6 +18,7 @@ import (
 	"werkbord/internal/agent/fake"
 	"werkbord/internal/api"
 	"werkbord/internal/appops"
+	"werkbord/internal/clientaccess"
 	"werkbord/internal/connections"
 	"werkbord/internal/domain"
 	"werkbord/internal/events"
@@ -158,7 +159,11 @@ func main() {
 		}
 		defer terminals.Close()
 	}
-	handler := api.New(api.Options{Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	clients, err := clientaccess.Open(filepath.Join(dir, "clients.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler := api.New(api.Options{Clients: clients, Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

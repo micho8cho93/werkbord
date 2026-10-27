@@ -1,10 +1,10 @@
 // Package netprivate is Werkbord's own way onto a private network, so that another computer of the same person can join
-// the controller as a runner without anyone setting up a VPN, a tunnel, certificates or port forwarding. (Phones do not use
+// the controller as a runner and/or desktop client without anyone setting up a VPN, a tunnel, certificates or port forwarding. (Phones do not use
 // it: they come in through the relay, docs/PHONE.md.)
 //
-// It embeds a Tailscale node (tailscale.com/tsnet) in the controller process, and a second one in a remote runner. The
-// controller's node joins the user's own tailnet, listens only on the tailnet, and serves nothing but what a runner calls
-// to join and to sync (controller.runnerDoor). Nothing here is exposed to the Internet: tsnet listeners are reachable only
+// It embeds a Tailscale node (tailscale.com/tsnet) in the controller process, and one in each remote device runtime. The
+// controller's node joins the user's own tailnet. Separate runner and desktop-client doors accept independent credentials
+// (controller.deviceDoor). Nothing here is exposed to the Internet: tsnet listeners are reachable only
 // from devices in the user's tailnet, and Funnel (Tailscale's public ingress) is never used. Werkbord runs no coordination
 // server or account of its own; the only third party is Tailscale's, which the user signs in to with their own identity.
 //

@@ -39,7 +39,7 @@
       <a href={globalHref('projects')} class="sec-link" aria-current={router.view === 'projects' ? 'page' : undefined}>
         <Icon name="folder" />Projects
       </a>
-      <a class="add" href={globalHref('projects')} aria-label="Add a project" title="Add a project"><Icon name="plus" size={14} /></a>
+      {#if !app.remote}<a class="add" href={globalHref('projects')} aria-label="Add a project" title="Add a project"><Icon name="plus" size={14} /></a>{/if}
     </div>
     {#each app.projects as p (p.id)}
       {@const a = activity(p.id)}
@@ -54,7 +54,7 @@
         {/if}
       </a>
     {/each}
-    <a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>
+    {#if !app.remote}<a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>{/if}
     <a class="nav" href={globalHref('analytics')} aria-current={router.view === 'analytics' ? 'page' : undefined}><Icon name="analytics" />Analytics</a>
   </nav>
 
@@ -67,7 +67,7 @@
         {@const state = runnerConnection(r, app.connection === 'live')}
         <a class="nav runner" href="{globalHref('settings')}?runners" title="{r.hostname} · {state}">
           <span class="dot" data-tone={app.connection !== 'live' || r.disabled || !r.online ? 'neutral' : r.currentRuns > 0 ? 'work' : 'ok'} class:off={app.connection !== 'live' || r.disabled || !r.online} aria-hidden="true"></span>
-          <span class="name">{r.kind === 'local' ? 'this computer' : r.name}</span>
+          <span class="name">{app.runnerName(r)}</span>
           <span class="n" aria-hidden="true">{app.connection !== 'live' ? 'Unknown' : !r.online ? 'Disconnected' : r.disabled ? 'Disabled' : 'Connected'}</span>
           <span class="visually-hidden">{state}</span>
         </a>

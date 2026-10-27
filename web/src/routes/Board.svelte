@@ -287,7 +287,7 @@
           <span>Runner</span>
           <select bind:value={runnerFilter} aria-label="Filter by runner">
             <option value="">any</option>
-            {#each app.runners as r (r.id)}<option value={r.id}>{r.kind === 'local' ? 'this computer' : r.name}</option>{/each}
+            {#each app.runners as r (r.id)}<option value={r.id}>{app.runnerName(r)}</option>{/each}
           </select>
         </label>
       {/if}
