@@ -741,7 +741,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   /* The head and the views are separated by the tab row's own hairline (shared .section-tabs). */
   .tabs { padding: 0 12px; border-top: 1px solid var(--border); }
-  .tabs button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
 
   .task-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 

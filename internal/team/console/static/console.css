@@ -713,11 +713,13 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 
 /* ---- one ticket, as boxes: each idea in a thin border of its own ---- */
 .ticket { container: ticket / inline-size; }
+.ticket-tabs { margin-top: 10px; }
+.ticket-chat { margin-top: 14px; }
 .ticket-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 14px; align-items: start; }
 .ticket-main, .ticket-side { display: grid; gap: 12px; align-content: start; min-width: 0; }
-.tcard, .ticket-main > .handoff, .ticket-side > .handoff { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; }
-.ticket-main > .handoff, .ticket-side > .handoff { background: color-mix(in srgb, var(--accent) 5%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
-.tcard > h3:first-child, .ticket-main > .handoff > h3:first-child { margin-top: 0; }
+.tcard, .ticket-main > .handoff, .ticket-side > .handoff, .ticket-chat > .handoff { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; }
+.ticket-main > .handoff, .ticket-side > .handoff, .ticket-chat > .handoff { background: color-mix(in srgb, var(--accent) 5%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.tcard > h3:first-child, .ticket-main > .handoff > h3:first-child, .ticket-chat > .handoff > h3:first-child { margin-top: 0; }
 .tcard h3, .ticket-main > .handoff h3 { font-size: 11.5px; }
 .tcard h4 { font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
 .tcard .facts { margin-top: 0; }

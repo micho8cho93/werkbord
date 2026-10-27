@@ -420,7 +420,14 @@ window.addEventListener('load', () => {
 });
 
 const executionViews = new Map();
-function ownExecutionPanel(k) {
+/** How many of the owner's agent questions on this ticket wait for an answer: the number on the Chat tab. */
+function ownAgentPending(k) {
+  return (executionViews.get(k.projectId + ':' + k.id)?.detail?.questions || []).filter(q => q.state === 'pending').length;
+}
+
+/** The owner's private agent, in two parts that share one view of it: `controls` (what to run and how, and starting it) and `chat`
+ *  (its runs, what it asks, what it writes and what you say back). The ticket's tabs choose which one is on screen. */
+function ownExecutionPanel(k, part = 'controls') {
   const key = k.projectId + ':' + k.id;
   let view = executionViews.get(key);
   const refresh = async () => {
@@ -433,6 +440,8 @@ function ownExecutionPanel(k) {
       const before = new Set((view.detail?.questions || []).map(q => q.id));
       if (view.detail && detail.questions.some(q => q.state === 'pending' && !before.has(q.id))) toast(k.key + ': your agent needs an answer.');
       view.detail = detail; view.schedule = scheduled; view.error = '';
+      // A ticket whose agent is running or waiting for an answer opens on its conversation, unless the person has chosen a view.
+      if (state.ticketId === k.id && state.projectId === k.projectId && !state.ticketTabChosen && (detail.questions.some(q => q.state === 'pending') || detail.runs.some(r => ['starting', 'running', 'waiting_for_user', 'blocked'].includes(r.state)))) state.ticketTab = 'chat';
       if (!view.selection) view.selection = { projectId: k.projectId, ticketId: k.id, executionId: scheduled?.executionId || 'exe_' + crypto.randomUUID().replaceAll('-', ''), runnerId: detail.runners.find(r => r.kind === 'local' && !r.disabled && !r.removed)?.id || '', agentId: detail.options?.agentId || detail.agents.find(a => a.available)?.id || '', model: 'default', reasoning: 'default', interaction: 'interactive' };
       if (scheduled && view.selection.executionId !== scheduled.executionId) { view.selection.executionId = scheduled.executionId; view.preview = null; view.approval = null; }
       view.updatedAt = Date.now();
@@ -487,7 +496,9 @@ function ownExecutionPanel(k) {
     h('div', { class: 'execution-output', 'data-scroll-key': 'agent-output-' + k.id }, (view.detail.activity.events || []).filter(e => e.type === 'agent.output').map(e => h('div', { class: 'execution-message' }, h('strong', {}, e.payload.stream), h('pre', { class: 'prose' }, e.payload.text))),
       !(view.detail.activity.events || []).some(e => e.type === 'agent.output') ? h('p', { class: 'muted' }, 'No agent output yet.') : ''),
     currentRun && ['running', 'waiting_for_user'].includes(currentRun.state) ? h('form', { class: 'actions', onsubmit: e => { e.preventDefault(); act(async () => { await deviceApi('POST', '/execution/input', { projectId: k.projectId, ticketId: k.id, runId: currentRun.id, text: message.value }); message.value = ''; delete message.dataset.dirty; await refresh(); }); } }, message, h('button', { class: 'plain' }, 'Send message')) : '') : '';
-  return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'), h('p', { class: 'muted' }, 'Your choices, conversation and output stay on this computer. The ticket is already In Progress while it is yours. ' + (k.workMode === 'hybrid' ? 'When the agent finishes, complete your own steps and submit it for review.' : 'It moves to Review by itself when your agent finishes.')), questions,
+  const failed = view.error ? h('p', { class: 'error', role: 'alert' }, view.error + ' Showing the last loaded details; refresh to reconnect.') : '';
+  if (part === 'chat') return h('section', { class: 'handoff', 'aria-label': 'Agent chat' }, h('h3', {}, 'Agent chat'), h('p', { class: 'muted' }, 'Your conversation and output stay on this computer.'), failed, questions, runs, view.detail.activityError ? h('p', { class: 'error' }, view.detail.activityError) : '', activity);
+  return h('section', { class: 'handoff', 'aria-label': 'Your private agent' }, h('h3', {}, 'Your private agent'), h('p', { class: 'muted' }, 'Your choices stay on this computer. The ticket is already In Progress while it is yours. ' + (k.workMode === 'hybrid' ? 'When the agent finishes, complete your own steps and submit it for review.' : 'It moves to Review by itself when your agent finishes.')), 
     view.error ? h('p', { class: 'error', role: 'alert' }, view.error + ' Showing the last loaded details; refresh to reconnect.') : '',
     h('div', { class: 'agent-choices' }, field('Runner on this computer', runner), field('Agent', agent), field('Model', model), modelList, field('Reasoning', reasoning), field('Conversation policy', interaction)), view.detail.optionsError ? h('p', { class: 'muted' }, view.detail.optionsError) : '',
 
@@ -501,10 +512,10 @@ function ownExecutionPanel(k) {
         if (!view.schedule && !selection.preapprove) {
           try { await deviceApi('POST', '/execution/start', request()); }
           catch (error) { await refresh().catch(() => {}); throw error; }
-          view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh();
+          view.preview = null; view.approval = null; selection.executionId = 'exe_' + crypto.randomUUID().replaceAll('-', ''); await refresh(); state.ticketTab = 'chat';
         }
       }) }, view.schedule || selection.preapprove ? 'Approve this execution once' : view.approval ? 'Start my approved run' : 'Start agent')) : '',
-    view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '', runs, view.detail.activityError ? h('p', { class: 'error' }, view.detail.activityError) : '', activity);
+    view.approval ? h('p', { role: 'status' }, 'Authorized once until ' + new Date(view.approval.expiresAt).toLocaleString() + '. The scheduled request will wait for eligibility and this runner.') : '');
 }
 
 

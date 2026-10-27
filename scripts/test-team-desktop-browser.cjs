@@ -142,6 +142,13 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.unrouteAll({behavior:'wait'});
  await page.getByRole('button',{name:'Start my approved run',exact:true}).click();
  await page.getByRole('button',{name:'Stop my run',exact:true}).waitFor();
+ assert.deepEqual((await page.getByRole('tablist',{name:'Ticket views',exact:true}).getByRole('tab').allInnerTexts()).map(t=>t.replace(/\d+/g,'').trim()),['Details','Chat'],'an owner’s ticket has Details and Chat');
+ assert.equal(await page.getByRole('tab',{name:/^Chat/}).getAttribute('aria-selected'),'true','starting an agent opens its conversation');
+ await page.getByRole('tab',{name:'Details',exact:true}).click();
+ await page.getByRole('button',{name:'Review and start agent',exact:true}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'Message your agent',exact:true}).count(),0,'the conversation is not repeated on Details');
+ await page.getByRole('tab',{name:/^Chat/}).click();
+ await page.getByRole('textbox',{name:'Message your agent',exact:true}).waitFor();
  assert.equal((await team('GET',`/projects/${project.id}/tickets/${ticket.id}`)).status,'in_progress');
  assert.equal(approvals,1,'retrying a failed start reuses its saved one-shot approval');page.off('request',countApprovals);
  const localProjects=await http(individualURL,full,'GET','/api/projects');
@@ -157,10 +164,13 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  // Present an active blocked report; Stop must remain available and another immediate start must not.
  await page.evaluate(async key=>{const view=executionViews.get(key);view.detail.runs.forEach(run=>{if(['starting','running','waiting_for_user'].includes(run.state))run.state='blocked';});await render();},project.id+':'+ticket.id);
  assert(await page.getByRole('button',{name:'Stop my run',exact:true}).isEnabled(),'a blocked agent can still be stopped');
+ await page.getByRole('tab',{name:'Details',exact:true}).click();
  assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'a blocked run still occupies execution');
+ await page.getByRole('tab',{name:/^Chat/}).click();
  await page.getByRole('button',{name:'Stop my run',exact:true}).click();
  await wait(async()=>{const r=await http(individualURL,full,'GET',`/api/projects/${localProject.id}/runs/${running.id}`);return r.state==='stopped';},'owner stop');
  await page.waitForFunction(()=>!actionBusy);
+ await page.getByRole('tab',{name:'Details',exact:true}).click();
  const scheduledAt=new Date(Date.now()+3600000).toISOString();
  await page.locator(`[name=schedule-at-${ticket.id}]`).fill(scheduledAt);
  await page.evaluate(()=>render());

@@ -1643,7 +1643,13 @@ function ticketPanel(d, k) {
     : h('p', { class: 'muted small' }, 'No commits reported.');
 
   // Only the owner sees what their agent does. Everyone else sees that the work is theirs and whether it is active.
-  const agentCard = mine && state.desktop && !k.archivedAt && ['available', 'in_progress', 'review'].includes(k.status) && agentWork ? ownExecutionPanel(k)
+  // The owner's agent has two views, as a task has in Individual: the ticket's Details (with the agent's choices and Start) and Chat.
+  const ownAgent = mine && state.desktop && !k.archivedAt && ['available', 'in_progress', 'review'].includes(k.status) && agentWork;
+  // A ticket opens on Details, or on Chat once its agent is known to be running or to be waiting for an answer (desktop.js moves it then),
+  // unless the person chose a tab or came in through Start agent on the board, which is for its policy.
+  if (state.ticketTabFor !== k.id) { state.ticketTabFor = k.id; state.ticketTabChosen = state.agentFocus === k.id; state.ticketTab = !state.ticketTabChosen && ownAgent && ownAgentPending(k) ? 'chat' : 'details'; }
+  if (!ownAgent) state.ticketTab = 'details';
+  const agentCard = ownAgent ? ownExecutionPanel(k, 'controls')
     : k.assigneeId && agentWork ? tcard(mine ? '' : 'Agent', mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, personName(d, k.assigneeId) + ' owns this work, and their agent is ' + (active ? 'active right now' : 'not active right now') + '. What it does, asks and writes stays private to them.'))
     : !k.assigneeId && agentWork && !k.archivedAt && k.status === 'available' ? tcard('Agent', h('p', { class: 'muted' }, 'Claim this ticket to prepare your own agent. It moves to In progress, and you start the agent from there.'))
     : '';
@@ -1655,7 +1661,8 @@ function ticketPanel(d, k) {
     h('div', { class: 'actions' }, actions.filter(mainAction)),
     actions.some(a => !mainAction(a)) ? h('details', { class: 'ticket-more' }, h('summary', {}, 'More actions'), h('div', { class: 'actions' }, actions.filter(a => !mainAction(a)))) : '',
     state.handoff && state.handoff.ticket.id === k.id ? handoffBox(state.handoff) : '',
-    h('div', { class: 'ticket-grid' },
+    ownAgent ? ticketTabs(k) : '',
+    ownAgent && state.ticketTab === 'chat' ? h('div', { class: 'ticket-chat', id: 'ticket-view', role: 'tabpanel', 'aria-labelledby': 'ticket-tab-chat' }, ownExecutionPanel(k, 'chat')) : h('div', { class: 'ticket-grid', id: ownAgent ? 'ticket-view' : null, role: ownAgent ? 'tabpanel' : null, 'aria-labelledby': ownAgent ? 'ticket-tab-details' : null },
       h('div', { class: 'ticket-main' },
         tcard('Description', h('p', { class: 'prose' }, k.description || '—'), canEditText ? editTicket(d, k, path) : ''),
         k.requirements ? h('details', { class: 'ticket-context' }, h('summary', {}, 'Requirements and context'), h('p', { class: 'prose' }, k.requirements)) : '',
@@ -1667,6 +1674,18 @@ function ticketPanel(d, k) {
         datesCard(d, k, path, canEditText),
         tcard('Branch and pull request', git, h('h4', {}, 'Commits'), commits,
           !k.archivedAt && k.assigneeId && (mine || pcan('git.report_any')) && ['available', 'in_progress', 'review'].includes(k.status) ? gitForm(k, path) : ''))));
+}
+
+// Details and Chat, in the shared tab style, as a real tablist: the arrow keys move between them and a question waiting for an answer is counted.
+function ticketTabs(k) {
+  const pending = ownAgentPending(k);
+  const tabs = [['details', 'Details'], ['chat', 'Chat']];
+  const choose = (id) => { state.ticketTab = id; state.ticketTabChosen = true; render(); requestAnimationFrame(() => document.getElementById('ticket-tab-' + id)?.focus()); };
+  return h('div', { class: 'tabs section-tabs ticket-tabs', role: 'tablist', 'aria-label': 'Ticket views' }, tabs.map(([id, label]) => h('button', {
+    type: 'button', role: 'tab', id: 'ticket-tab-' + id, 'aria-controls': 'ticket-view', 'aria-selected': String(state.ticketTab === id), tabindex: state.ticketTab === id ? '0' : '-1',
+    onclick: () => choose(id),
+    onkeydown: (e) => { const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!step && e.key !== 'Home' && e.key !== 'End') return; e.preventDefault(); choose(tabs[e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (tabs.findIndex(([t]) => t === state.ticketTab) + step + tabs.length) % tabs.length][0]); },
+  }, label, id === 'chat' && pending ? h('span', { class: 'num pend', 'aria-label': pending + (pending === 1 ? ' question waiting for you' : ' questions waiting for you') }, String(pending)) : '')));
 }
 
 // When it is planned for. These dates are what the Calendar and the Timeline draw.
