@@ -17,6 +17,7 @@
   import type { GitHubStatusInfo } from '../lib/types';
   import { embedded } from '../lib/embed';
   import SaliePlacement from '../lib/SaliePlacement.svelte';
+  import Settling from '../lib/Settling.svelte';
   import { defaultSaliePlacements, isSaliePlacements, type SaliePlacements } from '../lib/salie-placement';
 
   const framed = embedded();
@@ -37,11 +38,32 @@
   let checked = $state(false);
   let chosen = $state<string | null>(null);
   let phonePaired = $state(false);
-  const local = $derived(localReadiness(app.runners, app.agents, app.projects, app.connection === 'live' && !readinessUnavailable));
+  // Setup decides which step you are on from five answers (this computer, the agents, GitHub, your phone and the example's project).
+  // It asks for all of them first and shows nothing about the steps until they are in, so no step is shown as to do or as unmet and then
+  // taken back by the next answer. A computer that never answers is not waited for for ever.
+  let githubChecked = $state(false);
+  let phonesChecked = $state(false);
+  let wasLive = $state(false);
+  let waitedLongEnough = $state(false);
+  $effect(() => { if (app.connection === 'live') wasLive = true; });
+  /** Connecting and syncing are the passing states between two live ones; they do not make a verified computer unverified. */
+  const liveForReadiness = $derived(app.connection === 'live' || (wasLive && (app.connection === 'connecting' || app.connection === 'syncing')));
+  const connectionKnown = $derived(app.connection === 'live' || app.connection === 'offline' || app.connection === 'unauthorized');
+  const local = $derived(localReadiness(app.runners, app.agents, app.projects, liveForReadiness && !readinessUnavailable));
   const stepStates = $derived(app.onboarding?.steps ?? {});
   const githubDone = $derived(github?.state === 'signed_in' && !github.missingScopes?.length);
   const example = $derived(app.onboarding?.example);
   const exampleScope = $derived(example ? app.scope(example.projectId) : undefined);
+  $effect(() => { if (example) app.warm(example.projectId); });
+  const exampleKnown = $derived(!example || (!!exampleScope && (exampleScope.loaded || !!exampleScope.error)));
+  const computerKnown = $derived(checked && connectionKnown);
+  const settled = $derived((computerKnown && githubChecked && phonesChecked && exampleKnown) || waitedLongEnough);
+  const checklist = $derived([
+    { label: 'This computer and its coding agents', done: computerKnown },
+    { label: 'GitHub', done: githubChecked },
+    { label: 'Your phone', done: phonesChecked },
+    ...(example ? [{ label: 'Your example project', done: exampleKnown }] : []),
+  ]);
   const exampleTask = $derived(example?.taskId ? exampleScope?.tasks.find((t) => t.id === example.taskId) : undefined);
   const stage = $derived(exampleStage(exampleTask, exampleTask ? exampleScope?.latestRun[exampleTask.id] : undefined));
   const stepDone = (id: string) => stepStates[id] === 'done';
@@ -79,6 +101,7 @@
   };
   const previous = $derived(steps.slice(0, currentIndex).reverse().find(s => !(s.done && ['computer', 'agents', 'repository'].includes(s.id))));
 
+  let quietFailures = 0;
   async function recheck(quiet = false) {
     if (!quiet) { checking = true; error = ''; }
     try {
@@ -86,8 +109,11 @@
       app.runners = runners;
       app.agents = agents;
       readinessUnavailable = false;
+      quietFailures = 0;
     } catch (err) {
-      readinessUnavailable = true;
+      // Asked for by the person: say so at once. The background check every five seconds must fail twice running before the screen
+      // says this computer cannot be verified; one slow answer is not an outage and is not worth a notice that the next answer retracts.
+      if (!quiet || ++quietFailures >= 2) readinessUnavailable = true;
       if (!quiet) error = err instanceof Error ? err.message : String(err);
     } finally { if (!quiet) checking = false; checked = true; }
   }
@@ -172,9 +198,10 @@
     app.onboardingPaused = false;
     void recheck();
     const timer = setInterval(() => { if (document.visibilityState === 'visible') void recheck(true); }, 5000);
-    api.github().then((g) => (github = g), () => {});
-    api.phones().then((p) => (phonePaired = p.length > 0), () => {});
-    return () => { clearInterval(timer); window.removeEventListener('message', placementMessage); };
+    api.github().then((g) => (github = g), () => {}).finally(() => (githubChecked = true));
+    api.phones().then((p) => (phonePaired = p.length > 0), () => {}).finally(() => (phonesChecked = true));
+    const patience = setTimeout(() => (waitedLongEnough = true), 8000);
+    return () => { clearInterval(timer); clearTimeout(patience); window.removeEventListener('message', placementMessage); };
   });
 
   async function finish() {
@@ -231,7 +258,8 @@
     <p class="lede">
       Complete the steps below to get ready for your first task. Your runner, agent sign-in and repositories stay on your computer.
     </p>
-    <p class="progress-label" role="status">{!checked ? 'Checking this computer…' : `${resolvedCount} of 8 setup steps resolved · ${local.completed} of 3 requirements verified`}</p>
+    {#if settled}
+    <p class="progress-label" role="status">{resolvedCount} of 8 setup steps resolved · {local.completed} of 3 requirements verified</p>
     <ol class="progress" aria-label="Setup steps">
       {#each steps as s, i (s.id)}
         <li>
@@ -241,17 +269,20 @@
         </li>
       {/each}
     </ol>
+    {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </header>
 
-  {#if completed}
+  {#if !settled}
+    <Settling label="Checking this computer…" items={checklist} testid="setup-loading" />
+  {:else if completed}
     <section class="step-intro" use:acknowledge={{ value: completed, success: completed, fresh: true }} in:surface={{ duration: 180 }} aria-labelledby="setup-complete">
       <h2 id="setup-complete">You’re ready to use Werkbord</h2>
       <p>Your runner, coding agent and repository are ready. Create tasks on your board, follow agent work and review changes before merging.</p>
       <p class="muted">Anything you left for later is listed below. You can return to setup from Settings → This computer.</p>
       <button class="btn primary big" onclick={openWorkspace}>Open my workspace</button>
     </section>
-  {:else if checked}
+  {:else}
     <section class="step-intro" aria-live="polite" aria-atomic="true">
       <p class="muted">Step {currentIndex + 1} of {steps.length}</p>
       <h2>{explanations[current].title}</h2>
@@ -259,7 +290,7 @@
     </section>
   {/if}
 
-  {#if completed || current === 'review'}
+  {#if settled && (completed || current === 'review')}
     <section aria-label="Setup summary">
       <ul class="summary-list">{#each steps.filter(s => s.id !== 'review') as s (s.id)}<li><strong>{s.label}</strong><span>{s.done ? 'Verified' : stepStates[s.id] === 'skipped' ? 'Left for later' : 'Needs attention'}</span></li>{/each}</ul>
     </section>
@@ -269,12 +300,12 @@
         <SaliePlacement value={saliePlacements} onchange={setSaliePlacements} />
       </SetupCard>
     {/if}
-  {:else if !checked}
-    <p class="muted" role="status">Detecting your runner and available coding agents. Verified requirements will be marked done automatically.</p>
+  {:else if !settled}
+    <!-- Shown as the loading screen above. -->
   {:else if current === 'computer'}
   <SetupCard title="This computer" status={local.steps[0].done ? 'done' : checking ? 'wait' : 'todo'} summary={local.runner ? `${local.runner.name} · ${local.runner.os}/${local.runner.arch}` : 'No local runner reported'}>
     <p class="muted">
-      {local.steps[0].done ? 'The local runner is online and enabled.' : app.connection !== 'live' ? 'Reconnect to verify local runner readiness.' : 'The local runner must be online, enabled and configured to run an agent.'} Your repositories, credentials and sessions stay on this computer.
+      {local.steps[0].done ? 'The local runner is online and enabled.' : !liveForReadiness ? 'Reconnect to verify local runner readiness.' : 'The local runner must be online, enabled and configured to run an agent.'} Your repositories, credentials and sessions stay on this computer.
     </p>
     {#if !local.steps[0].done}<p><a href="{globalHref('settings')}?runners">Open runner settings</a> to inspect or enable your local runner.</p>{/if}
     {#if local.runner && local.runner.currentRuns >= local.runner.capacity && local.runner.capacity > 0}<p class="muted">The runner is at capacity. You can create a task now and start it when capacity is available.</p>{/if}
@@ -284,7 +315,7 @@
   {:else if current === 'github'}
   <p class="muted">GitHub lets Werkbord create a repository for you and publish a page from it. Without it, everything still works on this computer.</p>
   <p>Don’t have an account? <a href="https://github.com/signup" target="_blank" rel="noopener noreferrer">Create a GitHub account</a>, then return here to connect it.</p>
-  <GitHubCard skipped={stepStates.github === 'skipped'} onchange={(s) => (github = s)} />
+  <GitHubCard known={github} skipped={stepStates.github === 'skipped'} onchange={(s) => (github = s)} />
   {:else if current === 'repository'}
   {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
@@ -296,7 +327,7 @@
   <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
   {/if}
 
-  {#if checked && !completed}
+  {#if settled && !completed}
   <nav class="actions" aria-label="Setup navigation">
     {#if previous}<button class="btn big" onclick={() => go(previous.id)}>Back</button>{/if}
     {#if current === 'review'}

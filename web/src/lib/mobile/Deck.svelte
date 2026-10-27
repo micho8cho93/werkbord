@@ -140,6 +140,11 @@
     }
     catch (err) { error = err instanceof Error ? err.message : String(err); }
   }
+  // The Control Deck is one screen: while it is shown the page itself never scrolls (see .deck-body for what to do when a notice is long).
+  $effect(() => {
+    document.documentElement.classList.add('deck-locked');
+    return () => document.documentElement.classList.remove('deck-locked');
+  });
   onMount(() => {
     let disposed = false;
     const arrived = suggestedWorkflow(location.hash);
@@ -281,6 +286,7 @@
     </nav>
   </header>
   <WorkflowBanner />
+  <div class="deck-body">
   {#if guide === 5 && preview}
     <section class="preview" aria-label="Interactive preview progress">
       <button class="btn" onclick={() => inspected = true}>Interactive preview · Open execution details</button>
@@ -342,6 +348,7 @@
     {/if}
   {/if}
   <DeckRuns {history} />
+  </div>
   {#if library !== null}
     <DeckLibrary onboarding={!!guide} {workspaces} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose} oncreate={() => { library = null; createWithSalie(); }}
       onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; if (guide) void persist().catch(() => {}); }}
@@ -390,10 +397,35 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
-    min-height: 100dvh;
-    padding: calc(14px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));
+    /* Exactly the screen between the top and the bottom bar, which the shell already reserves room for. A min-height of the whole
+       screen made the page the height of the bar too tall, so it scrolled although everything fitted. */
+    height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
+    padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
     max-width: 440px;
     margin: 0 auto;
+    overflow: hidden;
+  }
+
+  /* Everything under the header. It does not scroll while it fits, which is always, with the keys. Only a notice, a suggestion or a
+     list of runs long enough to need more than the screen scrolls here, so that nothing is ever out of reach, and the keys are
+     never pushed off the screen by it. */
+  .deck-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+  }
+  .deck-body::-webkit-scrollbar { display: none; }
+  .deck-body > :global(*) { flex: none; }
+
+  :global(html.deck-locked),
+  :global(html.deck-locked body) {
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .header-actions { display: flex; flex: none; gap: 10px; }

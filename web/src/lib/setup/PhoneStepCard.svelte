@@ -3,6 +3,7 @@
   import { api } from '../api';
   import PhoneEnroll from '../phones/PhoneEnroll.svelte';
   import type { RelayStatus } from '../types';
+  import Settling from '../Settling.svelte';
   import SetupCard from './SetupCard.svelte';
 
   /** Pairing a phone: it reaches this computer through Werkbord's relay, so there is no app or VPN to install on it. */
@@ -38,7 +39,7 @@
     <p class="muted" role="status">The relay could not be checked just now ({unreachable}).</p>
     <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else if !relay}
-    <p class="muted">Checking…</p>
+    <Settling compact label="Checking the relay…" testid="relay-loading" />
   {:else if !relay.enabled}
     <p>
       Your phone reaches this computer through a small relay that only passes encrypted bytes along. There is no app to install on the

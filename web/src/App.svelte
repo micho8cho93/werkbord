@@ -3,6 +3,7 @@
   import WorkflowMonitor from './lib/mobile/WorkflowMonitor.svelte';
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
+  import Settling from './lib/Settling.svelte';
   import PendingInteraction from './lib/assistant/PendingInteraction.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
   import AssistantButton from './lib/assistant/AssistantButton.svelte';
@@ -269,14 +270,18 @@
         {:else if router.view === 'onboarding'}
           <div class="page"><Onboarding /></div>
         {:else if !router.projectId}
-          <p class="empty">{loaded ? 'Opening…' : 'Loading…'}</p>
+          {#if loaded}<p class="empty">Opening…</p>{:else}<Settling label="Opening Werkbord…" />{/if}
         {:else if !project}
-          <div class="empty">
-            <p>{loaded ? 'This project was not found.' : 'Loading…'}</p>
-            {#if loaded}<p><a href={globalHref('projects')}>See all projects</a></p>{/if}
-          </div>
+          {#if loaded}
+            <div class="empty">
+              <p>This project was not found.</p>
+              <p><a href={globalHref('projects')}>See all projects</a></p>
+            </div>
+          {:else}
+            <Settling label="Opening Werkbord…" />
+          {/if}
         {:else if !scope}
-          <p class="empty">Loading…</p>
+          <Settling label="Opening the project…" />
         {:else}
           <!-- Each project's page is its own: nothing typed or open in one carries over to another. -->
           {#key project.id}

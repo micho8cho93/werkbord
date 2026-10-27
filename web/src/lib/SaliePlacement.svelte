@@ -1,27 +1,18 @@
 <script lang="ts">
-  import { SALIE_PLACEMENTS, type SaliePlacements } from './salie-placement';
+  import { SALIE_PLACEMENTS, everywhere, unifiedPlacement, type SaliePlacement, type SaliePlacements } from './salie-placement';
   let { value, onchange }: { value: SaliePlacements; onchange: (value: SaliePlacements) => void } = $props();
-  const labels = { sidebar: 'Sidebar', floating: 'Floating', both: 'Both' };
+  const labels: Record<SaliePlacement, string> = { sidebar: 'Sidebar', floating: 'Floating', both: 'Both' };
+  const current = $derived(unifiedPlacement(value));
 </script>
 
-<div class="placements">
-  {#each [{ key: 'universal', label: 'Home and the window’s own pages' }, { key: 'workspace', label: 'Personal and team projects' }] as scope (scope.key)}
-    <fieldset>
-      <legend>{scope.label}</legend>
-      <div class="seg" role="group" aria-label="Salie placement in {scope.label}">
-        {#each SALIE_PLACEMENTS as placement (placement)}
-          <button type="button" aria-pressed={value[scope.key as keyof SaliePlacements] === placement} onclick={() => onchange({ ...value, [scope.key]: placement })}>{labels[placement]}</button>
-        {/each}
-      </div>
-    </fieldset>
+<div class="seg" role="group" aria-label="Where Salie appears">
+  {#each SALIE_PLACEMENTS as placement (placement)}
+    <button type="button" aria-pressed={current === placement} onclick={() => onchange(everywhere(placement))}>{labels[placement]}</button>
   {/each}
 </div>
 
 <style>
-  .placements { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
-  fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-  legend { margin-bottom: 8px; padding: 0; font-size: 13px; font-weight: 500; }
-  .seg { display: flex; }
+  .seg { display: flex; max-width: 360px; }
   button { flex: 1; min-height: 36px; }
   @media (pointer: coarse) { button { min-height: 44px; } }
 </style>

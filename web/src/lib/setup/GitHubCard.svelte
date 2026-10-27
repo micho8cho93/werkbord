@@ -1,17 +1,19 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { api } from '../api';
   import { copyText } from '../clipboard';
   import type { GitHubStatusInfo } from '../types';
+  import Settling from '../Settling.svelte';
   import SetupCard from './SetupCard.svelte';
 
   let {
     skipped = false,
+    known = null,
     onskip,
     onchange,
-  }: { skipped?: boolean; onskip?: () => void; onchange?: (s: GitHubStatusInfo) => void } = $props();
+  }: { skipped?: boolean; /** What setup already found out, so the card does not ask again and say "Checking…" for an answer in hand. */ known?: GitHubStatusInfo | null; onskip?: () => void; onchange?: (s: GitHubStatusInfo) => void } = $props();
 
-  let gh = $state<GitHubStatusInfo | null>(null);
+  let gh = $state<GitHubStatusInfo | null>(untrack(() => known));
   let busy = $state(false);
   let error = $state('');
   /** Looking up the connection failed. GitHub is optional, so this is a quiet line with a retry, never a red alert on first run. */
@@ -98,7 +100,7 @@
     <p class="muted" role="status">GitHub could not be checked just now ({unreachable}). It is optional: everything local works without it.</p>
     <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else if !gh}
-    <p class="muted">Checking…</p>
+    <Settling compact label="Checking GitHub…" testid="github-loading" />
   {:else if gh.state === 'signed_in'}
     <p>
       Werkbord can list your repositories and show pull requests and checks, using your own GitHub sign-in (through the GitHub CLI).

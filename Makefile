@@ -235,6 +235,7 @@ test-team-signed-release:
 ## test-onboarding-browser: guided setup, persistence, recovery and the desktop window gate
 test-onboarding-browser: build web-shell
 	node scripts/browser-onboarding.cjs
+	node scripts/browser-setup-settle.cjs
 
 ## test-assistant-browser: the assistant's screen in a real browser (animation, streaming, confirmations, recovery, files, dictation,
 ## accessibility, a phone) and from the desktop window's sidebar, with the real engine and API and a scripted provider in place of
