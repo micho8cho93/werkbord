@@ -10,7 +10,7 @@
   import Icon from '../lib/Icon.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
   import { listenDates, movePlan } from '../lib/planningGestures';
-  import { editableOrchestration, emptyOrchestration, instantFromWall, schedulingLabels, wallTime } from '../lib/scheduling';
+  import { editableOrchestration, emptyOrchestration, instantFromWall, schedulingLabels, schedulingReason, wallTime } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import type { Project, Task } from '../lib/types';
@@ -286,7 +286,7 @@
                   style:height="{(EVENT_MIN / 60) * HOUR - 2}px"
                   style:left="calc({(e.lane / e.of) * 100}% + 3px)"
                   style:width="calc({100 / e.of}% - 6px)"
-                  title="{t.title} · {decision ? `${schedulingLabels[decision.state]}: ${decision.reason}` : ''}"
+                  title="{t.title} · {decision ? `${schedulingLabels[decision.state]}: ${schedulingReason(decision)}` : ''}"
                 >
                   <b>{t.title}</b>
                   <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : decision ? schedulingLabels[decision.state].toLowerCase() : 'scheduled'}</span>
@@ -343,7 +343,7 @@
                 <p class="mm">
                   {t.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone).replace('T', ' ') : 'when ready'}{decision ? ` · ${schedulingLabels[decision.state]}` : ''}
                 </p>
-                {#if decision?.reason && decision.state !== 'waiting_schedule'}<p class="why">{decision.reason}</p>{/if}
+                {#if decision?.reason && decision.state !== 'waiting_schedule'}<p class="why">{schedulingReason(decision)}</p>{/if}
               </li>
             {/each}
           </ul>

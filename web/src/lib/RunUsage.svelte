@@ -6,7 +6,7 @@
   const runner=$derived(app.runners.find(r=>r.id===run.runnerId));
 </script>
 <div class="usage">
-  <p class="muted">Runner: <strong>{runner?.name ?? (run.remote ? run.runnerId : 'This computer')}</strong>{run.remote && runner && !runner.online && !run.endedAt ? ' · Offline; execution ownership retained' : ''}</p>
+  <p class="muted">Runner: <strong>{runner?.name ?? (run.remote ? run.runnerId : 'This computer')}</strong>{run.remote && runner && !runner.online && !run.endedAt ? ' · Offline. This run still belongs to this runner.' : ''}</p>
   {#if run.branch}<p class="muted">Branch: <code>{run.branch}</code>{#if run.remote} · Retained on its runner; commit and push there to share for review.{/if}</p>{/if}
   {#if run.usage?.partial}<p class="muted" role="status">Partial usage: this session was resumed; the total may be incomplete.</p>{/if}
   <p class="muted">Input tokens: {run.usage?.inputTokens?.toLocaleString() ?? 'Unknown'} · Output tokens: {run.usage?.outputTokens?.toLocaleString() ?? 'Unknown'}</p>

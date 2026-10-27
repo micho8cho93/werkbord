@@ -1262,7 +1262,7 @@ function reviewItem(it) {
   if (it.canReview) {
     if (!it.canComplete && it.blocker) extra.push(h('p', { class: 'muted' }, it.blocker.charAt(0).toUpperCase() + it.blocker.slice(1), '.'));
     extra.push(h('div', { class: 'actions' },
-      pr && pr.state === 'open' ? h('button', { class: 'plain small', title: 'After you merged it on your Git host', onclick: () => act(() => api('PUT', path + '/git', { pullRequest: { url: pr.url, number: pr.number, state: 'merged', baseBranch: pr.baseBranch } })) }, 'I merged it: record that') : '',
+      pr && pr.state === 'open' ? h('button', { class: 'plain small', title: 'Use after merging on your Git host', onclick: () => act(() => api('PUT', path + '/git', { pullRequest: { url: pr.url, number: pr.number, state: 'merged', baseBranch: pr.baseBranch } })) }, 'Record merge') : '',
       h('button', { class: 'primary small', disabled: !it.canComplete, onclick: () => act(() => api('POST', path + '/complete')) }, 'Mark done'),
       h('span', { class: 'inline' }, note, h('button', { class: 'plain small', onclick: () => act(() => api('POST', path + '/request-changes', { note: note.value })) }, 'Request changes')),
       h('button', { class: 'plain small', onclick: () => openProject(it.project.id, 'repository') }, 'Repository state')));
@@ -1407,7 +1407,7 @@ function card(d, k) {
     h('button', { type: 'button', 'data-drag-handle': '', draggable: false, 'aria-label': 'Move ticket: ' + k.title, title: 'Drag to a column, or use Left and Right arrows' }, icon('board')),
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
-    h('p', { class: 'work-status' }, status),
+    pendingTickets.has(k.id) || status !== statusName(k.status) ? h('p', { class: 'work-status' }, status) : '',
     progress?.execution.runId ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported ' : 'Reported ') + ago(progress.reportedAt)) : '',
     k.description ? h('p', { class: 'work-detail' }, k.description.length > 180 ? k.description.slice(0, 177) + '…' : k.description) : '',
     k.branch ? h('p', { class: 'work-detail' }, k.branch) : '',
@@ -1601,7 +1601,7 @@ function ticketPanel(d, k) {
     actions.push(h('button', { class: individual ? 'plain' : 'primary', onclick: () => act(async () => { state.handoff = await api('POST', path + '/handoff'); }) }, 'Open in my runner'));
   // Work with no agent (done by hand, or a person's to finish) is handed in from here; an agent's finished run does it by itself.
   if (k.status === 'in_progress' && mine && (!agentWork || k.workMode === 'hybrid' || !active)) actions.push(h('button', { class: 'primary', onclick: run('POST', '/submit', {}) }, 'Submit for review'));
-  if (['available', 'in_progress'].includes(k.status) && k.assigneeId && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Take it back'));
+  if (['available', 'in_progress'].includes(k.status) && k.assigneeId && (mine || pcan('tickets.assign'))) actions.push(h('button', { class: 'plain', onclick: run('POST', '/release') }, mine ? 'Release' : 'Unassign'));
   if (k.status === 'review' && pcan('tickets.review')) {
     const note = h('input', { name: 'rc-note-' + k.id, placeholder: 'What should change? (optional)', maxlength: 1000 });
     const blocker = b.completion[k.id];
@@ -1623,7 +1623,7 @@ function ticketPanel(d, k) {
   if (!k.archivedAt) actions.push(h('p', { class: 'muted small' }, 'Archiving moves this ticket out of the active board; it does not delete it.' + (['in_progress', 'review'].includes(k.status) ? ' It does not stop an agent running in your Werkbord; stop that run there if needed.' : '')));
 
   const mainAction = a => a.classList.contains('primary') || a.classList.contains('completion-blocker') || ['Make available', 'Open in Werkbord', 'Restore ticket', 'Reopen'].includes(a.textContent);
-  const owner = k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Nobody yet';
+  const owner = k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Unassigned';
   const facts = h('dl', { class: 'facts' },
     h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
     h('dt', {}, 'Owner'), h('dd', {}, owner, k.status === 'in_progress' && agentWork ? [' ', presence(active)] : ''),
@@ -1650,7 +1650,7 @@ function ticketPanel(d, k) {
   if (state.ticketTabFor !== k.id) { state.ticketTabFor = k.id; state.ticketTabChosen = state.agentFocus === k.id; state.ticketTab = !state.ticketTabChosen && ownAgent && ownAgentPending(k) ? 'chat' : 'details'; }
   if (!ownAgent) state.ticketTab = 'details';
   const agentCard = ownAgent ? ownExecutionPanel(k, 'controls')
-    : k.assigneeId && agentWork ? tcard(mine ? '' : 'Agent', mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, personName(d, k.assigneeId) + ' owns this work, and their agent is ' + (active ? 'active right now' : 'not active right now') + '. What it does, asks and writes stays private to them.'))
+    : k.assigneeId && agentWork ? tcard(mine ? '' : 'Agent', mine ? executionProgress(d.progress || []) : h('p', { class: 'muted' }, personName(d, k.assigneeId) + ' owns this work; their agent is ' + (active ? 'active' : 'not active') + '. Agent activity is private to them.'))
     : !k.assigneeId && agentWork && !k.archivedAt && k.status === 'available' ? tcard('Agent', h('p', { class: 'muted' }, 'Claim this ticket to prepare your own agent. It moves to In progress, and you start the agent from there.'))
     : '';
 
@@ -1706,7 +1706,7 @@ function datesCard(d, k, path, canEdit) {
     h('form', { class: 'stack plan-fields dates-form', 'data-ticket-id': draftId, 'data-ticket-version': k.version,
       onsubmit: (e) => { e.preventDefault(); if (!form.validate()) return; const { plan: next } = form.read(); act(() => api('PATCH', path, { plan: next, version }).then(() => { discardTicketDraft(draftId); toast('Dates saved for ' + k.key + '.'); })); } },
       form.dates, form.summaryError, changedSubmit('Save dates', form.controls)),
-    h('p', { class: 'muted small' }, 'The Calendar and the Timeline draw these dates. ', set ? toCalendar : ''));
+    h('p', { class: 'muted small' }, 'Shown in Calendar and Timeline. ', set ? toCalendar : ''));
 }
 
 function executionProgress(records, note = true) {
@@ -1956,7 +1956,7 @@ function showTicketDependencies(k) {
   if (first) first.focus();
 }
 function teamSchedulePanel(k, b) {
-  const box = h('section', { class: 'handoff' }, h('h3', {}, 'Shared schedule'), h('p', { class: 'muted' }, 'A schedule requests work. Only the holder’s local approval can authorize execution.'));
+  const box = h('section', { class: 'handoff' }, h('h3', {}, 'Shared schedule'), h('p', { class: 'muted' }, 'This requests a run. The assignee must approve it on their own computer.'));
   api('GET', '/projects/' + k.projectId + '/schedules').then(schedules => {
     const current = schedules.find(s => s.ticketId === k.id);
     const live = current && !['completed', 'canceled'].includes(current.state);

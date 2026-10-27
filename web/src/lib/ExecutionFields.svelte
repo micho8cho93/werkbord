@@ -34,6 +34,7 @@
     disabled = false,
     dense = false,
     columns = false,
+    showPermissionsNote = true,
   }: {
     value?: ExecutionConfig;
     /** What applies if this level sets nothing: the levels below it, resolved. Without it there is no level below. */
@@ -44,6 +45,7 @@
     /** Two columns of bare pickers, no explanations: for a dialog or a side panel where everything shows at once. */
     dense?: boolean;
     columns?: boolean;
+    showPermissionsNote?: boolean;
   } = $props();
 
   const hasBelow = $derived(inherited !== undefined);
@@ -180,7 +182,7 @@
       {/each}
     </select>
     {#if value.interaction || !hasBelow}
-      <p class="hint">{interactionNow?.description} {PERMISSIONS_NOTE}</p>
+      <p class="hint">{interactionNow?.description}{showPermissionsNote ? ` ${PERMISSIONS_NOTE}` : ''}</p>
     {/if}
   </div>
 

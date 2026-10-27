@@ -36,7 +36,7 @@
     {#if branch}<span>Local branch <code>{branch.name}</code> · {branch.vsTarget.ahead} commit{branch.vsTarget.ahead === 1 ? '' : 's'} ahead</span>
     {:else if pr}<span>Pull request #{pr.number} · {pr.title}</span>
     {/if}
-    <span>Tests reported: {run.handoff?.tests.length ? `${run.handoff.tests.length} note${run.handoff.tests.length === 1 ? '' : 's'}` : 'none'} · not verified</span>
+    <span>{run.handoff?.tests.length ? 'Agent-reported tests · not independently verified' : 'No test notes reported'}</span>
   </p>
   {#if run.endedAt}<RunAssessment {run} />{/if}
 </section>

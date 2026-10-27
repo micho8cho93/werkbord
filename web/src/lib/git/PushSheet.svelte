@@ -52,8 +52,7 @@
       {/if}
     </dl>
     <p class="g-small muted">
-      A plain push: never forced. If the remote has commits this branch lacks, it is refused and nothing is overwritten. Afterwards the
-      remote itself is asked to confirm the branch is where it should be.
+      Push without force. The push is refused if the remote has newer commits.
     </p>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

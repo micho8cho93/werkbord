@@ -56,8 +56,7 @@
     </label>
     <label class="check"><input type="checkbox" bind:checked={draft} /> Open as a draft</label>
     <p class="g-small muted">
-      The branch must already be on the remote at <span class="mono">{shortSha(branch.sha)}</span>: this never pushes for you. The pull request
-      is read back from GitHub before it is reported as opened.
+      The branch must already be on the remote at <span class="mono">{shortSha(branch.sha)}</span>. Opening a pull request does not push it.
     </p>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

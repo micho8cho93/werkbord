@@ -2,7 +2,7 @@
 
 import { cardActivity, oneLine, runElapsed, runStatus, type Tone } from './format';
 import type { Question, Run, SchedulingDecision, Task, TaskState, WorkMode } from './types';
-import { schedulingLabels } from './scheduling';
+import { schedulingLabels, schedulingReason } from './scheduling';
 import { modeOf } from './labels';
 import type { Project } from './types';
 import { TASK_STATES } from './types';
@@ -88,7 +88,7 @@ export function cardStatus(task: Task, run: Run | undefined, ctx: CardContext): 
   if (task.state === 'done') return { tone: 'ok', text: `Done · ${sinceShort(task.updatedAt, ctx.now)} ago`, detail: '', live: false };
   if (ctx.waitingFor.length) return { tone: 'neutral', text: `Waits for ${ctx.waitingFor.join(', ')}`, detail: '', live: false };
   if (ctx.decision && task.orchestration?.enabled && !task.orchestration.runId) {
-    return { tone: 'neutral', text: schedulingLabels[ctx.decision.state], detail: oneLine(ctx.decision.reason, 140), live: false };
+    return { tone: 'neutral', text: schedulingLabels[ctx.decision.state], detail: oneLine(schedulingReason(ctx.decision), 140), live: false };
   }
   return { tone: 'neutral', text: 'Not started', detail: '', live: false };
 }

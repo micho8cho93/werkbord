@@ -5,7 +5,21 @@ import {
   editableOrchestration,
   emptyOrchestration,
   startRefusal,
+  canScheduleAnother,
 } from "./scheduling";
+describe('authorising another scheduled attempt', () => {
+  it('requires a previously used or blocked schedule that remains enabled', () => {
+    const armed = { ...emptyOrchestration(), enabled: true, key: 'schedule-1' };
+    expect(canScheduleAnother(undefined, true)).toBe(false);
+    expect(canScheduleAnother(armed, true)).toBe(false);
+    expect(canScheduleAnother({ ...armed, dispatchedAt: '2026-01-01T00:00:00Z' }, true)).toBe(false);
+    expect(canScheduleAnother({ ...armed, runId: 'run-1' }, true)).toBe(true);
+    expect(canScheduleAnother({ ...armed, missed: true }, true)).toBe(true);
+    expect(canScheduleAnother({ ...armed, error: 'Start failed' }, true)).toBe(true);
+    expect(canScheduleAnother({ ...armed, runId: 'run-1' }, false)).toBe(false);
+    expect(canScheduleAnother({ ...armed, enabled: false, runId: 'run-1' }, true)).toBe(false);
+  });
+});
 describe("refused starts", () => {
   it("says a scheduler refusal in plain words and leaves other messages alone", () => {
     expect(startRefusal("conflict: waiting_capacity: Project concurrency limit (1) is occupied by run run_x on runner rnr_y")).toBe(

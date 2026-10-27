@@ -47,7 +47,7 @@
   <section class="card g-card review-context" aria-label="Review from task">
     <a class="g-back" href={taskHref(projectId, context.task.id, context.run.id)}>← Back to {context.task.title}</a>
     <p class="result">{context.result}</p>
-    <p class="tests"><strong>Tests reported</strong> · {context.tests.length ? `${context.tests.length} note${context.tests.length === 1 ? '' : 's'} · not independently verified` : 'none · not verified'}</p>
+    <p class="tests">{context.tests.length ? 'Agent-reported tests · not independently verified' : 'No test notes reported'}</p>
     {#if context.tests.length}<ul class="test-notes">{#each context.tests as test (test)}<li>{test}</li>{/each}</ul>{/if}
     <a class="btn quiet small" href={taskHref(projectId, context.task.id, context.run.id)}>Full run and Git evidence</a>
   </section>

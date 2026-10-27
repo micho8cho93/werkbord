@@ -43,12 +43,11 @@
     <ResultCard {result} />
   {:else if plan}
     <p class="g-wrap">
-      Remove the directory Werkbord made for <strong>{label}</strong>.
+      Remove the worktree folder for <strong>{label}</strong>. The branch and its commits are kept.
     </p>
     <p class="mono g-small g-wrap">{plan.path}</p>
     <p class="g-small muted">
-      The branch is kept, with all its commits. Only a directory with nothing uncommitted in it, that no run is using, is ever removed:
-      Werkbord never discards uncommitted work.
+      A worktree cannot be removed while it has uncommitted changes or an active run.
     </p>
     {#if plan.missing}<p class="g-notice g-small">The directory is already gone; this only forgets the record of it.</p>{/if}
     {#if plan.blockers.length}

@@ -150,7 +150,9 @@
 >
   <button type="button" data-drag-handle draggable="false" disabled={pending} aria-label="Move task: {task.title}" title="Drag to a column, or use Left and Right arrows"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="3" r="1"/><circle cx="8" cy="3" r="1"/><circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="4" cy="13" r="1"/><circle cx="8" cy="13" r="1"/></svg></button>
   <a class="title" {href} draggable={!pending}>{task.title}</a>
-  <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
+  {#if pending || stale || task.state !== 'backlog' || status.text !== 'Not started'}
+    <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
+  {/if}
   <!-- A work project has no run to describe, so what the task is about is the one other line it has. -->
   {#if !agentWork && task.description}<p class="work-detail one">{task.description}</p>{/if}
   {#if status.detail}<p class="detail">{status.detail}</p>{/if}

@@ -8,7 +8,7 @@
   import { severityLabel } from '../health';
   import Icon from '../Icon.svelte';
   import QuestionCard from '../QuestionCard.svelte';
-  import { schedulingLabels } from '../scheduling';
+  import { schedulingLabels, schedulingReason } from '../scheduling';
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
 
@@ -90,7 +90,7 @@
         <a class="btn small open" {href}>Open task</a>
       </div>
     {:else if item.kind === 'schedule' && item.schedule}
-      <p class="well"><strong>{schedulingLabels[item.schedule.decision.state]}</strong> · {item.schedule.decision.reason}</p>
+      <p class="well"><strong>{schedulingLabels[item.schedule.decision.state]}</strong> · {schedulingReason(item.schedule.decision)}</p>
       <div class="acts"><a class="btn small open" {href}>Open task</a></div>
     {:else if item.kind === 'risk' && item.finding}
       <p class="expl">{item.finding.explanation}</p>

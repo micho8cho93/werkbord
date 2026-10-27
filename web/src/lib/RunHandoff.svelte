@@ -101,7 +101,7 @@
   <div class="heading">
     <h2>Run result</h2>
     <button class="btn small" disabled={busy} onclick={generate}
-      >{current.handoff ? "Refresh Git evidence" : "Capture handoff"}</button
+      >{current.handoff ? "Update Git details" : "Capture handoff"}</button
     >{#if current.handoff}<button
         class="btn small"
         disabled={busy}
@@ -112,7 +112,7 @@
   {#if current.reason}<p class="text">{current.reason}</p>{/if}
   <p class="text">Branch: <code>{branch?.name || current.branch || 'No branch recorded'}</code></p>
   {#if branch}{#if !hideReviewActions}<div class="review-acts"><a class="btn primary" href={branchHref(current.projectId, branch.scope, branch.name)}>Review changes</a>{#if canMerge}<button class="btn ok" onclick={() => sheets.open({ kind: 'merge', branch: branch.name, onmerged })}><Icon name="merge" size={14} />Merge…</button>{/if}</div>{/if}
-  {#if canMerge}<p class="muted small">Merge… shows what will change and asks you to confirm before anything is merged into the target branch. A finished agent never merges by itself.</p>{:else if branch.merged}<p class="muted small">This branch is already merged.</p>{/if}
+  {#if branch.merged}<p class="muted small">This branch is already merged.</p>{/if}
   {:else if pr && prURL !== '#'}{#if !hideReviewActions}<a class="btn primary" href={prURL} target="_blank" rel="noopener noreferrer">Review pull request #{pr.number}</a>{/if}
   {:else}<p class="muted">{reviewLookupFailed ? 'Could not check for a local diff or pull request.' : git.loading || git.githubLoading ? 'Checking available review evidence…' : current.remote ? 'Changes remain on the runner. No pull request is available here.' : 'No local diff or pull request is available here.'}</p>{/if}
   {#if git.error}<p class="error" role="alert">Could not load Git evidence: {git.error}</p>{/if}

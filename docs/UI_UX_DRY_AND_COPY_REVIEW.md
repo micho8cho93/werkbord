@@ -104,6 +104,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D05 — New schedules already offer “Allow one more run” · P1
 
+**Implementation status:** Completed in the scheduling and everyday-work group; the original observation is retained below.
+
 - **Source:** [ScheduleFields.svelte:257](../web/src/lib/ScheduleFields.svelte#L257), [ScheduleSheet.svelte:14](../web/src/lib/task/ScheduleSheet.svelte#L14).
 - **Observed:** Rearming is always displayed next to saving, including before any scheduled attempt or when automatic running is off. “One more” presumes a previous attempt.
 - **Change:** Show “Schedule another run” only when a used schedule needs an explicit new authorisation. Explain that it schedules an attempt rather than immediately starting work. Pass the original schedule state into the presentation if needed.
@@ -167,6 +169,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C03 — New-task settings repeat the permissions explanation · P2
 
+**Implementation status:** Completed in the scheduling and everyday-work group; the original observation is retained below.
+
 - **Source:** [NewTaskDialog.svelte:148](../web/src/lib/NewTaskDialog.svelte#L148), [ExecutionFields.svelte:182](../web/src/lib/ExecutionFields.svelte#L182), [policy.ts:41](../web/src/lib/policy.ts#L41).
 - **Problem:** A permissions sentence appears above the settings disclosure, inside it, and again when an explicit interaction policy is selected.
 - **Proposed:** Show “Permission requests still come to you” once beside Interaction. Retain the selected mode’s distinct explanation, including what autonomous investigation means.
@@ -180,6 +184,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** One instruction per current interaction. Saving remains clearly separate from executing, including when “Run once” is offered.
 
 ### C05 — Board cards restate their column’s default state · P3
+
+**Implementation status:** Completed in the scheduling and everyday-work group; the original observation is retained below.
 
 - **Source:** [board.ts:82](../web/src/lib/board.ts#L82), [TaskCard.svelte:153](../web/src/lib/board/TaskCard.svelte#L153), [Team card status:1401](../internal/team/console/static/console.js#L1401).
 - **Problem:** Every neutral card adds “Not started”, “Available” or “Done” under a column that already communicates that state.
@@ -289,12 +295,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C19 — Planning and scheduling repeat long conceptual explanations · P2
 
+**Implementation status:** Completed in the scheduling and everyday-work group; the original observation is retained below.
+
 - **Source:** [TaskPlanFields.svelte:35](../web/src/lib/TaskPlanFields.svelte#L35), [ScheduleFields.svelte:131](../web/src/lib/ScheduleFields.svelte#L131), [TaskPanel.svelte:637](../web/src/routes/TaskPanel.svelte#L637), [scheduling.ts:3](../web/src/lib/scheduling.ts#L3), [Team schedule:1959](../internal/team/console/static/console.js#L1959).
 - **Problem:** Each form reteaches Timeline versus Calendar. “One-shot schedule dispatched”, “rearm”, “Waiting for Capacity”, “Potential Conflict”, and “Only the holder’s local approval can authorize execution” make routine timing controls sound operational.
 - **Proposed:** Planned dates: “Plan the work. These dates do not start an agent.” Scheduled start: “Start the agent once, when the requirements are met.” Statuses: “Waiting for a runner” only where runner capacity is the actual constraint; “Waiting for capacity” for project limits; “May change the same files” for detected overlap. Use D05’s explicit schedule-another-run action after dispatch.
 - **Acceptance:** Do not conflate project and runner capacity, dependencies and priority, planning and execution, or a requested Team schedule and local approval. Ensure the task’s rearming instructions match the actual control.
 
 ### C20 — Run and Git copy repeatedly explains safeguards and internal evidence · P2
+
+**Implementation status:** Completed in the scheduling and everyday-work group; the original observation is retained below.
 
 - **Source:** [RunHandoff.svelte:148](../web/src/lib/RunHandoff.svelte#L148), [continuation copy:291](../web/src/lib/RunHandoff.svelte#L291), [RunReviewSummary.svelte:39](../web/src/lib/RunReviewSummary.svelte#L39), [RunUsage.svelte:9](../web/src/lib/RunUsage.svelte#L9), [PushSheet.svelte:54](../web/src/lib/git/PushSheet.svelte#L54), [PRSheet.svelte:58](../web/src/lib/git/PRSheet.svelte#L58), [CleanSheet.svelte:49](../web/src/lib/git/CleanSheet.svelte#L49).
 - **Problem:** “Git evidence”, “bounded diffs”, “execution ownership retained”, repeated promises that agents never merge, and prose about reading GitHub back distract from the result. “Tests reported: N notes · not verified” reports note-count rather than test outcome.

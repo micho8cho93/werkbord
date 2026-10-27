@@ -2,7 +2,7 @@
   import { formatDateTime } from '../clock.svelte';
   import { resolveFor } from '../execution';
   import Sheet from '../Sheet.svelte';
-  import { schedulingLabels } from '../scheduling';
+  import { schedulingLabels, schedulingReason } from '../scheduling';
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import EditTaskSheet from '../task/EditTaskSheet.svelte';
@@ -89,7 +89,7 @@
         </div>
       {:else if shown.at}
         <div><dt>An agent starts</dt><dd>{formatDateTime(shown.at)}</dd></div>
-        {#if decision}<div><dt>Now</dt><dd>{schedulingLabels[decision.state]}. {decision.reason}</dd></div>{/if}
+        {#if decision}<div><dt>Now</dt><dd>{schedulingLabels[decision.state]}. {schedulingReason(decision)}</dd></div>{/if}
       {/if}
     </dl>
     <p class="hint mm">

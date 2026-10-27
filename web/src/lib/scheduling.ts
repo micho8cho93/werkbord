@@ -3,12 +3,17 @@ import type { Orchestration, SchedulingDecision } from "./types";
 export const schedulingLabels: Record<SchedulingDecision["state"], string> = {
   runnable: "Ready",
   queued: "Queued",
-  waiting_dependency: "Waiting on Dependency",
+  waiting_dependency: "Waiting for a prerequisite",
   waiting_schedule: "Scheduled",
-  waiting_capacity: "Waiting for Capacity",
-  potentially_conflicting: "Potential Conflict",
+  waiting_capacity: "Waiting for capacity",
+  potentially_conflicting: "May change the same files",
   blocked: "Blocked",
 };
+export function schedulingReason(decision: SchedulingDecision): string {
+  if (decision.reason.startsWith('This one-shot schedule already dispatched run ')) return 'The scheduled run was dispatched.';
+  if (decision.reason === 'Schedule was marked missed; reschedule to rearm') return 'The scheduled time was missed. Change the schedule and choose “Schedule another run”.';
+  return decision.reason;
+}
 /** What a refused start means for the person, by the scheduler's reason. The controller's own reason names runs and
  *  runners by ID; that stays on the task's scheduling details. */
 const refusals: Partial<Record<SchedulingDecision["state"], string>> = {
@@ -34,6 +39,10 @@ export function emptyOrchestration(): Orchestration {
     missedPolicy: "run_late",
     graceSeconds: 300,
   };
+}
+/** A used or blocked one-shot needs explicit authorisation for another attempt. */
+export function canScheduleAnother(original: Orchestration | undefined, enabled: boolean): boolean {
+  return !!original?.enabled && enabled && !!(original.runId || original.missed || original.error);
 }
 export function wallTime(
   instant: string | undefined,

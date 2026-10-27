@@ -109,7 +109,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('tab', { name: 'Schedule', exact: true }).click();
     await page.getByRole('button', { name: 'Schedule this task', exact: true }).click();
     const scheduleSheet = page.getByRole('dialog', { name: 'Schedule and dependencies', exact: true });
-    await scheduleSheet.getByText('Runs once when the schedule, dependencies and capacity allow. Use Timeline for planned work dates.', { exact: true }).waitFor();
+    await scheduleSheet.getByText('Starts the agent once, when the schedule, dependencies and capacity allow.', { exact: true }).waitFor();
+    assert.equal(await scheduleSheet.getByRole('button', { name: 'Schedule another run', exact: true }).count(), 0, 'a new schedule has no previous attempt');
     await captureDecisionSurface('execution-schedule');
     await scheduleSheet.getByRole('button', { name: 'Close', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -350,7 +351,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Recover saved task fixture');
         assert.equal(await page.getByRole('region', { name: 'Run settings', exact: true }).isVisible(), true);
         assert.equal(await page.locator('#new-task-form > details[open], #new-task-form .exec > details[open]').count(), 0);
-        assert.equal(await page.getByText('Permission requests still come to you.', { exact: true }).isVisible(), true);
+        assert.equal(await page.getByText('This never widens what the agent may do: permission requests still come to you.', { exact: true }).isVisible(), true);
         assert.match(await page.locator('.exec > strong').innerText(), / on .* · Ask me when needed/);
         await page.waitForTimeout(300);
         await page.screenshot({ path: path.join(artifacts, 'creation-mobile-light.png') });
@@ -471,11 +472,11 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert((await headerReviewLink.getAttribute('href')).includes(`task=${localTask.id}`), 'task review navigation carries its explicit task origin');
         assert((await headerReviewLink.getAttribute('href')).includes(`run=${localRun.id}`), 'task review navigation carries its explicit run origin');
         await fullEvidence.click();
-        await page.getByText('Tests reported: none · not verified', {exact:false}).waitFor();
+        await page.getByText('No test notes reported', {exact:true}).waitFor();
         await fullEvidence.click();
         assert.equal(await page.locator('.panel').getByRole('link', {name:'Review changes',exact:true}).count(), 1, 'review action is not duplicated in the activity result');
         assert(await reviewHead.getByText(/Local branch .* commit ahead/).isVisible(), 'branch provenance is summarized by the task title');
-        assert(await reviewHead.getByText('Tests reported: none · not verified', {exact:true}).isVisible(), 'reported test confidence is explicit and not repeated as a success claim');
+        assert(await reviewHead.getByText('No test notes reported', {exact:true}).isVisible(), 'absence of test notes is not presented as a success');
         const verdict = reviewHead.getByRole('group', {name:'Your assessment of this run'});
         await verdict.waitFor();
         assert(await verdict.getByText('Not recorded',{exact:false}).isVisible(), 'verdict is discoverable beside the review decision');
@@ -551,7 +552,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const reviewContext = page.getByRole('region',{name:'Review from task',exact:true});
         await reviewContext.waitFor();
         await reviewContext.getByText(taskReviewRun.handoff.results,{exact:true}).waitFor();
-        await reviewContext.getByText('Tests reported · none · not verified',{exact:true}).waitFor();
+        await reviewContext.getByText('No test notes reported',{exact:true}).waitFor();
         assert((await reviewContext.getByRole('link',{name:new RegExp('Back to '+localTask.title)}).getAttribute('href')).includes(`/task/${localTask.id}`), 'the context gives a direct return to its task');
         const fullRunEvidenceLink = reviewContext.getByRole('link',{name:'Full run and Git evidence',exact:true});
         await fullRunEvidenceLink.waitFor();
@@ -578,7 +579,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert(contextFileHref.includes(`task=${localTask.id}`) && contextFileHref.includes(`run=${localRun.id}`),'file drill-down retains the explicit review origin');
         await contextFile.click();
         await page.getByRole('region',{name:'Review from task',exact:true}).waitFor();
-        await page.getByText('Tests reported · none · not verified',{exact:true}).waitFor({state:'visible'}); // The new file view resolves its review context asynchronously.
+        await page.getByText('No test notes reported',{exact:true}).waitFor({state:'visible'}); // The new file view resolves its review context asynchronously.
         assert((await page.getByRole('link',{name:`← ${ownedBranch.name}`,exact:true}).getAttribute('href')).includes(`task=${localTask.id}`),'file view returns to the task-associated branch');
         await captureDecisionSurface('task-owned-file');
         await page.getByRole('link',{name:`← ${ownedBranch.name}`,exact:true}).click();

@@ -130,9 +130,10 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  // privileged question answer and shared scheduling through the owner controller.
  await page.goto(m.first+`/?tab=board&project=${project.id}`);
  await page.locator(`[data-start-agent="${ticket.id}"]`).click();
- await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
- assert(await page.getByRole('button',{name:'Review and start agent',exact:true}).isDisabled(),'Start agent on the card opens a policy preview without launching');
- await page.getByRole('heading',{name:'Effective policy',exact:true}).waitFor();
+ await page.getByRole('heading',{name:'Permissions for this run',exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Review and start agent',exact:true}).count(),0,'the preparation action is replaced by the policy preview');
+ assert.equal(await page.getByRole('button',{name:'Change settings',exact:true}).count(),1);
+ await page.getByRole('heading',{name:'Permissions for this run',exact:true}).waitFor();
  await shot(page,'agent-policy');await shot(page,'agent-policy-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
  let approvals=0;const countApprovals=request=>{if(request.method()==='POST'&&request.url().endsWith('/execution/approve'))approvals++;};page.on('request',countApprovals);
  await page.route('**/api/device/v1/execution/start',route=>route.fulfill({status:503,json:{error:{message:'Fixture start temporarily unavailable'}}}));
@@ -198,7 +199,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await assert.rejects(()=>dev('first','GET',`/execution/detail?projectId=${project.id}&ticketId=${privateTicket.id}`),/only the current holder/);
  await assert.rejects(()=>dev('first','POST','/execution/input',{projectId:project.id,ticketId:privateTicket.id,runId:running.id,text:'Continue'}),/only the current holder/);
  await page.goto(m.first+`/?tab=board&project=${project.id}&ticket=${privateTicket.id}`);
- await page.locator('.ticket').getByText(/Bo owns this work, and their agent is (not )?active/).waitFor();
+ await page.locator('.ticket').getByText(/Bo owns this work; their agent is (not )?active/).waitFor();
  assert.equal(await page.getByRole('region',{name:'Your private agent',exact:true}).count(),0);
  assert.equal(await page.getByRole('button',{name:'Start work',exact:true}).count(),0);
  assert.equal(await page.getByRole('button',{name:'Claim this ticket',exact:true}).count(),0);

@@ -146,9 +146,9 @@ async function captureMatrix(page, name) {
     const reviewContext = page.getByRole('region', { name: 'Review from task', exact: true });
     await reviewContext.getByText(result, { exact: true }).waitFor();
     if (run.handoff.tests.length) {
-      await reviewContext.getByText(`Tests reported · ${run.handoff.tests.length} note${run.handoff.tests.length === 1 ? '' : 's'} · not independently verified`, { exact: true }).waitFor();
+      await reviewContext.getByText('Agent-reported tests · not independently verified', { exact: true }).waitFor();
     } else {
-      await reviewContext.getByText('Tests reported · none · not verified', { exact: true }).waitFor();
+      await reviewContext.getByText('No test notes reported', { exact: true }).waitFor();
     }
     assert((await reviewContext.getByRole('link', { name: new RegExp(`Back to ${task.title}`) }).getAttribute('href')).includes(`/task/${task.id}`), 'the result context has a direct return to the task');
     assert((await reviewContext.getByRole('link', { name: new RegExp(`Back to ${task.title}`) }).getAttribute('href')).includes(`run=${run.id}`), 'the return link preserves the exact run');

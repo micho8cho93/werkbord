@@ -19,7 +19,7 @@
   import RunReviewSummary from '../lib/RunReviewSummary.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
 import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
-  import { schedulingLabels } from '../lib/scheduling';
+  import { schedulingLabels, schedulingReason } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
@@ -656,11 +656,11 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
             <section class="block" aria-labelledby="sched-h">
               <div class="sh"><h3 id="sched-h">Schedule</h3><button class="btn quiet small" aria-label={task.orchestration?.enabled ? 'Change schedule' : 'Schedule this task'} disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
               {#if decision && task.orchestration?.enabled}
-                <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>
+                <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {schedulingReason(decision)}</p>
               {:else}
                 <p class="fact muted">Runs when you start it.</p>
               {/if}
-              {#if task.orchestration?.runId}<p class="note">One-shot schedule dispatched. Save the schedule again to arm another attempt.</p>{/if}
+              {#if task.orchestration?.runId}<p class="note">The scheduled run was dispatched. Choose “Schedule another run” in the schedule to authorise another attempt.</p>{/if}
               {#if dependencies.length}
                 <p class="fact">Waits for {dependencies.map((t) => t?.title ?? 'a removed task').join(', ')}</p>
               {/if}

@@ -2,17 +2,19 @@
   import { tick, untrack } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import type { Orchestration, Task } from "./types";
-  import { instantFromWall, wallTime } from "./scheduling";
+  import { canScheduleAnother, instantFromWall, wallTime } from "./scheduling";
   let {
     value = $bindable(),
     tasks,
     taskId,
+    original,
     onsave,
     busy = false,
   }: {
     value: Orchestration;
     tasks: Task[];
     taskId: string;
+    original?: Orchestration;
     onsave: (o: Orchestration) => Promise<void>;
     busy?: boolean;
   } = $props();
@@ -128,7 +130,7 @@
       >Run automatically from Werkbord</span
     ></label
   >
-  <p class="muted small">Runs once when the schedule, dependencies and capacity allow. Use Timeline for planned work dates.</p>
+  <p class="muted small">Starts the agent once, when the schedule, dependencies and capacity allow.</p>
   <div class="fields">
     <label
       >Timezone<input
@@ -257,7 +259,9 @@
   <button class="btn primary" disabled={busy}
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
   >
-<button type="button" class="btn ok" disabled={busy} onclick={() => { if (confirm("Allow one more scheduled run? This rearms the schedule; it does not start an agent now.")) void save(true); }}>Allow one more run</button>
+{#if canScheduleAnother(original, value.enabled)}
+  <button type="button" class="btn ok" disabled={busy} onclick={() => { if (confirm("Schedule another run? This authorises another attempt when the requirements are met; it does not start an agent now.")) void save(true); }}>Schedule another run</button>
+{/if}
 </form>
 
 <style>
