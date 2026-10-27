@@ -19,18 +19,30 @@ export interface HelpArticle {
 
 export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
-    id: 'mcp', title: 'Setting up an MCP server',
-    summary: 'MCP lets a client use tools from a server. Connect Werkbord to an external server, or connect any compatible client to Werkbord’s built-in board server.',
-    example: 'A notes service supplies an MCP URL for Werkbord to use. A separate planning client instead connects to Werkbord to read selected projects and propose changes.',
+    id: 'mcp', title: 'Use an MCP service',
+    summary: 'Connect Werkbord to an external MCP server so Salie or coding agents can use its tools.',
+    example: 'A notes service supplies an MCP URL. Add it in Settings, test it, then choose who may use its tools.',
     steps: [
-      'Open Settings → Connections → MCP services. To use another service, paste its single-server MCP JSON configuration or choose Add connection and enter its URL or local executable. Use the authentication method documented by that service.',
-      'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required. Then enable the connection and choose Salie or Coding agents. Review each tool’s permission before use.',
-      'To let another client use Werkbord, go to Connect a client to Werkbord on the same page. Give it a name and select only the projects and operations it needs. Create its credential and copy the generated connection settings while they are visible.',
+      'Open Settings → Connections → MCP services. Paste the service’s single-server MCP JSON configuration, or choose Add connection and enter its URL or local executable. Use the authentication method that service documents.',
+      'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required.',
+      'Enable the connection and choose Salie or Coding agents. Review each tool’s permission before use.',
+    ],
+    recovery: 'If connection fails, check the server address, network access and authentication. Environment variables name variables available to the Werkbord process; they are not secret values. Never paste credentials into a chat.',
+    searchTerms: ['mcp', 'server', 'service', 'integration', 'stdio', 'streamable http', 'oauth', 'configuration'],
+    destination: { kind: 'settings', section: 'mcp' }, linkLabel: 'Open MCP setup',
+  },
+  {
+    id: 'mcp-client', title: 'Connect a client to Werkbord',
+    summary: 'Let another MCP client read selected projects and propose changes through Werkbord’s built-in server.',
+    example: 'A separate planning client connects to Werkbord to read selected projects and propose changes.',
+    steps: [
+      'Open Settings → Connections → Connect a client to Werkbord. Give the client a name and select only the projects and operations it needs.',
+      'Create its credential and copy the generated connection settings while they are visible.',
       'For a client on another computer, use a reachable private controller address ending in /mcp. For stdio-only clients, select the local process option and install the werkbord command on that client’s computer. Paste the generated settings into your client and reconnect it.',
       'Ask the client to list projects to verify the connection. Personal board changes wait in Pending changes for your approval. Team task plans wait in Plans; direct Team ticket writes follow the issued permissions. Credentials are specific to your own computer or to a Team workspace.',
     ],
-    recovery: 'If connection fails, check which side is the client, the server address, network access, and authentication. localhost means the computer running the client. Environment references name variables available to the controller process; they are not secret values. Never paste credentials into a chat. If you lose a new credential, revoke it and create another.',
-    searchTerms: ['mcp', 'server', 'client', 'integration', 'stdio', 'streamable http', 'bearer', 'oauth', 'configuration'],
+    recovery: 'If connection fails, check which side is the client, the address and the credential. localhost means the computer running the client. If you lose a new credential, revoke it and create another.',
+    searchTerms: ['mcp', 'client', 'credential', 'bearer', 'planning client', 'connect a client'],
     destination: { kind: 'settings', section: 'mcp' }, linkLabel: 'Open MCP setup',
   },
   {

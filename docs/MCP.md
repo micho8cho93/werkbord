@@ -22,7 +22,7 @@ Reconnect the client and ask it to list projects to check the connection.
 For the reverse direction, **Connect Werkbord to a service** accepts a single-server `mcpServers` JSON configuration.
 Import fills in the form without connecting or executing anything. Review it, save, test and discover, then enable the
 connection and its assistant/coding access. Configurations with environment secrets or unsupported settings require
-manual entry so settings are not silently dropped. **Help → Setting up an MCP server** explains both directions.
+manual entry so settings are not silently dropped. **Help → Use an MCP service** and **Connect a client to Werkbord** explain the two directions.
 
 The Streamable HTTP endpoint is the controller's address followed by `/mcp`, for example:
 

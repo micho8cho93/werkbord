@@ -10,6 +10,8 @@
   const projectId = $derived(router.projectId || app.lastProjectId);
   const project = $derived(app.project(projectId));
   const articles = $derived(searchHelp(query));
+  // A search or a linked article narrows the list to what was asked for, so its steps are shown.
+  const opened = $derived(query.trim() !== '' && articles.length <= 2);
   let replayed = $state(false);
   async function replayTours() {
     forgetHere();
@@ -21,7 +23,7 @@
   <header class="intro">
     <div>
       <h2 id="help-title">Find the next step</h2>
-      <p class="lede">Short guides for the work you do in Werkbord. Each example uses the words and safeguards shown in the app.</p>
+      <p class="lede">Help with tasks, agents, Git and connections.</p>
     </div>
     <label class="search-field">
       <span>Search Help and shortcuts</span>
@@ -46,16 +48,19 @@
               <p>{article.summary}</p>
             </div>
             <div class="guide-body">
-              <p class="example"><strong>Example</strong>{article.example}</p>
-              <ol>
-                {#each article.steps as step, index (step)}
-                  <li><span class="step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>
-                {/each}
-              </ol>
-              <p class="recovery"><strong>If it goes wrong</strong>{article.recovery}</p>
               <a class="guide-link" href={helpHref(article.destination, projectId, project?.kind)}>
                 {article.linkLabel}<Icon name="right" size={14} />
               </a>
+              <details open={opened}>
+                <summary>Steps, example and recovery</summary>
+                <p class="example"><strong>Example</strong>{article.example}</p>
+                <ol>
+                  {#each article.steps as step, index (step)}
+                    <li><span class="step-number" aria-hidden="true">{index + 1}</span><span>{step}</span></li>
+                  {/each}
+                </ol>
+                <p class="recovery"><strong>If it goes wrong</strong>{article.recovery}</p>
+              </details>
             </div>
           </article>
         </li>
@@ -91,6 +96,9 @@
   .guide-body ol { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
   .guide-body ol li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; color: var(--text); font-size: 13px; line-height: 1.5; }
   .step-number { color: var(--text-2); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  details > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; color: var(--text); font-size: 13px; font-weight: 500; }
+  details[open] > summary { margin-bottom: 8px; }
+  details > :not(summary) { margin-top: 10px; }
   .recovery { padding-top: 10px; border-top: 1px solid var(--border); }
   .guide-link { display: inline-flex; align-items: center; gap: 5px; justify-self: start; min-height: 36px; color: var(--accent); font-size: 13px; font-weight: 500; text-decoration-thickness: 1px; text-underline-offset: 3px; }
   .guide-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }

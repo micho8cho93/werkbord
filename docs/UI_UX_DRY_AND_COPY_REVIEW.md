@@ -362,6 +362,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C24 — Help reads as several simultaneous layers of instruction · P2
 
+**Implementation status:** Completed in the Help batch; the original observation is retained below.
+
 - **Source:** [Help.svelte:23](../web/src/routes/Help.svelte#L23), [guide body:45](../web/src/routes/Help.svelte#L45), [help.ts:20](../web/src/lib/help.ts#L20).
 - **Problem:** Every guide renders summary, example, numbered steps, recovery text and destination at once. The introduction promises “words and safeguards shown in the app,” which describes documentation methodology rather than helping the reader. The MCP guide combines both directions and several transports into long steps.
 - **Proposed:** Intro: “Help with tasks, agents, Git and connections.” Show title and one-line purpose in the guide list; reveal steps on selection. Keep examples and recovery details available within the selected guide. Split MCP instructions by “Use a service” and “Connect a client.”

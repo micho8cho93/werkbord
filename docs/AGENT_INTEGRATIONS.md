@@ -81,7 +81,7 @@ CLI detection, included subscription (declared by the owner), metered, and exclu
 Unknown access is ineligible rather than assumed free. A detected API-key override
 remains metered even if the owner declared a subscription.
 
-Metered candidates require **Allow metered API fallback** and both input/output USD
+Metered candidates require **Allow paid API usage when subscription usage is unavailable** and both input/output USD
 prices per million tokens. Prices are explicit owner estimates, not fabricated live
 quotes. Ranking compares equal input/output quantities after the capability requirement;
 actual context, output, caching, provider multipliers, taxes and subscription allowance
