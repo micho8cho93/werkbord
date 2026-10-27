@@ -86,6 +86,22 @@ The time you take to approve is the rest. Approve `desktop-release` as soon as t
 secrets, so it will not start without it. Publication needs both builds to succeed, so approving early cannot publish anything
 that failed. If Linux is off (the default), its skipped job no longer skips the approval and publication jobs after it.
 
+## Publishing one preview without the offline signature
+
+`release-approval` needs the owner's offline signature over `checksums.txt` ([BETA_READINESS.md](BETA_READINESS.md)). When the
+owner cannot sign (away from the key), one **preview** may be published without it by setting the repository variable
+`UNSIGNED_MANIFEST_TAG` to exactly that tag (for example `werkbord-v5.5.2-preview.1`) before the run reaches `release-approval`:
+
+- It applies only to the tag the variable names, only to a `-preview.N` tag, and only when no `RELEASE_MANIFEST_SIGNATURE` was
+  supplied. A supplied signature is always verified, and a stale one still fails. A stable tag can never use it.
+- Every byte, the tag and the commit are still checked against the manifest the workflow assembled. The disk image is still
+  Developer ID signed, notarized and stapled, and the public verifier still checks the checksum, signature, ticket and Gatekeeper.
+  The Sparkle feed is still EdDSA signed. What is missing is proof that the owner approved the checksum list.
+- The release says so: its notes have a "Release manifest not signed" section and it carries `manifest-unsigned.txt`.
+  `install.sh` and the controller updater refuse such a release by design; use the disk image or the in-app update.
+- Delete the variable afterwards. To replace the release with a fully signed one, sign `checksums.txt` as described in
+  BETA_READINESS.md, set `RELEASE_MANIFEST_SIGNATURE` and run `release-approval` again for a new candidate.
+
 ## Test the app while approval is pending
 
 `make desktop-preview` builds a universal DMG from the current individual VERSION with an ad-hoc signature and no notarization or Sparkle updater.

@@ -54,18 +54,27 @@ def create(directory, tag, commit, linux):
     (directory / "checksums.txt").write_text("".join(entries))
 
 
-def verify(directory, tag, commit):
-    # Signature and key come from a separately administered protected review environment.
-    key = base64.urlsafe_b64decode(os.environ["RELEASE_PUBLIC_KEY"]+"=")
-    sig = base64.b64decode(os.environ["RELEASE_MANIFEST_SIGNATURE"], validate=True)
-    if len(key) != 32 or len(sig) != 64 or base64.urlsafe_b64encode(key).rstrip(b"=").decode() != os.environ["RELEASE_PUBLIC_KEY"]:
-        raise ValueError("invalid independently configured release key/signature")
-    pem = "-----BEGIN PUBLIC KEY-----\n" + base64.b64encode(bytes.fromhex("302a300506032b6570032100")+key).decode()+"\n-----END PUBLIC KEY-----\n"
-    # This public key is provisioned independently, never retrieved from the candidate download.
-    public = directory.parent / "trusted-release-public.pem"
-    public.write_text(pem)
-    (directory / "checksums.txt.sig").write_bytes(sig)
-    subprocess.run([str(ROOT / "scripts/verify-release-manifest.sh"), tag, str(directory / "checksums.txt"), str(directory / "checksums.txt.sig"), str(public)], check=True)
+def verify(directory, tag, commit, allow_unsigned_manifest=False):
+    if allow_unsigned_manifest:
+        # A named, one-tag exception for a PREVIEW whose owner could not sign: every byte, the tag and the commit are still checked
+        # against the manifest this workflow assembled, but nothing proves the owner approved that manifest. It is never available
+        # to a stable release, and the release says so (manifest-unsigned.txt).
+        if "-preview." not in tag:
+            raise ValueError("only a preview can be published without the owner's offline manifest signature")
+        if (directory / "checksums.txt.sig").exists():
+            raise ValueError("a signed candidate must be verified, not excepted")
+    else:
+        # Signature and key come from a separately administered protected review environment.
+        key = base64.urlsafe_b64decode(os.environ["RELEASE_PUBLIC_KEY"]+"=")
+        sig = base64.b64decode(os.environ["RELEASE_MANIFEST_SIGNATURE"], validate=True)
+        if len(key) != 32 or len(sig) != 64 or base64.urlsafe_b64encode(key).rstrip(b"=").decode() != os.environ["RELEASE_PUBLIC_KEY"]:
+            raise ValueError("invalid independently configured release key/signature")
+        pem = "-----BEGIN PUBLIC KEY-----\n" + base64.b64encode(bytes.fromhex("302a300506032b6570032100")+key).decode()+"\n-----END PUBLIC KEY-----\n"
+        # This public key is provisioned independently, never retrieved from the candidate download.
+        public = directory.parent / "trusted-release-public.pem"
+        public.write_text(pem)
+        (directory / "checksums.txt.sig").write_bytes(sig)
+        subprocess.run([str(ROOT / "scripts/verify-release-manifest.sh"), tag, str(directory / "checksums.txt"), str(directory / "checksums.txt.sig"), str(public)], check=True)
     listed = set()
     for line in (directory / "checksums.txt").read_text().splitlines():
         expected, name = line.split()
@@ -79,6 +88,10 @@ def verify(directory, tag, commit):
     evidence = json.loads((directory / "release-evidence.json").read_text())
     if evidence["tag"] != tag or evidence["sourceCommit"] != commit:
         raise ValueError("candidate source/tag substitution")
+    if allow_unsigned_manifest:
+        (directory / "manifest-unsigned.txt").write_text(
+            f"{tag} was published without the owner's offline release-manifest signature (checksums.txt has no checksums.txt.sig).\n"
+            "The disk image is Developer ID signed and notarized and the update feed is EdDSA signed; the checksum list is not authenticated.\n")
 
 
 def main():
@@ -88,11 +101,12 @@ def main():
     parser.add_argument("--tag", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--linux", action="store_true")
+    parser.add_argument("--allow-unsigned-manifest", action="store_true", help="verify only: a named preview exception (see verify)")
     args = parser.parse_args()
     if args.action == "create":
         create(args.dir, args.tag, args.commit, args.linux)
     else:
-        verify(args.dir, args.tag, args.commit)
+        verify(args.dir, args.tag, args.commit, args.allow_unsigned_manifest)
 
 
 if __name__ == "__main__":

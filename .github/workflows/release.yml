@@ -372,6 +372,8 @@ jobs:
       contents: read
     env:
       RELEASE_MANIFEST_SIGNATURE: ${{ vars.RELEASE_MANIFEST_SIGNATURE }}
+      # A one-tag exception for a preview the owner could not sign (see scripts/release-candidate.py). Never set for a stable tag.
+      UNSIGNED_MANIFEST_TAG: ${{ vars.UNSIGNED_MANIFEST_TAG }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -381,7 +383,13 @@ jobs:
           name: unsigned-candidate
           path: candidate
       - name: Authenticate the owner's offline signature of these exact bytes
-        run: python3 scripts/release-candidate.py verify --dir candidate --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"
+        run: |
+          exception=""
+          if [ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ] && [ -n "${UNSIGNED_MANIFEST_TAG:-}" ] && [ "$UNSIGNED_MANIFEST_TAG" = "$GITHUB_REF_NAME" ]; then
+            echo "::warning::$GITHUB_REF_NAME is published without the owner's offline manifest signature (named one-tag exception)"
+            exception=--allow-unsigned-manifest
+          fi
+          python3 scripts/release-candidate.py verify --dir candidate --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" $exception
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: approved-candidate
@@ -419,6 +427,8 @@ jobs:
           for dir in assets/approved; do
             cp "$dir"/* release-assets/
           done
+          unsigned_manifest=false
+          if [ -f release-assets/manifest-unsigned.txt ]; then unsigned_manifest=true; fi
           cp release-assets/Werkbord_"$version"_darwin_universal.dmg release-assets/Werkbord.dmg
           if find release-assets -maxdepth 1 -type f \( -name 'werkbord-team_*' -o -name 'checksums-team.txt*' \) | grep -q .; then
             echo 'Standalone Team Host archives must not be published with the desktop app.' >&2
@@ -445,6 +455,14 @@ jobs:
 
           macOS controller command-line archives and their checksum manifest are included for existing terminal and service workflows. This release has no standalone Team Host archive.
           EOF
+          if [ "$unsigned_manifest" = true ]; then
+            cat >> release-notes.md <<'EOF'
+
+          ### Release manifest not signed
+
+          The disk image is signed with a Developer ID, notarized and stapled, and the update feed is EdDSA signed. This preview was published without the owner's offline signature over `checksums.txt`, so that checksum list is not authenticated: the shell installer and the standalone controller updater refuse this release by design. Use the disk image or the in-app update. See `manifest-unsigned.txt`.
+          EOF
+          fi
           if [ "$prerelease" = true ]; then
             cat >> release-notes.md <<'EOF'
 
@@ -495,6 +513,8 @@ jobs:
             go.sum
             desktop/go.sum
       - name: Download the public release and verify Gatekeeper, notarization and Sparkle contents
+        env:
+          WERKBORD_UNSIGNED_MANIFEST_TAG: ${{ vars.UNSIGNED_MANIFEST_TAG }}
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
 
   desktop-feed-public-verify:

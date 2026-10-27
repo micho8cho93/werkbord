@@ -5,8 +5,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import functools
+import http.server
+import platform
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -47,6 +51,24 @@ class CandidateTests(unittest.TestCase):
             (self.assets / "Werkbord.dmg").write_bytes(b"changed after review")
             with self.assertRaises(ValueError):
                 candidate.verify(self.assets, self.tag, self.commit)
+
+    def test_a_preview_exception_checks_every_byte_but_never_applies_to_stable_or_a_signed_candidate(self):
+        candidate.create(self.assets, self.tag, self.commit, False)
+        candidate.verify(self.assets, self.tag, self.commit, allow_unsigned_manifest=True)
+        self.assertIn("without the owner's offline release-manifest signature", (self.assets / "manifest-unsigned.txt").read_text())
+        self.assertFalse((self.assets / "checksums.txt.sig").exists())
+        (self.assets / "manifest-unsigned.txt").unlink()
+        with self.assertRaises(ValueError):
+            candidate.verify(self.assets, self.tag, "b"*40, allow_unsigned_manifest=True)
+        (self.assets / "Werkbord.dmg").write_bytes(b"changed after assembly")
+        with self.assertRaises(ValueError):
+            candidate.verify(self.assets, self.tag, self.commit, allow_unsigned_manifest=True)
+        with self.assertRaisesRegex(ValueError, "only a preview"):
+            candidate.verify(self.assets, "werkbord-v4.89.0", self.commit, allow_unsigned_manifest=True)
+        (self.assets / "Werkbord.dmg").write_bytes(b"explicit packaging fixture, not a real release")
+        (self.assets / "checksums.txt.sig").write_bytes(b"x"*64)
+        with self.assertRaisesRegex(ValueError, "must be verified"):
+            candidate.verify(self.assets, self.tag, self.commit, allow_unsigned_manifest=True)
 
     def test_unsigned_extra_asset_is_rejected(self):
         candidate.create(self.assets, self.tag, self.commit, False)
@@ -98,6 +120,65 @@ class CandidateTests(unittest.TestCase):
         self.assertNotEqual(subprocess.run([str(script), "4.89.0-preview.0"], capture_output=True).returncode, 0)
         if subprocess.run(["sh", "-c", "command -v dpkg >/dev/null"], capture_output=True).returncode == 0:
             subprocess.run(["dpkg", "--compare-versions", "4.89.0~preview.10", "lt", "4.89.0"], check=True)
+
+
+@unittest.skipUnless(platform.system() == "Darwin", "a disk image is checked on macOS")
+class PublicVerifierExceptionTests(unittest.TestCase):
+    """verify-desktop-release.sh authenticates a published release; one named preview may lack the owner's manifest signature."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="werkbord-verify-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.work = Path(self.temp.name)
+        # No retries: a missing manifest is the case under test, and the script retries the missing files for a minute.
+        self.curl = self.work / "curl-without-retries"
+        self.curl.write_text("#!/usr/bin/env python3\nimport os, sys\nargs = sys.argv[1:]\nout = []\ni = 0\n"
+                             "while i < len(args):\n    if args[i] in ('--retry', '--retry-delay'): i += 2; continue\n"
+                             "    if args[i] != '--retry-all-errors': out.append(args[i])\n    i += 1\nos.execvp('curl', ['curl'] + out)\n")
+        self.curl.chmod(0o755)
+        self.root = self.work / "site"
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(self.root)))
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def release(self, tag):
+        version = tag[len("werkbord-v"):]
+        directory = self.root / tag
+        directory.mkdir(parents=True)
+        dmg = directory / f"Werkbord_{version}_darwin_universal.dmg"
+        dmg.write_bytes(b"not a real disk image")
+        digest = subprocess.check_output(["shasum", "-a", "256", str(dmg)], text=True).split()[0]
+        (directory / (dmg.name + ".sha256")).write_text(f"{digest}  {dmg.name}\n")
+
+    def verify(self, tag, exception):
+        env = dict(os.environ, WERKBORD_RELEASE_BASE=f"http://127.0.0.1:{self.server.server_address[1]}", CURL=str(self.curl))
+        env.pop("WERKBORD_UNSIGNED_MANIFEST_TAG", None)
+        if exception is not None:
+            env["WERKBORD_UNSIGNED_MANIFEST_TAG"] = exception
+        run = subprocess.run([str(ROOT / "scripts/verify-desktop-release.sh"), tag], capture_output=True, text=True, env=env)
+        return run.returncode, run.stdout + run.stderr
+
+    def test_only_the_named_preview_may_lack_the_manifest_signature(self):
+        preview = "werkbord-v4.89.0-preview.1"
+        self.release(preview)
+        code, out = self.verify(preview, None)
+        self.assertNotEqual(code, 0)
+        self.assertIn("signed release manifest is missing", out)
+        code, out = self.verify(preview, "werkbord-v4.89.1-preview.1")  # another tag's exception does not apply
+        self.assertIn("signed release manifest is missing", out)
+        code, out = self.verify(preview, preview)  # excepted: it continues to the Apple checks, which a fake image fails
+        self.assertIn("WARNING", out)
+        self.assertNotIn("signed release manifest is missing", out)
+        self.assertIn("the disk image's signature does not verify", out)
+        stable = "werkbord-v4.89.0"
+        self.release(stable)
+        code, out = self.verify(stable, stable)  # never for a stable release
+        self.assertIn("signed release manifest is missing", out)
+        self.assertNotIn("WARNING", out)
 
 
 if __name__ == "__main__":

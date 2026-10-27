@@ -211,6 +211,10 @@ if release
   %w[assemble-candidate release-approval].each { |name| check(perms(jobs[name],release) == {"contents" => "read"}, "candidate review cannot publish or hold write authority") }
   check(JSON.generate(jobs["release-approval"]).include?("release-candidate.py verify") && JSON.generate(jobs["release-approval"]).include?("RELEASE_MANIFEST_SIGNATURE"), "exact-byte offline signature is verified before publication")
   check(JSON.generate(jobs["desktop-draft"]).include?("approved-candidate"), "publisher consumes only authenticated candidate assets")
+  # The unsigned-manifest exception is one named preview tag, only when no signature was supplied, and the release says so.
+  approval = JSON.generate(jobs["release-approval"]["env"]) + jobs["release-approval"]["steps"].map { |step| step["run"].to_s }.join("\n")
+  check(approval.include?("vars.UNSIGNED_MANIFEST_TAG") && approval.include?('[ "$UNSIGNED_MANIFEST_TAG" = "$GITHUB_REF_NAME" ]') && approval.include?('[ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ]') && approval.include?("--allow-unsigned-manifest"), "the unsigned-manifest exception applies only to the one tag named by UNSIGNED_MANIFEST_TAG and only when no signature was supplied")
+  check(JSON.generate(jobs["macos-public-verify"]).include?("WERKBORD_UNSIGNED_MANIFEST_TAG") && JSON.generate(jobs["desktop-draft"]).include?("manifest-unsigned.txt") && JSON.generate(jobs["desktop-draft"]).include?("Release manifest not signed"), "the public verifier honours the same named exception and the release notes disclose it")
   check(jobs["linux-desktop-build"]["if"].include?("needs.plan.outputs.linux == 'true'"), "Linux remains opt-in until owner acceptance")
   [latest, preview].each { |job| check(job["if"].include?("needs.linux-public-verify.result == 'success'") && job["if"].include?("needs.macos-public-verify.result == 'success'"), "a failed platform verifier cannot promote either feed") }
   # The tests themselves are required in ci (one place), and the receipt lists them, so a browser regression cannot be dropped silently.

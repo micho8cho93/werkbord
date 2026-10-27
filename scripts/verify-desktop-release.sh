@@ -93,18 +93,26 @@ step "ok  sha256 matches ($have)"
 case "$BASE" in
   file:///*) ;;
   *)
-    for file in checksums.txt checksums.txt.sig; do
-      $CURL -fsSL $RETRY -o "$WORK/$file" "$BASE/$tag/$file" || die "signed release manifest is missing"
-    done
-    key=${WERKBORD_RELEASE_PUBLIC_KEY_FILE:-}
-    if [ -z "$key" ]; then
-      key="$WORK/trusted-public.pem"
-      python3 "$root/scripts/write-release-public-key.py" "$key" || die "independently configured release public key is required"
+    # A named, one-tag exception for a preview whose owner could not sign (WERKBORD_UNSIGNED_MANIFEST_TAG, set only by the release
+    # workflow from a repository variable). It applies only when the release really has no signature; a published signature is always checked.
+    unsigned_ok=no
+    case "$tag" in *-preview.*) [ "${WERKBORD_UNSIGNED_MANIFEST_TAG:-}" != "$tag" ] || unsigned_ok=yes ;; esac
+    if [ "$unsigned_ok" = yes ] && ! $CURL -fsSL $RETRY -o "$WORK/checksums.txt.sig" "$BASE/$tag/checksums.txt.sig" 2>/dev/null; then
+      step "WARNING  $tag has no owner manifest signature (a named one-tag exception): the checksum, Developer ID, notarization and Gatekeeper checks below are what authenticate this disk image"
+    else
+      for file in checksums.txt checksums.txt.sig; do
+        $CURL -fsSL $RETRY -o "$WORK/$file" "$BASE/$tag/$file" || die "signed release manifest is missing"
+      done
+      key=${WERKBORD_RELEASE_PUBLIC_KEY_FILE:-}
+      if [ -z "$key" ]; then
+        key="$WORK/trusted-public.pem"
+        python3 "$root/scripts/write-release-public-key.py" "$key" || die "independently configured release public key is required"
+      fi
+      "$root/scripts/verify-release-manifest.sh" "$tag" "$WORK/checksums.txt" "$WORK/checksums.txt.sig" "$key" || die "publisher authentication failed"
+      signed=$(awk -v f="$dmg" '$2==f {print $1}' "$WORK/checksums.txt")
+      [ -n "$signed" ] && [ "$signed" = "$have" ] || die "disk image does not match the authenticated manifest"
+      step "ok  tag-bound publisher signature authenticates the disk image"
     fi
-    "$root/scripts/verify-release-manifest.sh" "$tag" "$WORK/checksums.txt" "$WORK/checksums.txt.sig" "$key" || die "publisher authentication failed"
-    signed=$(awk -v f="$dmg" '$2==f {print $1}' "$WORK/checksums.txt")
-    [ -n "$signed" ] && [ "$signed" = "$have" ] || die "disk image does not match the authenticated manifest"
-    step "ok  tag-bound publisher signature authenticates the disk image"
     ;;
 esac
 
