@@ -134,7 +134,7 @@
   <div class="field">
     <label for="{idPrefix}-runner">Runner</label>
     <select id="{idPrefix}-runner" class="select" {disabled} value={value.runner ?? ''} onchange={e=>set({runner:e.currentTarget.value})}>
-      <option value="">{hasBelow ? 'Same as project / defaults' : 'Automatic'}</option>
+      <option value="">{hasBelow ? 'Use inherited defaults' : 'Automatic'}</option>
       {#if hasBelow}<option value="automatic">Automatic</option>{/if}
       {#each app.runners as r (r.id)}<option value={r.id}>{r.name} · {r.disabled ? 'Disabled' : app.connection !== 'live' ? 'Connection unknown' : r.online ? 'Connected' : 'Disconnected'}</option>{/each}
       {#if value.runner && value.runner !== 'automatic' && !app.runners.some(r=>r.id===value.runner)}<option value={value.runner}>Unavailable runner ({value.runner})</option>{/if}
@@ -144,7 +144,7 @@
   <div class="field">
     <label for="{idPrefix}-mode">Model selection</label>
     <select id="{idPrefix}-mode" class="select" {disabled} value={value.mode ?? (value.agent ? 'manual' : '')} onchange={chooseMode}>
-      <option value="">{hasBelow ? 'Same as project / defaults' : 'Lowest cost (default)'}</option>
+      <option value="">{hasBelow ? 'Use inherited defaults' : 'Lowest cost (default)'}</option>
       {#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
     </select>
     <p class="hint">{SELECTION_MODES.find(x=>x.value===mode)?.description} Selection stays fixed for each run.</p>

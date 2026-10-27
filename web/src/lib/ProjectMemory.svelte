@@ -113,7 +113,7 @@
               {#if memory.source.runId}<p class="mono">Run {memory.source.runId}</p>{/if}
               {#if memory.scope.repository}<p class="mono">{memory.scope.repository}</p>{/if}
               <ul>{#each sources as source (source.key)}<li><p class="mono">{source.source.reference}{source.source.approvalRef ? ` · ${source.source.approvalRef}` : ''}</p><p>{source.excerpt}</p><time datetime={source.observedAt}>{new Date(source.observedAt).toLocaleString()}</time></li>{/each}</ul>
-              <p class="muted small">Up to 64 source observations per compacted record.</p>
+              <p class="muted small">Showing up to 64 saved sources per record.</p>
             </div>
           {/if}
         </li>

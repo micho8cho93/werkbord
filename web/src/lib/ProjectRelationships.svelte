@@ -21,6 +21,7 @@
   let target = $state('');
   let targetProject = $state('');
   let type = $state('manual_association');
+  const directional = $derived(['package_dependency','api_consumer','deployment_dependency'].includes(type));
   let busy = $state(false);
   let loading = $state(true);
   let error = $state('');
@@ -41,10 +42,10 @@
 </script>
 <section class="pn" aria-label="Repository relationships">
   <h3>Repository relationships</h3>
-  <p class="muted">Link projects to suggest compatibility checks when a repository changes. A link does not prove that a change will break another repository.</p>
+  <p class="muted">Link related repositories to suggest compatibility checks when one changes. A link does not prove that a change will break another repository.</p>
   {#if error}<p role="alert">{error}</p>{/if}
   {#if loading}<p role="status">Loading relationships…</p>
-  {:else if records.length===0}<p class="muted">No visible relationships. Add a link using the canonical remote identities of two registered projects.</p>
+  {:else if records.length===0}<p class="muted">No visible relationships. Add a link between two registered projects, using repositories written as github.com/organisation/repository.</p>
   {:else}
     <ul>
       {#each records as item (item.id)}
@@ -62,14 +63,14 @@
   {/if}
   <form onsubmit={(event) => { event.preventDefault(); void change(() => api.saveRelationship(projectId,{source:{projectId,repository:source},target:{projectId:targetProject,repository:target},type,evidence:'manual',inferred:false})); }}>
     <h4>Add a relationship</h4>
-    <label>Source repository identity<input class="input" required bind:value={source} placeholder="github.com/organisation/backend" /></label>
+    <label>{directional ? 'Repository that depends on another' : 'This repository'}<input class="input" required bind:value={source} placeholder="github.com/organisation/backend" /></label>
     <label>Target project<select class="select" required bind:value={targetProject}>
       <option value="" disabled>Choose a registered project</option>
       {#each app.projects.filter(project => project.id!==projectId && project.kind!=='work') as project (project.id)}
         <option value={project.id}>{project.name}</option>
       {/each}
     </select></label>
-    <label>Target repository identity<input class="input" required bind:value={target} placeholder="github.com/organisation/frontend" /></label>
+    <label>{directional ? 'Repository it depends on' : 'Related repository'}<input class="input" required bind:value={target} placeholder="github.com/organisation/frontend" /></label>
     <label>Relationship type<select class="select" bind:value={type}>
       <option value="manual_association">Manual association</option><option value="package_dependency">Package dependency</option><option value="api_consumer">API consumer → provider</option><option value="shared_authentication">Shared authentication</option><option value="deployment_dependency">Deployment dependency</option>
     </select></label>

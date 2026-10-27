@@ -29,8 +29,8 @@
 </script>
 <section class="pn agents-settings">
  <div class="head"><h3>Agents</h3><p class="muted">Use your installed CLIs and their existing sign-ins. Enable the agents automatic selection may use. Each conversation or run keeps its initial selection.</p></div>
- <label class="metered"><input type="checkbox" bind:checked={settings.allowMetered} disabled={loading||saving} /> Allow metered API fallback</label>
- <p class="hint">Lowest cost prefers included subscription usage. API fallback requires this permission, a confirmed billing type and model price estimates below. Allowances and actual charges may be unavailable.</p>
+ <label class="metered"><input type="checkbox" bind:checked={settings.allowMetered} disabled={loading||saving} /> Allow paid API usage when subscription usage is unavailable</label>
+ <p class="hint">Lowest cost prefers included subscription usage. Paid API usage needs this permission and a confirmed billing type. Charges and remaining allowance may not be reported.</p>
  <div class="actions"><button class="btn primary" disabled={!original||loading||saving||!dirty} onclick={save}>{saving?'Saving…':'Save agent settings'}</button><button class="btn quiet" disabled={loading||saving||dirty} onclick={load}>Check installations again</button>{#if saved&&!dirty}<span class="ok" role="status">Saved</span>{/if}</div>
  {#if error}<p class="error" role="alert">{error}</p>{/if}
  <label class="search">Find an agent <input class="input" type="search" bind:value={query} placeholder="Search CLI names" /></label>
@@ -40,15 +40,15 @@
  {#each filtered as a(a.id)}
   <li>
    <div class="agent-heading"><label><input type="checkbox" checked={pref(a.id).enabled} disabled={saving} onchange={e=>change(a.id,{enabled:e.currentTarget.checked})} aria-label="Use {a.name} in automatic selection" /><strong>{a.name}</strong></label><span class:ok={a.available}>{a.available?'Installed':a.installed?'Needs attention':'Not installed'}</span></div>
-   <p class="hint">Coding runs · {a.assistant?'Salie chat':'Salie tool isolation not verified'}{a.adapter?' · Separate ACP adapter':''}{a.version?` · ${a.version}`:''}</p>
+   <p class="hint">Coding runs · {a.assistant?'Salie chat':'Salie unavailable: tool isolation not verified'}{a.adapter?' · Uses a separate adapter':''}{a.version?` · ${a.version}`:''}</p>
    {#if !a.available}<p class="hint">{a.detail || a.guidance || a.setup}</p>{/if}
    <details ontoggle={e=>{if(e.currentTarget.open&&a.installed)void inspect(a.id);}}>
     <summary>Setup, billing and model controls</summary>
     <div class="agent-options">
      {#if a.setup}<p class="hint">{a.setup}</p>{/if}
      {#if a.docsUrl}<a href={a.docsUrl} target="_blank" rel="noopener noreferrer">Installation and CLI documentation</a>{/if}
-     <label>Billing <select class="select" value={pref(a.id).billing} onchange={e=>change(a.id,{billing:e.currentTarget.value as AgentPreference['billing']})}><option value="auto">Detect from CLI (unknown access stays ineligible)</option><option value="subscription">Included in my subscription</option><option value="metered">Metered API usage</option><option value="excluded">Exclude from automatic selection</option></select></label>
-     <label><input type="checkbox" checked={pref(a.id).directCLI===true} onchange={e=>change(a.id,{directCLI:e.currentTarget.checked})} /> Enable direct CLI availability on this device</label>
+     <label>Billing <select class="select" value={pref(a.id).billing} onchange={e=>change(a.id,{billing:e.currentTarget.value as AgentPreference['billing']})}><option value="auto">Detect automatically</option><option value="subscription">Included in my subscription</option><option value="metered">Metered API usage</option><option value="excluded">Exclude from automatic selection</option></select></label>
+     <label><input type="checkbox" checked={pref(a.id).directCLI===true} onchange={e=>change(a.id,{directCLI:e.currentTarget.checked})} /> Allow Werkbord to start this CLI on this device</label>
      <label><input type="checkbox" checked={pref(a.id).cliSignedIn===true} onchange={e=>change(a.id,{cliSignedIn:e.currentTarget.checked})} /> I have signed in to this CLI on this device</label>
      <p class="hint">Authentication: {a.signIn==='signed_in'?'signed in (reported by CLI)':a.signIn==='signed_out'?'signed out (reported by CLI)':pref(a.id).cliSignedIn?'confirmed by you; not independently verified':'unknown; use the CLI’s login guidance'}. Native interactive tabs are not available yet. These choices do not enable automatic selection or grant execution permission.</p>
      <p class="hint">Confirm subscription billing only when this CLI uses your included allowance. Werkbord cannot verify remaining allowance for every provider.</p>

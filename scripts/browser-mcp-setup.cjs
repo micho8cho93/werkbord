@@ -34,7 +34,7 @@ assert(base, 'Requires a disposable fixture');
     }
     await projects.getByRole('checkbox').first().check();
     await page.locator('.grant-form fieldset').filter({ has: page.locator('legend', { hasText: 'Operations' }) }).getByRole('checkbox').first().check();
-    await page.getByRole('button', { name: 'Create scoped client', exact: true }).click();
+    await page.getByRole('button', { name: 'Create client credential', exact: true }).click();
     await page.locator('.issued .config').waitFor();
     const config = JSON.parse(await page.locator('.issued .config').innerText()).mcpServers.werkbord;
     assert.equal(config.url, base + '/mcp');

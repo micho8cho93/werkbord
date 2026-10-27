@@ -42,7 +42,7 @@
     token = '';
     const result = await request<{token: string}>('POST', '/api/local-access', {name: 'Memory publication', scope: 'memory-v1', workspaceId: w});
     token = result.token;
-    notice = 'Paste this grant into that workspace’s Team memory settings. To undo it, turn sharing off, wait for the withdrawals, then Disconnect.';
+    notice = 'Paste this key into that workspace’s Team memory settings. To undo it, turn sharing off, wait for the withdrawals, then Disconnect.';
   }
 </script>
 
@@ -54,7 +54,7 @@
   </details>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if notice}<p role="status">{notice}</p>{/if}
-  {#if token}<label>Workspace-bound grant <input readonly value={token} onfocus={e => e.currentTarget.select()} /></label>{/if}
+  {#if token}<label>Team connection key <span class="muted">Use this key only for this Team workspace.</span> <input readonly value={token} onfocus={e => e.currentTarget.select()} /></label>{/if}
   {#if loading}<p class="muted">Loading sharing choices…</p>
   {:else}
     <ul class="card-list">

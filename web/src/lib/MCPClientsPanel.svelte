@@ -150,7 +150,7 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if notice}<p class="ok" role="status">{notice}</p>{/if}
 
-  <p class="note">Werkbord’s MCP server is already built in. Name your client, choose its projects and operations, then create and copy its connection settings. Any compatible MCP client can connect. <a href="#/help?article=mcp">How MCP setup works</a></p>
+  <p class="note">Werkbord’s MCP server is built in. Name the client, choose its projects and operations, then create its credential. <a href="#/help?article=mcp">How MCP setup works</a></p>
   {#if oneTimeToken}
     <div class="issued" role="group" aria-label="New MCP client credential">
       <strong>Copy this credential now</strong>
@@ -190,7 +190,7 @@
         {/each}
       </div>
     </fieldset>
-    <div class="row"><button class="btn primary" disabled={busy || !name.trim() || !selectedProjects.length || !selectedOperations.length}>{busy ? 'Creating…' : 'Create scoped client'}</button></div>
+    <div class="row"><button class="btn primary" disabled={busy || !name.trim() || !selectedProjects.length || !selectedOperations.length}>{busy ? 'Creating…' : 'Create client credential'}</button></div>
   </form>
 
   <div class="list-head">

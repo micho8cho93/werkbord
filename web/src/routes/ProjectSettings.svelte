@@ -117,8 +117,7 @@
     <div class="head">
       <h3>Defaults for {project.name}</h3>
       <p class="muted">
-        What tasks in this project use unless the task says otherwise. Anything left on “Same as your defaults” follows your global
-        defaults, so changing those changes it here too.
+        Defaults for new runs in this project. Tasks can override them. Anything left on “Use inherited defaults” follows your app defaults.
       </p>
     </div>
     <ExecutionFields bind:value={draft} inherited={below} idPrefix="project" columns />

@@ -252,12 +252,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C12 — Settings repeatedly explain device scope and inherited defaults · P3
 
+**Implementation status:** Completed in the settings, connections and project knowledge batch; the original observation is retained below.
+
 - **Source:** [Settings.svelte:195](../web/src/routes/Settings.svelte#L195), [display sections:226](../web/src/routes/Settings.svelte#L226), [ProjectSettings.svelte:119](../web/src/routes/ProjectSettings.svelte#L119), [SettingsNative.svelte:28](../web/src/shell/SettingsNative.svelte#L28), [ExecutionFields.svelte:135](../web/src/lib/ExecutionFields.svelte#L135).
 - **Problem:** “Follows your device unless you choose” and “Kept on this device” recur for related controls. “Same as project / defaults” and a paragraph about defaults saying otherwise make inheritance harder to parse.
 - **Proposed:** State device scope once for the applicable settings group. Use “Use project defaults” or “Use app defaults”, with the effective value where it is useful. Project introduction: “Defaults for new runs in this project. Tasks can override them.”
 - **Acceptance:** Do not imply all settings share storage scope. Browser-only and desktop-window choices remain accurate; saved explicit overrides are preserved.
 
 ### C13 — Agent settings surface implementation vocabulary before usefulness · P2
+
+**Implementation status:** Completed in the settings, connections and project knowledge batch; the original observation is retained below.
 
 - **Source:** [AgentSettings.svelte:31](../web/src/lib/AgentSettings.svelte#L31), [agent details:43](../web/src/lib/AgentSettings.svelte#L43), [Conversation.svelte:180](../web/src/lib/assistant/Conversation.svelte#L180).
 - **Problem:** “Allow metered API fallback”, “Salie tool isolation not verified”, “Separate ACP adapter”, “Enable direct CLI availability” and “unknown access stays ineligible” expose implementation concepts in everyday choices. The no-agent explanation is also long and circular.
@@ -266,6 +270,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C14 — MCP setup explains the whole protocol before the immediate task · P2
 
+**Implementation status:** Completed in the settings, connections and project knowledge batch; the original observation is retained below.
+
 - **Source:** [ConnectionsPanel.svelte:145](../web/src/lib/ConnectionsPanel.svelte#L145), [form:164](../web/src/lib/ConnectionsPanel.svelte#L164), [MCPClientsPanel.svelte:146](../web/src/lib/MCPClientsPanel.svelte#L146), [credential setup:153](../web/src/lib/MCPClientsPanel.svelte#L153).
 - **Problem:** Several introductory paragraphs repeat connection directions and setup instructions. “Transport”, “Environment references”, “loopback URLs” and “Create scoped client” are accurate technical terms but difficult primary instructions.
 - **Proposed:** “Connection type” with Local process / Remote service; retain protocol names as secondary detail. “Environment variables” plus “Map the process variable to a variable already available to Werkbord.” CTA “Create client credential.” Show remote-address and stdio guidance only for that setup. Preserve the one-time credential warning.
@@ -273,12 +279,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C15 — Memory screens use grants, publication and storage quotas as everyday nouns · P2
 
+**Implementation status:** Completed in the settings, connections and project knowledge batch; the original observation is retained below.
+
 - **Source:** [MemorySharing.svelte:45](../web/src/lib/MemorySharing.svelte#L45), [grant label:57](../web/src/lib/MemorySharing.svelte#L57), [ProjectMemory.svelte:116](../web/src/lib/ProjectMemory.svelte#L116), [Team memory:562](../internal/team/console/static/desktop.js#L562).
 - **Problem:** “Workspace-bound grant”, “Memory publication”, “source observations per compacted record” and a leading explanation of 10,000 memory revisions make sharing and remembering sound like database administration.
 - **Proposed:** “Team connection key” with “Use this key only for this Team workspace.” “Shared project notes” as explanatory copy for memory. Move quota mechanics into storage details; show capacity warnings when relevant. “Showing up to 64 saved sources” in source inspection if that accurately describes the bound.
 - **Acceptance:** Preserve separate local approval, Team approval and publication states. Keep revocation acknowledgements and retained-copy limitations. Do not imply that turning sharing off deletes copies already read or backed up.
 
 ### C16 — Repository relationships ask users to understand identity plumbing · P2
+
+**Implementation status:** Completed in the settings, connections and project knowledge batch; the original observation is retained below.
 
 - **Source:** [ProjectRelationships.svelte:44](../web/src/lib/ProjectRelationships.svelte#L44).
 - **Problem:** “Canonical remote identities”, “Source repository identity”, “Target repository identity” and “current review” explain a data contract instead of the dependency the person is recording.

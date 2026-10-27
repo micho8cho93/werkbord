@@ -193,7 +193,7 @@
       <section class="pn">
         <div class="head">
           <h3>Time format</h3>
-          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. Follows your device unless you choose. Kept on this device.</p>
+          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. “Device” uses your system format. Kept on this device.</p>
         </div>
         <div class="seg" role="group" aria-label="Clock">
           <button aria-pressed={clock.choice === ''} onclick={() => clock.set('')}>Device</button>
@@ -224,7 +224,7 @@
       <section class="pn">
         <div class="head">
           <h3>Theme</h3>
-          <p class="muted">Follows your device unless you choose. Kept on this device.</p>
+          <p class="muted">“Device” follows your system setting.</p>
         </div>
         <div class="seg" role="group" aria-label="Theme">
           <button aria-pressed={theme.choice === ''} onclick={() => theme.set('')}>Device</button>
@@ -235,7 +235,7 @@
       <section class="pn">
         <div class="head">
           <h3>Style</h3>
-          <p class="muted">{STYLES.find(s => s.id === look.choice)?.about} Kept on this device.</p>
+          <p class="muted">{STYLES.find(s => s.id === look.choice)?.about}</p>
         </div>
         <div class="seg" role="group" aria-label="Style">
           {#each STYLES as s (s.id)}
@@ -246,7 +246,7 @@
       <section class="pn">
         <div class="head">
           <h3>Clock</h3>
-          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. Follows your device unless you choose. Kept on this device.</p>
+          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. “Device” uses your system format. Kept on this device.</p>
         </div>
         <div class="seg" role="group" aria-label="Clock">
           <button aria-pressed={clock.choice === ''} onclick={() => clock.set('')}>Device</button>

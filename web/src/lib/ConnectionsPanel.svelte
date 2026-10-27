@@ -61,7 +61,7 @@
     const environment: Record<string,string> = {};
     for (const row of draft.environment.split(/\r?\n/).map(x => x.trim()).filter(Boolean)) {
       const [child, source] = row.split('=', 2).map(x => x.trim());
-      if (!child || !source) { error = 'Write each environment reference as CHILD=SOURCE_VARIABLE.'; busy = false; return; }
+      if (!child || !source) { error = 'Write each environment variable as CHILD=SOURCE_VARIABLE.'; busy = false; return; }
       environment[child] = source;
     }
     try {
@@ -161,7 +161,7 @@
     <form class="editor" onsubmit={save}>
       <h4>{draft.id ? 'Edit connection' : 'Add an MCP connection'}</h4>
       <label><span>Name</span><input class="input" bind:value={draft.name} maxlength="100" required /></label>
-      <label><span>Transport</span>
+      <label><span>Connection type</span>
         <select class="select" value={draft.transport} onchange={(e) => transportChanged(e.currentTarget.value as Draft['transport'])}>
           <option value="stdio">Local process (stdio)</option>
           <option value="streamable_http">Remote service (Streamable HTTP)</option>
@@ -170,7 +170,7 @@
       {#if draft.transport === 'stdio'}
         <label><span>Executable</span><input class="input mono" bind:value={draft.command} placeholder="npx" required /></label>
         <label><span>Arguments <span class="muted">one per line</span></span><textarea class="input mono" rows="3" bind:value={draft.args} placeholder="-y\n@company/mcp-server"></textarea></label>
-        <label><span>Environment references <span class="muted">optional · CHILD=SOURCE_VARIABLE, one per line</span></span><textarea class="input mono" rows="2" bind:value={draft.environment} placeholder="SERVICE_TOKEN=MY_SERVICE_TOKEN"></textarea></label>
+        <label><span>Environment variables <span class="muted">optional · CHILD=SOURCE_VARIABLE, one per line. Maps the process variable to one already available to Werkbord.</span></span><textarea class="input mono" rows="2" bind:value={draft.environment} placeholder="SERVICE_TOKEN=MY_SERVICE_TOKEN"></textarea></label>
       {:else}
         <label><span>Service URL</span><input class="input mono" type="url" bind:value={draft.url} placeholder="https://service.example/mcp" required /></label>
       {/if}
@@ -192,9 +192,9 @@
         {/if}
       {/if}
       {#if draft.transport === 'stdio'}
-        <p class="note">The command runs on this computer without a shell. Only the environment references above are added to its standard process environment.</p>
+        <p class="note">The command runs on this computer without a shell. Only the environment variables above are added to its standard process environment.</p>
       {:else}
-        <p class="note">Remote connections require HTTPS. Plain HTTP is accepted only for loopback URLs.</p>
+        <p class="note">Remote connections require HTTPS. Plain HTTP is accepted only for addresses on this computer.</p>
       {/if}
       <div class="row">
         <button class="btn primary" type="submit" disabled={busy || !draft.name.trim()}>{busy ? 'Saving…' : 'Save connection'}</button>

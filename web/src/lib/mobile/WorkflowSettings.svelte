@@ -52,7 +52,7 @@
     {#if target === 'selected'}<fieldset><legend>Repositories</legend>{#each repositories as p (p.id)}<label class="check"><input type="checkbox" bind:group={projectIds} value={p.id} disabled={busy} />{p.name}</label>{/each}</fieldset>{/if}
     {#if !onboarding}<label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>{/if}
     {#if !repositories.length}<p class="muted">Add a Git repository on your computer first, then return here.</p>{#if onboarding && onpreview}<button class="btn" type="button" onclick={onpreview}>Continue with interactive preview</button>{/if}{/if}
-    <label>Model selection <select class="select" bind:value={mode} disabled={busy}><option value="">Same as project / defaults</option>{#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}</select></label>
+    <label>Model selection <select class="select" bind:value={mode} disabled={busy}><option value="">Use inherited defaults</option>{#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}</select></label>
     {#if mode==='manual'}
     <label>Agent <select class="select" bind:value={agent} disabled={busy} onchange={() => { model = ''; reasoning = ''; custom = false; }}>
       <option value="">Project / controller default{inherited.agent ? ` (${inherited.agent})` : ''}</option>
