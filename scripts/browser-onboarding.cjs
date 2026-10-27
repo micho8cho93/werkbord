@@ -34,7 +34,7 @@ let child, browser, server, activePage;
   assert.equal(await intro.locator(':focus').count(),1,'keyboard focus stays inside the setup introduction');
   await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
   const steps=()=>page.getByRole('list',{name:'Setup steps'});
-  await page.getByRole('heading',{name:'Connect GitHub for the complete workflow',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Connect GitHub',exact:true}).waitFor();
   assert(await steps().getByRole('button',{name:/9\. Finish/}).isDisabled(),'future steps are locked');
   await page.goto(base+'/#/projects');
   await page.waitForURL('**/#/onboarding');
@@ -96,6 +96,120 @@ let child, browser, server, activePage;
   assert.equal(await page.getByRole('dialog',{name:'Let’s set up Werkbord',exact:true}).count(),0);
   console.log('PASS guided setup: ordering, explicit optional choices, pause/reload, repository persistence, readiness and completion errors, themes and narrow browser');
 
+  // Revisit a saved first task in each run state, without starting a new run.
+  await api('POST','/onboarding/reset',{});
+  await api('POST','/onboarding/variant',{variant:'local'});
+  await api('POST','/onboarding/step',{step:'github',state:'skipped'});
+  await api('POST','/onboarding/example',{projectId:project.id});
+  let createdStarts=0;
+  const newRunRoute=`**/api/projects/${project.id}/tasks/*/runs`;
+  await page.route(newRunRoute,route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    createdStarts++;
+    const taskId=new URL(route.request().url()).pathname.split('/').at(-2);
+    return route.fulfill({json:{id:'new-run-fixture',projectId:project.id,taskId,state:'running',createdAt:new Date().toISOString(),version:1}});
+  });
+  await page.goto(base+'/#/onboarding');
+  await page.reload();
+  await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
+  await page.getByRole('button',{name:'Create task and start agent',exact:true}).click();
+  await page.getByText('The agent is working on it.',{exact:true}).waitFor();
+  assert.equal(createdStarts,1,'creating the example starts its agent once');
+  await page.unroute(newRunRoute);
+  const task=await api('POST',`/projects/${project.id}/tasks`,{title:'First task fixture',description:'Test the setup stages',workMode:'agent'});
+  await api('POST','/onboarding/example',{projectId:project.id,taskId:task.id});
+  await api('POST','/onboarding/step',{step:'ticket',state:'done'});
+  let scenario;
+  await page.route(`**/api/projects/${project.id}/runs`,route => route.fulfill({json:{runs:scenario.run ? [{id:'fixture-run',projectId:project.id,taskId:task.id,createdAt:new Date().toISOString(),version:1,...scenario.run}] : []}}));
+  await page.route(`**/api/projects/${project.id}/tasks`,async route => {
+    const response=await route.fetch(); const body=await response.json();
+    body.tasks=body.tasks.map(t => t.id===task.id ? {...t,state:scenario.taskState} : t);
+    await route.fulfill({response,json:body});
+  });
+  for (const state of [
+    {name:'not started',taskState:'backlog',run:null,text:'The task is saved. The agent has not started.',action:'Start agent'},
+    {name:'running',taskState:'doing',run:{state:'running'},text:'The agent is working on it.',action:'View agent work'},
+    {name:'waiting',taskState:'doing',run:{state:'waiting_for_user'},text:'The agent needs your attention. Open the task to respond.',action:'View agent work'},
+    {name:'failed',taskState:'doing',run:{state:'failed'},text:'The agent stopped before finishing.',action:'View agent work'},
+    {name:'review',taskState:'review',run:{state:'completed',branch:'werkbord/fixture'},text:'Done. The changes are ready for you to look at.',action:/^Continue to (merge|publish)$/},
+    {name:'done',taskState:'done',run:{state:'completed',branch:'werkbord/fixture'},text:'The task is done.',action:/^Continue to (merge|publish)$/},
+  ]) {
+    scenario=state;
+    await page.goto(base+'/#/onboarding');
+    await page.reload();
+    await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
+    await page.getByRole('dialog',{name:'Let’s set up Werkbord',exact:true}).waitFor({state:'hidden'});
+    await steps().getByRole('button',{name:/5\. First task/}).click();
+    await page.getByText(state.text,{exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:state.action,exact:true}).count(),1,state.name);
+    assert.equal(await page.getByRole('button',{name:'Start agent',exact:true}).count(),state.run ? 0 : 1,state.name+' start control');
+    assert.equal(await page.getByRole('button',{name:'Create task and start agent',exact:true}).count(),0);
+    if (state.name==='not started') {
+      let starts=0;
+      const route=`**/api/projects/${project.id}/tasks/${task.id}/runs`;
+      await page.route(route,r => { starts++; return r.fulfill({json:{id:'started-fixture',projectId:project.id,taskId:task.id,state:'running',createdAt:new Date().toISOString(),version:1}}); });
+      await page.getByRole('button',{name:'Start agent',exact:true}).click();
+      await page.getByText('The agent is working on it.',{exact:true}).waitFor();
+      assert.equal(starts,1,'starting the saved task makes one request');
+      await page.unroute(route);
+    }
+    if (state.name==='waiting') {
+      for (const [width,height] of [[1440,1000],[390,844]]) {
+        await page.setViewportSize({width,height});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);
+        await page.screenshot({path:path.join(artifacts,`first-task-${width}.png`),fullPage:true});
+      }
+    }
+  }
+  await page.unroute(`**/api/projects/${project.id}/runs`);
+  await page.unroute(`**/api/projects/${project.id}/tasks`);
+  await page.setViewportSize({width:1440,height:1000});
+  console.log('PASS first-task revisits: not started, running, waiting, failed, ready for review and done');
+
+  // A newly enrolled phone stays on the completed step; a previously paired phone has the same presentation.
+  for (const id of ['assistant','publish']) await api('POST','/onboarding/step',{step:id,state:'skipped'});
+  let paired=false;
+  await page.route('**/api/phones',route => route.fulfill({json:{phones:paired ? [{id:'phone-fixture',name:'Phone'}] : []}}));
+  await page.route('**/api/relay',route => route.fulfill({json:{enabled:true,connected:true}}));
+  await page.route('**/api/phones/codes',route => route.fulfill({json:{qrSvg:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>',expiresAt:new Date(Date.now()+300000).toISOString(),via:'relay'}}));
+  await page.reload();
+  await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
+  await page.getByRole('button',{name:'Add a phone',exact:true}).click();
+  await page.getByTestId('phone-enroll').waitFor();
+  paired=true;
+  await page.getByText('Your phone is connected. Open Werkbord on it to take a short tour.').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add a phone',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Review setup',exact:true}).click();
+  await page.reload();
+  await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
+  await steps().getByRole('button',{name:/8\. Phone/}).click();
+  await page.getByText('Your phone is connected. Open Werkbord on it to take a short tour.').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Add a phone',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Review setup',exact:true}).waitFor();
+  await page.unroute('**/api/phones');
+  await page.unroute('**/api/relay');
+  await page.unroute('**/api/phones/codes');
+  console.log('PASS newly and previously paired phones show one completed step and a continuation');
+
+  await api('POST','/onboarding/reset',{});
+  const availableAgents=(await api('GET','/agents')).agents;
+  assert(availableAgents.some(a=>a.available),'fixture has a ready agent');
+  let ready=false, optionChecks=0;
+  await page.route('**/api/agents',route => route.fulfill({json:{agents:availableAgents.map(a=>({...a,available:ready && a.available}))}}));
+  await page.route('**/api/agents/*/options',route => { optionChecks++; return route.fulfill({json:{models:[],reasoning:[]}}); });
+  await page.reload();
+  await page.getByRole('button',{name:'Start guided setup',exact:true}).click();
+  await page.getByRole('heading',{name:'Connect a coding agent',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Check again',exact:true}).count(),1,'one agent refresh');
+  ready=true;
+  const optionsRequest=page.waitForResponse(r=>/\/api\/agents\/[^/]+\/options$/.test(new URL(r.url()).pathname));
+  await page.getByRole('button',{name:'Check again',exact:true}).click();
+  await optionsRequest;
+  assert(optionChecks>0,'the same refresh checks available agent options');
+  await page.unroute('**/api/agents');
+  await page.unroute('**/api/agents/*/options');
+  console.log('PASS one agent refresh checks readiness and model options');
+
   // A native stand-in hosts the built desktop shell; only the trusted Individual frame may report setup.
   const entry={id:'personal',kind:'personal',name:'Individual',state:'ready',source:'local'};
   const target={id:'personal',kind:'personal',url:base+'/#token='+token,origin:base,place:''};
@@ -113,17 +227,17 @@ let child, browser, server, activePage;
   await shellPage.goto(shell+'/shell/shell/index.html');
   const personal=shellPage.frameLocator('iframe[data-workspace=personal]');
   await personal.getByRole('button',{name:'Start guided setup',exact:true}).click();
-  await personal.getByRole('heading',{name:'Connect GitHub for the complete workflow',exact:true}).waitFor();
+  await personal.getByRole('heading',{name:'Connect GitHub',exact:true}).waitFor();
   await shellPage.getByRole('button',{name:'Devices & Hosting',exact:true}).click();
-  await personal.getByRole('heading',{name:'Connect GitHub for the complete workflow',exact:true}).waitFor();
+  await personal.getByRole('heading',{name:'Connect GitHub',exact:true}).waitFor();
   await shellPage.getByRole('button',{name:'Settings',exact:true}).click();
   await shellPage.getByRole('button',{name:'Resume setup',exact:true}).click();
-  await personal.getByRole('heading',{name:'Connect GitHub for the complete workflow',exact:true}).waitFor();
+  await personal.getByRole('heading',{name:'Connect GitHub',exact:true}).waitFor();
   await personal.getByRole('button',{name:'Pause setup…',exact:true}).click();
   await personal.getByRole('button',{name:'Pause and explore',exact:true}).click();
   await shellPage.getByRole('button',{name:'Devices & Hosting',exact:true}).click();
   await shellPage.getByRole('button',{name:'Resume setup',exact:true}).click();
-  await personal.getByRole('heading',{name:'Connect GitHub for the complete workflow',exact:true}).waitFor();
+  await personal.getByRole('heading',{name:'Connect GitHub',exact:true}).waitFor();
   await shellPage.screenshot({path:path.join(artifacts,'desktop-shell-setup.png')});
   assert.deepEqual(errors,[]);
   console.log('PASS desktop shell: opens setup automatically, holds ordinary navigation, pauses honestly and resumes from the persistent reminder');

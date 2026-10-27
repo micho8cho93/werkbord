@@ -102,10 +102,7 @@
   {:else if !gh}
     <Settling compact label="Checking GitHub…" testid="github-loading" />
   {:else if gh.state === 'signed_in'}
-    <p>
-      Werkbord can list your repositories and show pull requests and checks, using your own GitHub sign-in (through the GitHub CLI).
-      Nothing about Werkbord is stored in GitHub.
-    </p>
+    <p>Your connection uses the GitHub CLI on this computer.</p>
     {#if gh.missingScopes?.length}
       <p>
         To create repositories and publish a page, GitHub also needs to allow <strong>{gh.missingScopes.join(' and ')}</strong>.
@@ -136,10 +133,6 @@
     <p class="error" role="alert">{gh.message}</p>
     <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else}
-    <p>
-      Connect your GitHub account to pick repositories, and to see branches, pull requests and checks. Optional: everything local works
-      without it, and private repositories are fine.
-    </p>
     {#if gh.login.state === 'failed'}<p class="error" role="alert">{gh.login.error}</p>{/if}
     <div class="row">
       <button class="btn primary" disabled={busy} onclick={connect}>{busy ? 'Starting…' : 'Connect GitHub'}</button>

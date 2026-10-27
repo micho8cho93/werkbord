@@ -91,7 +91,7 @@
   const explanations: Record<string, { title: string; text: string }> = {
     computer: { title: 'First, get this computer ready', text: 'The runner carries out work on this computer. It must be online and enabled before a coding agent can start.' },
     agents: { title: 'Connect a coding agent', text: 'Install and sign in to at least one supported agent. Werkbord uses that existing sign-in to carry out your tasks.' },
-    github: { title: 'Connect GitHub for the complete workflow', text: 'GitHub keeps a remote copy of your code and lets you collaborate through pull requests, inspect checks and publish the example page. Connect it now, or explicitly choose to work locally.' },
+    github: { title: 'Connect GitHub', text: 'Connect GitHub to find repositories and work with pull requests, or choose to work locally.' },
     repository: { title: 'Choose where your work will live', text: 'Add a Git repository on this computer, or create a separate example repository. Werkbord needs a repository to keep agent changes on working branches.' },
     ticket: { title: 'Try your first task', text: 'Learn the workflow in a separate example repository: describe the work, let an agent make changes, then review them. Nothing is merged or published without your action.' },
     assistant: { title: 'Follow the agent’s work', text: 'Watch the task progress. If the agent asks a question, open the task and answer it, then return here to continue setup.' },
@@ -103,11 +103,16 @@
 
   let quietFailures = 0;
   async function recheck(quiet = false) {
+    const refreshAgentOptions = !quiet && current === 'agents';
     if (!quiet) { checking = true; error = ''; }
     try {
       const [runners, agents] = await Promise.all([api.listRunners(), api.listAgents()]);
       app.runners = runners;
       app.agents = agents;
+      if (refreshAgentOptions) {
+        // A newly installed or updated agent may offer different models.
+        await Promise.all(agents.filter(a => a.available).map(a => app.loadAgentOptions(a.id, true)));
+      }
       readinessUnavailable = false;
       quietFailures = 0;
     } catch (err) {
@@ -134,6 +139,7 @@
   }
 
   async function phoneEnrolled() {
+    chosen = 'phone';
     phonePaired = true;
     try { app.onboarding = await api.setOnboardingStep('phone', 'done'); } catch { /* the phone is paired either way */ }
   }
@@ -231,9 +237,7 @@
 {#if dialog}
   <Sheet title={dialog === 'intro' ? 'Let’s set up Werkbord' : dialog === 'pause' ? 'Pause setup?' : dialog === 'github' ? 'Continue without GitHub?' : 'Leave the example for later?'} onclose={() => { if (!saving) dialog = null; }}>
     {#if dialog === 'intro'}
-      <p>Complete setup before you start using the workspace. We’ll check your computer and coding agent, connect your tools, then guide you through a first task.</p>
-      <p>Already connected? We verify those steps automatically. GitHub, the example and phone pairing have explicit local or later choices.</p>
-      <p>Your progress is saved as you go. Leaving this window does not finish setup.</p>
+      <p>Connect your tools, then try your first task. Your progress is saved.</p>
       <button class="btn primary big" disabled={saving} onclick={begin}>{saving ? 'Saving…' : 'Start guided setup'}</button>
     {:else if dialog === 'pause'}
       <p>Your progress will be kept, but setup will remain unfinished. Agent work needs a ready runner, a signed-in coding agent and a Git repository.</p>
@@ -255,9 +259,6 @@
 <div class="onboarding" inert={dialog !== null}>
   <header class="welcome">
     <h2 class="title">Welcome to Werkbord</h2>
-    <p class="lede">
-      Complete the steps below to get ready for your first task. Your runner, agent sign-in and repositories stay on your computer.
-    </p>
     {#if settled}
     <p class="progress-label" role="status">{resolvedCount} of 8 setup steps resolved · {local.completed} of 3 requirements verified</p>
     <ol class="progress" aria-label="Setup steps">
@@ -313,16 +314,13 @@
   {:else if current === 'agents'}
   <AgentsCard />
   {:else if current === 'github'}
-  <p class="muted">GitHub lets Werkbord create a repository for you and publish a page from it. Without it, everything still works on this computer.</p>
   <p>Don’t have an account? <a href="https://github.com/signup" target="_blank" rel="noopener noreferrer">Create a GitHub account</a>, then return here to connect it.</p>
   <GitHubCard known={github} skipped={stepStates.github === 'skipped'} onchange={(s) => (github = s)} />
   {:else if current === 'repository'}
   {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
   {:else if current === 'phone'}
-  <p class="muted">Last step: take Werkbord with you. Your phone becomes a remote for the runner on this computer, so you can answer agents and approve work from anywhere. It is optional and you can do it later in Settings.</p>
   <PhoneStepCard paired={phonePaired} skipped={stepStates.phone === 'skipped'} onenrolled={phoneEnrolled} />
-  {#if phonePaired}<p role="status">Your phone is connected. Open Werkbord on it to take a short tour.</p>{/if}
   {:else}
   <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
   {/if}
@@ -349,9 +347,6 @@
   </nav>
   {/if}
 
-  <footer class="done">
-    <p class="muted small">Progress is saved automatically. Complete the required steps and review your choices to finish setup.</p>
-  </footer>
 </div>
 
 <style>
@@ -384,10 +379,6 @@
     color: var(--text);
   }
 
-  .lede {
-    color: var(--text-2);
-  }
-
   .progress {
     list-style: none;
     margin: 6px 0 0;
@@ -408,20 +399,10 @@
     opacity: 0.5;
   }
 
-  .done {
-    display: grid;
-    gap: 8px;
-    justify-items: start;
-    padding-bottom: 8px;
-  }
-
   .big {
     min-height: 44px;
     padding: 0 20px;
     font-size: 14px;
   }
 
-  .small {
-    font-size: 0.82rem;
-  }
 </style>

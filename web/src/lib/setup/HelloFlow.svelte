@@ -45,7 +45,7 @@
   }
 
   async function createAndStart() {
-    if (!project || busy) return;
+    if (!project || busy || !scope?.loaded || !!scope.error || usedTemplate || (example?.taskId && !task) || (task && stage !== 'not-started')) return;
     busy = true; error = '';
     try {
       let t = task;
@@ -61,7 +61,7 @@
   }
 
   async function start() {
-    if (!project || !example?.taskId) return;
+    if (!project || !example?.taskId || !scope?.loaded || !!scope.error || usedTemplate || !task || (stage !== 'not-started' && stage !== 'failed')) return;
     try {
       const r = await api.startRun(project.id, example.taskId);
       app.scope(project.id)?.upsertRun(r);
@@ -177,15 +177,30 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </SetupCard>
 {:else if step === 'ticket'}
-  <SetupCard title="Create your first task" status={task ? 'done' : 'todo'} summary={project.name}>
-    <p>Ask an agent to make a one-page site, then follow its work.</p>
+  <SetupCard title={usedTemplate ? 'Your example' : task ? 'Your first task' : 'Create your first task'} status={task || usedTemplate ? 'done' : 'todo'} summary={project.name}>
+    {#if !scope?.loaded || scope.error || (example?.taskId && !task)}
+      <p role="status">{scope?.error ? 'Could not check the example task. Reconnect and try again.' : scope?.loaded ? 'The saved example task could not be found.' : 'Checking the example task…'}</p>
+    {:else if usedTemplate}
+      <p>The example was created from a template.</p>
+      <button class="btn primary" onclick={() => onstep?.('publish')}>Continue to {variant === 'local' ? 'merge' : 'publish'}</button>
+    {:else if task}
+      <p role="status" aria-live="polite">{stageText(stage, run)}</p>
+      <div class="row">
+        {#if runLink}<a class="btn open" href={runLink}>Open task</a>{/if}
+        {#if stage === 'not-started'}<button class="btn primary" disabled={busy} onclick={createAndStart}>{busy ? 'Starting…' : 'Start agent'}</button>
+        {:else if stage === 'review' || stage === 'done'}<button class="btn primary" onclick={() => onstep?.('publish')}>Continue to {variant === 'local' ? 'merge' : 'publish'}</button>
+        {:else}<button class="btn primary" onclick={() => onstep?.('assistant')}>View agent work</button>{/if}
+      </div>
+    {:else}
+    <p>Describe the page for your agent.</p>
     <label class="field"><span>Title</span><input bind:value={title} maxlength="200" disabled={!!task} /></label>
     <label class="field"><span>What it should do</span><textarea bind:value={description} rows="7" disabled={!!task}></textarea></label>
     <div class="row">
-      <button class="btn primary" disabled={busy || !title.trim()} onclick={createAndStart}>{busy ? 'Starting…' : task ? 'Start agent' : 'Create task and start agent'}</button>
-      <button class="btn quiet" disabled={busy || !!task} onclick={useTemplate}>Use a template instead</button>
+      <button class="btn primary" disabled={busy || !title.trim()} onclick={createAndStart}>{busy ? 'Starting…' : 'Create task and start agent'}</button>
+      <button class="btn quiet" disabled={busy} onclick={useTemplate}>Use a template instead</button>
     </div>
     <p class="muted small">The template writes the same page and workflow for you and commits them to {project.name}. Nothing else changes.</p>
+    {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </SetupCard>
 {:else if step === 'assistant'}

@@ -2,17 +2,8 @@
   import { app } from '../state.svelte';
   import SetupCard from './SetupCard.svelte';
 
-  let busy = $state(false);
  let selected=$state('');
  const selectedAgent=$derived(app.agents.find(a=>a.id===selected) ?? app.agents.find(a=>a.available) ?? app.agents[0]);
-
-  async function recheck() {
-    busy = true;
-    await app.loadAgents();
-    // A new install may have new models: forget what was remembered.
-    for (const a of app.agents) if (a.available) await app.loadAgentOptions(a.id, true);
-    busy = false;
-  }
 
   const ready = $derived(app.agents.filter((a) => a.available));
   const status = $derived(ready.length > 0 ? 'done' : 'todo');
@@ -47,7 +38,6 @@
       </li>
     {/each}
   </ul>
-  <div class="row"><button class="btn small" disabled={busy} onclick={recheck}>{busy ? 'Checking…' : 'Check again'}</button></div>
 </SetupCard>
 
 <style>

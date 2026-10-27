@@ -70,6 +70,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D01 — Completed first-task setup still offers an agent start · P1
 
+**Implementation status:** Completed in batch 2; the original observation and proposed behavior are retained below.
+
 - **Source:** [HelloFlow.svelte:179](../web/src/lib/setup/HelloFlow.svelte#L179), [start handler:47](../web/src/lib/setup/HelloFlow.svelte#L47), [setup navigation:266](../web/src/routes/Onboarding.svelte#L266).
 - **Observed:** Revisiting First task shows “Start the assistant” whenever the task exists. The control checks busy/title, not whether the example is running, ready for review or done.
 - **Change:** Render the example’s current state and its relevant destination. Offer a start only when there is no run, or an explicitly appropriate retry.
@@ -77,12 +79,16 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D02 — Paired phone setup continues to offer pairing · P1
 
+**Implementation status:** Completed in batch 2; the original observation and proposed behavior are retained below.
+
 - **Source:** [PhoneStepCard.svelte:31](../web/src/lib/setup/PhoneStepCard.svelte#L31), [PhoneEnroll.svelte:90](../web/src/lib/phones/PhoneEnroll.svelte#L90).
 - **Observed:** “Phone connected” changes the card summary, but the scan instructions and nested “Add a phone” remain.
 - **Change:** Replace the pairing controls with completion and continuation in onboarding. Keep adding additional phones available in Settings.
 - **Acceptance:** Newly paired and previously paired states show one completed step and a next action; Settings still supports multiple phones.
 
 ### D03 — Agent setup has two “Check again” controls · P2
+
+**Implementation status:** Completed in batch 2; the original observation and proposed behavior are retained below.
 
 - **Source:** [AgentsCard.svelte:50](../web/src/lib/setup/AgentsCard.svelte#L50), [Onboarding.svelte:345](../web/src/routes/Onboarding.svelte#L345).
 - **Observed:** The card and surrounding navigation both offer the same apparent refresh. Their handlers have different scopes, including model-option refresh in the card.
@@ -136,6 +142,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 Each replacement below is proposed wording. Validate dynamic state, permissions and destination before implementing it. “Remove” means remove redundant visible prose, not useful accessible labels or consequential facts.
 
 ### C01 — Setup repeats its introduction and each step’s explanation · P2
+
+**Implementation status:** Completed in batch 2; the original observation and proposed wording are retained below.
 
 - **Source:** [Onboarding.svelte:231](../web/src/routes/Onboarding.svelte#L231), [step content:287](../web/src/routes/Onboarding.svelte#L287), [footer:352](../web/src/routes/Onboarding.svelte#L352), [GitHubCard.svelte:139](../web/src/lib/setup/GitHubCard.svelte#L139).
 - **Problem:** Intro modal, welcome, step heading/paragraph, nested card and footer repeatedly explain setup, optional choices, local operation and saved progress. GitHub has several overlapping benefit statements.

@@ -22,9 +22,10 @@
   }
 
   onMount(() => {
+    if (paired) return;
     void refresh();
     // Connecting to the relay takes a moment, and its state changes by itself.
-    const t = setInterval(() => { if (document.visibilityState === 'visible' && !relay?.connected) void refresh(); }, 3000);
+    const t = setInterval(() => { if (!paired && document.visibilityState === 'visible' && !relay?.connected) void refresh(); }, 3000);
     return () => clearInterval(t);
   });
 
@@ -35,7 +36,9 @@
 </script>
 
 <SetupCard title="Connect your phone" {status} {summary}>
-  {#if !relay && unreachable}
+  {#if paired}
+    <p role="status">Your phone is connected. Open Werkbord on it to take a short tour.</p>
+  {:else if !relay && unreachable}
     <p class="muted" role="status">The relay could not be checked just now ({unreachable}).</p>
     <div class="row"><button class="btn quiet" onclick={refresh}>Try again</button></div>
   {:else if !relay}
@@ -48,7 +51,7 @@
     <p>The relay is turned off on this computer (<code>relay.disabled</code> in <code>config.json</code>). Remove that setting and restart Werkbord to use it.</p>
     <p class="muted small">You can skip this and pair a phone later in Settings → Phones.</p>
   {:else}
-    <p>Scan this code with your phone’s camera. It opens Werkbord in the phone’s browser, signed in to this computer only.</p>
+    <p>Create a code to pair your phone with this computer.</p>
     <PhoneEnroll {onenrolled} />
     {#if !relay.connected}
       <p class="muted small" role="status" aria-live="polite">Reaching the relay… {relay.error ? `${relay.error} ` : ''}A code made now still works as soon as this computer is connected.</p>
