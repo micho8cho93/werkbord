@@ -221,7 +221,7 @@ skipped without claiming it happened; an active job continues unless explicitly 
 
 If readiness is unavailable, or a start is refused, the guide offers **Try interactive preview**. A preview tap opens a labelled
 preview progress control, then a details sheet with the selected repository, waiting stage, zero completed stages, no agent
-activity and no scan results. Stop preview/Return to Control Deck ends it. No preview action calls the workflow start API. With no repository yet, the saved button asks for its repository when run later.
+activity and no scan results. Return to Control Deck ends it. No preview action calls the workflow start API. With no repository yet, the saved button asks for its repository when run later.
 An uncertain start retains the existing retry/check-task guard instead of offering a preview that could obscure a real job.
 
 Choices and configuration save through the existing versioned controller deck record. Guide position, highlighted choice and

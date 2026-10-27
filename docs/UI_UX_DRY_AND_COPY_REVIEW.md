@@ -133,6 +133,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D08 — Phone preview has two identical exit actions · P3
 
+**Implementation status:** Completed in the phone workflows batch; the original observation is retained below.
+
 - **Source:** [Deck.svelte:345](../web/src/lib/mobile/Deck.svelte#L345).
 - **Observed:** “Stop preview” and “Return to Control Deck” run identical handlers and advance onboarding to the same step.
 - **Change:** Keep “Return to Control Deck.” The preview label already establishes that no live work is running.
@@ -179,6 +181,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** Default and explicitly selected policies each explain permissions once in the open dialog. No wording suggests autonomous mode grants broader execution permissions.
 
 ### C04 — Phone workflow guidance repeats setup mechanics · P2
+
+**Implementation status:** Completed in the phone workflows batch; the original observation is retained below.
 
 - **Source:** [WorkflowSettings.svelte:45](../web/src/lib/mobile/WorkflowSettings.svelte#L45), [footer:76](../web/src/lib/mobile/WorkflowSettings.svelte#L76), [DeckOnboarding.svelte:33](../web/src/lib/mobile/DeckOnboarding.svelte#L33).
 - **Problem:** Saving versus running is explained at both ends of the configuration form; tap/hold/pencil/checkmark instructions repeat across onboarding and the final screen.
@@ -328,12 +332,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C22 — Workflow monitor uses a recovery label even when no retry is needed · P2
 
+**Implementation status:** Completed in the phone workflows batch; the original observation is retained below.
+
 - **Source:** [WorkflowMonitor.svelte:42](../web/src/lib/mobile/WorkflowMonitor.svelte#L42), [footer:68](../web/src/lib/mobile/WorkflowMonitor.svelte#L68).
 - **Problem:** “Open task / retry” always appears, including for active and completed runs, and only navigates. “Change Settings” leads to general app settings. Several stacked recovery paragraphs can repeat that output/results remain available.
 - **Proposed:** “Open task” for the navigation action. Describe any retry inside the destination based on actual state. “Open app settings” only where relevant; do not imply it edits this workflow. Combine failure/stop guidance into one state-specific message. “No update reported yet” is clearer than “No execution event reported for this stage.”
 - **Acceptance:** Running, completed, failed, stopped and stop-pending states show accurate next steps. Opening the task never promises or triggers a retry. Preserve uncertainty and partial-result information.
 
 ### C23 — Phone introductions overexplain capabilities and repeat read-only status · P3
+
+**Implementation status:** Completed in the phone workflows batch; the original observation is retained below.
 
 - **Source:** [PhonesPanel.svelte:99](../web/src/lib/phones/PhonesPanel.svelte#L99), [PhoneEnroll.svelte:82](../web/src/lib/phones/PhoneEnroll.svelte#L82), [Team phone index.html:16](../internal/team/phone/static/index.html#L16), [phone.js:5](../internal/team/phone/static/phone.js#L5).
 - **Problem:** Phone settings list nearly every capability, then explain sign-ins and computer-only administration. Team first use repeats read-only status in both its header and a long tour paragraph. “Read-only, on purpose” sounds defensive.

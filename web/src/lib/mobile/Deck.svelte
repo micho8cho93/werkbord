@@ -342,7 +342,6 @@
       <Sheet title="Interactive preview · execution details" onclose={() => { inspected = false; advance(6); }}>
         <p>Preview only. No agent is running and no repository has been scanned.</p>
         <dl><dt>Repository</dt><dd>{guideProject?.name ?? 'Select a repository in workflow settings'}</dd><dt>Current stage</dt><dd>Waiting to run (preview)</dd><dt>Completed stages</dt><dd>None — preview only</dd><dt>Agent activity</dt><dd>No live activity. A real run shows reported output here.</dd><dt>Findings or results</dt><dd>No scan results. A real scan reports credible findings, or “No bugs found in this scan.”</dd></dl>
-        <button class="btn warn" onclick={() => { inspected = false; advance(6); }}>Stop preview</button>
         {#snippet footer()}<button class="btn primary" onclick={() => { inspected = false; advance(6); }}>Return to Control Deck</button>{/snippet}
       </Sheet>
     {/if}

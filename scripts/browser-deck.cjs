@@ -189,8 +189,8 @@ async function request(token, method, route, body) {
         await request(phone.token, 'POST', `/api/projects/${project.id}/runs/${oneOff.run.id}/input`, {text:'fail'});
         await banner.getByText('Failed', {exact:true}).waitFor();
         await banner.getByRole('button', {name:'Open Find Bugs execution details'}).click();
-        await dialog().getByText(/Partial completion/).waitFor();
-        await dialog().getByRole('link', {name:'Change Settings'}).waitFor();
+        await dialog().getByRole('alert').waitFor();
+        await dialog().getByRole('link', {name:'Open app settings'}).waitFor();
         await page.keyboard.press('Escape');
         await page.reload(); await edit().waitFor();
 

@@ -122,11 +122,11 @@ async function request(token, method, route, body) {
           await dialog().getByText('Preview only. No agent is running and no repository has been scanned.').waitFor();
           assert.equal(starts,1,'preview never adds an execution request');
           if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'onboarding-preview-detail.png'),fullPage:true});
-          await dialog().getByRole('button',{name:'Stop preview'}).click();
+          await dialog().getByRole('button',{name:'Return to Control Deck'}).click();
         } else {
           await guide().getByRole('button',{name:'Skip execution for now'}).click(); assert.equal(starts,0);
         }
-        await guide().getByText('Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.').waitFor();
+        await guide().getByText('Tap a workflow to run it. Hold to change its settings.').waitFor();
         if (process.env.BROWSER_ARTIFACT_DIR) await page.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,`onboarding-${mode}.png`),fullPage:true});
         await guide().getByRole('button',{name:'Finish onboarding'}).click();
         await page.waitForFunction(() => { const button = document.querySelector('[data-testid="edit-deck"]'); return button && !button.disabled; });

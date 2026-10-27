@@ -97,8 +97,7 @@
       <p class="muted">This phone is signed in to Werkbord by its own code. Phones are managed on your computer.</p>
     {:else}
       <p class="muted">
-        A phone you add can see your work, answer agents, use Salie, run configured workflows and use Git actions. General settings, adding repositories and managing runners stay on this computer.
-        Each phone has its own sign-in that you can take away.
+        Add a phone to manage your work remotely: see tasks, answer agents, use Salie and run workflows. Settings and repositories stay on this computer. You can revoke a phone's access here.
       </p>
     {/if}
   </div>

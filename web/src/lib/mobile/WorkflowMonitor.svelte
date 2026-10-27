@@ -42,7 +42,7 @@
     {#if app.connection !== 'live'}<p role="status">Connection interrupted. Showing saved events; the authorised runner may still be working.</p>{/if}
     {#if selected.stopRequested}<p role="status">{selected.run?.state === 'stopped' ? 'Cancellation confirmed. Completed results are preserved.' : terminal(selected.run) ? 'The run ended before cancellation was confirmed. Results are preserved.' : 'Stop requested. Cancellation is not confirmed until the runner reports it stopped.'}</p>{/if}
     {#if selected.error || selected.run?.reason}<p class="error" role="alert">{selected.error || selected.run?.reason}</p><p>{workflowRecovery(selected.error || selected.run?.reason || '')}</p>{/if}
-    {#if selected.run?.state === 'failed' || selected.run?.state === 'stopped'}<p>Partial completion: inspect completed stages and saved output before starting more work.</p>{/if}
+    {#if !(selected.error || selected.run?.reason) && (selected.run?.state === 'failed' || selected.run?.state === 'stopped')}<p>Partial completion: inspect completed stages and saved output before starting more work.</p>{/if}
     {#if selected.findings?.length}
       <section in:surface={{ duration: observedActive ? 180 : 0 }} aria-label="Actionable findings" class="findings" use:layout={{ revision: selected.findings.map(f => f.id).join('|'), enabled: selected.caughtUp, entries: true }}>
         <h3>Next actions</h3>
@@ -60,7 +60,7 @@
         <li data-status={step.status} use:acknowledge={{ value: step.status, success: selected.caughtUp && step.status === 'Completed' }}>
           <details open={step.status === 'Running' || step.status === 'Failed'}>
             <summary><span class="step-icon" class:running={step.status === 'Running'} aria-hidden="true"><Icon name={step.status === 'Completed' ? 'check' : step.status === 'Failed' ? 'close' : step.status === 'Cancelled' ? 'stop' : 'activity'} size={16} /></span><span>{i + 1}. {step.name}<small>{step.status}</small></span></summary>
-            {#if step.output.length}<pre>{step.output.join('\n')}</pre>{:else}<p class="muted">No execution event reported for this stage.</p>{/if}
+            {#if step.output.length}<pre>{step.output.join('\n')}</pre>{:else}<p class="muted">No update reported yet.</p>{/if}
           </details>
         </li>
       {/each}
@@ -68,8 +68,8 @@
     {#snippet footer()}
       {#if repositories.some(x => x.run && !terminal(x.run))}<button class="btn workflow-action" disabled={selected.stopping} onclick={() => void workflows.stopWorkflow(selected.requestId)}>{selected.stopping ? 'Stopping…' : 'Stop workflow'}</button>{/if}
       <button class="btn workflow-action quiet" onclick={() => void workflows.refresh()}>Refresh state</button>
-      <a class="btn workflow-action" href={globalHref('settings')} onclick={() => workflows.selected = ''}>Change Settings</a>
-      <a class="btn primary workflow-action" href={taskHref(selected.projectId, selected.taskId, selected.run?.id)} onclick={() => workflows.selected = ''}>Open task / retry</a>
+      {#if selected.error || selected.run?.reason}<a class="btn workflow-action" href={globalHref('settings')} onclick={() => workflows.selected = ''}>Open app settings</a>{/if}
+      <a class="btn primary workflow-action" href={taskHref(selected.projectId, selected.taskId, selected.run?.id)} onclick={() => workflows.selected = ''}>Open task</a>
     {/snippet}
   </Sheet>
 {/if}

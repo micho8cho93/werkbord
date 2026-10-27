@@ -30,9 +30,8 @@
     <p class="muted">Live work continues when you leave. Only reported stages and findings are shown.</p>
     <button class="btn" onclick={() => onnext(6)}>Inspect later</button>
   {:else}
-    <p>{hasWorkflow ? 'Tap to run. Hold to configure. Use the pencil icon at the top to edit your deck.' : 'Your shortcuts are ready. Tap a button to open its page. Use the pencil icon to edit your deck.'}</p>
-    <p class="muted">The corner badge on Agents shows how many agents are running and disappears when none are running. Tap Agents to see their activity.</p>
-    <p class="muted">Use the pencil to replace, remove or move buttons, then the checkmark to save.</p>
+    <p>{hasWorkflow ? 'Tap a workflow to run it. Hold to change its settings.' : 'Your shortcuts are ready. Tap a button to open its page. Use the pencil icon to edit your deck.'}</p>
+    <p class="muted">The badge on Agents counts running agents. Use the pencil to rearrange your deck, then the checkmark to save.</p>
     <button class="btn primary" disabled={busy} onclick={() => void onfinish()}>{busy ? 'Saving…' : 'Finish onboarding'}</button>
   {/if}
 </section>

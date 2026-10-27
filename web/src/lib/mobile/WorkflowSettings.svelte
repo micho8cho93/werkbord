@@ -73,7 +73,7 @@
     <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>{/if}
     {#if problem}<p class="error" role="alert">{problem}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    <p class="muted">{onboarding ? 'Find Bugs saves verified findings as Backlog drafts for you to review. Full settings are available after onboarding. ' : ''}Saving configures this button. Tap it on the deck to start work. Hold it, press Shift+F10, or use Edit Deck to configure it again.</p>
+    <p class="muted">{onboarding ? 'Find Bugs saves verified findings as Backlog drafts for you to review. Full settings are available after onboarding. ' : ''}Save these defaults, then tap the workflow on your deck to run it. Hold it or press Shift+F10 to change them.</p>
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={onclose} disabled={busy}>Cancel</button>
