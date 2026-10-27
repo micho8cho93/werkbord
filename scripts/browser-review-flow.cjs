@@ -90,8 +90,8 @@ async function captureMatrix(page, name) {
     assert(titleBox && reviewBox && archiveBox && editBox && titleBox.y < reviewBox.y && reviewBox.y + reviewBox.height <= archiveBox.y && reviewBox.y + reviewBox.height <= editBox.y, 'phone task title and review decision precede Archive and Edit');
     assert(archiveBox.height >= 44 && editBox.height >= 44, 'secondary task actions retain 44px touch targets');
 
-    const tabs = touchReview.locator('.panel .facts-tabs');
-    const tabButtons = tabs.getByRole('button');
+    const tabs = touchReview.locator('.panel .tabs');
+    const tabButtons = tabs.getByRole('tab');
     const tabBoxes = await tabButtons.evaluateAll(elements => elements.map(element => {
       const rect = element.getBoundingClientRect();
       return { y: rect.y, height: rect.height };

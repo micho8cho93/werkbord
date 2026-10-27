@@ -85,7 +85,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('heading', { name: focusTask.title, exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: focusTask.title, exact: true }).evaluate(el => el === document.activeElement), true, 'opening a task moves focus to its title');
     assert.equal(await taskPanel.getByRole('navigation', { name: 'Task details sections' }).count(), 0, 'view controls do not claim to be link navigation');
-    assert.equal(await taskPanel.getByRole('group', { name: 'Task detail views', exact: true }).count(), 1);
+    assert.equal(await taskPanel.getByRole('tablist', { name: 'Task detail views', exact: true }).count(), 1, 'one row of views, a proper tablist');
+    assert.deepEqual(await taskPanel.getByRole('tab').allInnerTexts(), ['Overview', 'Chat', 'Execution', 'Schedule', 'Runs (0)'].map(t => t), 'a task opens with Overview, Chat, Execution, Schedule and Runs');
+    assert.equal(await taskPanel.getByRole('tab', { name: 'Overview', exact: true }).getAttribute('aria-selected'), 'true', 'a task with nothing waiting opens on Overview');
     await taskPanel.getByRole('link', { name: 'Close panel', exact: true }).click();
     await page.waitForFunction(href => {
         const opener = [...document.querySelectorAll('a[href]')].find(el => el.getAttribute('href') === href);
@@ -104,7 +106,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await workEdit.getByRole('button', { name: 'Cancel', exact: true }).click();
     const repositoryTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Schedule fixture work' });
     await page.goto(base + `/#/p/${p.id}/task/${repositoryTask.id}`);
-    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+    await page.getByRole('tab', { name: 'Schedule', exact: true }).click();
     await page.getByRole('button', { name: 'Schedule this task', exact: true }).click();
     const scheduleSheet = page.getByRole('dialog', { name: 'Schedule and dependencies', exact: true });
     await scheduleSheet.getByText('Runs once when the schedule, dependencies and capacity allow. Use Timeline for planned work dates.', { exact: true }).waitFor();
@@ -199,7 +201,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const task = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Remote eligibility ' + Date.now() });
         await page.goto(base + '/#token=' + token);
         await page.goto(base + `/#/p/${p.id}/task/${task.id}`);
-        await page.getByRole('button', { name: 'Run settings', exact: true }).click();
+        // A task that has never run opens its run setup, so there is nothing to open first.
         await page.getByRole('button', { name: 'Start agent', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Start agent', exact: true }).isEnabled(), true);
         assert.equal(await page.locator('select[id$="model"] option[value="remote-model"]').count() > 0, true);
@@ -216,6 +218,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const job = reply.jobs.find(j => j.run.id === run.id);
         const handoff = '<werkbord-handoff>' + JSON.stringify({ summary: 'Readable browser handoff', objective: 'Improve the board', results: 'Preserved the run history', tests: ['Browser flow passed'], nextAction: 'Review the work' }) + '</werkbord-handoff>';
         await sync([{ runId: run.id, observations: [{ seq: 1, kind: 'accepted' }, { seq: 2, kind: 'started', branch: 'werkbord/' + remote.id + '/' + run.id, baseCommit: 'a'.repeat(40) }, { seq: 3, kind: 'event', event: { Kind: 'output', Stream: 'assistant', Text: handoff + '\n' + 'long-agent-output/path/'.repeat(200) } }] }]);
+        await page.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         assert.equal(await page.locator('.text').filter({ hasText: '<werkbord-handoff>' }).count(), 0);
         // A lost SSE connection must qualify cached states and preserve a draft on reconnect.
@@ -223,6 +226,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.reload();
         await page.getByTestId('connection-status').filter({ hasText: 'Live updates disconnected' }).waitFor();
         await page.getByText('Last reported: Running', { exact: true }).waitFor();
+        await page.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByRole('textbox', { name: 'Message to the agent', exact: true }).fill('Draft survives reconnect');
         await page.unroute('**/api/events*');
         await page.getByRole('button', { name: 'Reconnect', exact: true }).click();
@@ -243,6 +247,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.reload();
         await page.getByTestId('pending-requests').filter({ hasText: 'message delivery' }).waitFor();
         await sync([{ runId: run.id, observations: [{ seq: 4, kind: 'event', event: { Kind: 'question', Question: { Ref: 'keyboard-clarification', Kind: 'clarification', Prompt: 'Which behavior should the fixture use?', AllowFreeText: true } } }] }]);
+        await page.getByRole('tab', { name: /^Chat/ }).click();
         const answer = page.locator('textarea[id^="answer-"]');
         await answer.fill('Keep the history');
         const answerResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/answer'));
@@ -255,13 +260,14 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByTestId('pending-requests').filter({ hasText: 'stop requested' }).waitFor();
         await sync([{ runId: run.id, observations: [{ seq: 5, kind: 'ended', result: { state: 'stopped', exitCode: 0 }, headCommit: 'b'.repeat(40), uncommitted: false }] }]);
         await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor({ state: 'visible' });
+        await page.getByRole('tab', { name: 'Overview', exact: true }).click();
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
         await page.getByTestId('pending-requests').waitFor({ state: 'hidden' });
         assert.equal(await page.locator('.scroll').evaluate(el => el.scrollTop), 0);
         await page.getByText('Decisions, tests, and results', { exact: true }).click();
         await page.getByText('Recorded test notes (unverified):', { exact: false }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Merge…', exact: true }).count(), 0, 'work kept on a remote runner has no local branch to merge');
-        await page.getByRole('button', { name: 'Execution', exact: true }).click();
+        await page.getByRole('tab', { name: 'Execution', exact: true }).click();
         const stoppedTask = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(item => item.id === task.id);
         assert(stoppedTask, 'the stopped task remains in the board');
         assert.equal(!!stoppedTask.archivedAt, false, 'stopping an agent does not archive its task');
@@ -273,13 +279,14 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('button', { name: /^Archive \(\d+\)$/ }).click();
         await page.getByRole('link', { name: task.title, exact: true }).waitFor();
         await page.getByRole('link', { name: task.title, exact: true }).click();
+        await page.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         await page.setViewportSize({ width: 390, height: 844 });
-        const sections = page.getByRole('group', { name: 'Task detail views', exact: true });
-        assert.equal(await sections.getByRole('button', { name: 'Planning', exact: true }).count(), 0, 'unplanned tasks have no empty planning tab');
-        await sections.getByRole('button', { name: /^Runs \(/ }).click();
+        const sections = page.getByRole('tablist', { name: 'Task detail views', exact: true });
+        assert.equal(await sections.getByRole('tab', { name: 'Planning', exact: true }).count(), 0, 'planning is part of Overview, never a tab of its own');
+        await sections.getByRole('tab', { name: /^Runs \(/ }).click();
         await page.getByRole('heading', { name: 'Runs', exact: true }).waitFor();
-        await sections.getByRole('button', { name: 'Activity', exact: true }).click();
+        await sections.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByText('Readable browser handoff', { exact: true }).waitFor();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
         assert.equal(await page.locator('.feed').evaluate(el => el.scrollWidth > el.clientWidth + 2), false, 'long agent messages fit the phone conversation');
@@ -402,6 +409,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const localRun = await api('POST', `/api/projects/${p.id}/tasks/${localTask.id}/runs`, { agentId: 'fixture', runnerId: localRunner.id });
         await page.goto(base + `/#/p/${p.id}/task/${localTask.id}`);
         assert.equal(await page.evaluate(() => document.activeElement?.id),'task-title','opening a task focuses its title before work starts');
+        await page.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByRole('textbox', {name:'Message to the agent',exact:true}).waitFor();
         await api('POST', `/api/projects/${p.id}/runs/${localRun.id}/input`, { text:'commit' });
         await page.locator('.panel').getByText('Committed fixture work', {exact:true}).waitFor();
@@ -622,7 +630,6 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.unroute(gitRoute); await page.unroute(prRoute);
         await page.reload();
         await page.locator('.panel .head').getByRole('button',{name:'Merge…',exact:true}).waitFor();
-        await page.getByRole('button', {name:'Activity',exact:true}).click();
         let stalePlanRequests = 0;
         const stalePlanRoute = async route => {
           const res = await route.fetch(); const plan = await res.json(); stalePlanRequests++;

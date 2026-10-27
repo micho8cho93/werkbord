@@ -2,7 +2,6 @@
   import { onMount, tick, untrack } from 'svelte';
   import { phone } from '../lib/mobile/phone.svelte';
   import { acknowledge, surface } from '../lib/motion';
-  import { MediaQuery } from 'svelte/reactivity';
   import { ApiError, api } from '../lib/api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -14,6 +13,7 @@
   import { assistant } from '../lib/assistant/sessions.svelte';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import ConnectionBanner from '../lib/ConnectionBanner.svelte';
+  import Settling from '../lib/Settling.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import RunHandoff from '../lib/RunHandoff.svelte';
   import RunReviewSummary from '../lib/RunReviewSummary.svelte';
@@ -28,8 +28,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type Task, type TaskState, type Worktree } from '../lib/types';
 
-  // A task, opened over its board: the run and the conversation on the left, the facts about the
-  // task on the right. What needs you (a question, a blocker) comes first. Esc closes.
+  // A task, opened over its board. The head says what the task is, once. Under it, one row of views: Overview (where the run stands,
+  // what to review, how to start one), Chat (the agent's conversation, its questions and your replies) and the task's Execution,
+  // Schedule and Runs. What needs you (a question, a blocker) opens on Chat and is pointed at from Overview. Esc closes.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
 
@@ -125,7 +126,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   // ---- focus: into the panel when it opens or shows another task, and back to where it came from when it closes ----
   let titleEl = $state<HTMLElement>();
-  let detailsEl = $state<HTMLElement>();
   let focusedFor = '';
   $effect(() => {
     const id = titleEl ? task?.id : undefined;
@@ -147,11 +147,15 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       }
     };
   });
-  /** Skip links are buttons: the address bar is the router, so an `href="#…"` would navigate away from the task. */
-  function skipTo(el: HTMLElement | undefined) {
-    el?.focus();
-    el?.scrollIntoView({ block: 'nearest' });
+  /** The skip link is a button: the address bar is the router, so an `href="#…"` would navigate away from the task. */
+  function skipToContent() {
+    scroller?.focus();
+    scroller?.scrollIntoView({ block: 'nearest' });
   }
+
+  // ---- the description, said once: a long one is clamped, and the same button opens the rest ----
+  let briefOpen = $state(false);
+  const longBrief = $derived((task?.description?.length ?? 0) > 280 || (task?.description?.split('\n').length ?? 0) > 5);
 
   // ---- actions ----
   let actionError = $state('');
@@ -189,8 +193,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   // ---- start ----
   let instructions = $state('');
   let resume = $state(false);
-  let startSection = $state<HTMLDetailsElement>();
-  let startButton = $state<HTMLButtonElement>();
   /** What differs for this run only; empty means it gets what the task gets. */
   let runChoice = $state<ExecutionConfig>({});
   let runChoiceFor = '';
@@ -207,6 +209,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         instructions = '';
         message = '';
         nearBottom = true;
+        briefOpen = false;
       });
     }
   });
@@ -309,23 +312,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const agentWork = $derived(!!task && agentWorkable(task, project));
   const canStart = $derived(agentWork && !task?.archivedAt && (!latest || !runStatus(latest).active));
   const isDone = $derived(task?.state === 'done');
-  const nextAction = $derived(
-    task?.archivedAt ? 'Restore this task to make changes.' :
-      pending.length ? 'Answer the agent’s questions below.' :
-        reviewFirst ? 'Review the agent’s changes below.' :
-          canMessage ? 'Reply to the agent below.' :
-            run && status?.active ? 'Follow the current run below.' :
-              canStart && !isDone ? 'Set up the next run.' :
-                isDone ? 'Complete.' : 'Update the status as the work progresses.',
-  );
-
-  async function openStartOptions() {
-    if (!startSection) return;
-    startSection.open = true;
-    await tick();
-    startButton?.focus({ preventScroll: true });
-    startButton?.scrollIntoView({ block: 'center' });
-  }
+  /** The run is idle or stopped for a decision, so the person can end it as done. It sits with Stop in the head, on every view. */
+  const canFinishRun = $derived(viewingLatest && !!run && !!status?.active && ((run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'));
+  /** Something only the person can do: an answer, or a run that stopped for a decision. */
+  const needsYou = $derived(viewingLatest && (pending.length > 0 || isBlocked));
 
   let copied = $state(false);
   async function copyPath() {
@@ -376,20 +366,43 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     }
   }
 
-  let factsSection = $state<'details' | 'run' | 'schedule' | 'history'>('details');
-  // A task that is not agent work has no execution or schedule to show.
-  $effect(() => {
-    if (!agentWork && (factsSection === 'run' || factsSection === 'schedule')) factsSection = 'details';
-    // A work project has no runs: its task has only its details.
-    if (project.kind === 'work' && factsSection === 'history') factsSection = 'details';
-  });
   const planSpan = $derived(task ? spanOf(task) : null);
   const hasPlanning = $derived(!!planSpan || dependencies.length > 0);
   const nextState = $derived(task?.state === 'backlog' ? 'doing' : task?.state === 'doing' ? 'review' : task?.state === 'review' ? 'done' : 'backlog');
   const nextStateLabel = $derived(task?.state === 'backlog' ? 'Move to In progress' : task?.state === 'doing' ? 'Submit for review' : task?.state === 'review' ? 'Mark done' : 'Reopen task');
-  $effect(() => { if (!hasPlanning && factsSection === 'details') factsSection = agentWork ? 'run' : project.kind === 'work' ? 'details' : 'history'; });
-  let factsOpen = $state(false);
-  const narrow = new MediaQuery('(max-width: 1280px)');
+
+  // ---- the views ----
+  type Tab = 'overview' | 'chat' | 'run' | 'schedule' | 'history';
+  let tab = $state<Tab>('overview');
+  // A task that is not agent work has no conversation, execution or schedule; a work project has no runs.
+  const tabs = $derived<{ id: Tab; label: string; count?: number; countLabel?: string }[]>([
+    { id: 'overview', label: 'Overview' },
+    ...(agentWork || !!run ? [{ id: 'chat' as const, label: 'Chat', count: pending.length, countLabel: `${pending.length} waiting for you` }] : []),
+    ...(agentWork ? [{ id: 'run' as const, label: 'Execution' }, { id: 'schedule' as const, label: 'Schedule' }] : []),
+    ...(agentWork || project.kind !== 'work' ? [{ id: 'history' as const, label: `Runs (${history.length})` }] : []),
+  ]);
+  let tabChosenFor = '';
+  $effect(() => {
+    const id = task?.id ?? '';
+    if (id === tabChosenFor) return;
+    tabChosenFor = id;
+    tab = untrack(() => (needsYou ? 'chat' : 'overview'));
+  });
+  $effect(() => { if (!tabs.some((t) => t.id === tab)) tab = 'overview'; });
+  // A view starts at its top, except the conversation, which starts at its end.
+  $effect(() => {
+    void tab;
+    void tick().then(() => (tab === 'chat' ? toBottom(false) : scroller?.scrollTo({ top: 0, behavior: 'auto' })));
+  });
+  function onTabKey(event: KeyboardEvent) {
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    if (!step && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    const at = tabs.findIndex((t) => t.id === tab);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (at + step + tabs.length) % tabs.length;
+    tab = tabs[next].id;
+    void tick().then(() => document.getElementById(`task-tab-${tab}`)?.focus());
+  }
 </script>
 
 <svelte:window onkeydown={onWindowKey} />
@@ -400,15 +413,11 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     <header class="head">
       <a class="btn quiet small icon" href={boardHref} aria-label="Close panel"><Icon name="close" /></a>
     </header>
-    <p class="empty">{scope.loaded ? 'This task was not found in this project.' : 'Loading…'}</p>
+    {#if scope.loaded}<p class="empty">This task was not found in this project.</p>{:else}<Settling compact label="Opening the task…" />{/if}
   {:else}
     <header class="head" use:acknowledge={{ value: task.state, success: task.state === 'done' }}>
-      <div class="skips">
-        <button class="skip" onclick={() => skipTo(scroller)}>Skip to activity</button>
-        <button class="skip" onclick={() => skipTo(detailsEl)}>Skip to task details</button>
-      </div>
+      <button class="skip" onclick={skipToContent}>Skip to task content</button>
       <div class="top">
-
         <label class="state">
           <span class="visually-hidden">Task column</span>
           <span class="dot" data-tone={task.state === 'doing' ? 'work' : task.state === 'review' ? 'ok' : task.state === 'done' ? 'ok' : 'neutral'}></span>
@@ -419,15 +428,18 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         <span class="spacer"></span>
         {#if task.archivedAt}
           <span class="chip">Archived</span><button class="btn small ok" disabled={busy} onclick={() => archive(false)}>Restore task</button>
-        {:else}
-          {#if latest && runStatus(latest).active}<button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>{/if}
+        {:else if latest && runStatus(latest).active}
+          {#if canFinishRun}<button class="btn small ok" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>{/if}
+          <button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>
         {/if}
         <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
       </div>
       <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
       {#if task.description}
-        <p class="brief">{task.description.length > 240 ? `${task.description.slice(0, 237).trimEnd()}…` : task.description}</p>
-        {#if task.description.length > 240}<details class="full-brief"><summary>Read full brief</summary><p>{task.description}</p></details>{/if}
+        <div class="brief">
+          <p id="task-brief" class:clamped={longBrief && !briefOpen}>{task.description}</p>
+          {#if longBrief}<button class="link" type="button" aria-expanded={briefOpen} aria-controls="task-brief" onclick={() => (briefOpen = !briefOpen)}>{briefOpen ? 'Show less' : 'Show more'}</button>{/if}
+        </div>
       {/if}
       {#if reviewFirst && run}
         <RunReviewSummary {run} onmerged={() => void move('done')} />
@@ -435,123 +447,132 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       {#if !task.archivedAt}
         <div class="task-actions" aria-label="Task actions">
           <button class="btn primary" disabled={busy} onclick={() => move(nextState)}>{nextStateLabel}</button>
-          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
           <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
+          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
         </div>
       {/if}
-      <p class="next-action"><span>Next</span>{nextAction}{#if canStart && !isDone}<button class="link" type="button" onclick={openStartOptions}>Run settings</button>{/if}</p>
-
     </header>
 
-    {#snippet facts()}
-        {#if factsSection === 'details'}
-          <section>
-            <div class="sh"><h3>Planning</h3></div>
-            <dl class="kv">
+    <!-- One row of views, in the shared tab style. Each has its own panel below, and the arrow keys move between them. -->
+    <div class="tabs section-tabs" role="tablist" aria-label="Task detail views" tabindex="-1" onfocusin={(event) => (event.target as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })}>
+      {#each tabs as t (t.id)}
+        <button type="button" role="tab" id="task-tab-{t.id}" aria-selected={tab === t.id} aria-controls="task-view" tabindex={tab === t.id ? 0 : -1} onkeydown={onTabKey} onclick={() => (tab = t.id)}>
+          {t.label}
+          {#if t.count}<span class="num pend" aria-label={t.countLabel}>{t.count}</span>{/if}
+        </button>
+      {/each}
+    </div>
 
-              <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
-              {#if dependencies.length}<dt>After</dt><dd>{dependencies.map((d) => d?.title ?? 'a removed task').join(', ')}</dd>{/if}
-            </dl>
-          </section>
-        {/if}
-
-        {#if factsSection === 'run'}
-        <section>
-          <div class="sh"><h3>How it runs</h3></div>
-          <dl class="kv">
-            <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
-            {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}
-            {#if effective.reasoning}<dt>Reasoning level</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.reasoning, effective.reasoning)}</dd>{/if}
-            <dt>Runner</dt><dd>{effective.runner && effective.runner !== 'automatic' ? (app.runners.find((r) => r.id === effective.runner)?.name ?? effective.runner) : 'Automatic'}</dd>
-            <dt>Agent decisions</dt><dd>{interactionLabel({ interaction: effective.interaction })}</dd>
-            <dt>Priority</dt><dd>{priorityLabel(effective.priority)}</dd>
-          </dl>
-        </section>
-
-        {/if}
-        {#if factsSection === 'schedule'}
-        <section>
-          <div class="sh"><h3>Schedule</h3><button class="btn quiet small" aria-label={task.orchestration?.enabled ? 'Change schedule' : 'Schedule this task'} disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
-          {#if decision && task.orchestration?.enabled}
-            <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>
-          {:else}
-            <p class="fact muted">Runs when you start it.</p>
-          {/if}
-          {#if task.orchestration?.runId}<p class="note">One-shot schedule dispatched. Save the schedule again to arm another attempt.</p>{/if}
-          {#if dependencies.length}
-            <p class="fact">Waits for {dependencies.map((t) => t?.title ?? 'a removed task').join(', ')}</p>
-          {/if}
-        </section>
-
-        {/if}
-        {#if factsSection === 'run' && run}
-          <section>
-            <h3>Where</h3>
-            {#if worktree}
-              <p class="fact"><code>{worktree.branch}</code></p>
-              <button class="btn small" onclick={copyPath} title={worktree.path}><Icon name="copy" size={14} />{copied ? 'Copied' : 'Copy worktree path'}</button>
-            {/if}
-            <RunUsage {run} showAssessment={!reviewFirst} />
-          </section>
-        {/if}
-
-        {#if factsSection === 'history'}
-          <section>
-            <h3>Runs</h3>
-            <ul class="runs">
-              {#each [...history].reverse() as r, i (r.id)}
-                {@const s = runStatus(r)}
-                <li>
-                  <button class="run-pick" aria-pressed={r.id === viewId} onclick={() => { picked = r.id; factsOpen = false; }}>
-                    <span class="dot" data-tone={s.tone}></span>
-                    <span class="rl">{i === 0 ? 'Latest' : `#${r.attempt ?? history.length - i}`} · {agentName(app.agents, r.agentId)}</span>
-                    <span class="mm">{timeAgo(r.createdAt, app.now)}</span>
-                  </button>
-                </li>
-              {:else}<li class="muted">No runs yet.</li>{/each}
-            </ul>
-          </section>
-        {/if}
+    {#snippet planning()}
+      <section class="block" aria-labelledby="plan-h">
+        <h3 id="plan-h">Planning</h3>
+        <dl class="kv">
+          <dt>When</dt><dd>{planSpan ? `${planSpan.milestone ? 'Milestone · ' : ''}${spanTitle(planSpan, new Date().getFullYear())}` : 'Not planned'}</dd>
+          {#if dependencies.length}<dt>After</dt><dd>{dependencies.map((d) => d?.title ?? 'a removed task').join(', ')}</dd>{/if}
+        </dl>
+      </section>
     {/snippet}
 
-    <div class="facts-tabs" role="group" aria-label="Task detail views" onfocusin={(event) => (event.target as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest' })}>
-      {#if narrow.current}<button class="btn small quiet" aria-pressed={!factsOpen} onclick={() => factsOpen = false}>Activity</button>{/if}
-      {#each [...(hasPlanning ? ['details'] : []), ...(agentWork ? ['run', 'schedule', 'history'] : project.kind === 'work' ? [] : ['history'])] as tab (tab)}<button class="btn small quiet" aria-pressed={(!narrow.current || factsOpen) && factsSection === tab} onclick={() => { factsSection = tab as typeof factsSection; factsOpen = true; }}>{tab === 'run' ? 'Execution' : tab === 'history' ? `Runs (${history.length})` : tab === 'details' ? 'Planning' : 'Schedule'}</button>{/each}
-    </div>
-    <div class="body" class:facts-open={factsOpen && (hasPlanning || agentWork || project.kind !== 'work')} class:no-facts={!hasPlanning && !agentWork && project.kind === 'work'}>
-      <!-- The run: what needs you, what happened, and what to say next. -->
+    {#snippet viewing()}
+      {#if run && !viewingLatest}
+        <p class="viewing" role="status">Viewing {run.attempt ? `run #${run.attempt}` : 'an earlier run'}. <button class="link" type="button" onclick={() => (picked = '')}>Show the latest</button></p>
+      {/if}
+    {/snippet}
+
+    <div class="body">
       <div class="main">
         <ConnectionBanner />
-        <div class="scroll" bind:this={scroller} onscroll={trackScroll} tabindex="-1">
-          <h3 class="visually-hidden">Activity</h3>
-          {#if run && status}
-            <div class="runbar" data-tone={status.tone}>
-              <RunBadge {run} /><button class="btn small" onclick={() => assistant.openRun(project.id, run.id)}>Open Session</button>
-              <span class="mm">
-                {agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning
-                  ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}`
-                  : ''} · {runElapsed(run, app.now)}
-              </span>
-              {#if viewingLatest && status.active}
-                <span class="run-acts">
-                  {#if (run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'}
-                    <button class="btn small ok" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>
-                  {/if}
+        <div class="scroll" id="task-view" role="tabpanel" aria-labelledby="task-tab-{tab}" bind:this={scroller} onscroll={trackScroll} tabindex="-1">
+          {#if actionError}<p class="error banner" role="alert">{actionError}</p>{/if}
+          {#if (tab === 'overview' || tab === 'chat') && run?.pendingRequests?.length && status?.active}
+            <p class="note delivery" role="status" data-testid="pending-requests">Waiting for runner acknowledgment: {run.pendingRequests.map(k => ({ send: 'message delivery', respond: 'answer delivery', stop: 'stop requested', finish: 'finish requested' })[k]).join(' · ')}. The last reported run state still applies.</p>
+          {/if}
 
-                </span>
-              {/if}
-            </div>
-            {#if status.active}
-              {@const runner = app.runners.find(r => r.id === run.runnerId)}
-              <p class="note">{run.remote ? runner?.name ?? 'Remote runner' : 'This computer'} · {app.connection !== 'live' ? 'availability unknown' : runner ? runner.disabled ? 'disabled' : runner.online ? 'online' : 'offline' : 'availability unknown'}{runner?.lastSeenAt ? ` · last seen ${timeAgo(runner.lastSeenAt, app.now)}` : ''}{run.activityAt ? ` · last activity ${timeAgo(run.activityAt, app.now)}` : ' · no activity reported yet'}</p>
-              {#if run.pendingRequests?.length}
-                <p class="note" role="status" data-testid="pending-requests">Waiting for runner acknowledgment: {run.pendingRequests.map(k => ({ send: 'message delivery', respond: 'answer delivery', stop: 'stop requested', finish: 'finish requested' })[k]).join(' · ')}. The last reported run state still applies.</p>
-              {/if}
+          {#if tab === 'overview'}
+            {@render viewing()}
+            {#if needsYou}
+              <div class="needs" role="status">
+                <p>{pending.length ? (pending.length === 1 ? 'The agent is asking you something.' : `The agent is asking you ${pending.length} things.`) : 'The run stopped and needs a decision from you.'}</p>
+                <button class="btn small primary" type="button" onclick={() => (tab = 'chat')}>Open chat</button>
+              </div>
             {/if}
-            {#if isNotable(run.policy) || run.policy.interaction !== effective.interaction}
-              <p class="note">This run: {interactionLabel(run.policy)}</p>
+
+            {#if run && status}
+              <section class="block" aria-labelledby="run-h" data-tone={status.tone}>
+                <h3 id="run-h">This run</h3>
+                <div class="runbar">
+                  <RunBadge {run} />
+                  <button class="btn small" onclick={() => assistant.openRun(project.id, run.id)}>Open Session</button>
+                  <span class="mm">
+                    {agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning
+                      ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}`
+                      : ''} · {runElapsed(run, app.now)}
+                  </span>
+                </div>
+                {#if status.active}
+                  {@const runner = app.runners.find(r => r.id === run.runnerId)}
+                  <p class="note">{run.remote ? runner?.name ?? 'Remote runner' : 'This computer'} · {app.connection !== 'live' ? 'availability unknown' : runner ? runner.disabled ? 'disabled' : runner.online ? 'online' : 'offline' : 'availability unknown'}{runner?.lastSeenAt ? ` · last seen ${timeAgo(runner.lastSeenAt, app.now)}` : ''}{run.activityAt ? ` · last activity ${timeAgo(run.activityAt, app.now)}` : ' · no activity reported yet'}</p>
+                {/if}
+                {#if isNotable(run.policy) || run.policy.interaction !== effective.interaction}
+                  <p class="note">This run: {interactionLabel(run.policy)}</p>
+                {/if}
+                {#if !needsYou && (!status.active || status.tone !== 'work')}
+                  <p class="note">{status.hint}</p>
+                {/if}
+              </section>
             {/if}
-            {#if run.state === 'blocked' && run.blocker}
+
+            {#if run && status && !status.active && !reviewFirst}
+              <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} />
+            {:else if reviewFirst && run}
+              <details class="review-evidence">
+                <summary>Full run and Git evidence</summary>
+                <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} hideReviewActions />
+              </details>
+            {/if}
+
+            {#if hasPlanning}{@render planning()}{/if}
+
+            {#if canStart && !isDone}
+              <details class="start block" open={!latest}>
+                <summary>{latest ? 'Set up another run' : 'Set up a run'}</summary>
+                {#if available.length === 0 && !startBusy}
+                  <p class="error">No coding agent is ready.</p>
+                  <p class="note"><a href="{globalHref('settings')}?agents">Open Settings → Agents</a> to set up an agent.</p>
+                {:else}
+                  <p class="note">
+                    The agent works in its own Git worktree on a new branch; your checkout is not touched. This run uses
+                    <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) ||
+                      'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
+                  </p>
+                  <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} dense />
+                  <label class="field">
+                    <span>Extra instructions <span class="muted">optional</span></span>
+                    <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
+                  </label>
+                  <div class="start-row">
+                    {#if canResume}
+                      <label class="check"><input type="checkbox" bind:checked={resume} /><span>Continue the previous conversation</span></label>
+                    {/if}
+                    <button class="btn primary" disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
+                  </div>
+                  {#if startBusy}
+                    <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>
+                  {:else if !startingAgentReady && startAgent}
+                    <p class="error">
+                      {agentLabel(app.agents, startAgent)} cannot be used right now: {app.agents.find((a) => a.id === startAgent)?.detail ?? 'unavailable'}. Choose another
+                      agent above, or fix it under Settings.
+                    </p>
+                  {/if}
+                {/if}
+              </details>
+            {:else if canStart && isDone}
+              <p class="center">This task is in Done. Move it back to run an agent on it.</p>
+            {/if}
+
+          {:else if tab === 'chat'}
+            {@render viewing()}
+            {#if run && run.state === 'blocked' && run.blocker}
               <div class="blocker" role="group" aria-label="Why the run is blocked">
                 <p class="what">{blockerLine(run)}</p>
                 {#if run.blocker.detail}<p class="detail">{run.blocker.detail}</p>{/if}
@@ -565,112 +586,114 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                   Raised {timeAgo(run.blocker.raisedAt, app.now)}.
                 </p>
               </div>
-            {:else if (!status.active || status.tone !== 'work') && !dockIds.size}
-              <p class="note">{status.hint}</p>
             {/if}
-          {/if}
-
-          {#if actionError}<p class="error banner" role="alert">{actionError}</p>{/if}
-
-          {#if run && status && !status.active && !reviewFirst}
-            <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} />
-          {:else if reviewFirst && run}
-            <details class="review-evidence">
-              <summary>Full run and Git evidence</summary>
-              <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} hideReviewActions />
-            </details>
-          {/if}
-
-          {#if feed}
-            {#if feed.loading}
-              <p class="center">Loading activity…</p>
-            {:else if feed.items.length === 0}
-              <p class="center">Nothing has happened in this run yet.</p>
-            {/if}
-            <FeedView answeredBelow={dockIds} items={feed.items} hasMore={feed.hasMore} loadingOlder={feed.loadingOlder} onOlder={() => feed?.loadOlder()} />
-            {#if feed.error}<p class="error" role="alert">{feed.error}</p>{/if}
-          {/if}
-          <div class="feed-end" bind:this={feedEnd} aria-hidden="true"></div>
-
-
-          {#if canStart && !isDone}
-            <details class="start" bind:this={startSection}>
-              <summary>{latest ? 'Set up another run' : 'Set up a run'}</summary>
-              {#if available.length === 0 && !startBusy}
-                <p class="error">No coding agent is ready.</p>
-
-                <p class="note"><a href="{globalHref('settings')}?agents">Open Settings → Agents</a> to set up an agent.</p>
-              {:else}
-                <p class="note">
-                  The agent works in its own Git worktree on a new branch; your checkout is not touched. This run uses
-                  <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) ||
-                    'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
-                </p>
-                <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} dense />
-                <label class="field">
-                  <span>Extra instructions <span class="muted">optional</span></span>
-                  <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
-                </label>
-                <div class="start-row">
-                  {#if canResume}
-                    <label class="check"><input type="checkbox" bind:checked={resume} /><span>Continue the previous conversation</span></label>
-                  {/if}
-                  <button class="btn primary" bind:this={startButton} disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
-                </div>
-                {#if startBusy}
-                  <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>
-                {:else if !startingAgentReady && startAgent}
-                  <p class="error">
-                    {agentLabel(app.agents, startAgent)} cannot be used right now: {app.agents.find((a) => a.id === startAgent)?.detail ?? 'unavailable'}. Choose another
-                    agent above, or fix it under Settings.
-                  </p>
-                {/if}
+            {#if feed}
+              {#if feed.loading}
+                <Settling compact label="Loading the conversation…" />
+              {:else if feed.items.length === 0}
+                <p class="center">Nothing has happened in this run yet.</p>
               {/if}
-            </details>
-          {:else if canStart && isDone}
-            <p class="center">This task is in Done. Move it back to run an agent on it.</p>
-          {/if}
+              <FeedView answeredBelow={dockIds} items={feed.items} hasMore={feed.hasMore} loadingOlder={feed.loadingOlder} onOlder={() => feed?.loadOlder()} />
+              {#if feed.error}<p class="error" role="alert">{feed.error}</p>{/if}
+            {:else}
+              <div class="quiet-state">
+                <p>No agent has worked on this task yet.</p>
+                {#if canStart && !isDone}<button class="btn small" type="button" onclick={() => (tab = 'overview')}>Set up a run</button>{/if}
+              </div>
+            {/if}
+            <div class="feed-end" bind:this={feedEnd} aria-hidden="true"></div>
 
+          {:else if tab === 'run'}
+            <section class="block" aria-labelledby="how-h">
+              <h3 id="how-h">How it runs</h3>
+              <dl class="kv">
+                <dt>Agent</dt><dd>{effective.agent ? agentLabel(app.agents, effective.agent) : 'First that works'}</dd>
+                {#if effective.model}<dt>Model</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.models, effective.model)}</dd>{/if}
+                {#if effective.reasoning}<dt>Reasoning level</dt><dd>{optionLabel(app.agentOptions.get(effective.agent)?.reasoning, effective.reasoning)}</dd>{/if}
+                <dt>Runner</dt><dd>{effective.runner && effective.runner !== 'automatic' ? (app.runners.find((r) => r.id === effective.runner)?.name ?? effective.runner) : 'Automatic'}</dd>
+                <dt>Agent decisions</dt><dd>{interactionLabel({ interaction: effective.interaction })}</dd>
+                <dt>Priority</dt><dd>{priorityLabel(effective.priority)}</dd>
+              </dl>
+            </section>
+            {#if run}
+              <section class="block" aria-labelledby="where-h">
+                <h3 id="where-h">Where</h3>
+                {#if worktree}
+                  <p class="fact"><code>{worktree.branch}</code></p>
+                  <button class="btn small" onclick={copyPath} title={worktree.path}><Icon name="copy" size={14} />{copied ? 'Copied' : 'Copy worktree path'}</button>
+                {/if}
+                <RunUsage {run} showAssessment={!reviewFirst} />
+              </section>
+            {/if}
+
+          {:else if tab === 'schedule'}
+            <section class="block" aria-labelledby="sched-h">
+              <div class="sh"><h3 id="sched-h">Schedule</h3><button class="btn quiet small" aria-label={task.orchestration?.enabled ? 'Change schedule' : 'Schedule this task'} disabled={!!task.archivedAt} onclick={() => (scheduling = true)}>{task.orchestration?.enabled ? 'Change' : 'Schedule'}</button></div>
+              {#if decision && task.orchestration?.enabled}
+                <p class="fact"><strong>{schedulingLabels[decision.state]}</strong> · {decision.reason}</p>
+              {:else}
+                <p class="fact muted">Runs when you start it.</p>
+              {/if}
+              {#if task.orchestration?.runId}<p class="note">One-shot schedule dispatched. Save the schedule again to arm another attempt.</p>{/if}
+              {#if dependencies.length}
+                <p class="fact">Waits for {dependencies.map((t) => t?.title ?? 'a removed task').join(', ')}</p>
+              {/if}
+            </section>
+
+          {:else if tab === 'history'}
+            <section class="block" aria-labelledby="runs-h">
+              <h3 id="runs-h">Runs</h3>
+              <ul class="runs">
+                {#each [...history].reverse() as r, i (r.id)}
+                  {@const s = runStatus(r)}
+                  <li>
+                    <button class="run-pick" aria-pressed={r.id === viewId} onclick={() => { picked = r.id; tab = 'overview'; }}>
+                      <span class="dot" data-tone={s.tone}></span>
+                      <span class="rl">{i === 0 ? 'Latest' : `#${r.attempt ?? history.length - i}`} · {agentName(app.agents, r.agentId)}</span>
+                      <span class="mm">{timeAgo(r.createdAt, app.now)}</span>
+                    </button>
+                  </li>
+                {:else}<li class="muted">No runs yet.</li>{/each}
+              </ul>
+            </section>
+          {/if}
         </div>
 
-        {#if !nearBottom && feed && feed.items.length > 0}
-          <button class="btn small jump" aria-label="Jump to latest activity" onclick={() => toBottom()}><Icon name="down" size={14} />Latest</button>
-        {/if}
+        {#if tab === 'chat'}
+          {#if !nearBottom && feed && feed.items.length > 0}
+            <button class="btn small jump" aria-label="Jump to latest activity" onclick={() => toBottom()}><Icon name="down" size={14} />Latest</button>
+          {/if}
 
-        {#if run && viewingLatest && pending.length > 0}
-          <div class="asks" role="region" aria-label="The agent is waiting for your answer">
-            {#each pending as q (q.id)}<div class="ask-card"><QuestionCard question={q} /></div>{/each}
-          </div>
-        {:else if run && canMessage}
-          <form
-            class="composer"
-            class:blocked={isBlocked}
-            onsubmit={(e) => {
-              e.preventDefault();
-              void send();
-            }}
-          >
-            <label class="visually-hidden" for="message">Message to the agent</label>
-            <textarea
-              id="message"
-              class="input"
-              rows="1"
-              placeholder={isBlocked ? 'Tell the agent how to proceed' : run.state === 'running' ? 'Add a message — it is queued for the agent' : 'Reply to the agent'}
-              bind:value={message}
-              onkeydown={onKey}
-              aria-describedby="message-help"
-              title="Enter to send · Shift+Enter for a new line"
-            ></textarea>
-            <button class="btn primary" type="submit" disabled={busy || !message.trim()}>Send</button>
-            <span id="message-help" class="message-help muted">Enter to send · Shift+Enter for a new line</span>
-          </form>
+          {#if run && viewingLatest && pending.length > 0}
+            <div class="asks" role="region" aria-label="The agent is waiting for your answer">
+              {#each pending as q (q.id)}<div class="ask-card"><QuestionCard question={q} /></div>{/each}
+            </div>
+          {:else if run && canMessage}
+            <form
+              class="composer"
+              class:blocked={isBlocked}
+              onsubmit={(e) => {
+                e.preventDefault();
+                void send();
+              }}
+            >
+              <label class="visually-hidden" for="message">Message to the agent</label>
+              <textarea
+                id="message"
+                class="input"
+                rows="1"
+                placeholder={isBlocked ? 'Tell the agent how to proceed' : run.state === 'running' ? 'Add a message — it is queued for the agent' : 'Reply to the agent'}
+                bind:value={message}
+                onkeydown={onKey}
+                aria-describedby="message-help"
+                title="Enter to send · Shift+Enter for a new line"
+              ></textarea>
+              <button class="btn primary" type="submit" disabled={busy || !message.trim()}>Send</button>
+              <span id="message-help" class="message-help muted">Enter to send · Shift+Enter for a new line</span>
+            </form>
+          {/if}
         {/if}
       </div>
-
-      <!-- The facts about the task. -->
-      {#if hasPlanning || agentWork || project.kind !== 'work'}<aside class="side" aria-label="About this task" tabindex="-1" bind:this={detailsEl}>
-        {@render facts()}
-      </aside>{/if}
     </div>
   {/if}
 </section>
@@ -695,7 +718,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(1040px, calc(100vw - var(--rail-w) - 120px));
+    width: min(760px, calc(100vw - var(--rail-w) - 120px));
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -703,38 +726,31 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     box-shadow: var(--win-sh);
   }
 
-
-  .facts-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 24px; border-bottom: 1px solid var(--border); flex: none; }
-  .facts-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
-  .scroll, .side { overflow-x: hidden; scrollbar-gutter: stable; }
   .head {
+    position: relative;
     min-width: 0;
     overflow-wrap: anywhere;
     flex: none;
     padding: 12px 20px 14px 24px;
-    border-bottom: 1px solid var(--border);
     display: grid;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .top {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .top { display: flex; align-items: center; gap: 8px; }
+  .spacer { flex: 1; }
 
-  .task-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  /* The head and the views are separated by the tab row's own hairline (shared .section-tabs). */
+  .tabs { padding: 0 12px; border-top: 1px solid var(--border); }
+  .tabs button[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
+
+  .task-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
   .title:focus,
-  .scroll:focus,
-  .side:focus {
+  .scroll:focus {
     outline: none;
   }
 
   /* Out of sight until it takes focus, then the first thing in the panel. */
-  .skips {
-    display: contents;
-  }
   .skip {
     position: absolute;
     left: 24px;
@@ -758,20 +774,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     pointer-events: auto;
   }
 
-  .side :global(h3) {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--text-2);
-  }
-
-  .spacer {
-    flex: 1;
-  }
-
-  /* The column, as a raised pill that is also a picker: moving a task is one choice. */
+  /* The column, as a pill that is also a picker: moving a task is one choice. */
   .state {
     display: inline-flex;
     align-items: center;
@@ -785,11 +788,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     font-size: 12px;
     font-weight: 500;
   }
-
-  .state .dot[data-tone='neutral'] {
-    opacity: 0.5;
-  }
-
+  .state .dot[data-tone='neutral'] { opacity: 0.5; }
   .state select {
     appearance: none;
     border: 0;
@@ -799,17 +798,11 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     cursor: pointer;
     padding-right: 2px;
   }
+  .state select:focus-visible { outline: none; }
+  .state:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .state select:focus-visible {
-    outline: none;
-  }
-
-  .state:focus-within {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .title {
+  /* Under the head, so that it outranks the global label style every h2 gets in Paper and Graphite (app.css). */
+  .head .title {
     font-family: inherit;
     text-transform: none;
     color: var(--text);
@@ -820,42 +813,20 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     overflow-wrap: anywhere;
   }
 
-  .brief { color: var(--text-2); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .full-brief, .next-action { font-size: 12px; }
-  .full-brief > summary { min-height: 32px; display: flex; align-items: center; width: fit-content; color: var(--accent); cursor: pointer; }
-  .full-brief > p { max-height: min(45vh, 24rem); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); font-size: 13px; }
-  .next-action { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; color: var(--text-2); }
-  .next-action > span { color: var(--text); font-weight: 600; }
+  /* The description, once. A long one shows its first lines and the button below shows the rest. */
+  .brief { display: grid; justify-items: start; gap: 2px; }
+  .brief p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .brief p.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+  .brief p:not(.clamped) { max-height: min(45vh, 24rem); overflow: auto; }
+  .brief .link { min-height: 32px; font-size: 12px; }
 
-  .review-evidence > summary {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    font-size: 13px;
-  }
-
-  .review-evidence[open] {
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-  }
-
-  .review-evidence[open] > :not(summary) { margin-top: 10px; }
-
-  .body {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-  }
-
-  .body.no-facts { grid-template-columns: minmax(0, 1fr); }
+  .body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
   .main {
     position: relative;
     min-width: 0;
     min-height: 0;
+    flex: 1;
     display: flex;
     flex-direction: column;
   }
@@ -865,68 +836,70 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 24px 24px;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+    padding: 4px 24px 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
   }
 
-  .runbar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    padding: 10px 12px;
-    border-radius: var(--radius);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--card-sh);
-  }
-
-  .runbar[data-tone='work'] {
-    border-color: var(--accent);
-    box-shadow:
-      var(--card-sh),
-      var(--live-ring);
-  }
-
-  .run-acts {
-    margin-left: auto;
-    display: flex;
-    gap: 8px;
-  }
-
-  .note {
-    font-size: 13px;
+  /* Sections of a view are separated by a hairline, not boxed one inside another. */
+  .block { display: grid; gap: 8px; padding: 16px 0; border-top: 1px solid var(--border); }
+  .scroll > .block:first-child, .needs + .block, .viewing + .block { border-top: 0; }
+  .block h3, .sh h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
     color: var(--text-2);
-    overflow-wrap: anywhere;
+    margin: 0;
   }
+  .sh { display: flex; align-items: center; justify-content: space-between; min-height: 24px; }
+
+  .viewing { margin: 12px 0 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13px; color: var(--text-2); }
+
+  /* What needs you, in the colour of "needs you", with a way straight to it. */
+  .needs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border));
+    border-left-width: 3px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--amber) 9%, var(--bg));
+  }
+  .needs p { margin: 0; font-weight: 500; }
+
+  .runbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+  .block[data-tone='work'] { border-left: 2px solid var(--accent); padding-left: 12px; }
+
+  .note { margin: 0; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  .delivery { margin-top: 12px; }
+  .fact { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+  .fact code { font-size: 12px; }
+
 
   .blocker {
     display: grid;
     gap: 8px;
+    margin: 8px 0;
     padding: 12px 14px;
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--block) 9%, var(--surface));
     border: 1px solid color-mix(in srgb, var(--block) 35%, var(--border));
   }
+  .blocker .what { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .blocker .detail { margin: 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .options { display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .blocker .what {
-    font-weight: 600;
-    overflow-wrap: anywhere;
-  }
-
-  .blocker .detail {
-    font-size: 13px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-
-  .options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
+  .review-evidence { padding: 16px 0; border-top: 1px solid var(--border); }
+  .review-evidence > summary { min-height: 44px; display: flex; align-items: center; font-size: 13px; cursor: pointer; }
+  .review-evidence[open] > :not(summary) { margin-top: 10px; }
 
   /* What the agent is asking sits where you answer, always in view, in the colour of "needs you". */
   .asks {
@@ -939,7 +912,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     border-top: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border));
     background: color-mix(in srgb, var(--amber) 9%, var(--bg));
   }
-
   .ask-card {
     padding: 14px;
     border-radius: var(--radius);
@@ -948,71 +920,23 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     box-shadow: var(--card-sh);
   }
 
-  .feed-end {
-    height: 1px;
-    flex: none;
-  }
+  .feed-end { height: 1px; flex: none; }
+  .banner { margin: 12px 0 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border)); border-radius: var(--radius-sm); }
+  .center { text-align: center; padding: 12px 0; color: var(--text-2); font-size: 13px; }
+  .quiet-state { display: grid; justify-items: center; gap: 10px; padding: 48px 0; color: var(--text-2); font-size: 13px; }
+  .quiet-state p { margin: 0; }
 
-  .banner {
-    padding: 8px 10px;
-    border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
-    border-radius: var(--radius-sm);
-  }
-
-  .center {
-    text-align: center;
-    padding: 12px 0;
-    color: var(--text-2);
-    font-size: 13px;
-  }
-
-  .start {
-    padding: 14px;
-    border-radius: var(--radius);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--card-sh);
-  }
-
+  .start { padding-bottom: 8px; }
   .start > :global(*) { margin-top: 12px; }
-  .start > summary { margin-top: 0; cursor: pointer; min-height: 44px; font-weight: 600; }
+  .start > summary { margin-top: 0; cursor: pointer; min-height: 32px; display: flex; align-items: center; font-weight: 600; }
+  @media (pointer: coarse) { .start > summary { min-height: 44px; } }
 
-  .field {
-    display: grid;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-  }
+  .field { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
+  .field .muted { font-family: var(--mono); font-size: 12px; font-weight: 400; }
+  .start-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 16px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-right: auto; }
 
-  .field .muted {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 400;
-  }
-
-  .start-row {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 10px 16px;
-  }
-
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    margin-right: auto;
-  }
-
-  .jump {
-    position: absolute;
-    right: 24px;
-    bottom: 84px;
-    z-index: 2;
-    border-radius: 999px;
-  }
+  .jump { position: absolute; right: 24px; bottom: 84px; z-index: 2; border-radius: 999px; }
 
   .composer {
     flex: none;
@@ -1024,89 +948,21 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     border-top: 1px solid var(--border);
     background: var(--bg);
   }
-
   .message-help { flex-basis: 100%; font-size: 12px; }
+  .composer.blocked { border-top-color: color-mix(in srgb, var(--block) 50%, var(--border)); }
+  .composer .input { flex: 1; min-height: 38px; max-height: 40dvh; resize: none; field-sizing: content; }
 
-  .composer.blocked {
-    border-top-color: color-mix(in srgb, var(--block) 50%, var(--border));
-  }
+  .field .muted, .kv dt { color: var(--text-2); }
+  .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
 
-  .composer .input {
-    flex: 1;
-    min-height: 38px;
-    max-height: 40dvh;
-    resize: none;
-    field-sizing: content;
-  }
-
-  .side {
-    min-height: 0;
-    overflow-y: auto;
-    padding: 16px 20px 24px;
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    background: color-mix(in srgb, var(--surface-2) 40%, var(--bg));
-  }
-
-  .side :global(section) {
-    display: grid;
-    gap: 8px;
-  }
-
-
-  .sh {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 24px;
-  }
-
-  .kv {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 6px 12px;
-    margin: 0;
-    font-size: 13px;
-  }
-
-  .kv dt {
-    color: var(--text-2);
-  }
-
-  .kv dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .fact {
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-
-  .fact code {
-    font-size: 12px;
-  }
-
-  .side :global(.usage) {
-    font-size: 13px;
-  }
-
-  .runs {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 2px;
-  }
-
+  .runs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .run-pick {
     display: flex;
     align-items: center;
     gap: 8px;
     width: 100%;
-    min-height: 32px;
+    min-height: 36px;
     padding: 0 8px;
     border: 0;
     border-radius: var(--radius-sm);
@@ -1114,50 +970,20 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     text-align: left;
     font-size: 13px;
   }
+  .run-pick:hover { background: var(--surface-2); }
+  .run-pick[aria-pressed='true'] { background: var(--surface-2); box-shadow: var(--press-sh); }
+  .rl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  .run-pick:hover {
-    background: var(--surface-2);
-  }
+  :global(.scroll .usage) { font-size: 13px; }
 
-  .run-pick[aria-pressed='true'] {
-    background: var(--surface-2);
-    box-shadow: var(--press-sh);
-  }
-
-  .rl {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Small windows switch between activity and facts inside the same viewport. */
+  /* Small windows: a narrower panel. */
   @media (max-width: 1280px) {
-    .panel {
-      width: min(760px, calc(100vw - var(--rail-w) - 40px));
-    }
-
-    .body {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .side {
-      display: none;
-    }
-
-    .facts-open .main { display: none; }
-    .facts-open .side {
-      display: flex;
-      border-left: 0;
-    }
+    .panel { width: min(760px, calc(100vw - var(--rail-w) - 40px)); }
   }
 
   /* Phone: the task is its own page over everything, with a way back. */
   @media (max-width: 899px) {
-    .scrim {
-      display: none;
-    }
+    .scrim { display: none; }
 
     .panel {
       width: auto;
@@ -1169,64 +995,21 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       padding-top: env(safe-area-inset-top);
     }
 
-    .head {
-      padding: 8px 16px 12px;
-      max-height: 45dvh;
-      overflow-y: auto;
-    }
+    .head { padding: 8px 16px 12px; max-height: 50dvh; overflow-y: auto; }
+    /* The head already scrolls on a phone; an expanded description does not scroll inside it as well. */
+    .brief p:not(.clamped) { max-height: none; overflow: visible; }
 
     /* Back, the column and Stop do not fit one row at 375px: the top controls wrap rather than clip. */
-    .top {
-      flex-wrap: wrap;
-    }
+    .top { flex-wrap: wrap; }
+    .top .btn { min-height: 44px; }
+    .top .btn:not(.icon) { flex: 1 1 auto; }
 
-    .top .btn {
-      min-height: 44px;
-    }
-
-    /* Back and the column lead; the optional Stop action stays with those top controls. */
-    .spacer {
-      flex: 1;
-    }
-
-    .top .btn:not(.icon) {
-      flex: 1 1 auto;
-    }
-
-    .task-actions { justify-content: flex-start; }
-    .task-actions { flex-wrap: wrap; }
     .task-actions .btn { flex: 1 1 auto; min-height: 44px; white-space: normal; }
-    .facts-tabs {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scrollbar-width: thin;
-      padding-inline: 16px;
-      scroll-padding-inline: 16px;
-    }
-    .facts-tabs button { flex: 0 0 auto; min-height: 44px; white-space: nowrap; }
+    .state { height: 44px; }
+    .close { display: inline-flex; width: 44px; height: 44px; }
 
-    .state {
-      height: 44px;
-    }
-
-    .close {
-      display: inline-flex;
-      width: 44px;
-      height: 44px;
-    }
-
-    .scroll {
-      padding: 14px 16px 20px;
-    }
-
-    .composer,
-    .asks {
-      padding-inline: 16px;
-    }
-
-    .side {
-      padding: 16px;
-    }
+    .tabs { padding-inline: 4px; }
+    .scroll { padding: 4px 16px 20px; }
+    .composer, .asks { padding-inline: 16px; }
   }
 </style>

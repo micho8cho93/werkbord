@@ -411,7 +411,7 @@
     flex-wrap: wrap;
   }
 
-  .title {
+  .nav .title {
     margin-left: 8px;
     font-family: var(--font);
     font-size: 16px;

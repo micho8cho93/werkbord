@@ -375,7 +375,7 @@
     gap: 8px;
   }
 
-  .title {
+  .welcome .title {
     font-family: var(--font);
     font-size: 28px;
     font-weight: 600;

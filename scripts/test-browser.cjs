@@ -81,7 +81,7 @@ async function cleanup() {
     const testEnv = { PLANNING_SHELL_URL: shellURL, PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
     // One script, for working on a single screen: BROWSER_SCRIPT=scripts/browser-phone-fit.cjs node scripts/test-browser.cjs
     if (process.env.BROWSER_SCRIPT) { run(process.execPath, [process.env.BROWSER_SCRIPT], testEnv); return; }
-    if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); return; }
+    if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv); return; }
     if (process.env.BROWSER_MCP_ONLY === '1') { run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv); return; }
     if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); return; }
     if (process.env.BROWSER_CONTROLS_ONLY === '1') { run(process.execPath, ['scripts/browser-controls.cjs'], testEnv); return; }
@@ -104,6 +104,7 @@ async function cleanup() {
       return;
     }
     run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-salie-terminals.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone-fit.cjs'], testEnv);
