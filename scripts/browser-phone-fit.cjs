@@ -11,15 +11,18 @@ async function request(token, method, route, body) {
 }
 const SIZES = [[320, 568], [360, 640], [375, 667], [390, 844], [430, 932]];
 (async () => {
-    const code = await request(owner, 'POST', '/api/phones/codes', {});
-    const phone = await request('', 'POST', '/api/phones/enroll', { code: code.code, name: 'Phone fit fixture' });
+    // A controller with no project sends its owner to setup first; every other suite registers the fixture repository, so this does too.
+    const repo = require('node:fs').realpathSync(process.env.WERKBORD_BROWSER_REPO);
+    if (!(await request(owner, 'GET', '/api/projects')).projects.some(p => p.repoPath === repo)) await request(owner, 'POST', '/api/projects', { path: repo, name: 'Phone fit fixture' });
+    // The deck is chosen by the width of the window alone, so no phone is enrolled here: enrolling is rate limited, and the suites that
+    // follow in the same controller enrol phones of their own.
     const browser = await (process.env.BROWSER_ENGINE === 'webkit' ? webkit : chromium).launch({ headless: true });
     const errors = [];
     const failures = [];
     try {
         for (const colorScheme of ['light', 'dark']) for (const [width, height] of SIZES) {
             const ctx = await browser.newContext({ viewport: { width, height }, isMobile: true, hasTouch: true, serviceWorkers: 'block', colorScheme });
-            await ctx.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'); }, phone.token);
+            await ctx.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord-tour-phone-deck-v2', 'fixture'); }, owner);
             const page = await ctx.newPage();
             page.on('pageerror', e => errors.push(e.message));
             await page.goto(base + '/#/deck');
