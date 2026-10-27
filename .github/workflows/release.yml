@@ -49,11 +49,40 @@ jobs:
           if [ "${LINUX_BETA_ENABLED:-false}" = true ]; then linux=true; fi
           echo "linux=$linux" >> "$GITHUB_OUTPUT"
 
-  release-build:
+  # A tag release packages what CI has already tested. The checks (make check, Team's native network and database tests, every
+  # browser suite, the race tests, the Mac signing tests) run once, in the ci workflow, on the commit pushed to main. This job stops
+  # a tag within seconds when that exact commit has no successful CI run, instead of repeating half an hour of the same tests here.
+  ci-gate:
     needs: plan
     if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      ci_run: ${{ steps.ci.outputs.run }}
+    steps:
+      - name: Require a successful CI run on exactly this commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          run=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&status=success&per_page=1" --jq '.workflow_runs[0].id // empty')
+          if [ -z "$run" ]; then
+            echo "::error::CI has no successful run for $SHA. Push the commit to main, wait for CI to pass, then tag it."
+            exit 1
+          fi
+          echo "CI run $run passed for $SHA"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  release-build:
+    needs: [plan, ci-gate]
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -83,39 +112,23 @@ jobs:
         run: |
           test "${#RELEASE_PUBLIC_KEY}" -eq 43
           scripts/release-build-flags.sh
-      - name: Run the repository checks
-        run: make check
-      - name: Run Team's pinned native network tests
-        run: make test-nebula
-      - name: Run Team's real database cluster tests
-        env:
-          WERKBORD_REQUIRE_RQLITE: "1"
-        run: make test-rqlite
-      - name: Verify the public app's browser flows before assembling downloads
-        run: |
-          cd web && npx playwright install --with-deps chromium webkit && cd ..
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
-          node scripts/browser-salie-sessions.cjs
       - name: Source, frontend and build dependency audit (no acceptance inferred)
+        env:
+          CI_RUN: ${{ needs.ci-gate.outputs.ci_run }}
         run: |
           python3 scripts/audit-release.py --out output/release-audit --scan
           python3 - <<'PY'
           import json, os
           from pathlib import Path
-          # This step runs only after every named validation above succeeds.
-          commands = ['make check', 'make test-nebula', 'make test-rqlite',
+          # The ci-gate job has already required a successful ci workflow run on this exact commit; that run's checks are the receipt.
+          commands = ['make check', 'make test-nebula', 'make test-rqlite', 'go test -race ./...', 'make test-desktop-sign',
                       'make test-browser', 'make test-team-desktop-browser',
                       'make test-unified-desktop-browser', 'make test-onboarding-browser',
                       'make test-assistant-browser', 'make test-personal-browser',
                       'node scripts/browser-salie-sessions.cjs']
           receipt = {'schema': 1, 'sourceCommit': os.environ['GITHUB_SHA'],
-                     'workflowRun': os.environ['GITHUB_RUN_ID'],
-                     'checks': [{'command': command, 'result': 'passed'} for command in commands],
+                     'workflowRun': os.environ['GITHUB_RUN_ID'], 'ciRun': os.environ['CI_RUN'],
+                     'checks': [{'command': command, 'result': 'passed', 'ranIn': 'ci workflow run ' + os.environ['CI_RUN']} for command in commands],
                      'operationalAcceptance': 'pending; CI fixtures cannot establish independent acceptance'}
           Path('output/release-audit/validation.json').write_text(json.dumps(receipt, sort_keys=True, indent=2)+'\n')
           PY
@@ -138,9 +151,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Starts beside release-build once the commit's CI has passed (ci-gate), so a release takes the longer of the two and not their sum.
+  # Nothing is published unless release-build also succeeds: assemble-candidate needs both.
   desktop-build:
-    needs: [plan, release-build]
-    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.release-build.result == 'success') }}
+    needs: [plan, ci-gate]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.ci-gate.result == 'success') }}
     runs-on: macos-15
     timeout-minutes: 90
     environment: desktop-release
@@ -252,7 +267,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/notary"
 
   linux-desktop-build:
-    needs: [plan, release-build]
+    needs: [plan, ci-gate]
     if: needs.plan.outputs.linux == 'true'
     strategy:
       matrix:
@@ -346,8 +361,11 @@ jobs:
           path: candidate/*
           if-no-files-found: error
 
+  # Every job after assemble-candidate states its own condition. Without a status function GitHub skips a job whose ancestor was
+  # skipped, and the Linux build is skipped while Linux is off, which silently skipped approval and publication of every release.
   release-approval:
     needs: assemble-candidate
+    if: ${{ !cancelled() && needs.assemble-candidate.result == 'success' }}
     runs-on: ubuntu-latest
     environment: release-approval
     permissions:
@@ -372,7 +390,7 @@ jobs:
 
   desktop-draft:
     needs: [plan, release-build, desktop-build, release-approval]
-    if: github.event_name == 'push' && needs.plan.outputs.desktop == 'true'
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.plan.outputs.desktop == 'true' && needs.release-build.result == 'success' && needs.desktop-build.result == 'success' && needs.release-approval.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -437,11 +455,20 @@ jobs:
           The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux packages are opt-in after acceptance; Windows downloads remain deferred.
           EOF
           fi
+          # An unsigned test preview (make desktop-preview, docs/DESKTOP_RELEASE.md) may already be published under this tag so it can be
+          # downloaded before the owner's signature exists. The signed release replaces exactly that; any other existing release is an error.
+          if existing=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '[.assets[].name] | join(" ")' 2>/dev/null); then
+            case " $existing " in
+              *" appcast.xml "*) echo "a signed release for $GITHUB_REF_NAME already exists" >&2; exit 1 ;;
+              *" Werkbord-preview.dmg "*) gh release delete "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --yes ;;
+              *) echo "a release for $GITHUB_REF_NAME already exists and is not an unsigned test preview" >&2; exit 1 ;;
+            esac
+          fi
           gh release create "$GITHUB_REF_NAME" release-assets/* --title "Werkbord $version$qualifier" --notes-file release-notes.md --draft --prerelease="$prerelease" --latest=false --verify-tag
 
   desktop-publish:
     needs: desktop-draft
-    if: github.event_name == 'push'
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.desktop-draft.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -453,7 +480,7 @@ jobs:
 
   macos-public-verify:
     needs: desktop-publish
-    if: github.event_name == 'push'
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.desktop-publish.result == 'success' }}
     runs-on: macos-15
     permissions:
       contents: read
@@ -472,7 +499,7 @@ jobs:
 
   desktop-feed-public-verify:
     needs: desktop-publish
-    if: github.event_name == 'push'
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.desktop-publish.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -490,7 +517,7 @@ jobs:
 
   linux-public-verify:
     needs: [plan, desktop-publish]
-    if: needs.plan.outputs.linux == 'true' && github.event_name == 'push'
+    if: ${{ !cancelled() && needs.plan.outputs.linux == 'true' && github.event_name == 'push' && needs.desktop-publish.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read

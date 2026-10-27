@@ -114,14 +114,34 @@ if release
   end
   check(needs(jobs["release-build"]).include?("plan"), "release-build reads the stable decision from plan")
 
+  # A tag release packages what CI already tested: ci-gate requires a successful ci run on exactly the tagged commit, and
+  # release-build and the credentialed desktop build both wait for it instead of repeating the tests.
+  check(jobs.key?("ci-gate"), "release.yml has no ci-gate job")
+  gate = jobs["ci-gate"] || {}
+  check(perms(gate, release) == { "contents" => "read", "actions" => "read" } && !mentions_secret?(gate) && !gate.key?("environment"), "ci-gate only reads the repository and workflow runs, with no secrets")
+  gate_run = JSON.generate(gate["steps"])
+  check(gate_run.include?("actions/workflows/ci.yml/runs") && gate_run.include?("head_sha=$SHA") && gate_run.include?("status=success") && gate_run.include?("exit 1"), "ci-gate fails the tag unless ci succeeded on exactly this commit")
+  check(needs(jobs["release-build"]).include?("ci-gate"), "release-build waits for the CI gate")
+  check(needs(jobs["linux-desktop-build"]).include?("ci-gate"), "the Linux build waits for the CI gate")
+
+  # GitHub skips a job whose ancestor was skipped unless it states a status condition; Linux is skipped while it is off, and that
+  # once skipped approval and publication of every release. Each job after the candidate is assembled must say so itself.
+  %w[release-approval desktop-draft desktop-publish macos-public-verify desktop-feed-public-verify linux-public-verify].each do |name|
+    condition = jobs.dig(name, "if").to_s
+    check(condition.include?("!cancelled()"), "#{name} must state its own condition (!cancelled()) so a skipped optional job cannot skip it")
+    needs(jobs[name]).reject { |dependency| dependency == "plan" }.each do |dependency|
+      check(condition.include?("needs.#{dependency}.result == 'success'"), "#{name} must require #{dependency} to have succeeded explicitly")
+    end
+  end
+
   secret_jobs = jobs.select { |_, job| mentions_secret?(job) }.keys.sort
   check(secret_jobs == %w[desktop-build], "release credentials are exposed to #{secret_jobs.inspect}")
   %w[desktop-build].each do |name|
     job = jobs[name] or next
     check(perms(job, release) == { "contents" => "read" }, "#{name} has release credentials and must be read-only")
     check(job["environment"] == "desktop-release", "#{name} uses the protected desktop-release environment")
-    check(needs(job).include?("plan") && needs(job).include?("release-build"), "#{name} waits for the plan and release checks")
-    check(job["if"].to_s.include?("workflow_dispatch") && job["if"].to_s.include?("release-build.result"), "#{name} is a dry run on dispatch and waits for CI on tags")
+    check(needs(job).include?("plan") && needs(job).include?("ci-gate") && !needs(job).include?("release-build"), "#{name} waits for the plan and the CI gate, and builds beside release-build")
+    check(job["if"].to_s.include?("workflow_dispatch") && job["if"].to_s.include?("ci-gate.result == 'success'"), "#{name} is a dry run on dispatch and needs a passing CI run on tags")
     check(JSON.generate(job).include?("scripts/check-release-secrets.sh"), "#{name} checks the credentials it needs before building")
   end
 
@@ -134,11 +154,13 @@ if release
     steps = JSON.generate(release_build["steps"])
     check(perms(release_build, release) == { "contents" => "read" }, "release-build is read-only")
     gate_index = release_build["steps"].index { |step| step["run"].to_s.include?("check-team-production-gate.sh") }
-    checks_index = release_build["steps"].index { |step| step["run"].to_s.include?("make check") }
-    check(gate_index && checks_index && gate_index < checks_index, "stable Team approval is checked before release builds and repository tests")
+    audit_index = release_build["steps"].index { |step| step["run"].to_s.include?("audit-release.py") }
+    check(gate_index && audit_index && gate_index < audit_index, "stable Team approval is checked before the audit and the release build")
+    runs_tests = release_build["steps"].any? { |step| step["run"].to_s.lines.any? { |line| line.match?(/\A\s*(make (check|test-)|go test|node scripts\/browser|npx playwright)/) } }
+    check(!runs_tests, "release-build does not repeat the tests ci already ran on this commit")
+    check(steps.include?("ciRun") && steps.include?("ci workflow run"), "the validation receipt names the ci run whose checks it relies on")
     gate_condition = release_build["steps"].dig(gate_index || 0, "if").to_s
     check(gate_condition.include?("github.event_name == 'push'") && gate_condition.include?("needs.plan.outputs.stable == 'true'"), "the Team production gate applies only to stable tag pushes")
-    check(steps.include?("make check") && steps.include?("make test-nebula") && steps.include?("make test-rqlite") && steps.include?("make test-browser") && steps.include?("make test-unified-desktop-browser") && steps.include?("make test-assistant-browser"), "release-build runs repository, native network and real-cluster checks")
     check(steps.include?('darwin/arm64 darwin/amd64') && steps.include?('if [ \"$LINUX\" = true ]') && steps.include?('linux/amd64 linux/arm64'), "Linux controller publication is explicitly gated")
     check(!steps.include?("gh release"), "release-build does not create a public release before platform builds finish")
     check(!JSON.generate(release).include?("make dist PRODUCT=werkbord-team"), "standalone Team Host archives are never built for publication")
@@ -191,7 +213,17 @@ if release
   check(JSON.generate(jobs["desktop-draft"]).include?("approved-candidate"), "publisher consumes only authenticated candidate assets")
   check(jobs["linux-desktop-build"]["if"].include?("needs.plan.outputs.linux == 'true'"), "Linux remains opt-in until owner acceptance")
   [latest, preview].each { |job| check(job["if"].include?("needs.linux-public-verify.result == 'success'") && job["if"].include?("needs.macos-public-verify.result == 'success'"), "a failed platform verifier cannot promote either feed") }
-  check(JSON.generate(release_build).include?("make test-personal-browser") && JSON.generate(release_build).include?("browser-salie-sessions.cjs"), "new workspace and session browser regressions are required")
+  # The tests themselves are required in ci (one place), and the receipt lists them, so a browser regression cannot be dropped silently.
+  ci = workflows["#{DIR}/ci.yml"]
+  ci_steps = JSON.generate(ci && ci["jobs"]["check"]["steps"])
+  %w[make\ check make\ test-nebula make\ test-rqlite make\ test-browser make\ test-team-desktop-browser make\ test-unified-desktop-browser make\ test-onboarding-browser make\ test-assistant-browser make\ test-personal-browser browser-salie-sessions.cjs go\ test\ -race make\ test-desktop-sign].each do |command|
+    check(ci_steps.include?(command), "ci must run #{command}, because tag releases rely on it")
+    check(JSON.generate(release_build).include?(command), "the release receipt must list #{command}")
+  end
+
+  # An unsigned test preview published under a tag is replaced by the signed release, and nothing else is ever overwritten.
+  draft_steps = JSON.generate(jobs["desktop-draft"]["steps"])
+  check(draft_steps.include?("Werkbord-preview.dmg") && draft_steps.include?("gh release delete") && draft_steps.include?("is not an unsigned test preview"), "the signed release replaces only an unsigned test preview under the same tag")
 
   # Every action is pinned to a full commit SHA, including artifact transport.
   jobs.each do |name, job|

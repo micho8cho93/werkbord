@@ -71,6 +71,21 @@ build notation), and WerkbordBuildVersion and both executables retain the comple
 `4.28.5-preview.1`. The preview counter is 1–255. The Team production gate remains
 blocked; release notes link its outstanding production acceptance requirements.
 
+## How long a release takes
+
+With CI already green on the commit, the release workflow does only what is specific to a release:
+
+| Job | Time | Waits for |
+| --- | --- | --- |
+| `ci-gate` | seconds | a successful `ci` run on exactly the tagged commit |
+| `release-build` (tag check, dependency audit, controller archives) | a few minutes | `ci-gate` |
+| `desktop-build` (signed and notarized universal app) | about 11 minutes | `ci-gate`, **in parallel** with `release-build`, and your `desktop-release` approval |
+| `assemble-candidate`, then `release-approval` | under a minute | both builds, then your offline signature and `release-approval` approval |
+
+The time you take to approve is the rest. Approve `desktop-release` as soon as the run is waiting: the build holds the Apple
+secrets, so it will not start without it. Publication needs both builds to succeed, so approving early cannot publish anything
+that failed. If Linux is off (the default), its skipped job no longer skips the approval and publication jobs after it.
+
 ## Test the app while approval is pending
 
 `make desktop-preview` builds a universal DMG from the current individual VERSION with an ad-hoc signature and no notarization or Sparkle updater.
@@ -78,6 +93,8 @@ It writes `dist/desktop-preview/Werkbord-preview.dmg` and its SHA-256 checksum, 
 This target is for an explicitly requested test preview. Publish it only on a product prerelease (for example
 `werkbord-v1.3.1-preview.1`), marked prerelease and `--latest=false`, with notes naming the lack of notarization.
 Never upload it as `Werkbord.dmg`, never make an appcast for it, and never use it to satisfy the signed release verifier.
+If it was published under a tag whose signed release is made later, the `desktop-draft` job deletes that preview release (never
+the tag) and creates the signed one; it refuses to replace any release that is not exactly an unsigned test preview.
 The signed release workflow and its requirements remain in force.
 
 The website can link directly to the preview while no signed installer is available. On first launch, a tester may need

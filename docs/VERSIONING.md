@@ -83,8 +83,10 @@ Werkbord Team's service and the installer in the app are stamped with this same 
 
 ## Releases
 
-Pushing a release tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, run `make check`,
-build the macOS controller archives, and publish a GitHub release associated with the tag.
+Pushing a release tag makes CI (`.github/workflows/release.yml`) check the tag against `VERSION`, require that the `ci`
+workflow already passed on exactly that commit (the `ci-gate` job; the tests are not run a second time), build the macOS
+controller archives, and publish a GitHub release associated with the tag. **Push the commit to `main`, wait for CI to pass,
+then tag it**: a tag on a commit without a green CI run fails in seconds.
 Stable releases are published only after the signed, notarized universal macOS app and the public download and signed
 update-feed checks succeed; a pushed tag is not proof that a release is installable. The first beta invitation scope is
 macOS ([BETA_READINESS.md](BETA_READINESS.md), [DESKTOP_RELEASE.md](DESKTOP_RELEASE.md)). The GUI app carries the Team service
