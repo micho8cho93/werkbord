@@ -192,7 +192,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   // ---- start ----
   let instructions = $state('');
-  let resume = $state(false);
+  let nextMode = $state<'' | 'fresh' | 'handoff' | 'resume'>('');
+  let nextPurpose = $state('continue');
+  let selectedContext = $state('');
+  let nextRunFor = '';
   /** What differs for this run only; empty means it gets what the task gets. */
   let runChoice = $state<ExecutionConfig>({});
   let runChoiceFor = '';
@@ -207,6 +210,9 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         editing = false;
         scheduling = false;
         instructions = '';
+        nextMode = '';
+        nextPurpose = 'continue';
+        selectedContext = '';
         message = '';
         nearBottom = true;
         briefOpen = false;
@@ -219,27 +225,34 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const startingAgentReady = $derived(available.some((a) => a.id === startAgent));
   /** Nothing is wrong with the agent: every runner that has it is full. Say so rather than send the person to Settings. */
   const startBusy = $derived(!startingAgentReady && onlyBusy(app.agents, app.runners, project.id, runChoice.runner || effective.runner, runChoice.agent || effective.agent || ''));
-  const canResume = $derived(!!latest && !!latest.sessionRef && latest.agentId === startAgent);
+  const canResume = $derived(!!latest && !latest.remote && !!latest.runnerId && !!latest.sessionRef && latest.agentId === startAgent && (!(runChoice.runner || effective.runner) || (runChoice.runner || effective.runner) === 'automatic' || (runChoice.runner || effective.runner) === latest.runnerId));
   $effect(() => {
-    if (!canResume) resume = false;
+    if (!canResume && nextMode === 'resume') nextMode = '';
+  });
+  $effect(() => {
+    const id = latest?.id ?? '';
+    if (id !== nextRunFor) { nextRunFor = id; nextMode = ''; selectedContext = ''; nextPurpose = 'continue'; }
   });
 
   async function start() {
-    if (!task || !startingAgentReady) return;
+    if (!task || !startingAgentReady || (latest && !nextMode) || (nextMode === 'resume' && !canResume)) return;
     const c = compact(runChoice);
-    const r = await act(() =>
-      api.startRun(
+    const choice = { mode:c.mode, runnerId: nextMode === 'resume' ? latest?.runnerId : c.runner, agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction };
+    const r = await act(() => nextMode === 'handoff' && latest
+      ? api.continueRun(latest, choice, nextPurpose, instructions.trim(), selectedContext.trim())
+      : api.startRun(
         project.id,
         task.id,
-        { mode:c.mode, runnerId: c.runner, agentId: c.agent ?? '', model: c.model, reasoning: c.reasoning, interaction: c.interaction },
+        choice,
         instructions.trim(),
-        resume,
+        nextMode === 'resume',
       ),
     );
     if (r) {
       scope.upsertRun(r);
       instructions = '';
-      resume = false;
+      nextMode = '';
+      selectedContext = '';
       runChoice = {};
       nearBottom = true;
     }
@@ -523,11 +536,11 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
             {/if}
 
             {#if run && status && !status.active && !reviewFirst}
-              <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} />
+              <RunHandoff {run} {scope} onmerged={() => void move('done')} />
             {:else if reviewFirst && run}
               <details class="review-evidence">
                 <summary>Full run and Git evidence</summary>
-                <RunHandoff {run} {scope} inherited={effective} canContinue={canStart && !isDone && viewingLatest} onmerged={() => void move('done')} hideReviewActions />
+                <RunHandoff {run} {scope} onmerged={() => void move('done')} hideReviewActions />
               </details>
             {/if}
 
@@ -540,21 +553,34 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                   <p class="error">No coding agent is ready.</p>
                   <p class="note"><a href="{globalHref('settings')}?agents">Open Settings → Agents</a> to set up an agent.</p>
                 {:else}
+                  {#if latest}
+                    <label class="field" for="next-run-mode"><span>How should the next run start?</span><select id="next-run-mode" class="select" bind:value={nextMode}>
+                      <option value="">Choose an approach</option>
+                      <option value="handoff">Continue this work with a handoff</option>
+                      {#if canResume}<option value="resume">Resume the previous conversation</option>{/if}
+                      <option value="fresh">Start a fresh conversation</option>
+                    </select></label>
+                    <p class="note">Previous branch: <strong>{latest.branch || 'not recorded'}</strong>. The task’s worktree is reused when available; moving work to another runner may require reconciliation.</p>
+                    {#if nextMode === 'handoff'}<p class="note">Starts a new conversation with the task, handoff, Git evidence and selected context.</p>
+                    {:else if nextMode === 'resume'}<p class="note">Resumes the previous conversation with the same agent on its local runner.</p>
+                    {:else if nextMode === 'fresh'}<p class="note">Starts a new conversation with the task and your instructions, without a handoff.</p>{/if}
+                  {/if}
                   <p class="note">
-                    The agent works in its own Git worktree on a new branch; your checkout is not touched. This run uses
+                    {latest ? 'The run uses' : 'The agent works in its own Git worktree, separate from your checkout. This run uses'}
                     <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) ||
                       'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
                   </p>
                   <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} dense />
+                  {#if latest && nextMode === 'handoff'}
+                    <label class="field" for="next-run-purpose"><span>Purpose</span><select id="next-run-purpose" class="select" bind:value={nextPurpose}><option value="continue">Continue implementation</option><option value="review">Review this implementation</option><option value="fix">Fix review findings</option></select></label>
+                    <label class="field"><span>Selected context <span class="muted">optional</span></span><textarea class="input" rows="3" maxlength="16000" bind:value={selectedContext} placeholder="Review criteria, relevant decisions, or questions to carry forward"></textarea></label>
+                  {/if}
                   <label class="field">
                     <span>Extra instructions <span class="muted">optional</span></span>
                     <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
                   </label>
                   <div class="start-row">
-                    {#if canResume}
-                      <label class="check"><input type="checkbox" bind:checked={resume} /><span>Continue the previous conversation</span></label>
-                    {/if}
-                    <button class="btn primary" disabled={busy || !startingAgentReady} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : 'Start agent'}</button>
+                    <button class="btn primary" disabled={busy || !startingAgentReady || (!!latest && !nextMode)} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : nextMode === 'handoff' ? 'Start continuation' : nextMode === 'resume' ? 'Resume conversation' : 'Start agent'}</button>
                   </div>
                   {#if startBusy}
                     <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>
@@ -933,7 +959,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   .field { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
   .field .muted { font-family: var(--mono); font-size: 12px; font-weight: 400; }
   .start-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 16px; }
-  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-right: auto; }
 
   .jump { position: absolute; right: 24px; bottom: 84px; z-index: 2; border-radius: 999px; }
 

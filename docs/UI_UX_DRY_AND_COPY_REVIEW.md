@@ -136,6 +136,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D09 — Finished tasks have overlapping next-run forms · P2
 
+**Implementation status:** Completed in the next-run group; the original observation is retained below.
+
 - **Source:** [RunHandoff.svelte:254](../web/src/lib/RunHandoff.svelte#L254), [TaskPanel.svelte:536](../web/src/routes/TaskPanel.svelte#L536).
 - **Observed:** “Continue with another agent or model” and “Set up another run” both ask for execution choices and instructions. The second can also offer conversation continuation. These are different operations, but users must choose a form before their differences are clear.
 - **Change:** Provide one next-run entry point with explicit choices for continuing existing work, resuming a supported conversation or starting fresh. Preserve the existing worktree/context semantics.

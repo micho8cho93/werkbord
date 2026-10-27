@@ -6,23 +6,16 @@
   import { sheets } from './git/sheets.svelte';
   import Icon from './Icon.svelte';
   import { api } from "./api";
-  import ExecutionFields from "./ExecutionFields.svelte";
-  import { compact, executionAgents, type Resolved } from "./execution";
-  import { app } from "./state.svelte";
   import type { ProjectScope } from "./scope.svelte";
-  import type { ExecutionConfig, Handoff, Run } from "./types";
+  import type { Handoff, Run } from "./types";
   let {
     run,
     scope,
-    inherited,
-    canContinue,
     onmerged,
     hideReviewActions = false,
   }: {
     run: Run;
     scope: ProjectScope;
-    inherited: Resolved;
-    canContinue: boolean;
     /** The Review task panel shows these actions beside the task title. */
     hideReviewActions?: boolean;
     /** Runs once the work is merged: the task panel moves the task to Done. */
@@ -51,10 +44,6 @@
   let issues = $state("");
   let blockers = $state("");
   let questions = $state("");
-  let choice = $state<ExecutionConfig>({});
-  let purpose = $state("continue");
-  let instructions = $state("");
-  let selected = $state("");
   function edit() {
     const h = current.handoff;
     if (!h) return;
@@ -105,33 +94,7 @@
       busy = false;
     }
   }
-  async function continueRun() {
-    busy = true;
-    error = "";
-    try {
-      const c = compact(choice);
-      const r = await api.continueRun(
-        current,
-        {
-          mode:c.mode, runnerId:c.runner, agentId: c.agent,
-          model: c.model,
-          reasoning: c.reasoning,
-          interaction: c.interaction,
-        },
-        purpose,
-        instructions,
-        selected,
-      );
-      scope.upsertRun(r);
-      choice = {};
-      instructions = "";
-      selected = "";
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      busy = false;
-    }
-  }
+
 </script>
 
 <section class="handoff card" aria-label="Run handoff">
@@ -251,62 +214,7 @@
       <p class="text">Questions: {h.questions.join("\n") || "None reported"}</p>
     </details>
   {:else}<p class="muted">Capture a handoff when another agent needs to continue.</p>{/if}
-  {#if canContinue}
-    <details class="continuation">
-      <summary>Continue with another agent or model</summary>
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          void continueRun();
-        }}
-      >
-        <label
-          >Next run’s purpose<select class="select" bind:value={purpose}
-            ><option value="continue">Continue implementation</option><option
-              value="review">Review this implementation</option
-            ><option value="fix">Fix review findings</option></select
-          ></label
-        >
-        <ExecutionFields
-          bind:value={choice}
-          {inherited}
-          idPrefix="handoff-run"
-          showPriority={false}
-        />
-        <label
-          >Instructions for the next agent<textarea
-            class="input"
-            rows="2"
-            bind:value={instructions}></textarea></label
-        >
-        <label
-          >Selected context <span class="muted">(optional)</span><textarea
-            class="input"
-            rows="3"
-            maxlength="16000"
-            bind:value={selected}
-            placeholder="Review criteria, relevant decisions, or questions to carry forward"
-          ></textarea></label
-        >
-        <p class="muted small">
-          The next run gets the task, this handoff, current Git evidence,
-          bounded diffs, and your selected context. It continues in the task’s
-          worktree with a fresh conversation.
-        </p>
-        <button
-          class="btn primary"
-          disabled={busy || !executionAgents(app.agents, app.runners, run.projectId, choice.runner || inherited.runner).some(a => !choice.agent && !inherited.agent || a.id === (choice.agent || inherited.agent))}
-          >{busy
-            ? "Starting…"
-            : purpose === "review"
-              ? "Start review"
-              : purpose === "fix"
-                ? "Start fixes"
-                : "Start continuation"}</button
-        >
-      </form>
-    </details>
-  {/if}
+
 </section>
 
 <style>
@@ -350,13 +258,6 @@
   }
   form {
     padding: 0;
-  }
-  .continuation {
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-  }
-  .continuation form {
-    padding-top: 12px;
   }
   ul {
     padding-left: 20px;
