@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,6 +40,9 @@ func (a *app) checkInterruption(ctx context.Context, force bool) error {
 	if force {
 		return nil
 	}
+	if err := device.CheckExecutionSettled(a.cfg.DataDir); err != nil {
+		return err
+	}
 	files, err := filepath.Glob(filepath.Join(runnerDir(a.cfg), "runs", "*.json"))
 	if err != nil {
 		return err
@@ -61,6 +65,31 @@ func (a *app) checkInterruption(ctx context.Context, force bool) error {
 	client, err := a.client()
 	if err != nil {
 		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", client.base+"/api/device", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+client.token)
+	response, err := client.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot check device operations: %w", err)
+	}
+	var pending struct {
+		PendingOperations int `json:"pendingOperations"`
+	}
+	if response.StatusCode == 200 {
+		err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&pending)
+	}
+	response.Body.Close()
+	if err != nil {
+		return err
+	}
+	if response.StatusCode != 200 && response.StatusCode != 404 {
+		return fmt.Errorf("cannot check device operations: HTTP %d", response.StatusCode)
+	}
+	if pending.PendingOperations > 0 {
+		return fmt.Errorf("settle pending device operations before interruption")
 	}
 	var overview service.Overview
 	if err := client.do(ctx, "GET", "/api/control-center", nil, &overview); err != nil {

@@ -71,7 +71,7 @@
 <TabRow
   label="{project.name} sections"
   tabs={[
-    ...tabsFor(project.kind).filter(t => !app.remote || t.id !== 'git').map((t) => ({ id: t.id, label: t.label, href: projectHref(project.id, t.id), ...(t.id === 'git' ? { count: gitItems, countLabel: `${gitItems} Git items need attention` } : {}) })),
+    ...tabsFor(project.kind).map((t) => ({ id: t.id, label: t.label, href: projectHref(project.id, t.id), ...(t.id === 'git' ? { count: gitItems, countLabel: `${gitItems} Git items need attention` } : {}) })),
     ...(phone.on ? [{ id: 'defaults', label: 'Settings', href: projectHref(project.id, 'defaults') }] : []),
   ]}
   current={active}

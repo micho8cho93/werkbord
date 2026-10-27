@@ -35,6 +35,7 @@ func (a *app) cmdDevice(ctx context.Context, args []string) error {
 	}
 	fs := flag.NewFlagSet("device", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	force := fs.Bool("force", false, "stop this device runtime even with local work; inspect interrupted operations before restarting")
 	pairAgain := fs.Bool("pair", false, "replace this desktop client grant using a fresh code")
 	name := fs.String("name", "", "desktop display name")
 	runner := fs.Bool("runner", false, "also run this machine's separately paired runner")
@@ -70,8 +71,10 @@ func (a *app) cmdDevice(ctx context.Context, args []string) error {
 		}
 		return json.NewEncoder(a.out).Encode(map[string]any{"mode": state.Mode, "controller": state.Controller, "runner": state.Runner, "service": st})
 	case "stop":
-		if err := a.checkRunnerSettled(); err != nil {
-			return err
+		if !*force {
+			if err := a.checkRunnerSettled(); err != nil {
+				return err
+			}
 		}
 		return mgr.Stop(ctx)
 	case "start":
@@ -258,6 +261,38 @@ func (a *app) cmdDevice(ctx context.Context, args []string) error {
 	return nil
 }
 func (a *app) checkRunnerSettled() error {
+	rawTerminals, err := os.ReadFile(filepath.Join(runnerDir(a.cfg), "terminals.json"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if len(rawTerminals) > 0 {
+		var sessions []struct {
+			State string `json:"state"`
+		}
+		if json.Unmarshal(rawTerminals, &sessions) != nil {
+			return errors.New("cannot inspect runner terminals")
+		}
+		for _, session := range sessions {
+			if session.State == "running" {
+				return errors.New("finish runner terminals before switching")
+			}
+		}
+	}
+	receipts, err := filepath.Glob(filepath.Join(runnerDir(a.cfg), "operations", "*.json"))
+	if err != nil {
+		return err
+	}
+	for _, path := range receipts {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var receipt struct{ Result struct{ State string } }
+		if json.Unmarshal(raw, &receipt) != nil || receipt.Result.State == "executing" {
+			return fmt.Errorf("inspect interrupted device operation before switching: %s", filepath.Base(path))
+		}
+	}
+
 	files, err := filepath.Glob(filepath.Join(runnerDir(a.cfg), "runs", "*.json"))
 	if err != nil {
 		return err
@@ -380,7 +415,7 @@ func serveDevice(cfg config.Config, state device.State, out io.Writer) error {
 			return err
 		}
 		runnerID = id.RunnerID
-		worker = &remote.Worker{Version: version, Dir: runnerDir(cfg), Identity: id, Agents: agents, AllowClone: id.AllowClone, Client: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+		worker = &remote.Worker{TerminalCommands: map[string]string{"codex": cfg.Agents["codex"].Command, "claude-code": cfg.Agents["claude-code"].Command}, Version: version, Dir: runnerDir(cfg), Identity: id, Agents: agents, AllowClone: id.AllowClone, Client: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 		worker.LoadBindings = func() map[string]string {
 			bindings := map[string]string{}
 			if raw, e := os.ReadFile(filepath.Join(runnerDir(cfg), "repositories.json")); e == nil {

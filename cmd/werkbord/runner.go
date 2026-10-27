@@ -25,6 +25,7 @@ import (
 	"werkbord/internal/controller"
 	"werkbord/internal/daemon"
 	"werkbord/internal/device"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/gitrepo"
 	"werkbord/internal/netprivate"
@@ -199,11 +200,15 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		return newApp(cfg, out, errOut).cmdDevice(context.Background(), args)
 	}
 	if len(args) == 0 {
-		return fmt.Errorf("usage: werkbord runner <serve|start|stop|status|repo|resolve>")
+		return fmt.Errorf("usage: werkbord runner <serve|start|stop|status|repo|resolve|terminals|operation>")
 	}
 	fs := flag.NewFlagSet("runner", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	commonFlags(fs, &cfg)
+	terminalEnable := fs.Bool("enable", false, "allow a native coding-agent terminal on this runner")
+	terminalSignedIn := fs.Bool("signed-in", false, "confirm that you have signed in to this agent CLI locally")
+	controllerOperation := fs.Bool("controller", false, "inspect a local controller operation receipt instead of a remote runner receipt")
+	inspected := fs.Bool("confirm-inspected", false, "confirm an interrupted operation outcome was inspected on this machine")
 	confirmed := fs.Bool("confirm-stopped", false, "confirm the uncertain run has no remaining processes on this machine")
 	positional, e := parseInterspersed(fs, args)
 	if e != nil {
@@ -215,6 +220,62 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 	sub := positional[0]
 	positional = positional[1:]
 	dir := runnerDir(cfg)
+	if sub == "terminals" {
+		if len(positional) != 1 || (positional[0] != "codex" && positional[0] != "claude-code") {
+			return fmt.Errorf("usage: werkbord runner terminals <codex|claude-code> [--enable --signed-in]")
+		}
+		prefs := map[string]domain.AgentSelectionPreference{}
+		path := filepath.Join(dir, "terminal-permissions.json")
+		if raw, err := os.ReadFile(path); err == nil {
+			if err = json.Unmarshal(raw, &prefs); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		prefs[positional[0]] = domain.AgentSelectionPreference{DirectCLI: *terminalEnable, CLISignedIn: *terminalSignedIn}
+		return remote.AtomicJSON(path, prefs)
+	}
+	if sub == "operation" {
+		if len(positional) != 1 || !*inspected {
+			return fmt.Errorf("inspect the owning checkout first, then: werkbord runner operation <operation-id> --confirm-inspected")
+		}
+		if *controllerOperation {
+			dir = filepath.Join(cfg.DataDir, "device-operations")
+		}
+		path := filepath.Join(dir, "operations", positional[0]+".json")
+		if !strings.HasPrefix(positional[0], "op_") || strings.ContainsAny(positional[0], "/\\.") {
+			return fmt.Errorf("invalid operation id")
+		}
+		lock := func() (func(), error) {
+			if *controllerOperation {
+				return controller.LockController(cfg.LockPath())
+			}
+			return controller.LockRunner(dir)
+		}
+		release, err := lock()
+		if err != nil {
+			return err
+		}
+		defer release()
+		var receipt struct {
+			Hash   string            `json:"hash"`
+			Result devicewire.Result `json:"result"`
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &receipt); err != nil {
+			return err
+		}
+		if receipt.Result.State != "executing" {
+			return fmt.Errorf("operation has no interrupted execution receipt")
+		}
+		receipt.Result.State = "uncertain"
+		receipt.Result.Error = "owner inspected the interrupted operation; request ID remains fenced"
+		return remote.AtomicJSON(path, receipt)
+	}
 	identity, e := loadIdentity(cfg)
 	if e != nil {
 		return fmt.Errorf("runner identity unavailable; pair this machine with werkbord join first")
@@ -292,7 +353,7 @@ func cmdRunner(cfg config.Config, args []string, out, errOut io.Writer) error {
 		if e != nil {
 			return e
 		}
-		worker := &remote.Worker{Version: version, Dir: dir, Identity: identity, Agents: agents, AllowClone: identity.AllowClone, Bindings: map[string]string{}}
+		worker := &remote.Worker{TerminalCommands: map[string]string{"codex": cfg.Agents["codex"].Command, "claude-code": cfg.Agents["claude-code"].Command}, Version: version, Dir: dir, Identity: identity, Agents: agents, AllowClone: identity.AllowClone, Bindings: map[string]string{}}
 		if sub == "resolve" {
 			if len(positional) != 1 || !*confirmed {
 				return fmt.Errorf("inspect the machine first, then: werkbord runner resolve <run-id> --confirm-stopped (stop the runner service before resolving)")

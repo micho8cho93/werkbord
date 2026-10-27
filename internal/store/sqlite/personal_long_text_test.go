@@ -27,6 +27,7 @@ func TestPersonalRecordBoundWidensWithoutLosingRecords(t *testing.T) {
 		`CREATE INDEX personal_records_collection ON personal_records(collection_id, id)`,
 		`ALTER TABLE assistant_sessions DROP COLUMN selection_mode`,
 		`ALTER TABLE assistant_sessions DROP COLUMN selection_json`,
+		`DROP TABLE device_operations`,
 		`DELETE FROM schema_migrations WHERE version>=28`,
 	} {
 		if _, err := db.writer.ExecContext(ctx, statement); err != nil {

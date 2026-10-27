@@ -52,6 +52,9 @@ import (
 
 // Controller is the long-running daemon.
 type Controller struct {
+	deviceOps     *service.DeviceOperations
+	stopDeviceOps context.CancelFunc
+	deviceOpsDone chan struct{}
 	terminals     *terminal.Manager
 	stopScheduler context.CancelFunc
 	schedulerDone chan struct{}
@@ -187,6 +190,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 		}
 		caps := cachedCaps
 		capsMu.Unlock()
+		caps.DeviceOperations = true
+		caps.NativeTerminals = c.terminals != nil && c.terminals.Enabled()
 		caps.Repositories = nil
 		_ = c.db.View(ctx, func(tx store.Tx) error {
 			ps, e := tx.Projects().List(ctx)
@@ -357,6 +362,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	c.deviceOps = c.newDeviceOperations(deps, distributed, projects, runs, worktrees, gitControl, clients)
+	apiOpts.DeviceOperations = c.deviceOps
 	apiOpts.Clients = clients
 	apiOpts.PrepareDeviceSwitch, apiOpts.ResumeDeviceSwitch = c.prepareDeviceSwitch, c.resumeDeviceSwitch
 	privateHandler := &lateHandler{}
@@ -386,8 +393,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	privateHandler.set(api.New(privateOpts).Handler())
 	clientOpts := privateOpts
 	clientOpts.Clients, clientOpts.ClientListener = clients, true
+	clientOpts.DeviceOperations = c.deviceOps
 	clientOpts.Phones, clientOpts.LocalAccess, clientOpts.Personal, clientOpts.Terminals = nil, nil, nil, nil
 	clientOpts.Assistant, clientOpts.Memory, clientOpts.Connections, clientOpts.Web = nil, nil, nil, nil
+	clientOpts.Terminals = c.terminals
 	clientHandler.set(api.New(clientOpts).Handler())
 	if c.relay, err = newRelayControl(c.cfg.Relay, c.cfg.DataDir, phones, privateHandler, c.log); err != nil {
 		return fmt.Errorf("relay: %w", err)
@@ -418,6 +427,10 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	go func() { c.serveErr <- c.server.Serve(c.listener) }()
 
 	scheduleCtx, cancelSchedules := context.WithCancel(context.Background())
+	opsCtx, stopOps := context.WithCancel(context.Background())
+	c.stopDeviceOps = stopOps
+	c.deviceOpsDone = make(chan struct{})
+	go func() { defer close(c.deviceOpsDone); c.deviceOps.RunLocal(opsCtx) }()
 	c.stopScheduler = cancelSchedules
 	c.schedulerDone = make(chan struct{})
 	go func() { defer close(c.schedulerDone); c.runner.ScheduleLoop(scheduleCtx) }()
@@ -512,6 +525,11 @@ func (c *Controller) teardown(ctx ...context.Context) error {
 			err = fmt.Errorf("stop the assistant: %w", e)
 		}
 		c.assistant = nil
+	}
+	if c.stopDeviceOps != nil {
+		c.stopDeviceOps()
+		<-c.deviceOpsDone
+		c.stopDeviceOps = nil
 	}
 	if c.stopScheduler != nil {
 		c.stopScheduler()
@@ -659,6 +677,9 @@ func deviceDoor(runners, clients http.Handler) http.Handler {
 }
 
 func (c *Controller) resumeDeviceSwitch() {
+	if c.deviceOps != nil {
+		c.deviceOps.Resume()
+	}
 	c.runner.ResumeStarts()
 	if c.terminals != nil {
 		c.terminals.ResumeStarts()
@@ -673,6 +694,11 @@ func (c *Controller) prepareDeviceSwitch(ctx context.Context) (err error) {
 			c.resumeDeviceSwitch()
 		}
 	}()
+	if c.deviceOps != nil {
+		if err = c.deviceOps.Pause(ctx); err != nil {
+			return err
+		}
+	}
 	if err = c.runner.PauseStarts(ctx); err != nil {
 		return err
 	}

@@ -95,6 +95,9 @@ func (s *Server) terminalRoutes(m *http.ServeMux) {
 	m.HandleFunc("POST /api/projects/{pid}/terminals/{id}/stop", s.handleTerminalStop)
 }
 func (s *Server) handleTerminalList(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}
@@ -111,6 +114,9 @@ func (s *Server) handleTerminalList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 func (s *Server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}
@@ -132,6 +138,9 @@ func (s *Server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, out)
 }
 func (s *Server) handleTerminalOutput(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}
@@ -162,6 +171,9 @@ func (s *Server) handleTerminalOutput(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 func (s *Server) handleTerminalInput(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}
@@ -193,6 +205,9 @@ func (s *Server) handleTerminalInput(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"accepted": true})
 }
 func (s *Server) handleTerminalResize(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}
@@ -214,6 +229,9 @@ func (s *Server) handleTerminalResize(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]bool{"resized": true})
 }
 func (s *Server) handleTerminalStop(w http.ResponseWriter, r *http.Request) {
+	if s.deviceTerminal(w, r) {
+		return
+	}
 	if !s.terminalReady(w, r) {
 		return
 	}

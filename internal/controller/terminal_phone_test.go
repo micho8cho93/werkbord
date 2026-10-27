@@ -137,7 +137,7 @@ func TestPhoneTerminalOverEncryptedRelayAndPrivateNetwork(t *testing.T) {
 	if st, _ := get(t, priv+"/api/terminals", owner); st != 403 {
 		t.Fatalf("phone door with the owner's token: %d", st)
 	}
-	if st, _ := get(t, "http://"+node.addr()+"/api/terminals", phone.Token); st != 404 {
+	if st, _ := get(t, "http://"+node.addr()+"/api/terminals", phone.Token); st != 401 {
 		t.Fatalf("the private network served terminals: %d", st)
 	}
 	if status, b = ask("DELETE", "/api/phones/"+phone.ID, owner, ""); status != 204 {

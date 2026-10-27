@@ -41,6 +41,8 @@ type Runner struct {
 }
 
 type RunnerCapabilities struct {
+	DeviceOperations    bool           `json:"deviceOperations,omitempty"`
+	NativeTerminals     bool           `json:"nativeTerminals,omitempty"`
 	OfflineContinuation bool           `json:"offlineContinuation,omitempty"`
 	CloneEnabled        bool           `json:"cloneEnabled"`
 	CPU                 int            `json:"cpu"`

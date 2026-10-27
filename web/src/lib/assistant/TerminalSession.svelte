@@ -146,7 +146,7 @@
     <span class="identity">{agentName(app.agents, session.agentId)} · {session.repository}</span>
     <span role="status">{connection}</span>
     {#if connection === 'Disconnected'}<button class="btn small" onclick={() => reconnect++}>Reconnect</button>{/if}
-    {#if !isPhone()}<button class="btn small" onclick={share}>Phone access</button>{/if}
+    {#if !isPhone() && !app.remote && app.runners.some(r=>r.kind==='local' && r.id===session.device)}<button class="btn small" onclick={share}>Phone access</button>{/if}
     <button class="btn small" disabled={busy || processState !== 'running'} onclick={stop}>Terminate</button>
   </div>
   {#if sharing}<div class="sharing">Allow terminal control for this session. CLI permissions apply.

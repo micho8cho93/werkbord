@@ -18,6 +18,8 @@ import (
 	"unicode/utf8"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/deviceops"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/gitrepo"
 	"werkbord/internal/machine"
@@ -49,16 +51,22 @@ type Record struct {
 	OutputBytes    int64                    `json:"outputBytes"`
 }
 type Worker struct {
-	Git          func(context.Context, string, ...string) (string, error)
-	LoadBindings func() map[string]string
-	Version      string
-	Dir          string
-	Identity     Identity
-	Bindings     map[string]string
-	AllowClone   bool
-	Agents       *agent.Registry
-	Client       *http.Client
-	Now          func() time.Time
+	TerminalCommands map[string]string
+	Operations       *deviceops.Executor
+	opResults        map[string]devicewire.Result
+	activeOps        map[string]bool
+	repoMu           sync.Mutex
+	repoLocks        map[string]chan struct{}
+	Git              func(context.Context, string, ...string) (string, error)
+	LoadBindings     func() map[string]string
+	Version          string
+	Dir              string
+	Identity         Identity
+	Bindings         map[string]string
+	AllowClone       bool
+	Agents           *agent.Registry
+	Client           *http.Client
+	Now              func() time.Time
 	// Capabilities overrides host detection for deterministic simulations.
 	Capabilities    func(context.Context) domain.RunnerCapabilities
 	Prepare         func(context.Context, runnerwire.Job) (string, string, string, error)
@@ -106,7 +114,7 @@ func (w *Worker) Load(ctx context.Context) error {
 	w.preparing = map[string]context.CancelFunc{}
 	files, e := os.ReadDir(filepath.Join(w.Dir, "runs"))
 	if os.IsNotExist(e) {
-		return nil
+		return w.initDeviceOperations()
 	}
 	if e != nil {
 		return e
@@ -150,7 +158,7 @@ func (w *Worker) Load(ctx context.Context) error {
 			return e
 		}
 	}
-	return nil
+	return w.initDeviceOperations()
 }
 
 func (w *Worker) capabilities(ctx context.Context) domain.RunnerCapabilities {
@@ -161,6 +169,8 @@ func (w *Worker) capabilities(ctx context.Context) domain.RunnerCapabilities {
 		c = machine.Capabilities(ctx, w.Agents, w.Dir)
 	}
 	c.OfflineContinuation = true
+	c.DeviceOperations = true
+	c.NativeTerminals = w.Operations != nil && w.Operations.Terminals != nil && w.Operations.Terminals.Enabled()
 	c.Repositories = []string{}
 	for id, path := range w.Bindings {
 		if _, e := os.Stat(path); e == nil {
@@ -246,6 +256,15 @@ func (w *Worker) Tick(ctx context.Context) error {
 		return e
 	}
 	in := runnerwire.Sync{Protocol: runnerwire.Protocol, Version: w.Version, ControllerSequence: w.Identity.ControllerSequence, RunnerID: w.Identity.RunnerID, Sequence: w.Identity.Sequence, At: w.now(), Capabilities: caps, Reports: []runnerwire.Report{}}
+	for _, result := range w.opResults {
+		if len(in.OperationResults) >= 8 {
+			break
+		}
+		in.OperationResults = append(in.OperationResults, result)
+	}
+	if w.Operations != nil && w.Operations.Terminals != nil {
+		in.Terminals = w.Operations.Terminals.List()
+	}
 	const reportBudget = 2 << 20
 	budget := reportBudget
 	for id, r := range w.records {
@@ -320,6 +339,12 @@ func (w *Worker) Tick(ctx context.Context) error {
 		}
 		return nil
 	}
+	for _, id := range reply.OperationAcks {
+		delete(w.opResults, id)
+	}
+	if w.Operations != nil {
+		w.dispatchOperationsLocked(reply.Operations)
+	}
 	for id, reason := range reply.Rejected {
 		if r := w.records[id]; r != nil {
 			r.Next = reply.Acks[id]
@@ -328,6 +353,13 @@ func (w *Worker) Tick(ctx context.Context) error {
 	}
 	w.Identity.Projects = reply.Projects
 	w.disabled = reply.Disabled
+	if w.Operations != nil && w.Operations.Terminals != nil {
+		for _, session := range w.Operations.Terminals.List() {
+			if session.State == "running" && (reply.Disabled || !contains(reply.Projects, session.ProjectID)) {
+				_ = w.Operations.Terminals.Stop(session.ProjectID, session.ID)
+			}
+		}
+	}
 	for id, ack := range reply.Acks {
 		r := w.records[id]
 		if r == nil {
@@ -454,6 +486,11 @@ func (w *Worker) launch(id string) {
 	if prep == nil {
 		prep = w.prepare
 	}
+	releaseRepo, e := w.LockRepository(ctx, j.Run.ProjectID)
+	if e != nil {
+		return
+	}
+	defer releaseRepo()
 	path, branch, base, e := prep(ctx, j)
 	if e != nil {
 		w.mu.Lock()
@@ -510,6 +547,7 @@ func (w *Worker) launch(id string) {
 		go sess.Stop(context.Background())
 	}
 	w.mu.Unlock()
+	releaseRepo()
 	for ev := range sess.Events() {
 		// Drain the stopped session without reporting activity from an unauthorized launch.
 		if ownershipExpired {
@@ -619,6 +657,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		w.mu.Unlock()
 		w.wg.Wait()
+		if w.Operations != nil && w.Operations.Terminals != nil {
+			w.Operations.Terminals.Close()
+		}
 	}()
 	for {
 		if ctx.Err() != nil {
@@ -679,8 +720,23 @@ func (w *Worker) PauseStarts() error {
 			return fmt.Errorf("finish or resolve runner work before switching this device")
 		}
 	}
+	if len(w.activeOps) > 0 || len(w.opResults) > 0 {
+		return fmt.Errorf("wait for device operation receipts before switching")
+	}
+	if w.Operations != nil && w.Operations.Terminals != nil {
+		if err := w.Operations.Terminals.PauseStarts(); err != nil {
+			return err
+		}
+	}
 	w.paused = true
 	return nil
 }
 
-func (w *Worker) ResumeStarts() { w.mu.Lock(); w.paused = false; w.mu.Unlock() }
+func (w *Worker) ResumeStarts() {
+	w.mu.Lock()
+	w.paused = false
+	w.mu.Unlock()
+	if w.Operations != nil && w.Operations.Terminals != nil {
+		w.Operations.Terminals.ResumeStarts()
+	}
+}

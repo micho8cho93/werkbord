@@ -300,7 +300,7 @@ export interface RoutingRule {name: string; contains?: string; retry: boolean; a
 export interface Pairing {code: string; expiresAt: string; projects: string[]; allowClone: boolean}
 export interface Runner {
  disabled: boolean; capacity: number; automatic: boolean; projects: string[]; allowClone: boolean; currentRuns: number;
- capabilities: {offlineContinuation?: boolean; cloneEnabled?: boolean; cpu: number; ramBytes?: number; availableRamBytes?: number; storageBytes?: number; agents: Agent[]; options: AgentOptions[]; repositories: string[]; diagnostics?: string};
+ capabilities: {deviceOperations?: boolean; nativeTerminals?: boolean; offlineContinuation?: boolean; cloneEnabled?: boolean; cpu: number; ramBytes?: number; availableRamBytes?: number; storageBytes?: number; agents: Agent[]; options: AgentOptions[]; repositories: string[]; diagnostics?: string};
   id: string;
   name: string;
   kind: 'local' | 'remote';

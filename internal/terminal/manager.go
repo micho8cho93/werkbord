@@ -19,6 +19,7 @@ import (
 
 	"werkbord/internal/agent"
 	"werkbord/internal/agentcatalog"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/gitrepo"
 	"werkbord/internal/service"
@@ -36,16 +37,8 @@ const MaxRecords = 64
 const MaxInputClients = 64
 const ReceiptIdle = time.Hour
 
-type Metadata struct {
-	ID         string    `json:"id"`
-	ProjectID  string    `json:"projectId"`
-	AgentID    string    `json:"agentId"`
-	Device     string    `json:"device"`
-	Repository string    `json:"repository"`
-	State      string    `json:"state"`
-	Phones     []string  `json:"phones,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
-}
+type Metadata = devicewire.Terminal
+
 type record struct {
 	Metadata
 	Root      string            `json:"root"`
@@ -64,10 +57,15 @@ type session struct {
 	answered      uint64
 	grantRevision uint64
 }
+type Directory struct{ Root, CommonDir, Name string }
 type Options struct {
-	Projects *service.Projects
-	Settings *service.Settings
-	Agents   *agent.Registry
+	IDPrefix string // runner namespace; local/phone session IDs keep their existing format
+	// Resolve and Authorized supply the same local checks for a runner without SQLite.
+	Resolve    func(context.Context, string, string) (Directory, error)
+	Authorized func(context.Context) bool
+	Projects   *service.Projects
+	Settings   *service.Settings
+	Agents     *agent.Registry
 	// Commands is trusted controller configuration, never request data. No arguments are accepted.
 	Commands  map[string]string
 	Device    string
@@ -127,7 +125,13 @@ func New(opt Options) (*Manager, error) {
 func (m *Manager) Device() string { return m.opt.Device }
 func (m *Manager) Enabled() bool  { return supported }
 func (m *Manager) AuthorizedDevice(ctx context.Context) bool {
-	if !supported || m.opt.Settings == nil {
+	if !supported {
+		return false
+	}
+	if m.opt.Authorized != nil {
+		return m.opt.Authorized(ctx)
+	}
+	if m.opt.Settings == nil {
 		return false
 	}
 	return m.opt.Settings.Store.View(ctx, func(tx store.Tx) error {
@@ -181,50 +185,62 @@ func (m *Manager) Create(ctx context.Context, projectID, agentID, device string,
 	if !validSize(cols, rows) {
 		return Metadata{}, domain.ErrInvalid
 	}
-	prefs, err := m.opt.Settings.Selection(ctx)
-	if err != nil {
-		return Metadata{}, err
-	}
-	pref := prefs.Agents[agentID]
-	if !pref.DirectCLI {
-		return Metadata{}, domain.ErrForbidden
-	}
-	a, lookupErr := m.opt.Agents.Get(agentID)
-	if lookupErr != nil {
-		return Metadata{}, domain.ErrForbidden
-	}
-	detected := a.Detect(ctx)
-	if !detected.Installed || !detected.Available || detected.SignIn == domain.SignedOut || detected.SignIn != domain.SignedIn && !pref.CLISignedIn {
-		return Metadata{}, domain.ErrForbidden
-	}
-	project, err := m.opt.Projects.Get(ctx, projectID)
-	if err != nil {
-		return Metadata{}, err
-	}
-	if project.Inactive() || !project.HasRepository() {
-		return Metadata{}, domain.ErrForbidden
-	}
-	root, err := filepath.EvalSymlinks(project.RepoPath)
-	if err != nil {
-		return Metadata{}, domain.ErrInvalid
-	}
-	root, err = filepath.Abs(root)
-	if err != nil {
-		return Metadata{}, err
-	}
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		return Metadata{}, domain.ErrInvalid
-	}
-	if project.Repository == nil || root != project.RepoPath {
-		return Metadata{}, domain.ErrForbidden
-	}
-	repo, err := (&gitrepo.CLI{}).Inspect(ctx, root)
-	if err != nil {
-		return Metadata{}, err
-	}
-	if repo.RootPath != root || repo.CommonDir != project.Repository.CommonDir {
-		return Metadata{}, domain.ErrForbidden
+	var root, name, common string
+	var err error
+	if m.opt.Resolve != nil {
+		directory, e := m.opt.Resolve(ctx, projectID, agentID)
+		if e != nil {
+			return Metadata{}, e
+		}
+		root, name, common = directory.Root, directory.Name, directory.CommonDir
+	} else {
+		prefs, err := m.opt.Settings.Selection(ctx)
+		if err != nil {
+			return Metadata{}, err
+		}
+		pref := prefs.Agents[agentID]
+		if !pref.DirectCLI {
+			return Metadata{}, domain.ErrForbidden
+		}
+		a, lookupErr := m.opt.Agents.Get(agentID)
+		if lookupErr != nil {
+			return Metadata{}, domain.ErrForbidden
+		}
+		detected := a.Detect(ctx)
+		if !detected.Installed || !detected.Available || detected.SignIn == domain.SignedOut || detected.SignIn != domain.SignedIn && !pref.CLISignedIn {
+			return Metadata{}, domain.ErrForbidden
+		}
+		project, err := m.opt.Projects.Get(ctx, projectID)
+		if err != nil {
+			return Metadata{}, err
+		}
+		if project.Inactive() || !project.HasRepository() {
+			return Metadata{}, domain.ErrForbidden
+		}
+		root, err = filepath.EvalSymlinks(project.RepoPath)
+		if err != nil {
+			return Metadata{}, domain.ErrInvalid
+		}
+		root, err = filepath.Abs(root)
+		if err != nil {
+			return Metadata{}, err
+		}
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			return Metadata{}, domain.ErrInvalid
+		}
+		if project.Repository == nil || root != project.RepoPath {
+			return Metadata{}, domain.ErrForbidden
+		}
+		repo, err := (&gitrepo.CLI{}).Inspect(ctx, root)
+		if err != nil {
+			return Metadata{}, err
+		}
+		if repo.RootPath != root || repo.CommonDir != project.Repository.CommonDir {
+			return Metadata{}, domain.ErrForbidden
+		}
+
+		name, common = project.Name, project.Repository.CommonDir
 	}
 
 	command := m.opt.Commands[agentID]
@@ -268,12 +284,12 @@ func (m *Manager) Create(ctx context.Context, projectID, agentID, device string,
 	if _, err = rand.Read(token[:]); err != nil {
 		return Metadata{}, err
 	}
-	id := hex.EncodeToString(token[:])
+	id := m.opt.IDPrefix + hex.EncodeToString(token[:])
 	p, err := start(path, root, cols, rows)
 	if err != nil {
 		return Metadata{}, err
 	}
-	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: project.Name, State: "running", CreatedAt: time.Now().UTC()}, Root: root, CommonDir: project.Repository.CommonDir, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
+	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: name, State: "running", CreatedAt: time.Now().UTC()}, Root: root, CommonDir: common, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
 	m.sessions[id] = s
 	if err = m.persist(); err != nil {
 		p.kill()
@@ -414,13 +430,7 @@ func (m *Manager) Stop(project, id string) error {
 	return m.persist()
 }
 
-type Output struct {
-	Metadata Metadata `json:"session"`
-	Data     []byte   `json:"data"`
-	Next     uint64   `json:"next"`
-	Reset    bool     `json:"reset"`
-	Replay   bool     `json:"replay"`
-}
+type Output = devicewire.Output
 
 // Output is a bounded long poll. Offsets count raw PTY bytes; []byte is transported as base64.
 func (m *Manager) Output(ctx context.Context, project, id string, after uint64) (Output, error) {
@@ -526,6 +536,13 @@ func (m *Manager) Access(ctx context.Context, project, id, phone string) error {
 	m.mu.Unlock()
 	if !allowed || device != m.opt.Device {
 		return domain.ErrForbidden
+	}
+	if m.opt.Resolve != nil {
+		directory, err := m.opt.Resolve(ctx, project, s.AgentID)
+		if err != nil || directory.Root != root || directory.CommonDir != common {
+			return domain.ErrForbidden
+		}
+		return nil
 	}
 	p, err := m.opt.Projects.Get(ctx, project)
 	if err != nil {

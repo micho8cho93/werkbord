@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
+
 	"werkbord/internal/runnerwire"
 	"werkbord/internal/store"
 )
@@ -21,6 +23,7 @@ import (
 // Runners is controller-owned. A lease expiring changes availability, never
 // ownership: only an authenticated terminal report releases a remote task.
 type Runners struct {
+	Operations *DeviceOperations
 	Deps
 	Runs              *Runs
 	LocalID           string
@@ -586,6 +589,29 @@ func (s *Runners) Sync(ctx context.Context, body []byte, signature string) (runn
 				out.Jobs = append(out.Jobs, *job)
 			}
 			out.Acks[run.ID] = job.Ack
+		}
+		if len(in.Terminals) > 64 {
+			return domain.ErrInvalid
+		}
+		if !out.StateLost && s.Operations != nil {
+			permitted := []devicewire.Terminal{}
+			for _, terminal := range in.Terminals {
+				if terminal.Device != r.ID || (!strings.HasPrefix(terminal.ID, r.ID+"_") || len(terminal.ID) != len(r.ID)+49) || len(terminal.Repository) > 200 || len(terminal.AgentID) > 60 {
+					return domain.ErrInvalid
+				}
+				if contains(r.Projects, terminal.ProjectID) {
+					terminal.Phones = nil
+					permitted = append(permitted, terminal)
+				}
+			}
+			if err := tx.Settings().Set(ctx, "runner-terminals:"+r.ID, permitted, s.now()); err != nil {
+				return err
+			}
+		}
+		if !out.StateLost && s.Operations != nil {
+			if err := s.Operations.sync(ctx, tx, r, in.OperationResults, &out.Operations, &out.OperationAcks); err != nil {
+				return err
+			}
 		}
 		out.OfflineContinuation = r.Capabilities.OfflineContinuation
 		out.Projects = r.Projects

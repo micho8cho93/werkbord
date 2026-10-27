@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DeviceTerminals from './DeviceTerminals.svelte';
   import { onMount } from 'svelte';
   import { api } from './api';
   import { formatDateTime, formatTime } from './clock.svelte';
@@ -114,6 +115,7 @@
     </div>
   {/each}
 </section>
+<DeviceTerminals />
 
 <style>
   .runners { padding: 16px; display: grid; gap: 16px; }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"werkbord/internal/agent"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 )
 
@@ -81,6 +82,8 @@ type Report struct {
 	Observations []Observation `json:"observations"`
 }
 type Sync struct {
+	Terminals          []devicewire.Terminal     `json:"terminals,omitempty"`
+	OperationResults   []devicewire.Result       `json:"operationResults,omitempty"`
 	Protocol           int                       `json:"protocol"`
 	Version            string                    `json:"version,omitempty"`
 	ControllerSequence int64                     `json:"controllerSequence,omitempty"`
@@ -91,18 +94,20 @@ type Sync struct {
 	Reports            []Report                  `json:"reports"`
 }
 type SyncReply struct {
-	OfflineContinuation bool              `json:"offlineContinuation,omitempty"`
-	Protocol            int               `json:"protocol"`
-	Sequence            int64             `json:"sequence"`
-	StateLost           bool              `json:"stateLost,omitempty"`
-	Rejected            map[string]string `json:"rejected"`
-	Jobs                []Job             `json:"jobs"`
-	Acks                map[string]int64  `json:"acks"`
-	LeaseSeconds        int               `json:"leaseSeconds"`
-	Projects            []string          `json:"projects"`
-	AllowClone          bool              `json:"allowClone"`
-	Capacity            int               `json:"capacity"`
-	Disabled            bool              `json:"disabled"`
+	Operations          []devicewire.Operation `json:"operations,omitempty"`
+	OperationAcks       []string               `json:"operationAcks,omitempty"`
+	OfflineContinuation bool                   `json:"offlineContinuation,omitempty"`
+	Protocol            int                    `json:"protocol"`
+	Sequence            int64                  `json:"sequence"`
+	StateLost           bool                   `json:"stateLost,omitempty"`
+	Rejected            map[string]string      `json:"rejected"`
+	Jobs                []Job                  `json:"jobs"`
+	Acks                map[string]int64       `json:"acks"`
+	LeaseSeconds        int                    `json:"leaseSeconds"`
+	Projects            []string               `json:"projects"`
+	AllowClone          bool                   `json:"allowClone"`
+	Capacity            int                    `json:"capacity"`
+	Disabled            bool                   `json:"disabled"`
 }
 
 func Signature(key ed25519.PrivateKey, body []byte) string {

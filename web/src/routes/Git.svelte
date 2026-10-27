@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DeviceGit from '../lib/DeviceGit.svelte';
   import { untrack } from 'svelte';
   import '../lib/git/git.css';
   import BranchView from '../lib/git/BranchView.svelte';
@@ -54,4 +55,8 @@
   <Overview {project} {store} />
 {/if}
 
+<details class="device-git-options"><summary>Git on another execution machine</summary><DeviceGit {project} /></details>
+
 <GitSheets projectId={project.id} {store} />
+
+<style>.device-git-options { margin: 24px; } summary { cursor: pointer; }</style>

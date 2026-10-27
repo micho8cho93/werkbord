@@ -11,6 +11,7 @@ import (
 	"context"
 	"time"
 
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/integration"
 )
@@ -31,6 +32,7 @@ type Store interface {
 
 // Tx exposes the repositories bound to one transaction.
 type Tx interface {
+	DeviceOperations() DeviceOperationRepo
 	Personal() PersonalRepo
 	// Savepoint rolls back only fn on failure, retaining other work in this transaction.
 	Savepoint(context.Context, func() error) error
@@ -322,4 +324,11 @@ type MemoryRepo interface {
 	Delete(context.Context, domain.MemoryScope, string, int64) error
 	Usage(context.Context, string) (domain.MemoryUsage, error)
 	Prune(context.Context, string, time.Time, int) (int, error)
+}
+
+type DeviceOperationRepo interface {
+	Get(context.Context, string) (*devicewire.Record, error)
+	Save(context.Context, *devicewire.Record) error
+	Pending(context.Context, string) ([]devicewire.Record, error)
+	Prune(context.Context, time.Time) error
 }

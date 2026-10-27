@@ -20,6 +20,9 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := device.CheckExecutionSettled(cfg.DataDir); err != nil {
+		return err
+	}
 	files, err := filepath.Glob(filepath.Join(cfg.DataDir, "runner", "runs", "*.json"))
 	if err != nil {
 		return err
@@ -47,6 +50,31 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 	tok, err := cfg.ResolveToken(false)
 	if err != nil {
 		return err
+	}
+	check, err := http.NewRequestWithContext(ctx, "GET", cfg.ControllerURL()+"/api/device", nil)
+	if err != nil {
+		return err
+	}
+	check.Header.Set("Authorization", "Bearer "+tok)
+	status, err := l.opt.HTTP.Do(check)
+	if err != nil {
+		return err
+	}
+	var pending struct {
+		PendingOperations int `json:"pendingOperations"`
+	}
+	if status.StatusCode == 200 {
+		err = json.NewDecoder(io.LimitReader(status.Body, 1<<20)).Decode(&pending)
+	}
+	status.Body.Close()
+	if status.StatusCode != 200 && status.StatusCode != 404 {
+		return fmt.Errorf("update deferred: device safety check returned %d", status.StatusCode)
+	}
+	if err != nil {
+		return err
+	}
+	if pending.PendingOperations > 0 {
+		return errors.New("update deferred: device operations are pending")
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", cfg.ControllerURL()+"/api/control-center", nil)
 	if err != nil {

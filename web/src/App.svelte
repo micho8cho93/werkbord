@@ -4,6 +4,7 @@
   import Icon, { type IconName } from './lib/Icon.svelte';
   import Mark from './lib/Mark.svelte';
   import Settling from './lib/Settling.svelte';
+  import DeviceGit from './lib/DeviceGit.svelte';
   import RunnersPanel from './lib/RunnersPanel.svelte';
   import PendingInteraction from './lib/assistant/PendingInteraction.svelte';
   import Assistant from './lib/assistant/Assistant.svelte';
@@ -242,8 +243,8 @@
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
         {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
-        {#if app.remote && ['git', 'defaults', 'onboarding', 'personal'].includes(router.view)}
-          <div class="empty"><p>This desktop can control tasks and managed runs.</p><p>Git, terminals, private workspaces and controller settings are managed on the controller.</p></div>
+        {#if app.remote && ['defaults', 'onboarding', 'personal'].includes(router.view)}
+          <div class="empty"><p>This desktop can control tasks and managed runs.</p><p>Private workspaces and controller settings are managed on the controller.</p></div>
         {:else if app.remote && router.view === 'settings'}
           <div class="page"><RunnersPanel /></div>
         {:else if router.view === 'personal'}
@@ -300,7 +301,7 @@
             {:else if router.view === 'runs' && project.kind === 'work'}
               <p class="empty">This project has no execution history. Work is tracked on its Board and Calendar.</p>
             {:else if router.view === 'git'}
-              {#if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
+              {#if app.remote}<div class="page"><DeviceGit {project} /></div>{:else if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
             {:else if router.view === 'runs'}
               <Runs {scope} {project} />
             {:else if router.view === 'defaults'}

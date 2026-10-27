@@ -43,6 +43,9 @@ func TestPersonalLibraryIconUpgradePreservesRecordsAndHistory(t *testing.T) {
 	if _, err := db.writer.ExecContext(ctx, `ALTER TABLE assistant_sessions DROP COLUMN selection_json`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.writer.ExecContext(ctx, `DROP TABLE device_operations`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.writer.ExecContext(ctx, `DELETE FROM schema_migrations WHERE version>=27`); err != nil {
 		t.Fatal(err)
 	}

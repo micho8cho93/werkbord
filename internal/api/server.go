@@ -28,6 +28,7 @@ import (
 
 // Options configures a Server.
 type Options struct {
+	DeviceOperations    *service.DeviceOperations
 	PrepareDeviceSwitch func(context.Context) error
 	ResumeDeviceSwitch  func()
 
@@ -131,7 +132,19 @@ func New(opt Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.personalRoutes(mux)
-	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]bool{"remote": false}) })
+	s.deviceOperationRoutes(mux)
+	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) {
+		count := 0
+		if s.opt.DeviceOperations != nil {
+			var err error
+			count, err = s.opt.DeviceOperations.PendingCount(r.Context())
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+		}
+		writeJSON(w, 200, map[string]any{"remote": false, "pendingOperations": count})
+	})
 	mux.HandleFunc("POST /api/device/switch/prepare", s.handleDeviceSwitch)
 	mux.HandleFunc("POST /api/device/switch/resume", s.handleDeviceSwitch)
 	s.terminalRoutes(mux)

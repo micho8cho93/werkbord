@@ -1,4 +1,4 @@
-# Desktop control and execution: Milestone 1
+# Desktop control and execution: Milestones 1–2
 
 One fixed Personal controller owns the board, SQLite database and scheduling. A
 second desktop can control that workspace while its separately paired runner
@@ -23,16 +23,78 @@ installations retain their current startup and do not need Tailscale.
 4. Open the existing Werkbord desktop app. It opens its normal loopback interface,
    backed by the selected controller. Tasks and run history remain on that controller.
 
-The first milestone deliberately uses CLI connection and repository binding.
+Connection and repository binding currently use the CLI.
 Guided first-run setup is a later milestone. Client control includes board edits,
 runner selection, agent launch, managed output, questions and existing managed-run
-commands. Device/credential administration, global configuration, Salie, private
-Personal data, native terminals, and Git actions remain on the controller. The
-interface identifies the controller and each execution machine.
+commands. Device/credential administration, global configuration, Salie and private
+Personal data remain on the controller. Git inspection and explicitly confirmed
+commit/push operations run on the chosen execution machine. Native terminals
+require separate per-session grants. The interface identifies the controller and each execution machine.
 
 Run authorisation retains existing clone/fetch/worktree preparation with each
 runner's own Git credentials. No implicit commit, push, merge, working-directory
 copy, or code synchronisation is added.
+
+## Git on the owning machine
+
+Open a project's **Git** tab on a connected desktop, or expand **Git on another
+execution machine** in the controller's Git view. Select a machine and its
+registered repository or an ended run's worktree. Inspect the checkout, select
+exact files and enter a message, then choose **Review commit**. The separate
+confirmation names the machine, checkout, branch, HEAD, files and message.
+**Review push to origin** publishes the displayed exact commit to the same
+branch on the registered origin; it never forces a push.
+
+Confirmations last five minutes and belong to the requesting desktop, machine,
+project and checkout. Execution rechecks permission and repository state under
+the existing repository lock. Changed selected bytes, index, branch or HEAD
+require another review. Active execution, detached/unborn HEAD, conflicts,
+unfinished Git operations, filtered files and oversized paths are refused.
+Unrelated staged changes are preserved. Repository hooks and signing programs
+are disabled for these operations. Origin must match the controller's registered
+credential-free SSH/HTTPS remote. No remote URL, shell command or filesystem path
+can be supplied by the desktop client.
+
+Requests retain one identity and a durable receipt. **Check outcome** retrieves
+that receipt; **Recover unacknowledged request** resubmits the original saved
+request identity after a lost response. Neither a reconnect nor an unknown
+outcome generates a new write. An uncertain result requires inspection on the
+owning machine before a fresh review. Terminal input bytes are removed from the
+controller's completed queue records; their request hashes remain for deduplication.
+
+## Native terminal sessions
+
+Managed-run output, questions, approvals, send/finish/stop commands continue to
+use the existing run/session APIs and event log. Native CLI terminals reuse the
+existing PTY manager and byte offsets. They are available on macOS and Linux;
+unsupported platforms continue to support their existing managed agents.
+
+On a remote runner, explicitly enable each installed, locally signed-in CLI:
+
+```sh
+werkbord runner terminals codex --enable --signed-in
+werkbord runner terminals claude-code --enable --signed-in
+```
+
+Omit `--enable` to withdraw local permission. On the controller, existing native
+CLI settings still apply. In **Settings → Runners → Native agent terminals**, the
+controller owner can start a terminal on a chosen authorised machine and grant
+or revoke a selected desktop's access to that specific session. A paired desktop
+sees only its granted sessions and can view output, type, resize and terminate
+them. Pairing a desktop alone never grants terminal access or process creation.
+Phone grants retain their separate existing local-terminal path.
+
+Terminal IDs include their owning runner; only that runner resolves its local
+repository binding. Disconnecting a viewer or losing the controller connection
+does not terminate the PTY. Output reconnects from its byte offset, with bounded
+history. Input uses ordered client sequence numbers and durable receipts; an
+uncertain input is never automatically replayed. Reattaching does not start a
+second process. A daemon restart remains different from a network disconnect.
+
+Git and terminal commands are optional fields in the existing signed runner
+heartbeat. They add no listener, second synchronisation service or execution
+engine. Upgrade both ends for these capabilities; older runners are unavailable
+for device operations until upgraded.
 
 ## Processes and identities
 
@@ -83,6 +145,21 @@ Unknown/private event types are omitted rather than inherited.
   existing process recovery and uncertain-journal handling still apply. This
   milestone does not promise process survival across daemon termination.
 
+If an operation is interrupted during daemon termination, its executing receipt
+fences the request permanently. Stop the device explicitly when needed with
+`werkbord device stop --force` (this interrupts local processes), inspect Git and
+process state on that machine, then acknowledge only that inspection:
+
+```sh
+werkbord runner operation <operation-id> --confirm-inspected
+```
+
+For an operation executed by the local controller, stop that controller first
+and use the same command with `--controller`. This does not repeat or declare a
+write successful; its request stays fenced. Start the runtime again and inspect
+the controller's outcome before issuing a new review. Preserve operation receipts
+when recovering data; deleting them removes the duplicate-execution fence.
+
 ## Switch back safely
 
 `werkbord device local` refuses while the runner has unsettled work. It fences new
@@ -104,7 +181,7 @@ ownership under the existing recovery rules rather than relaunching work.
 
 Installed backend updates and database restore are refused in remote mode.
 Finish/resolve work and switch back to local mode before those operations, then
-reconnect. The app's update guard still checks local runner journals.
+reconnect. The app's update guard checks runner journals, running native terminals, interrupted device receipts and pending controller operations.
 
 ## Validation and remaining milestones
 
@@ -115,7 +192,10 @@ selection and launcher behavior without an online controller. Run `make check`
 and `make desktop-check` before committing changes.
 
 Real two-machine Tailscale/sleep-wake acceptance remains required before beta.
-Milestone 2 adds native-terminal routing and confirmed Git operations on the
-owning runner. Milestone 3 adds guided pairing, repository binding, and broader
+Milestone 2 includes native-terminal routing and confirmed Git operations on the
+owning runner. Automated tests cover stale/bound confirmations, hooks/filter
+refusal, staged-file preservation, commit and push, interrupted/replayed receipts,
+terminal input deduplication, independent grants and late result recovery.
+Milestone 3 remains: guided pairing, repository binding, and broader
 mixed-OS and recovery acceptance. No Tailscale replacement, SQLite replication,
 Werkbord-hosted control plane, or controller failover is introduced.

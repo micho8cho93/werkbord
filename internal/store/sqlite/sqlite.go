@@ -82,20 +82,22 @@ type queryer interface {
 
 type txn struct{ q queryer }
 
-func (t *txn) Projects() store.ProjectRepo           { return projectRepo{t.q} }
-func (t *txn) Repositories() store.GitRepositoryRepo { return gitRepoRepo{t.q} }
-func (t *txn) Tasks() store.TaskRepo                 { return taskRepo{t.q} }
-func (t *txn) Labels() store.LabelRepo               { return labelRepo{t.q} }
-func (t *txn) Runs() store.RunRepo                   { return runRepo{t.q} }
-func (t *txn) Settings() store.SettingsRepo          { return settingsRepo{t.q} }
-func (t *txn) Runners() store.RunnerRepo             { return runnerRepo{t.q} }
-func (t *txn) Questions() store.QuestionRepo         { return questionRepo{t.q} }
-func (t *txn) Worktrees() store.WorktreeRepo         { return worktreeRepo{t.q} }
-func (t *txn) Health() store.HealthRepo              { return healthRepo{t.q} }
-func (t *txn) Events() store.EventRepo               { return eventRepo{t.q} }
-func (t *txn) Assistant() store.AssistantRepo        { return assistantRepo{t.q} }
-func (t *txn) Memory() store.MemoryRepo              { return memoryRepo{t.q} }
-func (t *txn) Analytics() store.AnalyticsRepo        { return analyticsRepo{t.q} }
+func (t *txn) Projects() store.ProjectRepo                 { return projectRepo{t.q} }
+func (t *txn) Repositories() store.GitRepositoryRepo       { return gitRepoRepo{t.q} }
+func (t *txn) Tasks() store.TaskRepo                       { return taskRepo{t.q} }
+func (t *txn) Labels() store.LabelRepo                     { return labelRepo{t.q} }
+func (t *txn) Runs() store.RunRepo                         { return runRepo{t.q} }
+func (t *txn) DeviceOperations() store.DeviceOperationRepo { return deviceOperationRepo{t.q} }
+
+func (t *txn) Settings() store.SettingsRepo   { return settingsRepo{t.q} }
+func (t *txn) Runners() store.RunnerRepo      { return runnerRepo{t.q} }
+func (t *txn) Questions() store.QuestionRepo  { return questionRepo{t.q} }
+func (t *txn) Worktrees() store.WorktreeRepo  { return worktreeRepo{t.q} }
+func (t *txn) Health() store.HealthRepo       { return healthRepo{t.q} }
+func (t *txn) Events() store.EventRepo        { return eventRepo{t.q} }
+func (t *txn) Assistant() store.AssistantRepo { return assistantRepo{t.q} }
+func (t *txn) Memory() store.MemoryRepo       { return memoryRepo{t.q} }
+func (t *txn) Analytics() store.AnalyticsRepo { return analyticsRepo{t.q} }
 
 func (t *txn) Savepoint(ctx context.Context, fn func() error) error {
 	if _, err := t.q.ExecContext(ctx, "SAVEPOINT runner_report"); err != nil {

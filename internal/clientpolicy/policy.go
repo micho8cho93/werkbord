@@ -9,6 +9,9 @@ import (
 )
 
 var Routes = []string{
+	"POST /api/device/operations", "GET /api/device/operations/{id}", "GET /api/device/terminals",
+	"GET /api/terminals", "GET /api/projects/{pid}/terminals/{id}/output",
+	"POST /api/projects/{pid}/terminals/{id}/input", "POST /api/projects/{pid}/terminals/{id}/resize", "POST /api/projects/{pid}/terminals/{id}/stop",
 	"GET /api/client/v1/self", "GET /api/client/v1/capabilities",
 	"GET /api/projects", "GET /api/projects/{pid}",
 	"GET /api/labels", "POST /api/labels", "PATCH /api/labels/{id}", "DELETE /api/labels/{id}",

@@ -20,6 +20,8 @@ import (
 	"werkbord/internal/appops"
 	"werkbord/internal/clientaccess"
 	"werkbord/internal/connections"
+	"werkbord/internal/deviceops"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/events"
 	"werkbord/internal/gitrepo"
@@ -105,7 +107,7 @@ func main() {
 		log.Fatal(err)
 	}
 	distributed := &service.Runners{Deps: deps, Runs: runs, LocalID: local.ID, LocalCapabilities: func(context.Context) domain.RunnerCapabilities {
-		return domain.RunnerCapabilities{CPU: 4, Agents: agents.Detect(ctx)}
+		return domain.RunnerCapabilities{DeviceOperations: true, NativeTerminals: os.Getenv("WERKBORD_BROWSER_TERMINALS") == "1", CPU: 4, Agents: agents.Detect(ctx)}
 	}}
 	cat := service.ExecutionCatalog{Local: agents, Runners: distributed}
 	settings.Catalog = cat
@@ -163,7 +165,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler := api.New(api.Options{Clients: clients, Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	deviceOps := &service.DeviceOperations{Deps: deps, Runners: distributed, LocalID: local.ID}
+	executor := &deviceops.Executor{Dir: filepath.Join(dir, "device-operations"), RunnerID: local.ID, Git: g, Terminals: terminals, Lock: gc.LockExecution, Authorize: deviceOps.AuthorizeOperation,
+		Resolve: func(ctx context.Context, op devicewire.Operation) (string, error) {
+			p, err := projects.Get(ctx, op.Request.ProjectID)
+			if err != nil {
+				return "", err
+			}
+			if op.Request.RunID != "" {
+				return "", domain.ErrForbidden
+			}
+			return p.RepoPath, nil
+		}}
+	deviceOps.Execute = executor.Run
+	distributed.Operations = deviceOps
+	opsCtx, stopOps := context.WithCancel(ctx)
+	opsDone := make(chan struct{})
+	go func() { defer close(opsDone); deviceOps.RunLocal(opsCtx) }()
+	defer func() { stopOps(); <-opsDone }()
+	handler := api.New(api.Options{DeviceOperations: deviceOps, Clients: clients, Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"
