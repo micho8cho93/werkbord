@@ -16,6 +16,7 @@ import (
 
 	"werkbord/internal/team/infra/overlay"
 	"werkbord/internal/team/infra/pki"
+	"werkbord/internal/testport"
 )
 
 // The pinned program is needed by the tests that run a real node. Tests do not
@@ -47,15 +48,7 @@ func realBinaryDir(t *testing.T) string {
 	return ""
 }
 
-func freeUDPPort(t *testing.T) int {
-	t.Helper()
-	c, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-	return c.LocalAddr().(*net.UDPAddr).Port
-}
+func freeUDPPort(t *testing.T) int { t.Helper(); return testport.UDP(t) }
 
 // network is a throwaway authority and the nodes issued under it.
 type network struct {

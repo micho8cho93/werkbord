@@ -24,6 +24,7 @@ import (
 	"werkbord/internal/team/infra/pki"
 	"werkbord/internal/team/service"
 	"werkbord/internal/team/store"
+	"werkbord/internal/testport"
 )
 
 // These are the end-to-end tests of the customer-owned network: a real workspace on a
@@ -77,15 +78,7 @@ func TestNetworkFixtureChoosesDistinctTCPPorts(t *testing.T) {
 	}
 }
 
-func freeUDPPort(t *testing.T) int {
-	t.Helper()
-	c, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-	return c.LocalAddr().(*net.UDPAddr).Port
-}
+func freeUDPPort(t *testing.T) int { t.Helper(); return testport.UDP(t) }
 
 // host is one workspace host: a data directory, its configuration and what runs on it.
 type host struct {
