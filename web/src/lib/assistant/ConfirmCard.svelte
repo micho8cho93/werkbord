@@ -6,7 +6,7 @@
   import { currentSession } from './session-context';
   const assistant = currentSession();
   import type { ConfirmItem } from './transcript';
-  import { clock, operationTitle } from './words';
+  import { clock, operationFailureTitle, operationTitle } from './words';
   import { taskHref } from '../router.svelte';
   import { acknowledge, surface } from '../motion';
 
@@ -61,7 +61,7 @@
       <button class="btn primary" type="button" disabled={item.state === 'working' || assistant.batch !== null || (personalArgs !== undefined && !workspaceReady) || (deletionArgs !== undefined && !deletionReady)} onclick={() => assistant.resolve(item, 'approve')}>
         {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : 'Saving…') : 'Confirm'}
       </button>
-      <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Not now</button>
+      <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Decline</button>
     </div>
     {#if item.state === 'waiting'}<p class="fine">Nothing changes until you confirm.{Number.isFinite(until) ? ` Open until ${clock(until)}.` : ''}</p>{:else}<p class="fine">{item.operation === 'create_ticket' ? 'Adding the approved task to Backlog…' : 'Saving the approved change…'}</p>{/if}
   {:else if item.state === 'confirmed'}
@@ -72,11 +72,11 @@
       {:else}<a class="task-link" href={taskHref(item.ticket.projectId, item.ticket.id)}>Open task</a>{/if}
     {/if}
   {:else if item.state === 'declined'}
-    <p class="result">Not done. You said no.</p>
+    <p class="result">Declined.</p>
   {:else if item.state === 'expired'}
-    <p class="result">Not confirmed in time, so nothing changed. Ask again if you still want it.</p>
+    <p class="result">This request expired. Ask Salie to propose it again.</p>
   {:else if item.state === 'failed'}
-    <p class="result bad" role="alert">This could not be done.{item.outcome ? ` ${item.outcome}` : ''} Nothing was changed by the attempt unless it says otherwise.</p>
+    <p class="result bad" role="alert">{operationFailureTitle(item.operation)}.{item.outcome ? ` ${item.outcome}` : ' Check the destination before trying again.'}</p>
   {:else if item.state === 'uncertain'}
     <p class="result bad" role="alert">{item.outcome ?? 'The result is uncertain. Check the board before trying again.'}</p>
   {:else}

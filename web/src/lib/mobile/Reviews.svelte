@@ -16,13 +16,13 @@
 
 <div class="reviews" use:layout={{ revision: reviews.map(r => `${r.task.id}:${r.task.version}`).join('|'), enabled: loaded && app.connection === 'live', entries: true }}>
   {#if !loaded}
-    <p class="note" role="status">Looking…</p>
+    <p class="note" role="status">{app.connection === 'offline' || app.connection === 'unauthorized' ? 'Reviews are unavailable. Reconnect to check for updates.' : 'Loading reviews…'}</p>
   {:else if reviews.length === 0}
     <div class="clear card" in:surface={{ duration: 160, y: 0 }}>
-      <span class="dot" data-tone="ok" aria-hidden="true"></span>
+      <span class="dot" data-tone={app.connection === 'live' ? 'ok' : 'neutral'} aria-hidden="true"></span>
       <div>
-        <p class="clear-title">Nothing is waiting for review.</p>
-        <p class="note">Finished work lands here for you to look at, with what the agent did.</p>
+        <p class="clear-title">{app.connection === 'live' ? 'Nothing is waiting for review.' : 'Review status may be outdated.'}</p>
+        {#if app.connection !== 'live'}<p class="note">Reconnect to check for updates.</p>{/if}
       </div>
     </div>
   {:else}

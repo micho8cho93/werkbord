@@ -349,12 +349,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.waitForTimeout(200);
         let savedTasks = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.filter(t => t.title === 'Recover saved task fixture');
         assert.equal(savedTasks.length, 1);
-        assert.equal(await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).isDisabled(), true);
+        assert.equal(await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).count(), 0, 'saved-task recovery no longer shows the creation form');
+        assert.equal(await page.getByRole('button', { name: 'Keep saved task', exact: true }).count(), 0);
         await page.screenshot({ path: path.join(artifacts, 'creation-retry-mobile-light.png') });
         await page.getByRole('button', { name: 'Retry start', exact: true }).click();
         await page.getByRole('alert').filter({ hasText: 'Could not confirm whether the agent started' }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Retry start', exact: true }).isDisabled(), true, 'uncertain launch cannot be repeated');
-        await page.getByRole('button', { name: 'View saved task', exact: true }).click();
+        await page.getByRole('button', { name: 'View task', exact: true }).click();
         await page.getByRole('heading', { name: 'Recover saved task fixture', exact: true }).waitFor();
         assert.equal(launches, 3, 'viewing the saved task after a lost response sends no new launch');
         savedTasks = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.filter(t => t.title === 'Recover saved task fixture');
@@ -365,6 +366,17 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await sync([{ runId: recoveredRuns[0].id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
         await page.goto(base + `/#/p/${p.id}/board`);
+        await page.route(launchRoute, route => route.request().method() === 'POST' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'conflict', message: 'Runner became unavailable' } }) }) : route.continue());
+        await page.getByRole('button', { name: 'New task', exact: true }).click();
+        await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Close saved recovery fixture');
+        await page.getByRole('button', { name: 'Add and start agent', exact: true }).click();
+        await page.getByRole('alert').filter({ hasText: 'Task saved. Agent could not start:' }).waitFor();
+        await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).last().click();
+        assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.filter(t => t.title === 'Close saved recovery fixture').length, 1, 'closing preserves the saved task');
+        await page.getByRole('button', { name: 'New task', exact: true }).click();
+        assert.equal(await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).inputValue(), '', 'closing a saved task clears the old creation draft');
+        await page.getByRole('button', { name: 'Discard draft', exact: true }).click();
+        await page.unroute(launchRoute);
         // Check the same creation surface in both themes and widths, including reduced motion.
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         for (const theme of ['dark', 'light']) {

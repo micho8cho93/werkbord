@@ -144,7 +144,7 @@
           {:else}
             <span class="count">{total} changes are waiting for you.</span>
             <button class="btn primary" type="button" onclick={() => assistant.resolveAll('approve')} data-testid="assistant-confirm-all-yes">Confirm all {total}</button>
-            <button class="btn" type="button" onclick={() => assistant.resolveAll('decline')}>Not now</button>
+            <button class="btn" type="button" onclick={() => assistant.resolveAll('decline')}>Decline all</button>
           {/if}
         </div>
       {/if}
@@ -164,7 +164,7 @@
 {:else}
   <div class="state" role="status" data-testid="assistant-state" data-status={assistant.status}>
     {#if assistant.status === 'loading' || assistant.status === 'idle'}
-      <p class="muted"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Getting ready…</p>
+      <p class="muted"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Preparing Salie…</p>
     {:else if assistant.status === 'offline'}
       <h2 class="t">Cannot reach Werkbord</h2>
       <p>Werkbord is not responding. Check that it is running on your computer, then try again.</p>

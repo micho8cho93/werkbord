@@ -109,7 +109,7 @@ async function freePort() { const s = net.createServer(); s.listen(0, '127.0.0.1
     await page.evaluate(() => document.documentElement.dataset.theme = 'light');
     await page.getByLabel('Manage workspace', { exact: true }).click();
     await page.getByRole('button', { name: 'Name, icon & locations', exact: true }).click();
-    await page.getByRole('button', { name: 'New icon', exact: true }).click();
+    await page.getByRole('button', { name: 'Choose another icon', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.icon-choice button').disabled);
     const chosen = await page.locator('.icon-choice svg').getAttribute('data-workspace-icon');
     assert.ok(!occupied.has(chosen), 'replacement preview reused another live icon');

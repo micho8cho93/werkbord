@@ -66,7 +66,7 @@
   {/each}
 
   {#if !overview}
-    <p class="empty">Looking…</p>
+    <p class="empty">Loading workspace activity…</p>
   {:else if groups.length === 0 && silent.length === 0}
     <p class="empty">Nothing needs your attention.</p>
   {/if}

@@ -194,6 +194,8 @@ const ok = text => console.log('PASS ' + text);
   });
   await page.reload();
   await page.getByRole('heading', { name: 'Workspace unavailable', exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Reload workspace', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Try again', exact: true }).count(), 1);
   await page.unroute(badRoute);
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await checklist.getByRole('button', { name: 'Edit Changed elsewhere', exact: true }).waitFor();

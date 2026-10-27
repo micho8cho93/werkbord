@@ -88,7 +88,7 @@
                 <span class="name">{p.name}</span>
                 <span class="mm path">{p.kind === 'work' ? 'Work project · no repository' : shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>
               </span>
-              <span class="mm sum">{activitySummary(a) || 'quiet'}</span>
+              {#if activitySummary(a)}<span class="mm sum">{activitySummary(a)}</span>{/if}
               {#if n}<span class="num pend">{n}</span>{/if}
             </a>
           </li>

@@ -483,7 +483,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             // And declining.
             await sendText(page, `add another ticket to ${project.id}`);
             await page.locator('section.confirm[data-state="waiting"]').waitFor();
-            await page.getByRole('button', { name: 'Not now' }).click();
+            await page.getByRole('button', { name: 'Decline' }).click();
             await page.locator('section.confirm[data-state="declined"]').waitFor();
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, before + 1);
             ok('declining leaves the board alone');
@@ -557,8 +557,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await plan.getByRole('button', { name: 'Create tasks from this plan' }).click();
             const declinePlanCard = page.locator('section.confirm[data-state="waiting"]').last();
             await declinePlanCard.waitFor();
-            await declinePlanCard.getByRole('button', { name: 'Not now', exact: true }).click();
+            await declinePlanCard.getByRole('button', { name: 'Decline', exact: true }).click();
             await page.locator('section.confirm[data-state="declined"]').last().waitFor();
+            await page.locator('section.confirm[data-state="declined"]').last().getByText('Declined.', { exact: true }).waitFor();
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, afterPlanConfirm.length, 'rejecting the plan proposal leaves the board unchanged');
             ok('a user can reject a generated plan proposal without changing the board');
             await ctx.close();
@@ -912,7 +913,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.locator('section.confirm').waitFor();
             const cb = await page.locator('section.confirm').boundingBox();
             assert.ok(cb.x >= 0 && cb.x + cb.width <= 390, 'the confirmation fits the phone');
-            for (const name of ['Confirm', 'Not now']) { const b = await page.getByRole('button', { name, exact: true }).boundingBox(); assert.ok(b.height >= 44, name + ' is tappable'); }
+            for (const name of ['Confirm', 'Decline']) { const b = await page.getByRole('button', { name, exact: true }).boundingBox(); assert.ok(b.height >= 44, name + ' is tappable'); }
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
             await page.screenshot({ path: path.join(artifacts, 'assistant-confirmation-mobile.png') });
             await page.getByTestId('assistant-picker').tap();
@@ -1052,6 +1053,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await sleep(1800);
             await expiringCard.getByRole('button', { name: 'Confirm', exact: true }).click();
             await page.locator('section.confirm[data-state="expired"]').waitFor();
+            await page.locator('section.confirm[data-state="expired"]').getByText('This request expired. Ask Salie to propose it again.', { exact: true }).waitFor();
             assert.equal((await api(expiryBase, 'GET', `/api/projects/${expiryProject.id}/tasks`)).tasks.length, 0, 'an expired proposal cannot change the board');
             const expirySession = (await api(expiryBase, 'GET', '/api/assistant/sessions')).sessions.at(-1).id;
             const expiryAudit = await api(expiryBase, 'GET', `/api/assistant/audit?session=${encodeURIComponent(expirySession)}`);

@@ -58,7 +58,7 @@
       <ul class="card-list" id="library-collections">
         {#each recentCollections.slice(0, allCollections ? undefined : 4) as c (c.id)}
           <li class="card-row" aria-label={c.name}>
-            <header><h3 class="title">{c.name}</h3><span class="tag">{usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : `${usages[c.id]?.referenceCount ?? 'Unknown'} workspace ${usages[c.id]?.referenceCount === 1 ? 'reference' : 'references'}`}</span></header>
+            <header><h3 class="title">{c.name}</h3><span class="tag">{usages[c.id]?.referenceCount === 0 ? 'Retained data — no workspace' : usages[c.id] ? `Used by ${usages[c.id].referenceCount} ${usages[c.id].referenceCount === 1 ? 'workspace' : 'workspaces'}` : 'Workspace usage unavailable'}</span></header>
             <p class="count">{usages[c.id]?.recordCount ?? 'Unknown'} records</p>
             <div class="actions"><button class="btn" onclick={() => recover(c, false)}>Inspect records</button><button class="btn" onclick={() => recover(c, true)}>Use in new workspace</button></div>
           </li>

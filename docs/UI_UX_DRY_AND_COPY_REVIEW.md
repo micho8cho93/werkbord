@@ -111,12 +111,16 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D06 — Saved-task recovery asks users to “Keep saved task” · P2
 
+**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
+
 - **Source:** [NewTaskDialog.svelte:159](../web/src/lib/NewTaskDialog.svelte#L159), [save/recovery logic:74](../web/src/lib/NewTaskDialog.svelte#L74).
 - **Observed:** After a saved task’s launch fails, the dialog offers “View saved task”, “Close”, “Keep saved task” and possibly “Retry start.” “Keep” implies the saved task needs another persistence decision. Close and Keep also differ in recovery-draft cleanup.
 - **Change:** Use a recovery view with “View task”, an eligible retry and one close action. Define draft cleanup deliberately.
 - **Acceptance:** Closing preserves the saved task without suggesting another save is required. Reopening does not accidentally restore an obsolete creation draft. An uncertain start remains protected against unsafe retry.
 
 ### D07 — Workspace error states duplicate reload controls · P2
+
+**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
 
 - **Source:** [GeneratedWorkspace.svelte:55](../web/src/shell/GeneratedWorkspace.svelte#L55), [PersonalWorkspace.svelte:126](../web/src/routes/PersonalWorkspace.svelte#L126).
 - **Observed:** A header reload remains present when a load error or rendering failure adds another reload/retry control nearby.
@@ -200,12 +204,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C08 — Salie decline and failure messages are awkward or ambiguous · P1
 
+**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
+
 - **Source:** [ConfirmCard.svelte:59](../web/src/lib/assistant/ConfirmCard.svelte#L59), [result states:74](../web/src/lib/assistant/ConfirmCard.svelte#L74), [Conversation.svelte:145](../web/src/lib/assistant/Conversation.svelte#L145).
 - **Problem:** “Not now” performs a decline, while the result says “Not done. You said no.” Failure says “Nothing was changed by the attempt unless it says otherwise.” The former suggests deferral; the latter asks users to resolve contradictory possibilities.
 - **Proposed:** Use “Decline” / “Decline all” for a terminal rejection; result “Declined.” Expiry: “This request expired. Ask Salie to propose it again.” Failure: lead with the operation and known outcome. Unknown outcome: “Could not confirm whether this was saved. Check [destination] before trying again.”
 - **Acceptance:** Distinguish declined, expired, failed and uncertain states. Never promise “nothing changed” without evidence. Batch labels describe the decision applied to every proposal.
 
 ### C09 — Loading and generic empty labels do not name the operation · P3
+
+**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
 
 - **Source:** [Reviews.svelte:19](../web/src/lib/mobile/Reviews.svelte#L19), [Inbox.svelte:69](../web/src/shell/Inbox.svelte#L69), [Conversation.svelte:167](../web/src/lib/assistant/Conversation.svelte#L167), [Projects.svelte:91](../web/src/routes/Projects.svelte#L91).
 - **Problem:** “Looking…”, “Getting ready…”, “Nothing here” and project status “quiet” make users infer what is being checked or why a list is empty.
@@ -292,6 +300,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** Keep branch/target/SHA evidence and live blockers where needed. Preserve uncommitted-work protection, reported-versus-verified test facts and remote ownership. Move implementation explanations into optional details instead of removing decision-critical facts.
 
 ### C21 — Generated workspace copy exposes implementation and taxonomy · P2
+
+**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
 
 - **Source:** [WorkspaceManagement.svelte:76](../web/src/lib/personal/WorkspaceManagement.svelte#L76), [deletion/history:87](../web/src/lib/personal/WorkspaceManagement.svelte#L87), [PersonalWorkspace.svelte:140](../web/src/routes/PersonalWorkspace.svelte#L140), [PersonalLibrary.svelte:61](../web/src/lib/personal/PersonalLibrary.svelte#L61).
 - **Problem:** Explaining Lucide’s icon matching does not help users choose an icon. “Definition history”, “exclusively owned personal data”, “workspace references” and keeping a workspace URL are implementation-oriented instructions.

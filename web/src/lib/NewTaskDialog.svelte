@@ -52,6 +52,7 @@
   const runnerName = $derived(app.runners.find(r => r.id === effective.runner)?.name ?? (effective.runner && effective.runner !== 'automatic' ? 'Unavailable runner' : 'Automatic runner'));
 
   function close() {
+    if (saved) { cleared = true; writeDraft(draftKey, null); }
     app.newTaskOpen = false;
   }
 
@@ -133,6 +134,7 @@
       void add(false);
     }}
   >
+    {#if !saved}
     <p class="draft-note">Drafts stay in this tab when closed or reloaded.</p>
     <label class="field">
       <span class="lab">{isWork ? 'What needs doing?' : 'What should an agent do?'}</span>
@@ -152,18 +154,19 @@
       </section>
     {/if}
     <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" issues={planIssues} /></fieldset>
+    {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
     {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}
     {#if !draftStored}<p role="status">This browser cannot keep the brief through reload. Copy it before closing or reloading.</p>{/if}
-    {#if saved}<button class="btn open" type="button" onclick={() => { if (saved) { router.go({ view: 'task', projectId: project.id, taskId: saved.id }); cleared = true; writeDraft(draftKey, null); } close(); }}>View saved task</button>{/if}
+    {#if saved}<button class="btn open" type="button" onclick={() => { if (saved) router.go({ view: 'task', projectId: project.id, taskId: saved.id }); close(); }}>View task</button>{/if}
   </form>
 
   {#snippet footer()}
-    {#if canAgent}<span class="tip"><kbd class="key">⌘</kbd><kbd class="key">↵</kbd> start</span>{/if}
+    {#if canAgent && !saved}<span class="tip"><kbd class="key">⌘</kbd><kbd class="key">↵</kbd> start</span>{/if}
     {#if !saved && !uncertainSave}<button class="btn quiet" type="button" onclick={() => { cleared = true; writeDraft(draftKey, null); close(); }}>Discard draft</button>{/if}
     <button class="btn" type="button" onclick={close}>{saved || uncertainSave ? 'Close' : 'Cancel'}</button>
-    <button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim() || uncertainSave || uncertainStart}>{saved ? 'Keep saved task' : 'Add to Backlog'}</button>
+    {#if !saved}<button class="btn" class:primary={!canAgent} type="submit" form="new-task-form" disabled={busy || !title.trim() || uncertainSave || uncertainStart}>Add to Backlog</button>{/if}
     {#if canAgent}
       <button class="btn primary" type="button" disabled={busy || !title.trim() || (!saved && !agentReady) || uncertainSave || uncertainStart} onclick={() => add(true)} title={agentReady ? '' : busyOnly ? 'Every runner that can take this task is busy' : 'No agent is available on an online runner'}>
         {busy ? phase : saved ? 'Retry start' : 'Add and start agent'}

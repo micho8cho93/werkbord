@@ -309,7 +309,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantFrame.getByTestId('assistant').waitFor();
         await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
         ok('and is still waiting when it is opened again, from the same frame');
-        await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Not now', exact: true }).click();
+        await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Decline', exact: true }).click();
         await assistantFrame.getByRole('textbox', { name: 'Message to Salie' }).fill('Create a single portfolio ticket for the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         const single = assistantFrame.locator('section.confirm[data-state="waiting"]');

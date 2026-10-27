@@ -265,7 +265,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByLabel('Manage workspace',{exact:true}).click();
         await page.getByRole('button',{name:'Name, icon & locations',exact:true}).click();
         await page.getByLabel('Name',{exact:true}).fill('My planning');
-        await page.getByRole('button',{name:'New icon',exact:true}).click();
+        await page.getByRole('button',{name:'Choose another icon',exact:true}).click();
         await page.getByRole('button',{name:'Save changes',exact:true}).click();
         await page.getByRole('heading',{name:'My planning',exact:true}).waitFor();
         const updated=await api(ind,'GET','/api/personal/v1/workspaces/'+savedWorkspace.id);

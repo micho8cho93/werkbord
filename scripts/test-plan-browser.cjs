@@ -99,7 +99,7 @@ async function main() {
   assert.match(await dialog.innerText(), /Premium in Settings|unlock Premium/);
   assert.equal(await page.locator('p.error').count(), 0, 'the refusal is not also an error line');
   await page.screenshot({ path: path.join(artifacts, 'plan-upgrade-prompt.png') });
-  await dialog.getByRole('button', { name: 'Not now' }).click();
+  await dialog.getByRole('button', { name: 'Decline' }).click();
   await page.waitForFunction(() => !document.querySelector('[data-testid=upgrade-dialog]'));
   console.log('PASS a member without a key reads a team of three, is told why, and the refusal asks them to unlock Premium');
 
