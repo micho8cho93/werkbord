@@ -71,36 +71,48 @@ build notation), and WerkbordBuildVersion and both executables retain the comple
 `4.28.5-preview.1`. The preview counter is 1–255. The Team production gate remains
 blocked; release notes link its outstanding production acceptance requirements.
 
-## How long a release takes
+## Previews are quick, public releases are thorough
 
-With CI already green on the commit, the release workflow does only what is specific to a release:
+A preview (`werkbord-vX.Y.Z-preview.N`) is where a small set of changes is checked, so it is the short path. A public (stable)
+release is extensively tested and verified, so it is the long one. The tag decides; there is nothing to configure.
+
+| | Preview | Public (stable) |
+| --- | --- | --- |
+| CI green on the exact commit (`ci-gate`) | required | required |
+| Whole suite repeated at tag time (`stable-checks`) | no | **yes**, and the signing build waits for it |
+| Team production approval (`check-team-production-gate.sh`) | no | **yes** |
+| Owner's offline signature over `checksums.txt` | not needed | **required, new for every release** |
+| Signed, notarized app; EdDSA-signed update feed; public Gatekeeper check | yes | yes |
+| Your approvals | `desktop-release`, `release-approval` | the same two |
+| Typical time | about 30 minutes | the same plus the repeated suite and your signing |
+
+With CI already green on the commit, a preview's release workflow does only what is specific to a release:
 
 | Job | Time | Waits for |
 | --- | --- | --- |
 | `ci-gate` | seconds | a successful `ci` run on exactly the tagged commit |
 | `release-build` (tag check, dependency audit, controller archives) | a few minutes | `ci-gate` |
 | `desktop-build` (signed and notarized universal app) | about 11 minutes | `ci-gate`, **in parallel** with `release-build`, and your `desktop-release` approval |
-| `assemble-candidate`, then `release-approval` | under a minute | both builds, then your offline signature and `release-approval` approval |
+| `assemble-candidate`, then `release-approval` | under a minute | both builds, then your `release-approval` approval |
 
 The time you take to approve is the rest. Approve `desktop-release` as soon as the run is waiting: the build holds the Apple
 secrets, so it will not start without it. Publication needs both builds to succeed, so approving early cannot publish anything
 that failed. If Linux is off (the default), its skipped job no longer skips the approval and publication jobs after it.
 
-## Publishing one preview without the offline signature
+### What a preview skips, and what it keeps
 
-`release-approval` needs the owner's offline signature over `checksums.txt` ([BETA_READINESS.md](BETA_READINESS.md)). When the
-owner cannot sign (away from the key), one **preview** may be published without it by setting the repository variable
-`UNSIGNED_MANIFEST_TAG` to exactly that tag (for example `werkbord-v5.5.2-preview.1`) before the run reaches `release-approval`:
+A preview is published without the owner's offline signature over `checksums.txt` ([BETA_READINESS.md](BETA_READINESS.md)),
+but only when no `RELEASE_MANIFEST_SIGNATURE` was supplied. A supplied signature is always verified, and a stale one still fails.
 
-- It applies only to the tag the variable names, only to a `-preview.N` tag, and only when no `RELEASE_MANIFEST_SIGNATURE` was
-  supplied. A supplied signature is always verified, and a stale one still fails. A stable tag can never use it.
 - Every byte, the tag and the commit are still checked against the manifest the workflow assembled. The disk image is still
   Developer ID signed, notarized and stapled, and the public verifier still checks the checksum, signature, ticket and Gatekeeper.
   The Sparkle feed is still EdDSA signed. What is missing is proof that the owner approved the checksum list.
 - The release says so: its notes have a "Release manifest not signed" section and it carries `manifest-unsigned.txt`.
   `install.sh` and the controller updater refuse such a release by design; use the disk image or the in-app update.
-- Delete the variable afterwards. To replace the release with a fully signed one, sign `checksums.txt` as described in
-  BETA_READINESS.md, set `RELEASE_MANIFEST_SIGNATURE` and run `release-approval` again for a new candidate.
+- To replace a preview with a fully signed one, sign `checksums.txt` as described in BETA_READINESS.md, set
+  `RELEASE_MANIFEST_SIGNATURE` and run `release-approval` again for a new candidate.
+- A stable tag can never use any of this: `release-approval` and the public verifier refuse it, and `release-candidate.py` rejects
+  it even if the workflow were changed.
 
 ## Test the app while approval is pending
 

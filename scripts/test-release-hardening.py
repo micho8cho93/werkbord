@@ -154,29 +154,29 @@ class PublicVerifierExceptionTests(unittest.TestCase):
         digest = subprocess.check_output(["shasum", "-a", "256", str(dmg)], text=True).split()[0]
         (directory / (dmg.name + ".sha256")).write_text(f"{digest}  {dmg.name}\n")
 
-    def verify(self, tag, exception):
+    def verify(self, tag, allow_unsigned_preview):
         env = dict(os.environ, WERKBORD_RELEASE_BASE=f"http://127.0.0.1:{self.server.server_address[1]}", CURL=str(self.curl))
-        env.pop("WERKBORD_UNSIGNED_MANIFEST_TAG", None)
-        if exception is not None:
-            env["WERKBORD_UNSIGNED_MANIFEST_TAG"] = exception
+        env.pop("WERKBORD_ALLOW_UNSIGNED_PREVIEW", None)
+        if allow_unsigned_preview is not None:
+            env["WERKBORD_ALLOW_UNSIGNED_PREVIEW"] = allow_unsigned_preview
         run = subprocess.run([str(ROOT / "scripts/verify-desktop-release.sh"), tag], capture_output=True, text=True, env=env)
         return run.returncode, run.stdout + run.stderr
 
-    def test_only_the_named_preview_may_lack_the_manifest_signature(self):
+    def test_a_preview_may_lack_the_manifest_signature_and_a_stable_release_never_may(self):
         preview = "werkbord-v4.89.0-preview.1"
         self.release(preview)
-        code, out = self.verify(preview, None)
+        code, out = self.verify(preview, None)  # the script alone is strict
         self.assertNotEqual(code, 0)
         self.assertIn("signed release manifest is missing", out)
-        code, out = self.verify(preview, "werkbord-v4.89.1-preview.1")  # another tag's exception does not apply
+        code, out = self.verify(preview, "0")  # only the workflow's explicit 1 counts
         self.assertIn("signed release manifest is missing", out)
-        code, out = self.verify(preview, preview)  # excepted: it continues to the Apple checks, which a fake image fails
+        code, out = self.verify(preview, "1")  # a preview: it continues to the Apple checks, which a fake image fails
         self.assertIn("WARNING", out)
         self.assertNotIn("signed release manifest is missing", out)
         self.assertIn("the disk image's signature does not verify", out)
         stable = "werkbord-v4.89.0"
         self.release(stable)
-        code, out = self.verify(stable, stable)  # never for a stable release
+        code, out = self.verify(stable, "1")  # never for a stable release
         self.assertIn("signed release manifest is missing", out)
         self.assertNotIn("WARNING", out)
 

@@ -78,6 +78,46 @@ jobs:
           echo "CI run $run passed for $SHA"
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
+  # Public (stable) releases get the longer process: the whole test suite runs again here, at tag time, on top of the CI gate, and
+  # the signing build and the candidate wait for it. Previews skip this job: they are the quick way to check a small set of changes.
+  stable-checks:
+    needs: [plan, ci-gate]
+    if: ${{ github.event_name == 'push' && needs.plan.outputs.stable == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Run the repository checks
+        run: make check
+      - name: Run Team's pinned native network tests
+        run: make test-nebula
+      - name: Run Team's real database cluster tests
+        env:
+          WERKBORD_REQUIRE_RQLITE: "1"
+        run: make test-rqlite
+      - name: Verify the public app's browser flows before assembling downloads
+        run: |
+          cd web && npx playwright install --with-deps chromium webkit && cd ..
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/team-desktop" make test-team-desktop-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
+          node scripts/browser-salie-sessions.cjs
+
   release-build:
     needs: [plan, ci-gate]
     if: github.event_name == 'push' && startsWith(github.ref_name, 'werkbord-v')
@@ -154,8 +194,8 @@ jobs:
   # Starts beside release-build once the commit's CI has passed (ci-gate), so a release takes the longer of the two and not their sum.
   # Nothing is published unless release-build also succeeds: assemble-candidate needs both.
   desktop-build:
-    needs: [plan, ci-gate]
-    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || needs.ci-gate.result == 'success') }}
+    needs: [plan, ci-gate, stable-checks]
+    if: ${{ !cancelled() && needs.plan.outputs.desktop == 'true' && (github.event_name == 'workflow_dispatch' || (needs.ci-gate.result == 'success' && (needs.plan.outputs.stable != 'true' || needs.stable-checks.result == 'success'))) }}
     runs-on: macos-15
     timeout-minutes: 90
     environment: desktop-release
@@ -311,8 +351,8 @@ jobs:
           if-no-files-found: error
 
   assemble-candidate:
-    needs: [plan, release-build, desktop-build, linux-desktop-build]
-    if: ${{ !cancelled() && github.event_name == 'push' && needs.release-build.result == 'success' && needs.desktop-build.result == 'success' && (needs.linux-desktop-build.result == 'success' || needs.linux-desktop-build.result == 'skipped') }}
+    needs: [plan, release-build, stable-checks, desktop-build, linux-desktop-build]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.release-build.result == 'success' && (needs.plan.outputs.stable != 'true' || needs.stable-checks.result == 'success') && needs.desktop-build.result == 'success' && (needs.linux-desktop-build.result == 'success' || needs.linux-desktop-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -364,7 +404,7 @@ jobs:
   # Every job after assemble-candidate states its own condition. Without a status function GitHub skips a job whose ancestor was
   # skipped, and the Linux build is skipped while Linux is off, which silently skipped approval and publication of every release.
   release-approval:
-    needs: assemble-candidate
+    needs: [plan, assemble-candidate]
     if: ${{ !cancelled() && needs.assemble-candidate.result == 'success' }}
     runs-on: ubuntu-latest
     environment: release-approval
@@ -372,8 +412,8 @@ jobs:
       contents: read
     env:
       RELEASE_MANIFEST_SIGNATURE: ${{ vars.RELEASE_MANIFEST_SIGNATURE }}
-      # A one-tag exception for a preview the owner could not sign (see scripts/release-candidate.py). Never set for a stable tag.
-      UNSIGNED_MANIFEST_TAG: ${{ vars.UNSIGNED_MANIFEST_TAG }}
+      # Previews need no manifest signature; a stable release always does (scripts/release-candidate.py enforces both).
+      STABLE: ${{ needs.plan.outputs.stable }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -385,8 +425,8 @@ jobs:
       - name: Authenticate the owner's offline signature of these exact bytes
         run: |
           exception=""
-          if [ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ] && [ -n "${UNSIGNED_MANIFEST_TAG:-}" ] && [ "$UNSIGNED_MANIFEST_TAG" = "$GITHUB_REF_NAME" ]; then
-            echo "::warning::$GITHUB_REF_NAME is published without the owner's offline manifest signature (named one-tag exception)"
+          if [ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ] && [ "$STABLE" != true ]; then
+            echo "::warning::preview $GITHUB_REF_NAME is published without the owner's offline manifest signature"
             exception=--allow-unsigned-manifest
           fi
           python3 scripts/release-candidate.py verify --dir candidate --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" $exception
@@ -514,7 +554,8 @@ jobs:
             desktop/go.sum
       - name: Download the public release and verify Gatekeeper, notarization and Sparkle contents
         env:
-          WERKBORD_UNSIGNED_MANIFEST_TAG: ${{ vars.UNSIGNED_MANIFEST_TAG }}
+          # Honoured by the script for a -preview tag whose release has no manifest signature, and never for a stable tag.
+          WERKBORD_ALLOW_UNSIGNED_PREVIEW: "1"
         run: scripts/verify-desktop-release.sh "$GITHUB_REF_NAME"
 
   desktop-feed-public-verify:

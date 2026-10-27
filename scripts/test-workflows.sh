@@ -211,10 +211,19 @@ if release
   %w[assemble-candidate release-approval].each { |name| check(perms(jobs[name],release) == {"contents" => "read"}, "candidate review cannot publish or hold write authority") }
   check(JSON.generate(jobs["release-approval"]).include?("release-candidate.py verify") && JSON.generate(jobs["release-approval"]).include?("RELEASE_MANIFEST_SIGNATURE"), "exact-byte offline signature is verified before publication")
   check(JSON.generate(jobs["desktop-draft"]).include?("approved-candidate"), "publisher consumes only authenticated candidate assets")
-  # The unsigned-manifest exception is one named preview tag, only when no signature was supplied, and the release says so.
+  # Previews are the quick path: no owner manifest signature is needed, only when none was supplied, never for a stable release,
+  # and the release says so. A stable release keeps the long path: the signature, and the whole suite again before the signing build.
   approval = JSON.generate(jobs["release-approval"]["env"]) + jobs["release-approval"]["steps"].map { |step| step["run"].to_s }.join("\n")
-  check(approval.include?("vars.UNSIGNED_MANIFEST_TAG") && approval.include?('[ "$UNSIGNED_MANIFEST_TAG" = "$GITHUB_REF_NAME" ]') && approval.include?('[ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ]') && approval.include?("--allow-unsigned-manifest"), "the unsigned-manifest exception applies only to the one tag named by UNSIGNED_MANIFEST_TAG and only when no signature was supplied")
-  check(JSON.generate(jobs["macos-public-verify"]).include?("WERKBORD_UNSIGNED_MANIFEST_TAG") && JSON.generate(jobs["desktop-draft"]).include?("manifest-unsigned.txt") && JSON.generate(jobs["desktop-draft"]).include?("Release manifest not signed"), "the public verifier honours the same named exception and the release notes disclose it")
+  check(needs(jobs["release-approval"]).include?("plan") && approval.include?("needs.plan.outputs.stable") && approval.include?('[ "$STABLE" != true ]') && approval.include?('[ -z "${RELEASE_MANIFEST_SIGNATURE:-}" ]') && approval.include?("--allow-unsigned-manifest") && !approval.include?("UNSIGNED_MANIFEST_TAG"), "only a preview with no supplied signature skips the owner's manifest signature; a stable release never does")
+  check(JSON.generate(jobs["macos-public-verify"]).include?("WERKBORD_ALLOW_UNSIGNED_PREVIEW") && JSON.generate(jobs["desktop-draft"]).include?("manifest-unsigned.txt") && JSON.generate(jobs["desktop-draft"]).include?("Release manifest not signed"), "the public verifier honours the preview rule and the release notes disclose it")
+  sc = jobs["stable-checks"] || {}
+  sc_runs = (sc["steps"] || []).map { |step| step["run"].to_s }.join("\n")
+  check(sc["if"].to_s.include?("needs.plan.outputs.stable == 'true'") && needs(sc).include?("ci-gate") && perms(sc, release) == { "contents" => "read" } && !mentions_secret?(sc), "stable-checks runs only for stable tags, after the CI gate, read-only and with no secrets")
+  ["make check", "make test-nebula", "make test-rqlite", "make test-browser", "make test-team-desktop-browser", "make test-unified-desktop-browser", "make test-onboarding-browser", "make test-assistant-browser", "make test-personal-browser", "browser-salie-sessions.cjs"].each do |command|
+    check(sc_runs.include?(command), "a stable release repeats #{command} at tag time")
+  end
+  check(jobs["desktop-build"]["if"].include?("needs.stable-checks.result == 'success'") && jobs["desktop-build"]["if"].include?("needs.plan.outputs.stable != 'true'") && needs(jobs["desktop-build"]).include?("stable-checks"), "a stable release's signing build waits for the full suite; a preview's does not")
+  check(jobs["assemble-candidate"]["if"].include?("needs.stable-checks.result == 'success'") && needs(jobs["assemble-candidate"]).include?("stable-checks"), "a stable candidate cannot be assembled unless the full suite passed")
   check(jobs["linux-desktop-build"]["if"].include?("needs.plan.outputs.linux == 'true'"), "Linux remains opt-in until owner acceptance")
   [latest, preview].each { |job| check(job["if"].include?("needs.linux-public-verify.result == 'success'") && job["if"].include?("needs.macos-public-verify.result == 'success'"), "a failed platform verifier cannot promote either feed") }
   # The tests themselves are required in ci (one place), and the receipt lists them, so a browser regression cannot be dropped silently.

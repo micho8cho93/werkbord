@@ -93,12 +93,12 @@ step "ok  sha256 matches ($have)"
 case "$BASE" in
   file:///*) ;;
   *)
-    # A named, one-tag exception for a preview whose owner could not sign (WERKBORD_UNSIGNED_MANIFEST_TAG, set only by the release
-    # workflow from a repository variable). It applies only when the release really has no signature; a published signature is always checked.
+    # A preview needs no owner manifest signature (WERKBORD_ALLOW_UNSIGNED_PREVIEW=1, set by the release workflow); a stable release
+    # always does. It applies only when the release really has no signature; a published signature is always checked.
     unsigned_ok=no
-    case "$tag" in *-preview.*) [ "${WERKBORD_UNSIGNED_MANIFEST_TAG:-}" != "$tag" ] || unsigned_ok=yes ;; esac
+    case "$tag" in *-preview.*) [ "${WERKBORD_ALLOW_UNSIGNED_PREVIEW:-}" != 1 ] || unsigned_ok=yes ;; esac
     if [ "$unsigned_ok" = yes ] && ! $CURL -fsSL $RETRY -o "$WORK/checksums.txt.sig" "$BASE/$tag/checksums.txt.sig" 2>/dev/null; then
-      step "WARNING  $tag has no owner manifest signature (a named one-tag exception): the checksum, Developer ID, notarization and Gatekeeper checks below are what authenticate this disk image"
+      step "WARNING  $tag is a preview with no owner manifest signature: the checksum, Developer ID, notarization and Gatekeeper checks below are what authenticate this disk image"
     else
       for file in checksums.txt checksums.txt.sig; do
         $CURL -fsSL $RETRY -o "$WORK/$file" "$BASE/$tag/$file" || die "signed release manifest is missing"
