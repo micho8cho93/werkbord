@@ -133,7 +133,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const generated = side.locator('[data-page="generated-' + savedWorkspace.id + '"]').first();
     const openSaved = async () => { if (await generated.count()) await generated.click(); else { const back = page.getByTestId('back-to-universal'); if (await back.count()) await back.click(); await page.getByTestId('hub-generated-' + savedWorkspace.id).click(); } await page.locator('.saved-workspace').waitFor(); await page.getByText('Shared across every location', {exact:true}).first().waitFor(); };
     // The sidebar is Home and Calendar, then a section for Personal and one for each team, then what is about this computer. A
-    // button without a page is Salie's ('theme' here).
+    // button without a page is Salie's ('theme' here): by default Salie is in the sidebar, on Home and in a workspace alike.
     const ordered = async (scope, expected) => {
         const actual = await side.locator((scope ? scope + ' ' : '') + 'button.nav').evaluateAll(els => els.map(e => e.dataset.page || (e.dataset.project ? 'project' : 'theme')));
         assert.deepEqual(actual, expected);
@@ -149,8 +149,9 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByTestId('hub-generated-' + savedWorkspace.id).waitFor();
         // Home has the same sidebar as everywhere: its saved workspace, Personal and the team each in their own section.
-        await ordered('', ['inbox', 'calendar', 'reviews', 'analytics', saved, 'create-generated', 'project', 'add-project', saved, saved, ...footer]);
-        await page.getByTestId('salie-button').waitFor();
+        await ordered('', ['theme', 'inbox', 'calendar', 'reviews', 'analytics', saved, 'create-generated', 'project', 'add-project', saved, saved, ...footer]);
+        await page.getByTestId('sidebar-salie').waitFor();
+        assert.equal(await page.getByTestId('salie-button').count(), 0, 'Salie is in the sidebar by default, so there is no floating button');
         await sidebarWidth(208);
         await page.screenshot({path:path.join(artifacts,'home-default.png')});
         await page.getByTestId('sidebar-label-toggle').click();
