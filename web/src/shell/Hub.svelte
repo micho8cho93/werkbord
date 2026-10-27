@@ -30,7 +30,7 @@
   <header class="top">
     <div class="title">
       <h1 id="hub-h">Home</h1>
-      <p class="lede">{!overview ? 'Loading Personal and your teams…' : waiting ? `${waiting} ${waiting === 1 ? 'thing waits' : 'things wait'} for you across Personal and your teams.` : 'Nothing is waiting for you across Personal and your teams.'}</p>
+      <p class="lede">{!overview ? 'Loading Personal and your teams…' : waiting ? `${waiting} ${waiting === 1 ? 'item needs' : 'items need'} attention across Personal and your teams.` : 'Nothing needs your attention across Personal and your teams.'}</p>
     </div>
     {#if overview}
       <ul class="tally" aria-label="Waiting by kind of workspace">
@@ -77,7 +77,7 @@
 
   <div class="deck">
     <section class="panel needs" aria-labelledby="hub-needs-h">
-      <h2 id="hub-needs-h">Needs you</h2>
+      <h2 id="hub-needs-h">Needs attention</h2>
       <div class="body"><Inbox {overview} embedded /></div>
     </section>
     <section class="panel plan" aria-labelledby="hub-plan-h">

@@ -21,17 +21,17 @@ export const TOURS: Record<TourSurface, readonly TourStep[]> = {
   desktop: [
     {
       title: 'Your Workspace comes first',
-      body: 'Questions from the assistant, work to review and anything blocked wait here. Start here when you come back.',
+      body: 'Agent questions, work to review and anything blocked appear here. Start here when you come back.',
       target: '.rail nav[aria-label="Everywhere"] a',
     },
     {
-      title: 'Each project is a repository',
-      body: 'Open one to see its board, calendar, Git and runs. Add the next one with the plus.',
+      title: 'Each project has its own board',
+      body: 'Open a project to see its work. Repository projects also have Git and agent runs.',
       target: '.rail nav[aria-label="Projects"]',
     },
     {
-      title: 'Press N for a new ticket',
-      body: 'Inside a project, N adds a ticket. Start the assistant on it and watch it work from the ticket.',
+      title: 'Press N for a new task',
+      body: 'Inside a project, N adds a task. Start an agent and follow its work from the task.',
     },
     {
       title: 'Help has short guides',
@@ -47,14 +47,14 @@ export const TOURS: Record<TourSurface, readonly TourStep[]> = {
   settings: [
     {
       title: 'Three sections are worth knowing',
-      body: 'Runners are your machines, Agents are the assistants that may run, and Task defaults say how new tickets run. The rest can wait.',
+      body: 'Runners are your machines. Agents are the coding agents that work on tasks. Task defaults control how new runs start.',
       target: 'nav[aria-label="Settings sections"]',
     },
   ],
   analytics: [
     {
       title: 'This fills in as you work',
-      body: 'Cost, time and outcomes appear after your first runs. Nothing here is sample data, so an empty chart means nothing has run yet.',
+      body: 'Charts appear as activity is recorded. Change the filters to explore another period.',
     },
   ],
 };

@@ -3,7 +3,7 @@ const el = (id) => document.getElementById(id);
 let busy = false;
 let snapshot = null;
 const sections = {
- control: ["Needs you", "Workspace attention reported by your member computer."],
+ control: ["Needs attention", "Workspace attention reported by your member computer."],
  projects: ["Projects", "Projects in this workspace."],
  mywork: ["My Work", "Your tickets and their reported status."],
  schedule: ["Calendar", "Planned work and scheduled starts reported by your workspace."],

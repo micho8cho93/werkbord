@@ -242,7 +242,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantWindow.waitForFunction(id=>window.__received.some(x=>x.type==='werkbord.assistant'&&x.personalWorkspace===id),savedWorkspace.id);
         const handoff = await assistantWindow.evaluate(id=>window.__received.find(x=>x.type==='werkbord.assistant'&&x.personalWorkspace===id),savedWorkspace.id);
         assert.equal(handoff.personalRevision,1);
-        await salie.getByRole('button',{name:'Close assistant',exact:true}).click();
+        await salie.getByRole('button',{name:'Close Salie',exact:true}).click();
         await page.getByTestId('assistant-frame').waitFor({state:'hidden'});
         ok('Customize with Salie carries the exact saved ID and revision as structured trusted context');
 

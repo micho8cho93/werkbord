@@ -24,7 +24,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     example: 'A notes service supplies an MCP URL for Werkbord to use. A separate planning client instead connects to Werkbord to read selected projects and propose changes.',
     steps: [
       'Open Settings → Connections → MCP services. To use another service, paste its single-server MCP JSON configuration or choose Add connection and enter its URL or local executable. Use the authentication method documented by that service.',
-      'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required. Then enable the connection and choose Assistant or Coding agents. Review each tool’s permission before use.',
+      'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required. Then enable the connection and choose Salie or Coding agents. Review each tool’s permission before use.',
       'To let another client use Werkbord, go to Connect a client to Werkbord on the same page. Give it a name and select only the projects and operations it needs. Create its credential and copy the generated connection settings while they are visible.',
       'For a client on another computer, use a reachable private controller address ending in /mcp. For stdio-only clients, select the local process option and install the werkbord command on that client’s computer. Paste the generated settings into your client and reconnect it.',
       'Ask the client to list projects to verify the connection. Personal board changes wait in Pending changes for your approval. Team task plans wait in Plans; direct Team ticket writes follow the issued permissions. Credentials are specific to your own computer or to a Team workspace.',
@@ -44,7 +44,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       '“Answer saved. Waiting for the agent to receive it” means delivery is not confirmed yet. “Answer delivered” means the runner confirmed receipt.',
     ],
     recovery: 'If the answer status is uncertain, reconnect and check the question first. If Werkbord offers a retry, use the same answer; each question accepts one answer. The app disables answers when its report is stale or offline.',
-    searchTerms: ['question', 'reply', 'needs you', 'awaiting acknowledgment', 'awaiting acknowledgement', 'waiting for the agent to receive it', 'stale', 'offline'],
+    searchTerms: ['question', 'reply', 'needs attention', 'needs you', 'awaiting acknowledgment', 'awaiting acknowledgement', 'waiting for the agent to receive it', 'stale', 'offline'],
     destination: { kind: 'global', view: 'control' },
     linkLabel: 'Open Workspace',
   },

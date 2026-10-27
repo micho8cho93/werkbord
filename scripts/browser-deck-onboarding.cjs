@@ -42,7 +42,7 @@ async function request(token, method, route, body) {
           await page.setViewportSize({width:390,height:844}); await page.emulateMedia({colorScheme:'light'});
         }
         await guide().getByRole('button',{name:'Choose buttons'}).click();
-        assert.equal(await dialog().getByRole('button',{name:'Needs you',exact:true}).count(),0);
+        assert.equal(await dialog().getByRole('button',{name:'Needs attention',exact:true}).count(),0);
         await dialog().getByRole('button',{name:'Reviews',exact:true}).click();
         if (mode === 'navigation') {
           for (const name of ['Git','Runners']) {

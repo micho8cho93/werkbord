@@ -69,7 +69,7 @@
 <svelte:window onresize={revealActive} onkeydowncapture={keydown} onpointerdown={e=>{if(container&&!container.contains(e.target as Node))menu=false;}} />
 <div class="tabs-bar" bind:this={container}>
   <label class="mobile-selector">Session
-    <select class="select" aria-label="Assistant session" value={assistant.activeId} onchange={e=>assistant.reopen(e.currentTarget.value)}>
+    <select class="select" aria-label="Salie session" value={assistant.activeId} onchange={e=>assistant.reopen(e.currentTarget.value)}>
       {#each assistant.tabs as tab (tab.id)}<option value={tab.id}>{assistant.title(tab)} · {tab.terminal ? 'Terminal' : tab.run ? 'Task' : 'Salie'} · {status(tab)}</option>{/each}
     </select>
   </label>

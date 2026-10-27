@@ -241,7 +241,7 @@
   {/if}
 
   {#if assistant.asking.length > 0}
-    <section class="ask card" aria-label="Share files with the assistant" data-testid="assistant-authorize">
+    <section class="ask card" aria-label="Share files with Salie" data-testid="assistant-authorize">
       <p><strong>Share {assistant.asking.length === 1 ? 'this file' : `these ${assistant.asking.length} files`} with {providerName}?</strong></p>
       <ul>{#each assistant.asking as f (f.key)}<li><span class="fn">{f.name}</span> <span class="sz">{size(f.bytes)}</span></li>{/each}</ul>
       <p class="fine">
@@ -306,7 +306,7 @@
       rows="1"
       readonly={listening}
       placeholder={listening ? 'Speak now…' : assistant.hasConversation ? 'Reply…' : 'Ask about your board, or tell me what to do'}
-      aria-label="Message to the assistant"
+      aria-label="Message to Salie"
       enterkeyhint={touch ? 'enter' : 'send'}
       autocomplete="off"
       onkeydown={onKey}

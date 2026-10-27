@@ -165,9 +165,9 @@ function measure(minPx) {
     const allTab = page.getByRole('button', { name: /^All: \d+ items?, including \d+ ready for review$/ });
     await allTab.waitFor();
     assert.equal(await page.getByRole('button', { name: /^Review: \d+ items?$/ }).count(), 1, 'Review remains an explicit filter');
-    assert(await page.getByText('Needs you and project badges count interruptions. All also includes work ready for review.', { exact: true }).isVisible(), 'the page explains why All can exceed interruption badges');
+    assert(await page.getByText('Workspace and project badges count interruptions. All also includes work ready for review.', { exact: true }).isVisible(), 'the page explains why All can exceed interruption badges');
     assert.match(await page.locator('.rail .project .num.pend').first().getAttribute('aria-label'), /^\d+ interruptions?; excludes work ready for review$/);
-    assert(await page.getByText(/\d+ questions? needs? you/, { exact: false }).count() > 0, 'project summaries use Needs you vocabulary');
+    assert(await page.getByText(/\d+ questions? needs? your answer/, { exact: false }).count() > 0, 'project summaries use Needs you vocabulary');
     const all = [];
     const small = [];
     let nodes = 0;

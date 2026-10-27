@@ -230,7 +230,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         ok('opens out of the floating button, slowly, over the whole window, sidebar included, from another workspace');
 
         // Apple's service can end immediately when system Dictation is off. No restart loop and no lost typed draft.
-        const message = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
+        const message = assistantFrame.getByRole('textbox', { name: 'Message to Salie' });
         await message.fill('keep this draft');
         await assistantFrame.getByRole('button', { name: 'Dictate a message', exact: true }).click();
         await assistantFrame.getByTestId('assistant-dictation-notice').getByRole('button', { name: 'Use dictation', exact: true }).click();
@@ -289,7 +289,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Something waits for the person: the button says so, and no word of the conversation crossed.
         await button.click();
         await assistantFrame.getByTestId('assistant').waitFor();
-        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Create a single portfolio ticket for the Northstar workspace');
+        await assistantFrame.getByRole('textbox', { name: 'Message to Salie' }).fill('Create a single portfolio ticket for the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         await assistantFrame.locator('section.confirm').waitFor();
         await assistantFrame.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
@@ -310,7 +310,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
         ok('and is still waiting when it is opened again, from the same frame');
         await assistantFrame.locator('section.confirm[data-state="waiting"]').getByRole('button', { name: 'Not now', exact: true }).click();
-        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Create a single portfolio ticket for the Northstar workspace');
+        await assistantFrame.getByRole('textbox', { name: 'Message to Salie' }).fill('Create a single portfolio ticket for the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         const single = assistantFrame.locator('section.confirm[data-state="waiting"]');
         await single.waitFor();
@@ -320,7 +320,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await added.waitFor();
         await added.getByText('Added to Backlog.').waitFor();
         assert.equal(teamTickets.length, 1, 'one confirmation creates the Team task');
-        assert.equal(await assistantFrame.getByRole('dialog').filter({ has: assistantFrame.getByRole('heading', { name: 'Assistant' }) }).count(), 1, 'the assistant remains the only dialog; no second task confirmation opens');
+        assert.equal(await assistantFrame.getByRole('dialog').filter({ has: assistantFrame.getByRole('heading', { name: 'Salie' }) }).count(), 1, 'the assistant remains the only dialog; no second task confirmation opens');
         await added.getByRole('button', { name: 'Open task', exact: true }).click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
         await page.waitForFunction(() => document.querySelector('iframe[data-workspace="team:main"]')?.contentWindow?.__lastPlace === '?tab=board&project=p_portfolio&ticket=t_1');
@@ -329,7 +329,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
         await button.click();
         await assistantFrame.getByTestId('assistant').waitFor();
-        await assistantFrame.getByRole('textbox', { name: 'Message to the assistant' }).fill('Add portfolio tickets to the Northstar workspace');
+        await assistantFrame.getByRole('textbox', { name: 'Message to Salie' }).fill('Add portfolio tickets to the Northstar workspace');
         await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
         const proposals = assistantFrame.locator('section.confirm[data-state="waiting"]');
         await proposals.nth(2).waitFor();
@@ -388,7 +388,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Personal workspaces use the same Salie frame, carrying only the saved ID.
         await personal.locator('body').evaluate(() => location.hash = '#/personal');
         await personal.getByRole('button', { name: 'Create with Salie', exact: true }).click();
-        const draftBox = assistantFrame.getByRole('textbox', { name: 'Message to the assistant' });
+        const draftBox = assistantFrame.getByRole('textbox', { name: 'Message to Salie' });
         await draftBox.waitFor();
         // A general statement that a new generative workspace is coming, then the person's own description: no thing to build is suggested.
         const opening = await draftBox.inputValue();

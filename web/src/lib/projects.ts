@@ -25,7 +25,7 @@ export function filterProjects(projects: readonly Project[], query: string): Pro
 export function activitySummary(a: ProjectActivity | undefined): string {
   if (!a) return '';
   const parts: string[] = [];
-  if (a.needsInput) parts.push(`${a.needsInput} question${a.needsInput === 1 ? '' : 's'} ${a.needsInput === 1 ? 'needs' : 'need'} you`);
+  if (a.needsInput) parts.push(`${a.needsInput} question${a.needsInput === 1 ? '' : 's'} ${a.needsInput === 1 ? 'needs' : 'need'} your answer`);
   if (a.blocked) parts.push(`${a.blocked} blocked`);
   if (a.failed) parts.push(`${a.failed} failed`);
   if (a.repoRisk) parts.push(`${a.repoRisk} ${a.repoRisk === 1 ? 'repository risk' : 'repository risks'}`);

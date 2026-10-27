@@ -295,7 +295,7 @@
       <ul class="summary-list">{#each steps.filter(s => s.id !== 'review') as s (s.id)}<li><strong>{s.label}</strong><span>{s.done ? 'Verified' : stepStates[s.id] === 'skipped' ? 'Left for later' : 'Needs attention'}</span></li>{/each}</ul>
     </section>
     {#if framed && saliePlacementReady}
-      <SetupCard title="Where would you like Salie?" status="done" summary="Choose how to open your assistant">
+      <SetupCard title="Where would you like Salie?" status="done" summary="Choose how to open Salie">
         <p class="muted">Use the sidebar, a movable floating button, or both. You can change this later in Settings → Appearance.</p>
         <SaliePlacement value={saliePlacements} onchange={setSaliePlacements} />
       </SetupCard>
@@ -320,7 +320,7 @@
   {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
   {:else if current === 'phone'}
-  <p class="muted">Last step: take Werkbord with you. Your phone becomes a remote for the runner on this computer, so you can answer the assistant and approve work from anywhere. It is optional and you can do it later in Settings.</p>
+  <p class="muted">Last step: take Werkbord with you. Your phone becomes a remote for the runner on this computer, so you can answer agents and approve work from anywhere. It is optional and you can do it later in Settings.</p>
   <PhoneStepCard paired={phonePaired} skipped={stepStates.phone === 'skipped'} onenrolled={phoneEnrolled} />
   {#if phonePaired}<p role="status">Your phone is connected. Open Werkbord on it to take a short tour.</p>{/if}
   {:else}

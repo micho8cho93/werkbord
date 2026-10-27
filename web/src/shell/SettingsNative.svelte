@@ -61,7 +61,7 @@
         </p>
       </div>
       {#if unsupported}
-        <p class="muted" role="status">This window cannot show system alerts here. Werkbord still marks what needs you in the sidebar and in Workspaces.</p>
+        <p class="muted" role="status">This window cannot show system alerts here. Werkbord still marks what needs your attention in the sidebar and in Workspaces.</p>
       {:else}
         <div class="row">
           <button class="btn" class:primary={!alerts.enabled} type="button" aria-pressed={alerts.enabled} onclick={() => alerts.set(!alerts.enabled)}>

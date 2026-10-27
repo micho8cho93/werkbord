@@ -9,7 +9,7 @@
   let assistantTab = $state<HTMLButtonElement>();
   const waiting = $derived(assistant.waiting);
   const assistantLabel = $derived(
-    waiting > 0 ? `Assistant, ${waiting} ${waiting === 1 ? 'change is' : 'changes are'} waiting for you` : assistant.running ? 'Assistant, working' : 'Assistant',
+    waiting > 0 ? `Salie, ${waiting} ${waiting === 1 ? 'request is' : 'requests are'} waiting for you` : assistant.running ? 'Salie, working' : 'Salie',
   );
 
   function toDeck() {
@@ -28,7 +28,7 @@
   </a>
   <button bind:this={assistantTab} class="tab" type="button" aria-haspopup="dialog" aria-expanded={assistant.isOpen} aria-current={assistant.isOpen ? 'page' : undefined} aria-label={assistantLabel} onclick={toAssistant} data-testid="nav-assistant">
     <span class="mark asst"><Icon name="assistant" size={22} /></span>
-    <span class="label">Assistant</span>
+    <span class="label">Salie</span>
     {#if waiting > 0}
       <span class="num pend" aria-hidden="true">{waiting}</span>
     {:else if assistant.running}

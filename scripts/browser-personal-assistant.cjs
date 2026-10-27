@@ -73,7 +73,7 @@ const ok = text => console.log('PASS ' + text);
 
   await page.goto(web + '/#/personal');
   await page.getByRole('button', { name: 'Create with Salie', exact: true }).click();
-  const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+  const box = page.getByRole('textbox', { name: 'Message to Salie' });
   const send = async text => {
     const count = await page.locator('article.reply').count();
     await box.fill(text);

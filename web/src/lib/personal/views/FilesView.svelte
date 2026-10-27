@@ -131,7 +131,7 @@
       </label>
     {/if}
   </div>
-  <p class="about">Entries are saved with this workspace. The files themselves stay on this computer, in this app’s own storage, and are never uploaded.</p>
+  <p class="about">Entries are saved with this workspace. Files added here stay in this browser on this device; they are not uploaded.</p>
   {#if !available}<p class="problem" role="alert">This device cannot keep files for this view. Entries still work.</p>{/if}
   {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
   {#if note}<p class="note" role="status">{note}</p>{/if}

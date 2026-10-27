@@ -76,7 +76,7 @@ const ok = text => console.log('PASS ' + text);
   for (const fixture of fixtures) {
     await page.goto(web + '/#/personal');
     await page.getByRole('button',{name:'Create with Salie',exact:true}).click();
-    const box = page.getByRole('textbox',{name:'Message to the assistant'});
+    const box = page.getByRole('textbox',{name:'Message to Salie'});
     await box.fill(fixture.prompt);
     await page.getByRole('button',{name:'Send',exact:true}).click();
     const card = page.locator('.confirm[data-state="waiting"]');
@@ -112,8 +112,8 @@ const ok = text => console.log('PASS ' + text);
       await until(async () => (await api(base,'GET',`/collections/${cid}/records`)).items[0].values.stage==='Contacted','Action not saved');
       await page.getByRole('region',{name:'Pipeline',exact:true}).getByRole('group',{name:/Contacted/}).getByText('Browser lead',{exact:true}).waitFor();
       await area.getByRole('button',{name:'Summarise pipeline',exact:true}).click();
-      await page.getByRole('textbox',{name:'Message to the assistant'}).waitFor();
-      assert.ok((await page.getByRole('textbox',{name:'Message to the assistant'}).inputValue()).includes('Summarise the active sales pipeline'));
+      await page.getByRole('textbox',{name:'Message to Salie'}).waitFor();
+      assert.ok((await page.getByRole('textbox',{name:'Message to Salie'}).inputValue()).includes('Summarise the active sales pipeline'));
       await page.getByTestId('assistant-close').click();
     await page.getByTestId('assistant').waitFor({state:'detached'});
     } else {

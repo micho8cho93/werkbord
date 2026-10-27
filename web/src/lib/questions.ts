@@ -129,7 +129,7 @@ export function describeAnswerFailure(err: unknown): AnswerFailure {
 
 /** The page title, which shows on a tab or a notification badge even when the app is in the background. */
 export function pageTitle(pending: number, base = 'Werkbord'): string {
-  return pending > 0 ? `(${pending}) Needs you · ${base}` : base;
+  return pending > 0 ? `(${pending}) Needs attention · ${base}` : base;
 }
 
 /** Screens of a project that ask its questions themselves, each with its answer: the Overview's Needs you list, the
@@ -149,7 +149,7 @@ export function bannerQuestions<Q extends Pick<Question, 'taskId' | 'projectId'>
 
 /** "1 question needs you", "3 questions need you". */
 export function needsYouText(n: number): string {
-  return n === 1 ? '1 question needs you' : `${n} questions need you`;
+  return n === 1 ? '1 question needs your answer' : `${n} questions need your answer`;
 }
 
 /**

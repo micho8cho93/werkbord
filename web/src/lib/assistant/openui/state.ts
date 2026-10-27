@@ -77,16 +77,16 @@ function fieldState(value: unknown): OpenUIFieldState | null {
 export function readOpenUIState(raw: unknown): StateResult {
   if (!record(raw)) return { ok: false, error: 'The form values could not be read. Check the interface and try again.' };
   const forms = Object.entries(raw);
-  if (forms.length > MAX_FORM_COUNT) return { ok: false, error: 'This interface contains too many forms. Ask the assistant to simplify it.' };
+  if (forms.length > MAX_FORM_COUNT) return { ok: false, error: 'This interface contains too many forms. Ask Salie to simplify it.' };
 
   const state: OpenUIState = {};
   for (const [formName, rawFields] of forms) {
     if (!FORM_NAME.test(formName) || !record(rawFields)) return { ok: false, error: 'The form values could not be read. Check the interface and try again.' };
     const fields = Object.entries(rawFields);
-    if (fields.length > MAX_FIELDS) return { ok: false, error: 'This form contains too many fields. Ask the assistant to simplify it.' };
+    if (fields.length > MAX_FIELDS) return { ok: false, error: 'This form contains too many fields. Ask Salie to simplify it.' };
     const cleanFields: Record<string, OpenUIFieldState> = {};
     for (const [name, rawField] of fields) {
-      if (!FIELD_NAME.test(name)) return { ok: false, error: 'A form field has an invalid name. Ask the assistant to rebuild the form.' };
+      if (!FIELD_NAME.test(name)) return { ok: false, error: 'A form field has an invalid name. Ask Salie to rebuild the form.' };
       const field = fieldState(rawField);
       if (!field) return { ok: false, error: 'The form contains a value that Werkbord cannot use. Check the values and try again.' };
       if (typeof field.value === 'string' && field.value !== '') {
@@ -105,17 +105,17 @@ export type ConversationMessageResult = { ok: true; message: string } | { ok: fa
 
 export function conversationMessage(raw: unknown): ConversationMessageResult {
   if (!record(raw) || raw.type !== BuiltinActionType.ContinueConversation) {
-    return { ok: false, error: 'This interface action is not supported. Ask the assistant for a new one.' };
+    return { ok: false, error: 'This interface action is not supported. Ask Salie for a new one.' };
   }
   if (!record(raw.params) || Object.keys(raw.params).length !== 0) {
-    return { ok: false, error: 'This interface action contains unsupported parameters. Ask the assistant for a new one.' };
+    return { ok: false, error: 'This interface action contains unsupported parameters. Ask Salie for a new one.' };
   }
   if (typeof raw.humanFriendlyMessage !== 'string') {
-    return { ok: false, error: 'This interface action has no clear request. Ask the assistant for a new one.' };
+    return { ok: false, error: 'This interface action has no clear request. Ask Salie for a new one.' };
   }
   const label = raw.humanFriendlyMessage.trim();
   if (!label || label.length > 160 || CONTROL_CHARS.test(label)) {
-    return { ok: false, error: 'This interface action has an invalid label. Ask the assistant for a new one.' };
+    return { ok: false, error: 'This interface action has an invalid label. Ask Salie for a new one.' };
   }
 
   let values: Record<string, OpenUIFieldValue> | undefined;
@@ -136,7 +136,7 @@ export function conversationMessage(raw: unknown): ConversationMessageResult {
     }
   } else if (raw.formState !== undefined) {
     if (!record(raw.formState) || Object.keys(raw.formState).length !== 0) {
-      return { ok: false, error: 'This action was not connected to the form it needs. Ask the assistant to rebuild it.' };
+      return { ok: false, error: 'This action was not connected to the form it needs. Ask Salie to rebuild it.' };
     }
   }
 

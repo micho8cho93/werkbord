@@ -30,7 +30,7 @@ PLAYWRIGHT_MODULE=$PWD/web/node_modules/playwright PERSONAL_BROWSER_URL=http://1
   node scripts/measure-legibility.cjs --check
 ```
 
-`--check` exits 1 when anything is under either floor; `--json out.json` keeps the findings. The script visits 28 pages (Needs you,
+`--check` exits 1 when anything is under either floor; `--json out.json` keeps the findings. The script visits 28 pages (Needs attention,
 Projects, the nine Settings sections, and each project's sections and a task panel for a question, a review and a backlog task)
 in light and dark at 1440 and 390 wide. Contrast is computed from the real painted colours: each element's colour is composited
 over every ancestor's background (a gradient face is checked at each of its stops, the worst taken), and text carries its

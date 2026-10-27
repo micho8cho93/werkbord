@@ -104,7 +104,7 @@
   {#if receipt}<p role="status">{receipt}</p>{:else}
   {#if showMeta}
     <div class="meta">
-      <span class="kind">Needs you · {kindNoun(question.kind)}</span>
+      <span class="kind">Needs attention · {kindNoun(question.kind)}</span>
       <time datetime={question.askedAt}>asked {timeAgo(question.askedAt, app.now)}</time>
     </div>
   {/if}

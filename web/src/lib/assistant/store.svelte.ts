@@ -689,7 +689,7 @@ export class AssistantStore {
       }
       const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
       if (!looksLikeText(head)) {
-        refused.push(`${file.name} is not a plain text file. PDFs and pictures cannot be shown to the assistant yet`);
+        refused.push(`${file.name} is not a plain text file. PDFs and pictures cannot be shown to Salie yet`);
         continue;
       }
       this.staged.push({ key: uid('f'), name: file.name, bytes: file.size, file, state: 'asking' });

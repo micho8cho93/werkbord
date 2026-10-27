@@ -21,7 +21,7 @@ describe('deckKeys', () => {
 
   it('counts only what a key means, and says it to a screen reader', () => {
     const keys = Object.fromEntries(deckKeys({ needsYou: 3, review: 2, running: 1, repoAttention: 4 }).map((k) => [k.id, k]));
-    expect(keys.needs).toMatchObject({ count: 3, tone: 'wait', note: '3 items need you' });
+    expect(keys.needs).toMatchObject({ count: 3, tone: 'wait', note: '3 items need attention' });
     expect(keys.reviews).toMatchObject({ count: 2, note: '2 ready for review' });
     expect(keys.agents).toMatchObject({ count: 1, tone: 'work', note: '1 running' });
     expect(keys.git).toMatchObject({ count: 4, tone: 'wait' });
@@ -31,6 +31,15 @@ describe('deckKeys', () => {
 
   it('says nothing for a count of zero', () => {
     expect(deckKeys(counts).every((k) => k.count === 0 && k.note === '')).toBe(true);
+  });
+
+  it('uses singular and plural attention labels for screen readers', () => {
+    const one = Object.fromEntries(deckKeys({ ...counts, needsYou: 1, repoAttention: 1 }).map(k => [k.id, k]));
+    expect(one.needs.note).toBe('1 item needs attention');
+    expect(one.git.note).toBe('1 Git item needs attention');
+    const many = Object.fromEntries(deckKeys({ ...counts, needsYou: 2, repoAttention: 2 }).map(k => [k.id, k]));
+    expect(many.needs.note).toBe('2 items need attention');
+    expect(many.git.note).toBe('2 Git items need attention');
   });
 });
 

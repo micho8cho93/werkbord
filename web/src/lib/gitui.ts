@@ -176,7 +176,7 @@ export function headline(b: GitBranch): GitAttention | undefined {
 export type BranchFilter = 'attention' | 'werkbord' | 'local' | 'remote' | 'merged' | 'all';
 
 export const BRANCH_FILTERS: readonly { id: BranchFilter; label: string }[] = [
-  { id: 'attention', label: 'Needs you' },
+  { id: 'attention', label: 'Needs attention' },
   { id: 'werkbord', label: 'Werkbord' },
   { id: 'local', label: 'Local' },
   { id: 'remote', label: 'Remote' },

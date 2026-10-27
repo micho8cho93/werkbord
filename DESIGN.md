@@ -138,7 +138,7 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 
 ## Layout
 
-- Standalone browser desktop (≥900px): a 220px rail (Needs you, projects with live counts, runners, Analytics, Settings, theme)
+- Standalone browser desktop (≥900px): a 220px rail (Needs attention, projects with live counts, runners, Analytics, Settings, theme)
   and a main column. Inside the Werkbord desktop app the window's one sidebar replaces this rail
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
@@ -154,14 +154,14 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
-- A narrow window of the desktop app (<900px; a phone in a browser has the Control Deck instead): sticky heading, the page scrolls, bottom tab bar (Needs you · Board · Calendar · Git · Runs · More;
+- A narrow window of the desktop app (<900px; a phone in a browser has the Control Deck instead): sticky heading, the page scrolls, bottom tab bar (Needs attention · Board · Calendar · Git · Runs · More;
   one equal column per tab, including for work projects), floating New task button,
   horizontally scrolling Kanban columns and tables as two-line rows. Git and Settings use a compact, labeled native
   section chooser. Its selected option states the current subsection;
   choosing one keeps the existing hash address, direct links and browser Back behavior. The desktop section navigation
   remains visible at wide widths. In the desktop shell's intermediate-width icon rail, an accessible expand control
   reveals the section names and project list without changing workspace or project routes.
-  The installed app starts on the Control Deck (`start_url` `/#/deck`; on a wide window that address is settled to Needs you).
+  The installed app starts on the Control Deck (`start_url` `/#/deck`; on a wide window that address is settled to Needs attention).
   In the desktop shell's narrow window the bottom bar above stays as it was; outside it the phone has the two-place bar and the
   Control Deck described under Layout. The board opens on the first column holding something that needs you (a question,
   a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
@@ -172,7 +172,7 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 
 Universal is a peer choice beside Individual and each Team workspace, and the default full-width desktop hub. Its
 workspace shelf contains Individual, Teams, saved workspaces made by Salie and the Data library, with a plus-marked
-Create with Salie action beside the shelf heading. Needs you and Calendar sit in separate panels below it. At wide widths,
+Create with Salie action beside the shelf heading. Needs attention and Calendar sit in separate panels below it. At wide widths,
 the shelf and panel bodies scroll internally; below 1000px the panels stack and the page scrolls.
 
 Universal's sidebar starts collapsed on every entry. It contains the workspace switcher, Devices & Hosting, Data library and Settings;
@@ -198,7 +198,7 @@ Timeline is its alternate presentation. Settings contains This computer, MCP cli
 Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
 
-The workspace's Needs you view shows Working now beside Needs you and Projects. Lists use spacing and dividers;
+The workspace's Needs attention view shows Working now beside Needs attention and Projects. Lists use spacing and dividers;
 cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
 ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
 The four Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
@@ -236,7 +236,7 @@ a heading (the provider chooser, New, Close) and the box.
   is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
   switches off transitions is not what it relies on.
 - **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is
-  one quiet line, never operation names. A change is a raised card with a status dot and word on its label: amber for "Needs you", green for "Done", and red for "Failed".
+  one quiet line, never operation names. A change is a raised card with a status dot and word on its label: amber for "Needs attention", green for "Done", and red for "Failed".
 - **The box** is raised, 14px corners, with attach, dictate and send/stop at its edge; 16px on a phone so the page does not zoom, 44px
   targets. The send arrow is cobalt only when there is something to send.
 - **Dictation** shows the words in the box while listening. X cancels and preserves the earlier typed draft; the tick finishes into
@@ -248,15 +248,15 @@ a heading (the provider chooser, New, Close) and the box.
 
 Motion preserves the current icons and layout and acknowledges observed state. Salie’s activity mark uses the six approved pixel studies; Git and attachment transfers use bounded directional and indeterminate feedback, with success reserved for reported results. Salie fades only newly appended text; boards preserve card continuity; charts reveal proportions without delaying their labels or exact values. Initial loads and reconnects establish a baseline rather than replaying accomplishments. All spatial effects respect reduced motion. See [MOTION.md](docs/MOTION.md) for timing, interaction and verification details.
 
-- **Vocabulary.** Needs you names attention; Questions is its question filter. Calendar contains Calendar and Timeline
+- **Vocabulary.** Needs attention names attention; Questions is its question filter. Calendar contains Calendar and Timeline
   presentations. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects
   show planned work. Timeline plans work dates and milestones ("Not planned yet"). Team Calendar combines planned
   dates with shared schedule requests that wait for the owner's runner and approval. Review means work is ready
   for a person's inspection, Done means the work was completed or merged, and Archive keeps a task out of the active
   board. Accept work / Reject work record a verdict; Merge… changes the repository after confirmation.
-- **Attention counts.** The Needs you and project interruption badges exclude work ready for review; the Needs you
+- **Attention counts.** The Needs attention and project interruption badges exclude work ready for review; the Needs attention
   page's All list includes it. Keep that scope visible beside the counts and in their accessible names. Project summaries
-  call pending questions "Needs you".
+  call pending questions "Needs your answer".
 - **Planning dates and execution schedules.** Date fields plan work; they do not start an agent. Repository Calendar
   schedules when the owning Werkbord starts agent work. Explain this at both sets of date controls. Work projects keep
   planning fields and have no execution controls. Individual's New task shows planning fields at the bottom of the
@@ -311,16 +311,16 @@ Motion preserves the current icons and layout and acknowledges observed state. S
   agent and a registered Git repository. A planning project does not count as a repository. One primary action advances
   the missing requirement or opens task creation; planning remains available separately. Phone access and GitHub are
   optional connections, collapsed initially, and skipped connections stay labelled as skipped.
-- The window's Needs you view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
+- The window's Needs attention view orders urgent problems, actions and operational warnings. Each row preserves its workspace,
   project and detail, and names its next action. Individual questions expand in place with context before choices; answering uses the owning Werkbord and stays disabled for stale or offline reports. Team rows open the owning workspace. Saved answers remain unconfirmed until the runner confirms delivery. Only the first urgent or actionable item has primary emphasis.
-- In the window's Needs you view, a collapsed question row says what the agent asked. When expanded, its row changes to
+- In the window's Needs attention view, a collapsed question row says what the agent asked. When expanded, its row changes to
   "Answering this question" while workspace, project and task provenance stay visible; the answer card states the
   question once. Stale/offline refusal and pending acknowledgement remain unchanged.
 
 - What needs you is never more than one click away and always says what it wants (the question itself, on the card).
 - Inline actions on cards: Start, Approve/Deny, Reply, Merge…, Move to Review, Run again. A Runs row whose run waits on a
   question has an Answer button that opens the same question card beneath the row.
-- **One name: "Needs you".** Individual actionable attention uses it in the rail and tab, the card's eyebrow ("Needs you · Decision"), the page title, the banner ("1 question needs you") and the notification. A row's kind in the list is its plain type (Question, Blocked, Failed). A shared execution report may say "Waiting for an answer" when it does not establish that the current viewer can answer it.
+- **One name: "Needs attention".** Use it for actionable attention in headings, filters and the page title. An individual question says "Needs your answer" in run status, summaries and notifications, and its card can name the request type. A row's kind in the list is its plain type (Question, Blocked, Failed). A shared execution report may say "Waiting for an answer" when it does not establish that the current viewer can answer it.
 - **A question is stated once per screen.** The banner stays out of the way where the question is already asked with its
   answer: the task panel that has it open, and the project's Overview, Board and Runs. In the task panel the dock below
   the feed is the one statement; the feed shows the question again once it is answered, and the status line does not.
@@ -340,7 +340,7 @@ Motion preserves the current icons and layout and acknowledges observed state. S
   resumed work.
 - **Only a refusal of a permission is red.** An approval's Deny or Reject is drawn as a refusal; a "No" to a decision is an
   answer like Yes, in the neutral button.
-- What needs a person is one list (`lib/attention.ts`): Needs you shows it for every project in
+- What needs a person is one list (`lib/attention.ts`): Needs attention shows it for every project in
   segments, a project's Overview for that project. Each item is answerable where it is shown.
 - Numbers are only what was measured: the run history strip colours half hours by real runs; usage says
   which runs reported tokens or cost.
@@ -363,7 +363,7 @@ Motion preserves the current icons and layout and acknowledges observed state. S
 
 ### Final verification refinements (4.19.1)
 
-Needs you's All, Questions and Review choices are native filter buttons in a labelled group, with pressed state.
+Needs attention's All, Questions and Review choices are native filter buttons in a labelled group, with pressed state.
 Tab and Space/Enter activate them; they do not announce a tab widget or imply arrow-key tab navigation.
 Count scope is unchanged. The attention-card Review action follows the same 44px phone/coarse-pointer height
 floor as its answer actions. These refinements do not establish physical-device or screen-reader usability; see the final audit
@@ -415,13 +415,13 @@ when a person explicitly opens that workspace; they do not choose the startup su
 
 ### Configurable phone Control Deck (4.46)
 
-The initial deck keeps Needs you, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. An icon-only pencil in the header enters editing; its checkmark saves the deck. Every position can be replaced, removed or moved, including by keyboard through Move to
+The initial deck keeps Needs attention, Calendar, Projects, My Work, Agents and Analytics, with three empty sockets. An icon-only pencil in the header enters editing; its checkmark saves the deck. Every position can be replaced, removed or moved, including by keyboard through Move to
 position. Empty sockets remain empty. Preserve the keycap materials, themes and reduced-motion behaviour.
 
 Workflow keys show their name and icon; repository scope remains in their accessible label and configuration. Tap executes a configured workflow; hold,
 Shift+F10, context menu and the editing settings control configure it. Configuration never starts work. Workflows target
 Individual repositories; ordinary task views provide output, questions, review and cancellation. Phone preferences live in the
-controller per enrolled phone. The redundant attention strip is removed; Needs you retains its live count and destination.
+controller per enrolled phone. The redundant attention strip is removed; Needs attention retains its live count and destination.
 Edit Deck, Search and Help sit beside Settings in the header with 44px targets. The per-phone tour explains editing and execution.
 
 ### Persistent phone workflow execution (4.48)
@@ -474,7 +474,7 @@ Settings → Agents owns the complete searchable CLI catalogue, inclusion toggle
 
 ### Team layout and assistant placement (4.82)
 
-Team Analytics follows Individual’s coloured statistic tiles and twelve-column chart panels using coordination data: daily throughput, cumulative progress, Done against created, activity by day and categories. Filters apply on selection. Reviews places To review beside Waiting for review; Projects leads with compact workload cards and keeps create/join controls in disclosures beside them. Workspace groups Needs you and Working now beneath compact counts. Narrow windows stack these groups in reading order.
+Team Analytics follows Individual’s coloured statistic tiles and twelve-column chart panels using coordination data: daily throughput, cumulative progress, Done against created, activity by day and categories. Filters apply on selection. Reviews places To review beside Waiting for review; Projects leads with compact workload cards and keeps create/join controls in disclosures beside them. Workspace groups Needs attention and Working now beneath compact counts. Narrow windows stack these groups in reading order.
 
 Data library places Saved workspaces beside Personal collections, showing four entries per list initially with independent Show all / Show fewer controls. Collection inspection stays below both lists. Universal keeps Devices & Hosting → Data library → Settings pinned in its sidebar, and workspace tiles reserve room for hover lift and focus outlines.
 

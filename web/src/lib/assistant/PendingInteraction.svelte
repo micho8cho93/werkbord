@@ -9,7 +9,7 @@
 <svelte:window onkeydown={e => { if (e.key === 'Escape' && assistant.compact) { e.preventDefault(); assistant.compact = false; } }} />
 {#if current}
   <aside class:floating aria-label="Salie pending request">
-    <header><strong>Needs you · {assistant.waiting} pending</strong><button class="btn quiet small" aria-label="Close request popup" onclick={() => assistant.compact = false}>Close</button></header>
+    <header><strong>Needs attention · {assistant.waiting} pending</strong><button class="btn quiet small" aria-label="Close request popup" onclick={() => assistant.compact = false}>Close</button></header>
     {#key current.key}
       {#if current.kind === 'question'}
         <p class="source">{app.project(current.question.projectId)?.name ?? current.question.projectId} · Run {current.question.runId}</p>

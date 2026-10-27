@@ -9,23 +9,23 @@
   let el: HTMLButtonElement | undefined = $state();
 
   const waiting = $derived(assistant.waiting);
-  const label = $derived(waiting > 0 ? `Assistant, ${waiting} ${waiting === 1 ? 'request is' : 'requests are'} waiting for you` : assistant.running ? 'Assistant, working' : 'Assistant');
+  const label = $derived(waiting > 0 ? `Salie, ${waiting} ${waiting === 1 ? 'request is' : 'requests are'} waiting for you` : assistant.running ? 'Salie, working' : 'Salie');
 
   function press() {
     if (el) assistant.toggle(originOf(el.getBoundingClientRect()), el);
   }
 </script>
 
-<button bind:this={el} class="ab {variant}" type="button" aria-haspopup="dialog" aria-expanded={assistant.isOpen} aria-label={label} title="Assistant" onclick={press} data-testid="assistant-button">
+<button bind:this={el} class="ab {variant}" type="button" aria-haspopup="dialog" aria-expanded={assistant.isOpen} aria-label={label} title="Salie" onclick={press} data-testid="assistant-button">
   <span class="ico"><Icon name="assistant" /></span>
-  {#if variant !== 'icon'}<span class="text">Assistant</span>{/if}
+  {#if variant !== 'icon'}<span class="text">Salie</span>{/if}
   {#if waiting > 0}
     <span class="num pend" aria-hidden="true">{waiting}</span>
   {:else if assistant.running}
     <span class="live" aria-hidden="true"></span>
   {/if}
 </button>
-{#if waiting && !assistant.isOpen}<button class="btn small bubble" onclick={() => assistant.compact = !assistant.compact}>Needs you · {waiting}</button>{/if}
+{#if waiting && !assistant.isOpen}<button class="btn small bubble" onclick={() => assistant.compact = !assistant.compact}>Needs attention · {waiting}</button>{/if}
 
 <style>
   .bubble { color: var(--warn-text); }

@@ -96,7 +96,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   phone.on('request',r=>{if(r.url().includes('/terminals/') && r.url().endsWith('/input')) nativeInput.push(JSON.parse(r.postData()).data);}); phone.setDefaultTimeout(15000); phone.on('pageerror', e => errors.push(e.message));
     await phone.goto(web + '/#/deck');
   await phone.getByTestId('nav-assistant').click();
-  const selector = () => phone.getByRole('combobox', { name: 'Assistant session', exact: true });
+  const selector = () => phone.getByRole('combobox', { name: 'Salie session', exact: true });
   async function selectTerminal(agent) {
     const option = selector().locator('option').filter({ hasText: new RegExp('^' + agent + ' · Terminal fixture · Terminal') });
     await option.waitFor({ state: 'attached' });
@@ -151,7 +151,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   await phone.getByRole('button', {name:'New tab',exact:true}).click();
   assert.equal(await phone.getByRole('link',{name:'Manage Coding Agents →'}).count(),0);
   await phone.getByRole('button', {name:'New Salie Conversation',exact:true}).click();
-  await phone.getByRole('textbox', {name:'Message to the assistant'}).fill('mobile conversation');
+  await phone.getByRole('textbox', {name:'Message to Salie'}).fill('mobile conversation');
   await phone.getByRole('button',{name:'Send',exact:true}).click();
   await phone.getByTestId('assistant-log').getByText('mobile conversation',{exact:true}).waitFor();
   // Existing task sessions still attach through the phone's reviewed task/run routes.

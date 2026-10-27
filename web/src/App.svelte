@@ -77,7 +77,7 @@
   const phoneMoreLocation = $derived(router.view === 'analytics' ? 'Analytics' : router.view === 'overview' ? 'Overview' : router.view === 'defaults' ? 'Project settings' : '');
 
   // The phone opens on the Control Deck: an address that names no page (the app opened from the home screen) lands there. On a wide
-  // window the deck and the screens only the phone has do not exist, and an address that names one is Needs you.
+  // window the deck and the screens only the phone has do not exist, and an address that names one is Needs attention.
   $effect(() => {
     if (!loaded && app.onboarding === null) return;
     if (deck && !location.hash.replace(/^#\/?/, '')) router.go({ view: 'deck', projectId: '', taskId: '' }, true);
@@ -204,7 +204,7 @@
             {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
             {#if subtitle}
               <div class="ttl">
-                <h1>{globalTitle}{#if subtitle.badge}<span class="num pend" aria-label="{subtitle.badge} need you">{subtitle.badge}</span>{/if}</h1>
+                <h1>{globalTitle}{#if subtitle.badge}<span class="num pend" aria-label="{subtitle.badge} {subtitle.badge === 1 ? 'item needs' : 'items need'} attention">{subtitle.badge}</span>{/if}</h1>
                 <p class="sub mm" data-testid="phone-subtitle">{#if subtitle.dot}<span class="dot" data-tone={subtitle.dot === 'ok' ? 'ok' : subtitle.dot === 'ask' ? 'ask' : 'neutral'} aria-hidden="true"></span>{/if}{subtitle.text}</p>
               </div>
             {:else}
@@ -229,7 +229,7 @@
       <PhoneWelcome />
       {#if router.view !== 'personal'}<Tour surface="desktop" enabled={!deck && !isPhone() && !hosted && !app.needsOnboarding && router.view !== 'onboarding'} />{/if}
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
-      <!-- The Control Deck exposes Needs you through its configurable key. -->
+      <!-- The Control Deck exposes Needs attention through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
       <UpdateBanner />
       {#if app.needsOnboarding && !isPhone() && !framed && router.view !== 'onboarding'}
@@ -348,7 +348,7 @@
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
   {#if !framed}<Assistant />
 {#if !framed && deck && assistant.waiting > 0 && !assistant.isOpen && !assistant.compact}
-  <button class="btn small mobile-attention" onclick={() => assistant.compact = true}>Needs you · {assistant.waiting}</button>
+  <button class="btn small mobile-attention" onclick={() => assistant.compact = true}>Needs attention · {assistant.waiting}</button>
 {/if}
 {#if !framed && assistant.compact && !assistant.isOpen}<PendingInteraction />{/if}{/if}
   <!-- Outside the shell, which is inert while the assistant is open: the phone's two places stay reachable over it. -->

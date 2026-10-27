@@ -87,7 +87,7 @@
   $effect(() => { if (assistant.phase === 'opening') void tick().then(toEnd); });
   $effect(() => () => { cancelAnimationFrame(followingFrame); cancelAnimationFrame(jumpFrame); });
 
-  const suggestions = ['What needs me today?', 'What is blocked right now?', 'What is planned for this week?'];
+  const suggestions = ['What needs my attention?', 'What is blocked right now?', 'What is planned for this week?'];
   const kinds = $derived(assistant.providers);
 
   /** What the screen says about the connection, once there is a conversation to be connected to. */
@@ -167,18 +167,18 @@
       <p class="muted"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Getting ready…</p>
     {:else if assistant.status === 'offline'}
       <h2 class="t">Cannot reach Werkbord</h2>
-      <p>Werkbord on this computer is not answering. If it was restarted, this is usually over in a few seconds.</p>
+      <p>Werkbord is not responding. Check that it is running on your computer, then try again.</p>
       {#if assistant.problem}<p class="muted">{assistant.problem}</p>{/if}
       <button class="btn quiet" type="button" onclick={() => assistant.prepare(true)}>Try again</button>
     {:else if assistant.status === 'unauthorized'}
       <h2 class="t">This device is not signed in</h2>
       <p>Open Werkbord again from its link, then come back.</p>
     {:else if assistant.status === 'disabled'}
-      <h2 class="t">The assistant is turned off</h2>
+      <h2 class="t">Salie is turned off</h2>
       <p>It is switched off in this Werkbord’s settings file (<code>assistant.disabled</code>).</p>
     {:else if assistant.status === 'no-provider'}
       <h2 class="t">Set up a supported CLI first</h2>
-      <p>The assistant uses Claude Code, Codex, Gemini CLI or OpenCode already on this computer, signed in the way you signed it in. Werkbord has no account or key of its own and never asks for one.</p>
+      <p>Install and sign in to a supported coding agent on this computer to use Salie.</p>
       <ul class="provs">
         {#each kinds as p (p.id)}
           <li>

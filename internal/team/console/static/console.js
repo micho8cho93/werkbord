@@ -751,7 +751,7 @@ async function workspaceView() {
   const unread = mentions ? mentions.unread : 0;
   const projectName = (id) => (ov.projects.find((x) => x.project.id === id) || { project: { name: '' } }).project.name;
 
-  const segments = [['all', 'All', w.needsAction.length + (toReview ? 1 : 0) + (mentions && mentions.notifications.length ? 1 : 0)], ['needs', 'Needs you', w.needsAction.length], ['review', 'To review', toReview], ['mentions', 'Mentions', unread]];
+  const segments = [['all', 'All', w.needsAction.length + (toReview ? 1 : 0) + (mentions && mentions.notifications.length ? 1 : 0)], ['needs', 'Needs attention', w.needsAction.length], ['review', 'To review', toReview], ['mentions', 'Mentions', unread]];
   if (!segments.some(([id, , n]) => id === state.wsSegment && (id === 'all' || n > 0))) state.wsSegment = 'all';
   const show = (id) => state.wsSegment === 'all' || state.wsSegment === id;
   const shownSegments = segments.filter(([id, , n]) => id === 'all' || n > 0);
@@ -773,8 +773,8 @@ async function workspaceView() {
     h('p', { class: 'cc-kind' }, h('span', { class: 'cc-dot' }), h('b', {}, 'Mentions'), unread ? h('span', { class: 'cc-badge', title: 'Unread mentions' }, unread + ' unread') : ''), mentionRows(mentions)));
 
   const feed = cards.length ? h('div', { class: 'cc-feed' }, cards)
-    : h('div', { class: 'cc-clear' }, h('span', { class: 'cc-dot ok' }), h('div', {}, h('p', { class: 'cc-clear-title' }, 'Nothing needs you.'),
-        h('p', { class: 'muted' }, 'Review requests, conflicts and mentions appear here the moment they happen.')));
+    : h('div', { class: 'cc-clear' }, h('span', { class: 'cc-dot' + (mentions ? ' ok' : '') }), h('div', {}, h('p', { class: 'cc-clear-title' }, mentions ? 'Nothing needs your attention.' : 'Attention status may be incomplete.'),
+        mentions ? '' : h('p', { class: 'muted' }, 'Mentions could not be loaded.')));
 
   const working = ov.working.length
     ? ov.working.map((it) => h('div', { class: 'cc-run' },
@@ -786,7 +786,7 @@ async function workspaceView() {
 
   const totals = [['Available', ov.available], ['In progress', sum(ov.projects, p => p.counts.in_progress || 0)], ['To review', toReview], ['Your tickets', mine]];
   return h('div', { class: 'cc' }, start, h('dl', { class: 'workspace-statistics' }, totals.map(([label, value]) => h('div', {}, h('dt', {}, label), h('dd', {}, String(value))))), bar, h('div', { class: 'cc-split' },
-    h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, h('h2', {}, 'Needs you'), feed),
+    h('section', { class: 'cc-pane', 'aria-label': 'Workspace' }, h('h2', {}, 'Needs attention'), feed),
     h('aside', { class: 'cc-pane cc-side', 'aria-label': 'What is going on' },
       h('section', { class: 'cc-panel', id: 'working-now', 'aria-label': 'Working now' }, h('div', { class: 'cc-ph' }, 'Working now', h('span', { class: 'cc-chip' }, String(ov.working.length))), working),
       h('section', { class: 'cc-panel', 'aria-label': 'Your queue' }, h('div', { class: 'cc-ph' }, 'Your queue'),
@@ -1072,7 +1072,7 @@ async function myWorkView() {
     : h('p', { class: 'muted' }, 'No branches reported.');
 
   return h('div', {},
-    h('div', { class: 'panel' }, h('h2', {}, 'Needs your attention'), attn,
+    h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attn,
       w.reviewsWaiting ? h('p', {}, h('button', { class: 'link', onclick: () => go('reviews') }, plural(w.reviewsWaiting, 'ticket') + ' waiting for a review you can do')) : ''),
     (w.ready || []).length ? h('div', { class: 'panel' }, h('h2', {}, 'Claimed · ready to start (' + w.ready.length + ')'), list(w.ready, '')) : '',
     h('div', { class: 'panel' }, h('h2', {}, 'In progress (' + w.inProgress.length + ')'), list(w.inProgress, 'You are not working on a ticket. Claim one from a board.')),
@@ -1817,8 +1817,8 @@ function repositoryTab(d) {
           h('td', {}, b.stale ? h('span', { class: 'badge warn' }, 'stale') : b.active ? h('span', { class: 'badge' }, 'active') : '')))))
     : h('p', { class: 'muted' }, 'No branches reported yet.');
   return h('div', {},
-    sectionButtons('repoSection', [['attention', 'Needs you', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
-    state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs you'), attention) : '',
+    sectionButtons('repoSection', [['attention', 'Needs attention', r.attention.length], ['prs', 'Pull requests', r.pullRequests.length], ['branches', 'Branches', r.branches.length]], 'Repository sections'),
+    state.repoSection === 'attention' ? h('div', { class: 'panel' }, h('h2', {}, 'Needs attention'), attention) : '',
     state.repoSection === 'prs' ? h('div', { class: 'panel' }, h('h2', {}, 'Pull requests'), prs) : '',
     state.repoSection === 'branches' ? h('div', { class: 'panel scroll' }, h('h2', {}, 'Branches'), branches,
       h('p', { class: 'muted small' }, 'A branch is stale after ' + r.staleAfterDays + ' days without activity.')) : '');

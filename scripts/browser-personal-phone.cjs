@@ -189,7 +189,7 @@ const workspace = (name, collectionId) => {
     await section.waitFor();
     await section.locator(`[data-workspace-id="${first.id}"], [data-workspace-id="${second.id}"]`).waitFor({ state: 'detached' });
     await page.getByTestId('deck-create-workspace').click();
-    const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+    const box = page.getByRole('textbox', { name: 'Message to Salie' });
     await box.waitFor();
     const creationRequest = await box.inputValue();
     assert.match(creationRequest, /create a new generative workspace/i, 'the phone starts from the shared creation request');

@@ -88,12 +88,12 @@ Check saved task. Progress reports observed state and activity, never an invente
 
 The relay connector honours explicit Individual workflow result links while retaining normal remembered-scope navigation.
 
-The All clear/attention strip is removed. Needs you retains its route and live count. Search and Help are header icons beside
+The All clear/attention strip is removed. Needs attention retains its route and live count. Search and Help are header icons beside
 Settings. The table below lists the navigation catalogue, rather than the initial saved layout.
 
 | Key | Page | Reuses | Counts |
 | --- | --- | --- | --- |
-| Needs you | `#/control` | the Needs you page (`routes/ControlCenter.svelte`) | what needs you (the app's own count) |
+| Needs attention | `#/control` | the Needs attention page (`routes/ControlCenter.svelte`) | what needs you (the app's own count) |
 | Calendar | `#/schedule` | `lib/mobile/Schedule.svelte`: Month, Week, Timeline | |
 | Projects | `#/projects` | the Projects page, each project with what it asks of you | |
 | My Work | `#/mywork` | `lib/mobile/MyWork.svelte`, the board's status words | |
@@ -125,7 +125,7 @@ Every key is at least 44px square (82px on a 320px screen), and a key is an ordi
 - A project's sections (Overview, Board, Calendar, Git, Runs, Settings) are a compact row of tabs under its name instead of the old
   bottom bar. On the board, one column is shown at a time behind a segmented control.
 - Deep links are the existing ones (`#/p/<id>/task/<id>`, `#/p/<id>/git/…`) plus `#/deck`, `#/mywork`, `#/schedule`, `#/agents`,
-  `#/reviews`, `#/repositories` and `#/runners`. On a wide window the pages only the phone has are settled to Needs you.
+  `#/reviews`, `#/repositories` and `#/runners`. On a wide window the pages only the phone has are settled to Needs attention.
 - The state of the Calendar (view, day, project, zoom) is kept when the person leaves it and comes back.
 
 ## Calendar
@@ -161,7 +161,7 @@ applications. Individual's PWA does not import or render Team. A direct private-
 Control Deck and Assistant; the cross-product selector is available through the paired relay connector.
 
 Team phone pages (`internal/team/phone/static/`) show one section at a time from the existing read-only summary: Projects,
-Needs you, My Work, Calendar, Reviews, reported execution under Agents, and reported conflicts under Git. Git does not expose
+Needs attention, My Work, Calendar, Reviews, reported execution under Agents, and reported conflicts under Git. Git does not expose
 branches, commits or repository actions. Analytics, Runners and Settings explain the phone summary's limits and keep the
 selector available. Failed refreshes clear the displayed summary. Missing Team pairing retains the selector and main
 navigation so the person can return to Individual.

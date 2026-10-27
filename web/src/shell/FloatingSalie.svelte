@@ -148,7 +148,7 @@
 </button>
 
 {#if model.assistant.waiting > 0 && !model.assistantShown && !model.assistant.compact}
-  <button class="btn small attention" style:left="{Math.max(12, Math.min(width - 180, spot.x - 60))}px" style:top="{Math.max(12, spot.y - 44)}px" onclick={click}>Needs you · {model.assistant.waiting}</button>
+  <button class="btn small attention" style:left="{Math.max(12, Math.min(width - 180, spot.x - 60))}px" style:top="{Math.max(12, spot.y - 44)}px" onclick={click}>Needs attention · {model.assistant.waiting}</button>
 {/if}
 <style>
   .attention { position: fixed; z-index: 61; color: var(--warn-text); background: var(--surface); }

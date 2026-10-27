@@ -73,7 +73,7 @@
     const needs = segmentCount(items, ['question', 'idle', 'blocked', 'schedule']);
     const failed = segmentCount(items, ['failed']);
     const review = segmentCount(items, ['review']);
-    const parts = [needs ? `${needs} need${needs === 1 ? 's' : ''} you` : '', failed ? `${failed} failed` : '', review ? `${review} to review` : '', working.length ? `${working.length} running` : ''];
+    const parts = [needs ? `${needs} need${needs === 1 ? 's' : ''} attention` : '', failed ? `${failed} failed` : '', review ? `${review} to review` : '', working.length ? `${working.length} running` : ''];
     const known = parts.filter(Boolean).join(' · ');
     return app.connection === 'live' ? known || 'All clear' : `Status may be outdated${known ? ` · ${known}` : ''}`;
   });
@@ -168,12 +168,9 @@
         <div class="clear">
           <span class="dot" data-tone={staleWork ? 'neutral' : 'ok'}></span>
           <div>
-            <p class="clear-title">{app.connection !== 'live' ? 'Waiting for current status.' : segment === 'all' ? 'Nothing needs you.' : 'Nothing here.'}</p>
-            <p class="muted">
-              {staleWork ? 'These are the last reported states. Reconnect or wait for the runner to report before relying on execution status.' : working.length
-                ? `${working.length} ${working.length === 1 ? 'agent is' : 'agents are'} working. Questions, blocked runs and finished work appear here the moment they happen.`
-                : 'Questions, blocked runs, failures and finished work appear here the moment they happen.'}
-            </p>
+            <p class="clear-title">{app.connection !== 'live' ? 'Waiting for current status.' : staleWork ? 'Attention status may be outdated.' : filtering ? 'No items match these filters.' : segment === 'all' ? 'Nothing needs your attention.' : 'Nothing in this view.'}</p>
+            {#if staleWork}<p class="muted">These are the last reported states. Reconnect or wait for the runner to report before relying on execution status.</p>
+            {:else if working.length}<p class="muted">{working.length} {working.length === 1 ? 'agent is' : 'agents are'} working.</p>{/if}
           </div>
         </div>
       {:else}

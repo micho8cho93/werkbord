@@ -3,7 +3,7 @@
   import { formatTime } from '../lib/clock.svelte';
   import AttentionCard from '../lib/attention/AttentionCard.svelte';
   import { agentLabel } from '../lib/execution';
-  import { runElapsed, runStatus } from '../lib/format';
+  import { runElapsed, runReportStale, runStatus } from '../lib/format';
   import FindingCard from '../lib/git/FindingCard.svelte';
   import { gitStore } from '../lib/git/store.svelte';
   import { headlineTone, splitFindings } from '../lib/health';
@@ -23,6 +23,7 @@
   $effect(() => git.watch());
 
   const items = $derived(attentionItems(app.overview, app.questions, { project: project.id }, app.runners));
+  const attentionCurrent = $derived(app.connection === 'live' && !!app.overview && scope.loaded && !scope.history.some(r => runReportStale(r, true, app.runners)));
   const titleOf = (id: string) => scope.activeTasks.find((t) => t.id === id)?.title ?? 'Task';
   const day = $derived(app.now - 86_400_000);
   const recent = $derived(scope.history.filter((r) => !r.endedAt || Date.parse(r.endedAt) >= day || Date.parse(r.createdAt) >= day));
@@ -67,14 +68,14 @@
 <div class="split">
   <div class="pane">
     <section class="pn">
-      <div class="ph">Needs you<span class="chip">{items.length}</span></div>
+      <div class="ph">Needs attention<span class="chip">{items.length}</span></div>
       {#if items.length}
         <ul class="feed">
           {#each items.slice(0, 3) as item (item.key)}<AttentionCard {item} showProject={false} />{/each}
         </ul>
-        {#if items.length > 3}<a class="more" href={globalHref('control')}>{items.length - 3} more in Needs you →</a>{/if}
+        {#if items.length > 3}<a class="more" href={globalHref('control')}>{items.length - 3} more in Needs attention →</a>{/if}
       {:else}
-        <p class="muted small">Nothing here needs you. Agents are working or waiting for work.</p>
+        <p class="muted small">{attentionCurrent ? 'Nothing needs your attention in this project.' : app.connection === 'live' && (!app.overview || !scope.loaded) ? 'Checking project attention…' : 'Attention status may be outdated. Reconnect or wait for an update.'}</p>
       {/if}
     </section>
 

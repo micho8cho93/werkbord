@@ -44,7 +44,7 @@ The console (the page Team serves at its address) is organised around one questi
 
 | Tab | Answers | What is on it |
 | --- | --- | --- |
-| **Workspace** | What needs me? What is everyone doing? | Working now, your unread mentions, actionable attention, shortcuts to your work and reviews, and each project's active work. The tab is named **Needs you**. |
+| **Workspace** | What needs me? What is everyone doing? | Working now, your unread mentions, actionable attention, shortcuts to your work and reviews, and each project's active work. The tab is named **Needs attention**. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
 | **Board** | What work is there in this project? | The shared board: Available, In Progress, Review, Done, and a ticket's details, actions and **comments**. A project switcher keeps the Board, Git and Activity sections on one project. |
 | **Timeline** | When is the work planned, and what waits for what? | The project's tickets as date bars and milestones, grouped by label, status or who does the work, with dependencies as arrows and a list of conflicts. It only shows: nothing is ever rescheduled. See [PLANNING.md](PLANNING.md). |
@@ -325,11 +325,11 @@ and offers to load the latest). Concurrent edits have one winner.
 - A **count** is always the number of **unread** notifications. Nothing marks one read except **Mark read**: not opening it,
   not opening the ticket, not seeing the comment.
 
-**Where they show.** *Needs you* lists your unread mentions across every project you are on; a project's *Overview* lists
+**Where they show.** *Needs attention* lists your unread mentions across every project you are on; a project's *Overview* lists
 those of that project; the ticket highlights every comment that mentions you, with **Mark read** beside the unread ones. A row
 shows the author, the ticket key, an excerpt, the time, **Open comment** and **Mark read**. **Open comment** opens the ticket,
 loads the comments around that one, scrolls it into view and gives it the focus (the address `?tab=board&project=…&ticket=…&comment=…`
-does the same); the console says "Ada mentioned you on WB-4" when one arrives while it is open. Counts are on the *Needs you*
+does the same); the console says "Ada mentioned you on WB-4" when one arrives while it is open. Counts are on the *Needs attention*
 navigation item, the project's *Overview* tab and the ticket's Comments heading.
 
 **Live, and steady.** Writing, editing and deleting a comment move the project's and the workspace's revision like any other change,

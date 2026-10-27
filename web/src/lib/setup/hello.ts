@@ -40,13 +40,13 @@ export function exampleStage(task: Task | undefined, run: Run | undefined): Exam
 /** One line for each stage, in the words the rest of the app uses. */
 export function stageText(stage: ExampleStage, run?: Run): string {
   switch (stage) {
-    case 'no-ticket': return 'No ticket yet.';
-    case 'not-started': return 'The ticket is saved. The assistant has not started.';
-    case 'working': return run?.activity ? `Working: ${run.activity}` : 'The assistant is working on it.';
-    case 'needs-you': return 'The assistant needs you. Open the ticket to answer.';
-    case 'failed': return run?.state === 'completed' ? 'The assistant finished without making changes.' : 'The assistant stopped before finishing.';
+    case 'no-ticket': return 'No task yet.';
+    case 'not-started': return 'The task is saved. The agent has not started.';
+    case 'working': return run?.activity ? `Working: ${run.activity}` : 'The agent is working on it.';
+    case 'needs-you': return 'The agent needs your attention. Open the task to respond.';
+    case 'failed': return run?.state === 'completed' ? 'The agent finished without making changes.' : 'The agent stopped before finishing.';
     case 'review': return 'Done. The changes are ready for you to look at.';
-    case 'done': return 'The ticket is done.';
+    case 'done': return 'The task is done.';
   }
 }
 

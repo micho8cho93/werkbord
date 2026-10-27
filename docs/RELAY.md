@@ -247,7 +247,7 @@ and `WERKBORD_TEAM_PHONE_CONNECTOR_URL=https://connect.company.example` for the 
 supplies these addresses; Werkbord operates neither service. Without them Team Settings says **Ask your admin to turn on phone access**.
 
 In Team Settings → This computer → Phone access, choose **Pair a phone**, copy the private link to your phone and open it.
-The member computer must remain online. The phone can read Needs you, My work and Calendar summaries; it cannot change
+The member computer must remain online. The phone can read Needs attention, My work and Calendar summaries; it cannot change
 Team records or start work. Revoke individual grants in the same settings panel. A pairing link remains a credential until
 revoked; keep it private. See [the separate grant security review](TEAM_PHONE_SECURITY.md).
 

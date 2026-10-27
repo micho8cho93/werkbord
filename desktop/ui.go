@@ -95,7 +95,7 @@ func (u *wailsUI) ChooseFiles() ([]string, error) {
 		return nil, nil
 	}
 	return runtime.OpenMultipleFilesDialog(ctx, runtime.OpenDialogOptions{
-		Title: "Choose files to show the assistant",
+		Title: "Choose files to share with Salie",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "Text files", Pattern: "*.txt;*.md;*.markdown;*.csv;*.tsv;*.json;*.jsonl;*.log;*.yaml;*.yml;*.toml;*.xml;*.html;*.css;*.js;*.ts;*.py;*.go;*.rb;*.rs;*.java;*.sh;*.sql;*.ini;*.cfg"},
 			{DisplayName: "All files", Pattern: "*.*"},

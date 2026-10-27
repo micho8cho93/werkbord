@@ -50,7 +50,7 @@
       return;
     }
     if (assistant.running) {
-      actionProblem = 'The assistant is still replying. Wait for it to finish before sending this follow-up.';
+      actionProblem = 'Salie is still replying. Wait for it to finish before sending this follow-up.';
       return;
     }
     actionProblem = '';

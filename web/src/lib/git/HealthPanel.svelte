@@ -65,7 +65,7 @@
         {#each split.needs as f (f.id)}<FindingCard finding={f} projectId={project.id} {store} />{/each}
       </ul>
     {:else if h.summary.state === 'healthy' && !store.healthError && !h.check?.error}
-      <p class="calm g-small">Nothing needs you. Branches that are finished, pushed and waiting for review are normal and are not reported here.</p>
+      <p class="calm g-small">Nothing needs your attention. Branches that are finished, pushed and waiting for review are normal and are not reported here.</p>
     {/if}
 
     {#if split.housekeeping.length}

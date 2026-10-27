@@ -133,7 +133,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
     const closeAssistant = async page => { await page.getByTestId('assistant-close').click(); await surface(page).waitFor({ state: 'detached' }); };
     const sendText = async (page, text) => {
         const before = await page.locator('article.reply').count();
-        const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+        const box = page.getByRole('textbox', { name: 'Message to Salie' });
         await box.fill(text);
         await page.getByRole('button', { name: 'Send', exact: true }).click();
         await page.waitForFunction(n => document.querySelectorAll('article.reply').length > n, before);
@@ -177,7 +177,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.getByRole('heading', { name: 'Projects', exact: true }).waitFor();
             const button = page.getByTestId('assistant-button').first();
             await button.waitFor();
-            assert.equal(await button.getAttribute('aria-label'), 'Assistant');
+            assert.equal(await button.getAttribute('aria-label'), 'Salie');
             assert.equal(await button.getAttribute('aria-haspopup'), 'dialog');
             await page.screenshot({ path: path.join(artifacts, 'assistant-button-light.png') });
             ok('the Assistant button is in the sidebar, named for what it is');
@@ -296,7 +296,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await page.goto(base + '/#/projects');
             await openAssistant(page);
             assert.equal(await page.getByTestId('assistant-empty').count(), 1, 'a helpful empty state');
-            assert.equal(await page.getByRole('button', { name: 'What needs me today?' }).count(), 1);
+            assert.equal(await page.getByRole('button', { name: 'What needs my attention?' }).count(), 1);
             assert.equal(await page.locator('[data-testid="assistant"] [class*="history"], [data-testid="assistant"] aside').count(), 0, 'no history browser');
             assert.equal(await page.getByTestId('assistant-picker').innerText().then(t => /Claude Code/.test(t)), true, 'says which assistant answers');
 
@@ -746,7 +746,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.match(await listening.innerText(), /Listening/);
             assert.equal(await page.getByTestId('assistant-dictation-cancel').count(), 1, 'a cross to cancel');
             assert.equal(await mic.getAttribute('aria-label'), 'Finish dictation and keep the text to edit');
-            const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+            const box = page.getByRole('textbox', { name: 'Message to Salie' });
             assert.equal(await box.getAttribute('readonly'), '', 'the box is not typed into while it listens');
             await page.evaluate(() => window.__rec.say([['what is bl', false]]));
             await page.waitForFunction(() => document.querySelector('[data-testid="assistant-listening"]')?.dataset.phase === 'hearing' && document.querySelector('textarea').value === 'what is bl');
@@ -844,7 +844,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(await dialog.getAttribute('role'), 'dialog');
             assert.equal(await dialog.getAttribute('aria-modal'), 'true');
             const label = await dialog.getAttribute('aria-labelledby');
-            assert.equal(await page.locator('#' + label).innerText(), 'Assistant');
+            assert.equal(await page.locator('#' + label).innerText(), 'Salie');
             // Tab never leaves the dialog.
             for (let i = 0; i < 25; i++) {
                 await page.keyboard.press('Tab');
@@ -856,8 +856,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.deepEqual(unnamed, [], 'every control is named');
             // Status is announced in words, not just shown.
             await sendText(page, 'slow words');
-            await page.getByTestId('assistant-announce').filter({ hasText: 'The assistant is working.' }).waitFor();
-            await page.getByTestId('assistant-announce').filter({ hasText: 'The assistant has finished.' }).waitFor();
+            await page.getByTestId('assistant-announce').filter({ hasText: 'Salie is working.' }).waitFor();
+            await page.getByTestId('assistant-announce').filter({ hasText: 'Salie has finished.' }).waitFor();
             assert.equal(await page.getByTestId('assistant-log').getAttribute('aria-live'), 'off', 'the streaming text is not read out word by word');
             // Esc closes.
             await page.keyboard.press('Escape');
@@ -865,7 +865,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(await page.evaluate(() => document.activeElement?.dataset.testid), 'assistant-button');
             // Enter sends, Shift+Enter breaks the line.
             await openAssistant(page);
-            const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+            const box = page.getByRole('textbox', { name: 'Message to Salie' });
             await box.fill('line one');
             await box.press('Shift+Enter');
             await box.type('line two');
@@ -905,8 +905,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const micBox = await page.getByTestId('assistant-mic').boundingBox();
             // Transformed bounds can report 43.999999px for a 44px control; allow only subpixel rounding.
             for (const b of [sendBox, bb, deckBox, micBox]) assert.ok(b.width >= 44 - 0.001 && b.height >= 44 - 0.001, 'tap targets are at least 44px: ' + JSON.stringify(b));
-            assert.equal(await page.getByRole('textbox', { name: 'Message to the assistant' }).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), 16, 'the box is 16px so the phone does not zoom');
-            const comp = await page.getByRole('textbox', { name: 'Message to the assistant' }).boundingBox();
+            assert.equal(await page.getByRole('textbox', { name: 'Message to Salie' }).evaluate(el => parseFloat(getComputedStyle(el).fontSize)), 16, 'the box is 16px so the phone does not zoom');
+            const comp = await page.getByRole('textbox', { name: 'Message to Salie' }).boundingBox();
             assert.ok(comp.y + comp.height <= navBox.y, 'the box is above the navigation');
             await sendText(page, `add a ticket to ${project.id}`);
             await page.locator('section.confirm').waitFor();
@@ -982,7 +982,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             ok('a controller restart is shown as "reconnecting", then the same conversation carries on, with its events counted afresh');
             await ctx.close();
         }
-        for (const [mode, want, extra] of [['none', 'Set up a supported CLI first', /claude auth login|codex login/], ['off', 'The assistant is turned off', /assistant\.disabled/]]) {
+        for (const [mode, want, extra] of [['none', 'Set up a supported CLI first', /claude auth login|codex login/], ['off', 'Salie is turned off', /assistant\.disabled/]]) {
             const p2 = await freePort();
             const b2 = 'http://127.0.0.1:' + p2;
             const s2 = start(fixture, { ...env, WERKBORD_BROWSER_ADDR: '127.0.0.1:' + p2, WERKBORD_BROWSER_ASSISTANT: mode, WERKBORD_BROWSER_DIR: '' });
@@ -996,7 +996,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.match(await page.getByTestId('assistant-state').innerText(), extra);
             if (mode === 'none') {
                 assert.equal(await page.getByRole('button', { name: 'Check again' }).count(), 1);
-                assert.equal(await page.getByRole('textbox', { name: 'Message to the assistant' }).count(), 0, 'no box to type into when there is nothing to answer');
+                assert.equal(await page.getByRole('textbox', { name: 'Message to Salie' }).count(), 0, 'no box to type into when there is nothing to answer');
             }
             await page.screenshot({ path: path.join(artifacts, `assistant-state-${mode}.png`) });
             await ctx.close();

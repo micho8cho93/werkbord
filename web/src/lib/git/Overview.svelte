@@ -133,7 +133,7 @@
     <!-- 2. Branches needing attention: Werkbord's own first. -->
     <section class="g-section" aria-label="Branches needing attention">
       <header>
-        <h2>Needs you</h2>
+        <h2>Needs attention</h2>
         <span class="count">{attention.length}</span>
       </header>
       {#if attention.length}
@@ -146,7 +146,7 @@
           <button class="btn quiet" onclick={() => (showAllAttention = true)}>Show all {attention.length}</button>
         {/if}
       {:else}
-        <p class="card empty">Nothing needs you. No branch is waiting for a decision.</p>
+        <p class="card empty">Nothing needs your attention. No branch is waiting for a decision.</p>
       {/if}
     </section>
 

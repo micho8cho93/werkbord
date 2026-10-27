@@ -97,7 +97,7 @@ assert(url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(
 
       const projectFilter = page.getByRole('combobox', { name: 'Filter by project', exact: true });
       await projectFilter.selectOption({ label: 'Venue search' });
-      await page.getByText('Nothing needs you.', { exact: true }).waitFor();
+      await page.getByText('Nothing needs your attention.', { exact: true }).waitFor();
       await page.getByRole('button', { name: 'Clear', exact: true }).click();
       await all.waitFor();
       assert(await page.locator('[data-kind="question"]').count() > 0, 'clearing the project filter restores actionable attention');

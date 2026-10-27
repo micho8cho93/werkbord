@@ -87,7 +87,7 @@
     }
     return [
       { tone: 'work', n: running, label: 'running' },
-      { tone: 'ask', n: needs, label: 'needs you' },
+      { tone: 'ask', n: needs, label: 'needs attention' },
       { tone: 'block', n: blocked, label: 'blocked' },
       { tone: 'ok', n: ready, label: 'ready for review' },
     ];

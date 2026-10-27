@@ -37,14 +37,14 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n =
  */
 export function deckKeys(c: DeckCounts): DeckKey[] {
   return [
-    { id: 'needs', label: 'Workspace', icon: 'control', href: globalHref('control'), count: c.needsYou, tone: 'wait', note: c.needsYou ? `${plural(c.needsYou, 'item')} need you` : '' },
+    { id: 'needs', label: 'Workspace', icon: 'control', href: globalHref('control'), count: c.needsYou, tone: 'wait', note: c.needsYou ? `${plural(c.needsYou, 'item')} ${c.needsYou === 1 ? 'needs' : 'need'} attention` : '' },
     { id: 'calendar', label: 'Calendar', icon: 'calendar', href: globalHref('schedule'), count: 0, tone: 'plain', note: '' },
     { id: 'projects', label: 'Projects', icon: 'folder', href: globalHref('projects'), count: 0, tone: 'plain', note: '' },
     { id: 'mywork', label: 'My Work', icon: 'check', href: globalHref('mywork'), count: 0, tone: 'plain', note: '' },
     { id: 'agents', label: 'Agents', icon: 'activity', href: globalHref('agents'), count: c.running, tone: 'work', note: c.running ? `${c.running} running` : '' },
     { id: 'analytics', label: 'Analytics', icon: 'analytics', href: globalHref('analytics'), count: 0, tone: 'plain', note: '' },
     { id: 'reviews', label: 'Reviews', icon: 'merge', href: globalHref('reviews'), count: c.review, tone: 'work', note: c.review ? `${c.review} ready for review` : '' },
-    { id: 'git', label: 'Git', icon: 'git', href: globalHref('repositories'), count: c.repoAttention, tone: 'wait', note: c.repoAttention ? `${plural(c.repoAttention, 'Git item')} need attention` : '' },
+    { id: 'git', label: 'Git', icon: 'git', href: globalHref('repositories'), count: c.repoAttention, tone: 'wait', note: c.repoAttention ? `${plural(c.repoAttention, 'Git item')} ${c.repoAttention === 1 ? 'needs' : 'need'} attention` : '' },
     { id: 'runners', label: 'Runners', icon: 'runner', href: globalHref('runners'), count: 0, tone: 'plain', note: '' },
   ];
 }

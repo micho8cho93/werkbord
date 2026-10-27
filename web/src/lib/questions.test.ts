@@ -90,9 +90,9 @@ describe('how questions are described', () => {
 
   it('puts the count in the tab title and the banner', () => {
     expect(pageTitle(0)).toBe('Werkbord');
-    expect(pageTitle(3)).toBe('(3) Needs you · Werkbord');
-    expect(needsYouText(1)).toBe('1 question needs you');
-    expect(needsYouText(2)).toBe('2 questions need you');
+    expect(pageTitle(3)).toBe('(3) Needs attention · Werkbord');
+    expect(needsYouText(1)).toBe('1 question needs your answer');
+    expect(needsYouText(2)).toBe('2 questions need your answer');
   });
 });
 

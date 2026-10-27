@@ -38,7 +38,7 @@
 
   const groups = $derived(overview ? attentionGroups(overview) : []);
   const silent = $derived(overview ? overview.entries.filter((e) => e.error || e.workspace.state !== 'ready' || !e.summary) : []);
-  const word: Record<string, string> = { critical: 'Urgent', warning: 'Needs you', info: 'For your information' };
+  const word: Record<string, string> = { critical: 'Urgent', warning: 'Needs attention', info: 'For your information' };
   const tally = $derived(tallyByKind(groups));
 </script>
 
@@ -68,7 +68,7 @@
   {#if !overview}
     <p class="empty">Looking…</p>
   {:else if groups.length === 0 && silent.length === 0}
-    <p class="empty">Nothing needs you.</p>
+    <p class="empty">Nothing needs your attention.</p>
   {/if}
 
   {#each groups as group (group.id)}

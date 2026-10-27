@@ -81,7 +81,7 @@ describe('cardStatus', () => {
     const q = { id: 'q1', prompt: 'Run `go test ./...`?', askedAt: '2026-10-05T10:26:00Z' } as Question;
     const s = cardStatus(task({ state: 'doing' }), run({ state: 'waiting_for_user', waiting: 'question' }), { ...ctx, questions: [q] });
     expect(s.tone).toBe('ask');
-    expect(s.text).toBe('Needs you · 4m');
+    expect(s.text).toBe('Needs your answer · 4m');
     expect(s.detail).toBe('Run `go test ./...`?');
   });
 

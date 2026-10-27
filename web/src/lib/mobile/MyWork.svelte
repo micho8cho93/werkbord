@@ -13,7 +13,7 @@
   const groups = $derived(workGroups(tasksOf(), app.now));
   const ready = $derived(projectsLoaded());
   const tabs = $derived([
-    { id: 'yours', label: 'Yours', count: groups.yours.length },
+    { id: 'yours', label: 'For me to do', count: groups.yours.length },
     { id: 'active', label: 'In progress', count: groups.active.length },
     { id: 'upcoming', label: 'Upcoming', count: groups.upcoming.length },
     { id: 'recent', label: 'Recent' },
@@ -21,7 +21,7 @@
   let tab = $state<WorkTab | ''>('');
   const current = $derived<WorkTab>(tab || (groups.active.length ? 'active' : groups.yours.length ? 'yours' : groups.upcoming.length ? 'upcoming' : 'recent'));
   const empty: Record<WorkTab, string> = {
-    yours: 'Nothing is waiting on you. Work that is yours or shared, and not done, appears here.',
+    yours: 'No unfinished tasks for you to work on.',
     active: 'Nothing is in progress.',
     upcoming: 'Nothing is planned or scheduled for the next two weeks.',
     recent: 'No tasks yet.',

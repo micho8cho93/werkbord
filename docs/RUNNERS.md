@@ -1,7 +1,7 @@
 # Your machines as runners
 
 Werkbord remains local-first. One controller owns SQLite, project/task metadata, Board,
-Calendar, schedules, Needs you and the web app. Every runner owns its local agent
+Calendar, schedules, Needs attention and the web app. Every runner owns its local agent
 processes, credentials, Git clones and worktrees. The controller is also a runner. Werkbord
 operates no hosted orchestration service; V1 connects one user's machines.
 
@@ -154,7 +154,7 @@ Owner-only usage and assessment endpoints support recording other reliable measu
 See [Codex's notification schema](https://raw.githubusercontent.com/openai/codex/main/codex-rs/app-server-protocol/schema/json/v2/ThreadTokenUsageUpdatedNotification.json)
 and [Claude's cost tracking documentation](https://code.claude.com/docs/en/agent-sdk/cost-tracking).
 
-Needs you filters actionable work, orchestration, runner workloads and recent usage by project,
+Needs attention filters actionable work, orchestration, runner workloads and recent usage by project,
 runner and agent. Usage covers the last 30 days and latest 500 runs per project. Coverage counts show
 how many runs reported tokens or costs. Actual charges and estimates are never summed together.
 Runtime measures elapsed ownership (including idle/blocked/disconnected time), not CPU time.

@@ -66,7 +66,7 @@
       const r = await api.startRun(project.id, example.taskId);
       app.scope(project.id)?.upsertRun(r);
     } catch (err) {
-      error = `The assistant could not start: ${err instanceof Error ? err.message : String(err)}`;
+      error = `The agent could not start: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -177,26 +177,26 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </SetupCard>
 {:else if step === 'ticket'}
-  <SetupCard title="Make a ticket" status={task ? 'done' : 'todo'} summary={project.name}>
-    <p>A ticket is a task on your board. This one asks the assistant for a one-page site, so you can watch the whole path.</p>
+  <SetupCard title="Create your first task" status={task ? 'done' : 'todo'} summary={project.name}>
+    <p>Ask an agent to make a one-page site, then follow its work.</p>
     <label class="field"><span>Title</span><input bind:value={title} maxlength="200" disabled={!!task} /></label>
     <label class="field"><span>What it should do</span><textarea bind:value={description} rows="7" disabled={!!task}></textarea></label>
     <div class="row">
-      <button class="btn primary" disabled={busy || !title.trim()} onclick={createAndStart}>{busy ? 'Starting…' : task ? 'Start the assistant' : 'Create ticket and start the assistant'}</button>
+      <button class="btn primary" disabled={busy || !title.trim()} onclick={createAndStart}>{busy ? 'Starting…' : task ? 'Start agent' : 'Create task and start agent'}</button>
       <button class="btn quiet" disabled={busy || !!task} onclick={useTemplate}>Use a template instead</button>
     </div>
     <p class="muted small">The template writes the same page and workflow for you and commits them to {project.name}. Nothing else changes.</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </SetupCard>
 {:else if step === 'assistant'}
-  <SetupCard title="The assistant works" status={stage === 'review' || stage === 'done' ? 'done' : stage === 'failed' ? 'todo' : 'wait'} summary={task?.title ?? ''}>
+  <SetupCard title="Agent work" status={stage === 'review' || stage === 'done' ? 'done' : stage === 'failed' ? 'todo' : 'wait'} summary={task?.title ?? ''}>
     {#if usedTemplate}
-      <p>You used the template, so there is nothing for the assistant to do. Continue to publish.</p>
+      <p>You used the template, so there is nothing for the agent to do. Continue to publish.</p>
     {:else}
       <p role="status" aria-live="polite">{stageText(stage, run)}</p>
       <div class="row">
-        {#if runLink}<a class="btn open" href={runLink}>Open the ticket</a>{/if}
-        {#if stage === 'not-started' || stage === 'failed'}<button class="btn primary" disabled={busy} onclick={retry}>{stage === 'failed' ? 'Try again' : 'Start the assistant'}</button>{/if}
+        {#if runLink}<a class="btn open" href={runLink}>Open task</a>{/if}
+        {#if stage === 'not-started' || stage === 'failed'}<button class="btn primary" disabled={busy} onclick={retry}>{stage === 'failed' ? 'Try again' : 'Start agent'}</button>{/if}
         {#if stage === 'failed'}<button class="btn quiet" disabled={busy} onclick={useTemplate}>Use the template instead</button>{/if}
         {#if stage === 'review' || stage === 'done'}<button class="btn primary" onclick={() => onstep?.('publish')}>Next</button>{/if}
       </div>
@@ -206,7 +206,7 @@
 {:else}
   <SetupCard title={variant === 'local' ? 'Merge the page' : 'Publish the page'} status={phase === 'live' || phase === 'nopages' || phase === 'local-done' ? 'done' : phase === 'idle' ? 'todo' : 'wait'} summary={repoName}>
     {#if stage === 'review'}
-      <p>The assistant made changes on its own branch. Look at them, then merge them into <strong>{target?.name ?? 'main'}</strong>.</p>
+      <p>The agent made changes on its own branch. Look at them, then merge them into <strong>{target?.name ?? 'main'}</strong>.</p>
       {#if plan}<p class="muted">{plan.filesChanged} {plan.filesChanged === 1 ? 'file' : 'files'} changed, +{plan.additions} −{plan.deletions}.{plan.canMerge ? '' : ' It cannot be merged yet.'}</p>{/if}
       {#if plan && !plan.canMerge}<ul>{#each plan.blockers as b (b.code)}<li>{b.message}</li>{/each}</ul>{/if}
       <div class="row">
@@ -218,7 +218,7 @@
       {#if app.onboarding?.steps?.publish !== 'done'}<div class="row"><button class="btn primary" onclick={finishPublish}>Done</button></div>{/if}
     {:else if phase === 'live'}
       <p>Your page is live: <a href={pageUrl} target="_blank" rel="noopener noreferrer">{pageUrl}</a></p>
-      <p class="muted">That was a repository, a ticket, an assistant, a push and a GitHub Actions deploy, all from here.{repoUrl ? '' : ''}</p>
+      <p class="muted">That was a repository, a task, an agent, a push and a GitHub Actions deploy, all from here.{repoUrl ? '' : ''}</p>
       <div class="row">{#if repoUrl}<a class="btn open" href={repoUrl} target="_blank" rel="noopener noreferrer">Open the repository</a>{/if}<button class="btn primary" onclick={() => ondone?.()}>Continue</button></div>
     {:else if phase === 'nopages'}
       <p>Your code is on GitHub{repoUrl ? '' : ''}, but GitHub Pages is not turned on for this repository, so there is no page to open (private repositories need a paid plan).</p>
@@ -230,7 +230,7 @@
       <p>The page is in <strong>{target?.name}</strong> on this computer. Push it to {repoName || 'GitHub'} to publish.</p>
       <div class="row"><button class="btn primary" disabled={busy} onclick={push}>{phase === 'pushing' ? 'Pushing…' : 'Push to GitHub'}</button></div>
     {:else if variant === 'github' && stage !== 'no-ticket' && !usedTemplate && stage !== 'done'}
-      <p class="muted">Waiting for the assistant to finish.</p>
+      <p class="muted">Waiting for the agent to finish.</p>
     {:else if variant === 'github' && repoName}
       <div class="row"><button class="btn primary" onclick={watchPage}>Check the page</button></div>
     {:else}

@@ -2,7 +2,7 @@
 
 Reviewed: 27 October 2026  
 Source baseline: `9bd442bc55e90f83266f9765d3654ccda9e040d5`  
-Status: report only; no application changes implemented.
+Status: implementation is tracked per finding below.
 
 ## 1. Purpose and scope
 
@@ -66,7 +66,7 @@ The proposed attention vocabulary changes the current convention recorded in [DE
 
 ## 4. Interaction and state findings
 
-Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion or duplicated work; **P3** = lower-impact clutter. All items below are unimplemented.
+Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion or duplicated work; **P3** = lower-impact clutter. Items are unimplemented unless a status says otherwise.
 
 ### D01 — Completed first-task setup still offers an agent start · P1
 
@@ -144,6 +144,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C02 — Personal setup invents a second name for tasks · P2
 
+**Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
+
 - **Source:** [HelloFlow.svelte:180](../web/src/lib/setup/HelloFlow.svelte#L180), [tours.ts:33](../web/src/lib/setup/tours.ts#L33).
 - **Problem:** First task becomes “Make a ticket”, followed by “A ticket is a task on your board.” Tours also call Personal items tickets. The explanation compensates for inconsistent naming.
 - **Proposed:** “Create your first task”, “Create task and start agent”, “Open task”, “Press N for a new task.” Remove the synonym explanation. Preserve Ticket in Team.
@@ -172,12 +174,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C06 — Attention language sounds unnatural and uses vague nouns · P2
 
+**Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
+
 - **Source:** [Conversation.svelte:90](../web/src/lib/assistant/Conversation.svelte#L90), [Hub.svelte:33](../web/src/shell/Hub.svelte#L33), [Inbox.svelte:71](../web/src/shell/Inbox.svelte#L71), [deck.ts:43](../web/src/lib/mobile/deck.ts#L43), [DESIGN.md:323](../DESIGN.md#L323).
 - **Problem:** “What needs me today?”, “Needs you”, “Nothing needs you” and “things wait for you” sound awkward. Phone accessible text can also produce “1 item need you.”
 - **Proposed:** Prompt: “What needs my attention?” Attention heading: “Needs attention.” Empty state: “Nothing needs your attention.” Count: “1 item needs attention” / “3 items need attention.” A broader daily-work prompt can use “What’s on my plate today?”
 - **Acceptance:** Grammar works at 0, 1 and many. Attention, workload and calendar scopes stay distinct. Update visible copy, accessibility text, Help and the design vocabulary together; retain old search aliases.
 
 ### C07 — “Assistant” ambiguously refers to Salie and coding agents · P2
+
+**Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
 
 - **Source:** [HelloFlow.svelte:181](../web/src/lib/setup/HelloFlow.svelte#L181), [Conversation.svelte:177](../web/src/lib/assistant/Conversation.svelte#L177), [ConnectionsPanel.svelte:234](../web/src/lib/ConnectionsPanel.svelte#L234), [desktop/ui.go:98](../desktop/ui.go#L98).
 - **Problem:** “Start the assistant”, “The assistant is turned off”, “Assistant” beside MCP permissions and “show the assistant” in file selection refer to different roles.
@@ -199,6 +205,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** Loading names a real operation. First use, filtered results, disconnected data and permission restrictions do not share a misleading generic empty state.
 
 ### C10 — Empty-state prose claims more than an empty list proves · P1
+
+**Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
 
 - **Source:** [ProjectOverview.svelte:77](../web/src/routes/ProjectOverview.svelte#L77), [ControlCenter.svelte:171](../web/src/routes/ControlCenter.svelte#L171), [tours.ts:59](../web/src/lib/setup/tours.ts#L59), [MyWork.svelte:23](../web/src/lib/mobile/MyWork.svelte#L23).
 - **Problem:** “Agents are working or waiting for work” is inferred from no attention items. The analytics tour says an empty chart means nothing has run; filters and missing measurements can also produce empty charts. “Yours” is a human/hybrid task subset, but its empty copy describes work “yours or shared.”
@@ -304,6 +312,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** Help remains searchable, keyboard accessible and linkable by article. Revised instructions match current labels and destinations; important recovery advice remains available when needed.
 
 ### C25 — Broad reassurance and tour claims need narrower factual wording · P1
+
+**Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
 
 - **Source:** [Projects.svelte:111](../web/src/routes/Projects.svelte#L111), [tours.ts:28](../web/src/lib/setup/tours.ts#L28), [FilesView.svelte:134](../web/src/lib/personal/views/FilesView.svelte#L134), [Conversation.svelte:170](../web/src/lib/assistant/Conversation.svelte#L170).
 - **Problem:** A work project says “Nothing is read from or written to your disk” despite being saved application data. The tour says every project is a repository, excluding work projects. File copy says “this computer” even though storage can be on the viewing device. An offline message speculates that a restart will usually resolve in seconds.

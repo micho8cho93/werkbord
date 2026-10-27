@@ -89,8 +89,8 @@
   $effect(() => {
     const running = assistant.running;
     const waiting = assistant.waiting;
-    if (running && !lastRunning) announcement = 'The assistant is working.';
-    else if (!running && lastRunning) announcement = waiting > 0 ? `The assistant has finished. ${waiting === 1 ? 'A change is' : `${waiting} changes are`} waiting for your confirmation.` : 'The assistant has finished.';
+    if (running && !lastRunning) announcement = 'Salie is working.';
+    else if (!running && lastRunning) announcement = waiting > 0 ? `Salie has finished. ${waiting === 1 ? 'A change is' : `${waiting} changes are`} waiting for your confirmation.` : 'Salie has finished.';
     else if (waiting > lastWaiting) announcement = 'A change is waiting for your confirmation.';
     lastRunning = running;
     lastWaiting = waiting;
@@ -149,11 +149,11 @@
     <div class="inner">
       <header class="top">
         <div class="who">
-          <h1 id="asst-title">Assistant</h1>
+          <h1 id="asst-title">Salie</h1>
           {#if !assistant.activeTab.run && !assistant.activeTab.terminal}{#key assistant.activeId}<ModelPicker assistant={assistant.active} />{/key}{/if}
         </div>
         <div class="acts">
-          <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close assistant" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
+          <button class="btn quiet close" class:phone-nav={phone.on} type="button" onclick={() => assistant.hide()} aria-label="Close Salie" title="Close ({isMac ? '' : 'Esc'})" data-testid="assistant-close">
             <Icon name="close" size={16} /><span class="wide">Close</span><kbd class="key wide">Esc</kbd>
           </button>
         </div>

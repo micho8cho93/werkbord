@@ -108,7 +108,7 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
             assert.match(text, /Move your changes off main/);
             assert.match(text, /Nothing changes until you confirm there|You start it yourself|Open changes/);
             // The Git overview is otherwise as it was.
-            await page.getByRole('heading', { name: 'Needs you' }).waitFor();
+            await page.getByRole('heading', { name: 'Needs attention' }).waitFor();
             // "Why this" says what it rests on and which rule shaped it.
             const why = cards(page).first().locator('details.why');
             assert.equal(await why.getAttribute('open'), null, 'the reasons start collapsed');
@@ -231,7 +231,7 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
             await page.getByTestId('assistant-empty').waitFor();
             assert.equal(await page.getByRole('group', { name: 'Things to ask' }).getByRole('button').count(), 3, 'the starting questions are kept');
             await page.screenshot({ path: path.join(artifacts, 'recommendations-assistant-empty.png') });
-            const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+            const box = page.getByRole('textbox', { name: 'Message to Salie' });
             await box.fill('What should I do next? ' + pid);
             await page.getByRole('button', { name: 'Send', exact: true }).click();
             const region = page.getByTestId('assistant-suggestions');

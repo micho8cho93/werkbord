@@ -59,7 +59,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     await bo2Page.goto(base + '/#token=' + boJoin.token);
     for (const p of [adaPage, boPage, bo2Page]) await p.locator('.app-shell').waitFor();
     // Bo's two windows rest on Needs you, with nothing waiting.
-    for (const p of [boPage, bo2Page]) await p.getByText('Nothing needs you.').waitFor();
+    for (const p of [boPage, bo2Page]) await p.getByText('Nothing needs your attention.').waitFor();
     const navBadge = p => p.locator('.rail-primary button[aria-label="Workspace"] .count');
     assert.equal(await navBadge(boPage).count(), 0, 'nothing is counted before anyone is mentioned');
 
@@ -169,7 +169,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     await boPage.locator(`[name="mark-read-${commentId}"]`).click();
     await boPage.waitForFunction(id => /is-read/.test(document.getElementById('comment-' + id)?.className || ''), commentId);
     assert.equal(await api('GET', '/notifications', null, boJoin.token).then(l => l.unread), 0);
-    await bo2Page.getByText('Nothing needs you.').waitFor();
+    await bo2Page.getByText('Nothing needs your attention.').waitFor();
     assert.equal(await navBadge(bo2Page).count(), 0, 'the other window clears its count without being touched');
     assert.equal(await bo2Page.locator('.mention-row').count(), 0);
     assert.match(await boPage.locator(`#comment-${commentId}`).getAttribute('class'), /mentions-me/, 'the comment is still marked as one that mentions Bo');

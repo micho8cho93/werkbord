@@ -29,7 +29,7 @@ describe('browser notifications', () => {
     notifyEvent(event('agent.question', 2), 'App', 'Fix login');
     notifyEvent(event('agent.question', 2), 'App', 'Fix login');
     expect(shown).toHaveLength(1);
-    expect(shown[0].title).toBe('Needs you');
+    expect(shown[0].title).toBe('Needs your answer');
     expect(shown[0].options.body).toBe('App · Fix login');
   });
 
@@ -52,7 +52,7 @@ describe('alerts inside the desktop window', () => {
     notifyEvent(event('agent.failed', 3), 'App', 'Fix login');
     expect(shown).toHaveLength(0);
     expect(posted).toEqual([
-      { type: 'werkbord.frame', event: 'notify', key: 'seq-2', title: 'Needs you', body: 'App · Fix login', urgent: true },
+      { type: 'werkbord.frame', event: 'notify', key: 'seq-2', title: 'Needs your answer', body: 'App · Fix login', urgent: true },
       { type: 'werkbord.frame', event: 'notify', key: 'seq-3', title: 'Agent failed', body: 'App · Fix login', urgent: false },
     ]);
   });

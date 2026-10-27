@@ -105,7 +105,7 @@
     class:compact
     style:left={compact ? `${Math.max(12, Math.min(window.innerWidth - 384, (model.assistantFloatingButton?.getBoundingClientRect().left ?? window.innerWidth - 400) - 150))}px` : undefined}
     style:top={compact ? `${Math.max(12, Math.min(window.innerHeight - 520, (model.assistantFloatingButton?.getBoundingClientRect().top ?? window.innerHeight) - 510))}px` : undefined}
-    title="Assistant"
+    title="Salie"
     src={model.assistantFrame.url}
     referrerpolicy="no-referrer"
     sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"

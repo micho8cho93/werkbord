@@ -143,7 +143,7 @@
 <section class="pn">
   <div class="head">
     <h3>Connect Werkbord to a service</h3>
-    <p class="muted">Connect services the assistant or coding agents can use through Werkbord. Credentials stay with the controller and are never passed to an agent. New connections start disabled.</p>
+    <p class="muted">Connect services Salie or coding agents can use through Werkbord. Credentials stay with the controller and are never passed to an agent. New connections start disabled.</p>
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -231,7 +231,7 @@
           {:else}<p class="note">Not tested. Test the connection to review its tools and resources.</p>{/if}
           <div class="grants" aria-label="Connection access">
             <label class="check"><input type="checkbox" checked={c.enabled} disabled={busy || !c.testedAt} onchange={(e) => enable(c,e.currentTarget.checked)} /><span>Connection enabled</span></label>
-            <label class="check"><input type="checkbox" checked={c.assistantEnabled} disabled={busy || !c.enabled} onchange={(e) => context(c,'assistant',e.currentTarget.checked)} /><span>Assistant</span></label>
+            <label class="check"><input type="checkbox" checked={c.assistantEnabled} disabled={busy || !c.enabled} onchange={(e) => context(c,'assistant',e.currentTarget.checked)} /><span>Salie</span></label>
             <label class="check"><input type="checkbox" checked={c.codingEnabled} disabled={busy || !c.enabled} onchange={(e) => context(c,'coding',e.currentTarget.checked)} /><span>Coding agents</span></label>
           </div>
           {#if (c.tools?.length ?? 0) > 0}
@@ -241,7 +241,7 @@
                 {#each c.tools ?? [] as tool (tool.name)}
                   <li>
                     <div><strong class="mono">{tool.name}</strong>{#if tool.description}<p>{tool.description}</p>{/if}{#if tool.readOnlyHint}<span class="hint">The service describes this tool as read-only; this is an unverified hint.</span>{/if}</div>
-                    <label><span>Assistant</span><select class="select small-select" aria-label="Assistant policy for {tool.name}" value={policyValue(tool.assistantPolicy)} disabled={busy || !c.enabled || !c.assistantEnabled} onchange={(e) => policy(c,tool.name,'assistant',e.currentTarget.value as MCPContextPolicy)}><option value="deny">Deny</option><option value="confirm">Confirm each call</option><option value="allow">Allow</option></select></label>
+                    <label><span>Salie</span><select class="select small-select" aria-label="Salie policy for {tool.name}" value={policyValue(tool.assistantPolicy)} disabled={busy || !c.enabled || !c.assistantEnabled} onchange={(e) => policy(c,tool.name,'assistant',e.currentTarget.value as MCPContextPolicy)}><option value="deny">Deny</option><option value="confirm">Confirm each call</option><option value="allow">Allow</option></select></label>
                     <label><span>Coding</span><select class="select small-select" aria-label="Coding policy for {tool.name}" value={policyValue(tool.codingPolicy)} disabled={busy || !c.enabled || !c.codingEnabled} onchange={(e) => policy(c,tool.name,'coding',e.currentTarget.value as MCPContextPolicy)}><option value="deny">Deny</option><option value="confirm">Confirm each call</option><option value="allow">Allow</option></select></label>
                   </li>
                 {/each}
@@ -255,7 +255,7 @@
                 {#each c.resources ?? [] as resource (resource.uri)}
                   <li>
                     <div><strong>{resource.title || resource.name}</strong><span class="mono uri">{resource.uri}</span>{#if resource.description}<p>{resource.description}</p>{/if}</div>
-                    <button class="btn small open" disabled={!c.enabled || !c.assistantEnabled} onclick={() => readResource(c,resource.uri,'assistant')}>Read for assistant</button>
+                    <button class="btn small open" disabled={!c.enabled || !c.assistantEnabled} onclick={() => readResource(c,resource.uri,'assistant')}>Read for Salie</button>
                     <button class="btn small open" disabled={!c.enabled || !c.codingEnabled} onclick={() => readResource(c,resource.uri,'coding')}>Read for coding</button>
                   </li>
                 {/each}

@@ -12,7 +12,7 @@
   const minute = $derived(Math.floor(app.now / 60_000));
   const cells = $derived(historyCells(runs, minute * 60_000));
   const time = (ms: number) => formatTime(ms);
-  const word: Record<string, string> = { work: 'running', ask: 'needs you', idle: 'waiting for you', block: 'blocked', ok: 'finished', bad: 'failed', neutral: 'stopped' };
+  const word: Record<string, string> = { work: 'running', ask: 'needs your answer', idle: 'waiting for you', block: 'blocked', ok: 'finished', bad: 'failed', neutral: 'stopped' };
   const ran = $derived(cells.filter((c) => c.runs).length);
 </script>
 

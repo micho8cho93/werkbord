@@ -22,9 +22,9 @@ describe('what a person is told', () => {
     expect(f('transient', false).action).toBe('none');
     expect(f('rate_limited').action).toBe('none');
     expect(f('policy').action).toBe('none');
-    expect(f('policy').title).toBe('The assistant stopped for safety');
-    expect(f('protocol').title).toBe('Werkbord could not read the assistant’s response');
-    expect(f('rate_limited').title).toBe('The assistant’s service is limiting requests');
+    expect(f('policy').title).toBe('Salie stopped for safety');
+    expect(f('protocol').title).toBe('Werkbord could not read Salie’s response');
+    expect(f('rate_limited').title).toBe('The coding agent’s service is limiting requests');
     expect(f('model_unavailable').detail).toBe('m');
   });
 
@@ -37,7 +37,7 @@ describe('what a person is told', () => {
     expect(operationTitle('whatever')).toBe('Change');
     expect(operationFailureTitle('update_ticket')).toBe('Could not update the task');
     expect(operationFailureTitle('get_ticket')).toBe('Could not load this task');
-    expect(operationFailureTitle('unknown')).toBe('Could not complete this assistant step');
+    expect(operationFailureTitle('unknown')).toBe('Could not complete this Salie step');
   });
 
   it('spots a file that is not text before sending it anywhere', () => {

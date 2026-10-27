@@ -128,7 +128,7 @@ export interface Destination {
 /** Every place the palette can go to: the window's own pages, and for each workspace its home, projects and places. */
 export function destinations(items: readonly Item[] | undefined, overview: Overview | null): Destination[] {
   const out: Destination[] = [
-    { id: 'page:inbox', title: 'Home', hint: 'Everything that needs you', go: { page: 'inbox' } },
+    { id: 'page:inbox', title: 'Home', hint: 'Everything that needs your attention', go: { page: 'inbox' } },
     { id: 'page:calendar', title: 'Calendar', hint: 'Across Personal and your teams', go: { page: 'calendar' } },
     { id: 'page:reviews', title: 'Reviews', hint: 'Work waiting on a review', go: { page: 'reviews' } },
     { id: 'page:analytics', title: 'Analytics', hint: 'How work is going, by place and period', go: { page: 'analytics' } },

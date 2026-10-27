@@ -187,7 +187,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       const r = ensureReply(t, e.turnId);
       if (!r) break;
       r.status = e.type === 'turn_completed' ? 'done' : e.type === 'turn_failed' ? 'failed' : 'cancelled';
-      r.error = e.type === 'turn_failed' ? e.error ?? { code: 'internal', message: 'The assistant could not finish.', retryable: true } : undefined;
+      r.error = e.type === 'turn_failed' ? e.error ?? { code: 'internal', message: 'Salie could not finish.', retryable: true } : undefined;
       r.notices = r.notices.filter((n) => n !== MISSING_END);
       for (const s of r.steps) if (s.status === 'running') s.status = r.status === 'done' ? 'ok' : 'stopped';
       break;

@@ -73,7 +73,7 @@ const ok = text => console.log('PASS ' + text);
 
   await page.goto(web + '/#/personal');
   await page.getByRole('button', { name: 'Create with Salie', exact: true }).click();
-  const box = page.getByRole('textbox', { name: 'Message to the assistant' });
+  const box = page.getByRole('textbox', { name: 'Message to Salie' });
   const newTab = async () => {
     await page.getByRole('button', { name: 'New tab', exact: true }).click();
     assert.equal(await page.getByRole('dialog', { name: 'New tab', exact: true }).getByText('Coding Agents', {exact:true}).count(), 0);

@@ -9,7 +9,7 @@ Code: `internal/domain/health.go` (the finding entity, severities, thresholds, l
 `internal/domain/health_rules.go` (the rules: pure functions), `internal/service/githealth.go` (gathers facts,
 keeps findings' lives, watches for events), `internal/api/githealth.go` (HTTP),
 `internal/store/sqlite/health.go` and migration `0007` (persistence), `web/src/lib/health.ts` and
-`web/src/lib/git/HealthPanel.svelte`, `FindingCard.svelte` (the screen), and Needs you
+`web/src/lib/git/HealthPanel.svelte`, `FindingCard.svelte` (the screen), and Needs attention
 (`internal/service/control.go`, `web/src/routes/ControlCenter.svelte`).
 
 ---
@@ -158,7 +158,7 @@ It is **not polled.** It runs:
 
 A recalculation publishes `git.health_changed` only when the set of open findings changed (one opened, resolved,
 or changed severity). Recalculating and finding the same thing is silent. The web app refetches the report on that
-event, and Needs you refreshes.
+event, and Needs attention refreshes.
 
 Health never changes the repository. It writes only the unreferenced objects of the in-memory merges, as the merge
 check does, and a test compares refs, status, worktrees and stashes before and after. It never uses the network (a
@@ -206,7 +206,7 @@ A health view that cries wolf is one people learn to ignore. These are choices, 
 * **A target that is not checked out, a detached HEAD**, unless there is something to merge.
 * **A fresh `index.lock`**: Git may be working right now.
 * **Old fetches** when there is no agent work to be wrong about.
-* **Info findings** never count toward "needs attention", never appear in Needs you, and are folded
+* **Info findings** never count toward "needs attention", never appear in Needs attention, and are folded
   away on the Git screen.
 
 ## 8. Thresholds
@@ -235,7 +235,7 @@ the findings that need you (cards with severity, "Git says so" / "A guess", titl
 next step, "First seen", "I know"), then folds for housekeeping, what you have dismissed, what was fixed in the
 last day, and "How this is worked out". *Check now* recalculates.
 
-**Needs you.** It is for exceptions. In order: *Needs input*, *Blocked*, *Failed* (a task's latest run
+**Needs attention.** It is for exceptions. In order: *Needs input*, *Blocked*, *Failed* (a task's latest run
 failed and the task is in Doing or Review; moving the task on, or running it again, clears it), *Ready for
 review* (agents that finished a turn, and tasks in Review with nothing running), and *Repository risk* (open
 findings that are a risk or critical, from the stored report, so no Git is run to draw the screen; each opens the
@@ -275,9 +275,9 @@ Under `/api/projects/{pid}/git`, token required, scoped to the project (another 
   `index.lock`, an unreadable repository leaving other findings alone, dismissal and reopening, **a refresh
   changes nothing in the repository**, **never uses the network**, is not repeated on every read, publishes an
   event only on change, and the watcher (debounce, ignoring agent output, shutting down without hanging).
-* `internal/service/control_health_test.go`, `internal/api/githealth_test.go`: the Needs you list's failed,
+* `internal/service/control_health_test.go`, `internal/api/githealth_test.go`: the Needs attention list's failed,
   review and repository-risk lists, that a quiet successful day produces no exceptions, and the HTTP routes
-  (scope, token, dismissal, a critical finding reaching Needs you).
+  (scope, token, dismissal, a critical finding reaching Needs attention).
 * `internal/store/sqlite/health_test.go`: the round trip, the lifecycle constraints, ordering, pruning, cascade.
 * `internal/domain/health_docs_test.go`: this document lists every rule with its category and basis.
 * `web/src/lib/health.test.ts`: severity and basis wording, what each action does (and that nothing that

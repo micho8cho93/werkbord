@@ -37,7 +37,7 @@ export function runStatus(run: Run): RunStatus {
       };
     case 'waiting_for_user':
       return run.waiting === 'question'
-        ? { label: 'Needs you', tone: 'ask', needsInput: true, active: true, hint: 'The agent is waiting for your answer.' }
+        ? { label: 'Needs your answer', tone: 'ask', needsInput: true, active: true, hint: 'The agent is waiting for your answer.' }
         : { label: 'Waiting for you', tone: 'idle', needsInput: true, active: true, hint: 'The agent finished its turn and is waiting for your next message.' };
     case 'completed':
       return { label: 'Completed', tone: 'ok', needsInput: false, active: false, hint: 'The session is finished.' };

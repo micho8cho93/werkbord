@@ -33,7 +33,7 @@ describe('runStatus', () => {
   it('says whether the agent needs the user, and for what', () => {
     expect(runStatus(run({ state: 'running' }))).toMatchObject({ label: 'Running', tone: 'work', needsInput: false, active: true });
     expect(runStatus(run({ state: 'starting' }))).toMatchObject({ label: 'Starting', needsInput: false, active: true });
-    expect(runStatus(run({ state: 'waiting_for_user', waiting: 'question' }))).toMatchObject({ label: 'Needs you', tone: 'ask', needsInput: true });
+    expect(runStatus(run({ state: 'waiting_for_user', waiting: 'question' }))).toMatchObject({ label: 'Needs your answer', tone: 'ask', needsInput: true });
     expect(runStatus(run({ state: 'waiting_for_user', waiting: 'idle' }))).toMatchObject({ label: 'Waiting for you', tone: 'idle', needsInput: true });
   });
 
@@ -55,7 +55,7 @@ describe('the four states of a task in Doing', () => {
   };
 
   it('are told apart by wording and by tone', () => {
-    expect(Object.values(states).map((s) => s.label)).toEqual(['Running', 'Needs you', 'Blocked', 'Failed']);
+    expect(Object.values(states).map((s) => s.label)).toEqual(['Running', 'Needs your answer', 'Blocked', 'Failed']);
     expect(new Set(Object.values(states).map((s) => s.tone)).size).toBe(4);
   });
 

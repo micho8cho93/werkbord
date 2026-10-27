@@ -73,7 +73,7 @@ export function cardStatus(task: Task, run: Run | undefined, ctx: CardContext): 
       const q = ctx.questions[0];
       if (q) {
         const more = ctx.questions.length > 1 ? ` (+${ctx.questions.length - 1} more)` : '';
-        return { tone: 'ask', text: `Needs you · ${sinceShort(q.askedAt, ctx.now)}${more}`, detail: oneLine(q.prompt, 180), live: false };
+        return { tone: 'ask', text: `Needs your answer · ${sinceShort(q.askedAt, ctx.now)}${more}`, detail: oneLine(q.prompt, 180), live: false };
       }
       if (run.state === 'blocked') return { tone: 'block', text: 'Blocked · stopped rather than guess', detail: oneLine(cardActivity(run), 180), live: false };
       if (s.tone === 'idle') return { tone: 'idle', text: `Waiting for your reply · ${elapsed}`, detail: oneLine(run.activity ?? '', 180), live: false };

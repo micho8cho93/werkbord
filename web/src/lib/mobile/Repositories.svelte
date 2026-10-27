@@ -96,7 +96,7 @@
       {/if}
     {:else if view === 'branches'}
       {#if branches.length === 0}
-        <p class="note">No branch needs you.</p>
+        <p class="note">No branch needs your attention.</p>
       {:else}
         <ul>
           {#each branches as { project, branch, reason } (project.id + branch.name)}

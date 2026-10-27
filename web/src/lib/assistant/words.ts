@@ -9,7 +9,7 @@ export function explain(e: unknown): string {
   if (e instanceof ApiError) {
     if (e.status === 0) return 'Cannot reach Werkbord on this computer. Check the connection before sending the request again.';
     if (e.status === 401) return 'Werkbord could not authorise this request. Open it again from the Werkbord link.';
-    if (e.status === 503) return 'Werkbord could not handle this assistant request. Check the conversation before repeating it.';
+    if (e.status === 503) return 'Werkbord could not handle this Salie request. Check the conversation before repeating it.';
     if (e.status === 413) return e.message;
     return e.message || 'Werkbord could not complete this request.';
   }
@@ -32,21 +32,21 @@ export function failure(err: ErrorInfo): Failure {
       return { title: 'That model is not available to your account', detail, action: 'model' };
     case 'not_signed_in':
     case 'not_installed':
-      return { title: err.code === 'not_installed' ? 'The assistant’s program is not installed' : 'You are signed out of the assistant', detail, action: 'recheck' };
+      return { title: err.code === 'not_installed' ? 'The coding agent is not installed' : 'You are signed out of the coding agent', detail, action: 'recheck' };
     case 'rate_limited':
-      return { title: 'The assistant’s service is limiting requests', detail, action: 'none' };
+      return { title: 'The coding agent’s service is limiting requests', detail, action: 'none' };
     case 'timeout':
-      return { title: 'The assistant took too long to finish this reply', detail, action: 'retry' };
+      return { title: 'Salie took too long to finish this reply', detail, action: 'retry' };
     case 'too_many_steps':
-      return { title: 'The assistant went round in circles', detail, action: 'none' };
+      return { title: 'Salie went round in circles', detail, action: 'none' };
     case 'policy':
-      return { title: 'The assistant stopped for safety', detail, action: 'none' };
+      return { title: 'Salie stopped for safety', detail, action: 'none' };
     case 'protocol':
-      return { title: 'Werkbord could not read the assistant’s response', detail, action: 'none' };
+      return { title: 'Werkbord could not read Salie’s response', detail, action: 'none' };
     case 'audit_unavailable':
       return { title: 'Werkbord could not write its records', detail, action: err.retryable ? 'retry' : 'none' };
     default:
-      return { title: 'The assistant could not finish this reply', detail, action: err.retryable ? 'retry' : 'none' };
+      return { title: 'Salie could not finish this reply', detail, action: err.retryable ? 'retry' : 'none' };
   }
 }
 
@@ -107,7 +107,7 @@ export function operationFailureTitle(op: string): string {
     case 'create_ticket': return 'Could not create the task';
     case 'update_ticket': return 'Could not update the task';
     case 'answer_question': return 'Could not save the answer';
-    default: return 'Could not complete this assistant step';
+    default: return 'Could not complete this Salie step';
   }
 }
 
