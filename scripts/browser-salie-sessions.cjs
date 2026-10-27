@@ -140,7 +140,7 @@ const ok = text => console.log('PASS ' + text);
   // Direct availability is an independent preference; it cannot expose a Phase 1 launch button.
   const setup = page.locator('.catalogue li').first().locator('details');
   await setup.locator('summary').click();
-  await setup.getByRole('checkbox',{name:'Enable direct CLI availability on this device',exact:true}).check();
+  await setup.getByRole('checkbox',{name:'Allow Werkbord to start this CLI on this device',exact:true}).check();
   await setup.getByRole('checkbox',{name:'I have signed in to this CLI on this device',exact:true}).check();
   await page.getByRole('button',{name:'Save agent settings',exact:true}).click();
   await page.getByRole('status').getByText('Saved',{exact:true}).waitFor();
