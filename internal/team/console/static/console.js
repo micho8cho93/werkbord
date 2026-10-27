@@ -1591,7 +1591,7 @@ function ticketPanel(d, k) {
 
   if (!k.archivedAt) {
 
-  if (k.status === 'available' && !k.assigneeId && b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', onclick: run('POST', '/claim') }, 'Claim this ticket'));
+  if (k.status === 'available' && !k.assigneeId && b.member && pcan('tickets.claim')) actions.push(h('button', { class: 'primary', title: 'Assign this ticket to yourself', onclick: run('POST', '/claim') }, 'Claim this ticket'));
   // A ticket claimed before claiming moved it to In progress (a host that is not updated yet, or an old claim) still waits in Available.
   if (k.status === 'backlog' && (isCreator || pcan('tickets.edit'))) actions.push(h('button', { class: 'plain ok', onclick: run('POST', '/move', { status: 'available' }) }, 'Make available'));
   if (k.status === 'available' && mine) actions.push(h('button', { class: agentWork && state.desktop ? 'plain' : 'primary', onclick: run('POST', '/start-work') }, 'Start work'));

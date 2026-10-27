@@ -97,6 +97,8 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 
 ### D04 — Team retains the previous start action during policy review · P1
 
+**Implementation status:** Completed in the Team actions batch; the original observation is retained below.
+
 - **Source:** [desktop.js:507](../internal/team/console/static/desktop.js#L507).
 - **Observed:** “Review and start agent” remains disabled while the policy preview adds “Start agent.” The previous-stage action stays in the current stage.
 - **Change:** Replace the preparation action with the preview, a final “Start agent” and a clear way to change settings. Keep the existing approval boundary.
@@ -281,12 +283,16 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C17 — Team action labels and ticket explanations are unnecessarily conversational · P2
 
+**Implementation status:** Completed in the Team actions batch; the original observation is retained below.
+
 - **Source:** [console.js:1265](../internal/team/console/static/console.js#L1265), [ticket actions:1604](../internal/team/console/static/console.js#L1604), [agent explanation:1653](../internal/team/console/static/console.js#L1653), [dates:1709](../internal/team/console/static/console.js#L1709).
 - **Problem:** “I merged it: record that”, “Take it back”, “Nobody yet”, “What it does, asks and writes stays private” and “The Calendar and the Timeline draw these dates” are wordy or imprecise.
 - **Proposed:** “Record merge” with “Use after merging on your Git host”; “Unassign”; “Unassigned”; “Agent activity is private to [name]”; “Shown in Calendar and Timeline.” Explain Claim as “Assign this ticket to yourself” once where it is introduced.
 - **Acceptance:** Record merge still records an externally performed merge. Unassign, Release, Claim and Request changes retain their separate effects and permissions.
 
 ### C18 — Team setup and handoffs repeatedly teach the trust architecture · P2
+
+**Implementation status:** Completed in the Team actions batch; the original observation is retained below.
 
 - **Source:** [AddTeam.svelte:128](../web/src/shell/AddTeam.svelte#L128), [desktop.js:371](../internal/team/console/static/desktop.js#L371), [private controls:501](../internal/team/console/static/desktop.js#L501), [native setup:201](../desktop/internal/shell/workspaces.go#L201), [runner consent:426](../desktop/internal/shell/workspaces.go#L426).
 - **Problem:** Creation, native setup, runner consent, ticket handoff and private controls repeatedly explain whose computer, credentials and approvals are involved. “Effective policy”, “Untrusted task context” and “exact one-shot authorization” add technical vocabulary.

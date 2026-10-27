@@ -127,7 +127,7 @@
         </label>
         <div class="f"><span>Where it is hosted</span>
           <p class="host">Start with this computer as your team’s only host. Your data stays on machines you own.</p>
-          <p class="fine">Keep this computer online while your team works. After setup, invite people and check automatic backups in Settings. Extra hosts are in Advanced.</p>
+          <p class="fine">Keep this computer online while your team works. Invite people and check backups in Settings after setup.</p>
           <p class="fine">
             {#if needsSetup}Team’s service is not running on this Mac yet. The first time, macOS asks for an administrator password to start it.{:else}Werkbord runs no cloud for your team.{/if}
           </p>

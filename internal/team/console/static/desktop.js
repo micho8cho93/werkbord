@@ -368,7 +368,7 @@ async function settingsView() {
 }
 
 function runnerHandoff(hf) {
-  const box = h('div', { class: 'handoff' }, h('strong', {}, 'Open ' + hf.ticket.key + ' on your runner'), h('p', { class: 'muted' }, 'Your request is signed on this computer. The selected device verifies it and asks your own Werkbord to open a backlog task. Its normal approvals still apply.'));
+  const box = h('div', { class: 'handoff' }, h('strong', {}, 'Open ' + hf.ticket.key + ' on your runner'), h('p', { class: 'muted' }, 'Run this ticket on your computer using your agent. The chosen runner opens it as a backlog task, and its usual approvals still apply.'));
   api('GET', '/devices').then(ds => {
     const mine = ds.filter(d => d.memberId === state.me.member.id && d.capabilities.includes('runner') && !d.revokedAt);
     if (!mine.length) { box.append(h('p', { class: 'muted' }, 'Connect your free runner in Settings first.'), h('button', { class: 'plain', onclick: () => go('settings', 'computer') }, 'Set up my runner')); return; }
