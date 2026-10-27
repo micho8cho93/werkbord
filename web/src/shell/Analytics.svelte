@@ -127,7 +127,7 @@
   {:else}
     <p class="muted stamp">{describe} · the last {days} days{activity.end ? ` · as of ${new Date(activity.end).toLocaleString()}` : ''}</p>
     {#if activity.partial}
-      <p class="notice" role="status">Partial history. A bounded read omitted older records, or retention removed some evidence, so counts may be lower than the full history.</p>
+      <p class="notice" role="status">Some history is unavailable, so totals may be incomplete.</p>
     {/if}
 
     {#if view === 'Work'}
@@ -168,7 +168,7 @@
         <StatTile label="Failed runs" value={(runs.totals.outcomes as Record<string, number | undefined>).failed ?? 0} tone="var(--danger)" />
         <StatTile label="Reported API cost" value={measuredCost(runs.totals.actualCostUsd)} tone="var(--warn)" />
       </dl>
-      <p class="muted">These are Personal’s alone, whatever place is chosen: runs started in the period, and what their agents reported. Missing reports stay unknown, and a normal exit does not verify that a task is complete.</p>
+      <p class="muted">These are Personal’s alone, whatever place is chosen: runs started in the period, and what their agents reported. Missing reports stay unknown, and a run that finished normally does not mean the task is done.</p>
       <div class="board">
         <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>
           {#if runs.totals.attempts}<Donut slices={outcomeSlices} centre={String(runs.totals.attempts)} caption={runs.totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs in this period.</p>{/if}

@@ -245,6 +245,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 ### C11 — Analytics explains its accounting machinery in primary copy · P2
 
+**Implementation status:** Completed in the analytics and recommendations batch; the original observation is retained below.
+
 - **Source:** [Analytics.svelte:135](../web/src/routes/Analytics.svelte#L135), [completion section:201](../web/src/routes/Analytics.svelte#L201), [shell Analytics.svelte:130](../web/src/shell/Analytics.svelte#L130), [Team analytics:2250](../internal/team/console/static/console.js#L2250).
 - **Problem:** “Bounded read”, “execution evidence”, “normal exit”, “completion signals” and “How far each signal reaches, compared on one count scale” require readers to translate internal measurement concepts. Several sections repeat the same limitations.
 - **Proposed:** “Some history is unavailable; totals may be incomplete.” “Run finished does not mean task done.” Chart labels: “Created vs completed”, “Runs by agent”, “Review decisions” and “Recorded completion events” where those match the data. Put calculation methods and overlap details in Reporting details. For Team-only run views: “Agent usage is available in Personal. Choose Personal to view it.”
@@ -375,6 +377,8 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Acceptance:** Reassurance is tied to a verified feature/state. No blanket guarantees about disk writes, all projects, all file sharing or recovery timing. Check desktop and phone storage semantics before finalising copy.
 
 ### C26 — Recommendation and health wording can sound more certain or judgmental than its evidence · P2
+
+**Implementation status:** Completed in the analytics and recommendations batch; the original observation is retained below.
 
 - **Source:** [recommend.ts:48](../web/src/lib/recommend/recommend.ts#L48), [RecommendationCard.svelte:77](../web/src/lib/recommend/RecommendationCard.svelte#L77), [health_rules.go:897](../internal/domain/health_rules.go#L897), [inactive branch finding:965](../internal/domain/health_rules.go#L965).
 - **Problem:** “Everything here is verified and current” is a sweeping confidence statement. “The evidence is thin”, “What it rests on”, “looks abandoned” and “Keeping it only adds noise” are vague, informal or judgmental. The detailed explanation may qualify an inference after its title has already overstated it.

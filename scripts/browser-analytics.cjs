@@ -51,7 +51,7 @@ let browser;
   await page.getByLabel('Analytics time range').selectOption('7');
   await rangeLoaded;
   await page.getByRole('tab', { name: 'Completion', exact: true }).click();
-  await page.getByText('Completion evidence', { exact: true }).click();
+  await page.getByText('Completion details', { exact: true }).click();
   await page.getByText('Agent-reported task completion', { exact: true }).waitFor();
   const reportedTaskCompletion = page.getByText('Agent-reported task completion', { exact: true });
   assert.equal(await reportedTaskCompletion.evaluate(el => el.nextElementSibling.textContent), 'Not recorded');

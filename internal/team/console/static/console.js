@@ -2247,7 +2247,7 @@ async function analyticsView() {
     h('div', { id: 'analytics-panel', role: 'tabpanel', 'aria-labelledby': 'analytics-tab-' + analyticsState.view, tabindex: '0' },
       h('div', { class: 'analytics-filters' }, h('label', {}, 'Project ', project), h('label', {}, 'Time range ', range), extras),
       h('p', { class: 'muted small' }, 'As of ' + new Date(r.end).toLocaleString() + ' · ' + ((r.projects || []).find(p => p.id === scope.appliedProject)?.name || 'All projects you can read') + ' · ' + scope.appliedDays + ' days.'),
-      r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Partial history: the bounded read omitted records or projects. Counts may be lower than the full history.') : '', body));
+      r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Some history is unavailable. Totals may be incomplete.') : '', body));
 }
 
 const timelineTooltip = h('div', { class: 'timeline-tooltip', role: 'tooltip', hidden: true });

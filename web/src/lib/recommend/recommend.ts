@@ -45,7 +45,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export const sourceLabel = (s: string): string => SOURCE_LABEL[s] ?? s.replaceAll('_', ' ');
 
-export const CONFIDENCE_LABEL = { high: 'Everything here is verified and current', medium: 'Part of this is inferred from how you work', low: 'The evidence is thin' } as const;
+export const CONFIDENCE_LABEL = { high: 'Based on checked project data', medium: 'Part of this is inferred from how you work', low: 'Limited supporting data' } as const;
 
 /** A connected Team workspace's project is not on this computer: its screens belong to that workspace. */
 export const isConnectedProject = (projectId: string): boolean => projectId.startsWith('workspace:');

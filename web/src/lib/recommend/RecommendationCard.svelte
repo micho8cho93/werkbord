@@ -78,7 +78,7 @@
         {/each}
       </ul>
     {/if}
-    <p class="lab">What it rests on</p>
+    <p class="lab">Sources</p>
     {#each groupedByTier(rec.evidence) as group (group.tier)}
       <ul class="facts">
         {#each group.items as e, i (group.tier + ':' + i)}

@@ -127,7 +127,7 @@
   {:else if report}
     <p class="muted stamp">As of {new Date(report.end).toLocaleString()} · {report.projectId ? projectName(report.projectId) : 'All projects'} · {Math.round((Date.parse(report.end) - Date.parse(report.start)) / 86400000)} days{loading ? ' · showing the previous snapshot while updating' : ''}</p>
     {#if report.truncated || report.retentionRemoved || report.missingTaskHistory}
-      <p class="notice" role="status">Partial history. {report.truncated ? 'The bounded read omitted older records. ' : ''}{report.retentionRemoved ? 'Event retention has removed some evidence. ' : ''}{report.missingTaskHistory ? `${report.missingTaskHistory} Done records lack a known preceding state and were excluded. ` : ''}Counts may be lower than the full history.</p>
+      <p class="notice" role="status">Some history is unavailable. {report.truncated ? 'Older records were not read. ' : ''}{report.retentionRemoved ? 'Event retention has removed some evidence. ' : ''}{report.missingTaskHistory ? `${report.missingTaskHistory} Done records lack a known preceding state and were excluded. ` : ''}Totals may be incomplete.</p>
     {/if}
     {#if view === 'Activity'}
       <dl class="statistics">
@@ -158,7 +158,7 @@
         <StatTile label="Failed runs" value={totals.outcomes.failed ?? 0} tone="var(--danger)" />
         <StatTile label="Waiting for you" value={totals.outcomes.waiting_for_user ?? 0} tone="var(--amber)" />
       </dl>
-      <p class="muted">Latest outcomes of runs started in the selected period. A normal exit does not verify task completion.</p>
+      <p class="muted">Latest outcomes of runs started in the selected period. A run that finished normally does not mean the task is done.</p>
       <div class="board">
         <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>{#if totals.attempts}<Donut slices={outcomeSlices} centre={String(totals.attempts)} caption={totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs match these filters. Try another provider, runner or time range.</p>{/if}</Panel>
         <Panel title="Reliability" caption="Share of attempts" tone="var(--ok)" span={4}>
@@ -180,7 +180,7 @@
       <p class="muted">Measured usage from runs started in this period. Missing reports remain unknown; subscription charges and remaining quota are unknown.</p>
       <div class="board">
         <Panel title={measure === 'tokens' ? 'Token usage and reporting coverage' : 'Reported and estimated API cost'} caption={measure === 'tokens' ? 'Input against output; cached tokens are counted apart' : 'Two separate measures, never added together'} tone="var(--accent)" span={5}>
-          {#if !totals.attempts}<p class="empty">No execution evidence matches these filters. Try another provider, runner or time range.</p>
+          {#if !totals.attempts}<p class="empty">No runs match these filters. Try another provider, runner or time range.</p>
           {:else if measure === 'tokens'}
             {#if totals.inputTokens !== null && totals.outputTokens !== null && totals.inputTokens + totals.outputTokens > 0}<Donut slices={[{ label: 'Input tokens', value: totals.inputTokens ?? 0, tone: 'var(--accent)' }, { label: 'Output tokens', value: totals.outputTokens ?? 0, tone: 'var(--ok)' }]} centre={measuredNumber((totals.inputTokens ?? 0) + (totals.outputTokens ?? 0))} caption="tokens" label="Input and output tokens" />{/if}
             <AnalyticsBars shares={false} scope={`${chartScope}/${measure}/${scope.runner}`} rows={usageBars} label="Token usage" />
@@ -205,13 +205,13 @@
             <div class="assess"><Ring value={report.accepted / (report.accepted + report.rejected)} tone="var(--ok)" caption="accepted" label="Share of assessed runs you accepted" /><Stack label="Accepted and rejected work" parts={[{ label: 'Accepted', value: report.accepted, tone: 'var(--ok)' }, { label: 'Rejected', value: report.rejected, tone: 'var(--danger)' }]} /></div>
           {:else}<p class="muted">No assessments recorded for runs in this period.</p>{/if}
         </Panel>
-        <Panel title="Completion signals" caption="Each is its own count, not steps of one" tone="var(--accent)" span={7}><AnalyticsBars shares={false} scope={`${chartScope}/${measure}/${scope.runner}`} label="Separate completion signals" rows={[{ label: 'Moved to Done', value: report.completed, tone: 'var(--ok)' }, { label: 'Controller-verified merges', value: report.verifiedMerges, tone: 'var(--block)' }, { label: 'Normal session ends', value: report.normalSessionCompletions, tone: 'var(--accent)' }]} /></Panel>
-        <Panel title="Signals against attempts" caption="How far each signal reaches, compared on one count scale" tone="var(--block)" span={12}>
+        <Panel title="Recorded completion events" caption="Separate counts, not steps of one process" tone="var(--accent)" span={7}><AnalyticsBars shares={false} scope={`${chartScope}/${measure}/${scope.runner}`} label="Separate completion signals" rows={[{ label: 'Moved to Done', value: report.completed, tone: 'var(--ok)' }, { label: 'Controller-verified merges', value: report.verifiedMerges, tone: 'var(--block)' }, { label: 'Normal session ends', value: report.normalSessionCompletions, tone: 'var(--accent)' }]} /></Panel>
+        <Panel title="Completion events against runs" caption="Each event compared with the number of runs" tone="var(--block)" span={12}>
           {#if totals.attempts}<div class="funnel">{#each signals as s (s.label)}<div class="step" style:--tone={s.tone}><span class="nm">{s.label}</span><span class="meter"><span class="fill" style:width="{Math.min(100, (s.value / Math.max(1, ...signals.map(signal => signal.value))) * 100)}%"></span></span><strong class="mm">{s.value}</strong></div>{/each}</div>
           {:else}<p class="empty">No runs match these filters.</p>{/if}
         </Panel>
       </div>
-      <details class="disclosure"><summary>Completion evidence</summary>
+      <details class="disclosure"><summary>Completion details</summary>
         <dl class="facts">
           <div><dt>Agent-reported task completion</dt><dd>{report.agentReportedCompletion ?? 'Not recorded'}</dd></div>
           <div><dt>Normal session ends</dt><dd>{report.normalSessionCompletions}</dd></div>

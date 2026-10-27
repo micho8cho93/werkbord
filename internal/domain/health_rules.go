@@ -894,8 +894,8 @@ func (c *healthCtx) branches() {
 			a := c.deleteAction(b, "Delete the branch")
 			c.add(FindMergedBranch, b.Name, HealthFinding{
 				Severity:    HealthInfo,
-				Title:       fmt.Sprintf("%s is merged and can be deleted", b.Name),
-				Explanation: fmt.Sprintf("Every commit on it is in %s. Keeping it only adds noise to the branch list.", target),
+				Title:       fmt.Sprintf("%s is merged", b.Name),
+				Explanation: fmt.Sprintf("All commits are in %s. You can remove this branch if you no longer need it.", target),
 				Subject:     subj,
 				Evidence:    []HealthEvidence{ev("Target", "%s", target), taskEv(b), ev("Worktree", "%s", wtLine(b))},
 				Action:      a,
@@ -962,8 +962,8 @@ func (c *healthCtx) branches() {
 			}
 			c.add(FindAbandonedBranch, b.Name, HealthFinding{
 				Severity:    HealthAttention,
-				Title:       fmt.Sprintf("%s looks abandoned", b.Name),
-				Explanation: fmt.Sprintf("No agent is working on it and it has been quiet for %s, but it holds %s that are not in %s. This is a guess from inactivity: it may be waiting on you.", ago(quiet), n(ahead, "commit", "commits"), target),
+				Title:       fmt.Sprintf("%s is inactive with unmerged commits", b.Name),
+				Explanation: fmt.Sprintf("No agent is working on it and it has been quiet for %s, but it holds %s that are not in %s. Inactivity is only a signal: it may be waiting on you.", ago(quiet), n(ahead, "commit", "commits"), target),
 				Subject:     subj, Evidence: ex,
 				Action: reviewBranch("Review what is on it", "Decide whether to merge it, resume it with a new run, or delete it.", b),
 			})
