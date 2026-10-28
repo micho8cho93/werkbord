@@ -313,6 +313,13 @@ export interface Runner {
   online: boolean;
 }
 
+/** Work reserved on a revoked runner that may still be executing; only the owner can release it. */
+export interface HeldRun {
+  runnerId: string; runnerName: string; hostname?: string;
+  runId: string; projectId: string; taskId: string; taskTitle?: string;
+  state: string; startedAt: string;
+}
+
 export interface Onboarding {
   completedAt?: string;
   skipped?: string[];

@@ -61,6 +61,7 @@ commands:
   project list          list registered projects
   token                 print the API token (--url: sign-in link; --rotate: replace file-managed token)
   access                which programs on this computer have a narrow way into Werkbord: list, revoke
+  runners               work held on a revoked runner: held, confirm-stopped <runner-id> <run-id> --confirm-stopped
   phones                the phones enrolled to reach Werkbord: list, revoke <id>, add [--qr]
   mcp                   connect an MCP host over stdio (set WERKBORD_MCP_TOKEN to its scoped credential)
   db restore            restore a compatible database backup with the controller stopped
@@ -133,6 +134,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdToken(cfg, args[1:], stdout, stderr)
 	case "access":
 		return cmdAccess(cfg, args[1:], stdout, stderr)
+	case "runners":
+		return a.cmdRunners(ctx, args[1:])
 	case "phones", "phone":
 		return a.cmdPhones(ctx, args[1:])
 	case "mcp":

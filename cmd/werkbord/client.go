@@ -182,6 +182,26 @@ func (c *client) phones(ctx context.Context) ([]phoneaccess.Entry, error) {
 	return r.Phones, err
 }
 
+// heldRun is work reserved on a revoked runner that only the owner can release.
+type heldRun struct {
+	RunnerID   string    `json:"runnerId"`
+	RunnerName string    `json:"runnerName"`
+	Hostname   string    `json:"hostname"`
+	RunID      string    `json:"runId"`
+	ProjectID  string    `json:"projectId"`
+	TaskID     string    `json:"taskId"`
+	TaskTitle  string    `json:"taskTitle"`
+	StartedAt  time.Time `json:"startedAt"`
+}
+
+func (c *client) heldRunnerRuns(ctx context.Context) ([]heldRun, error) {
+	var r struct {
+		Runs []heldRun `json:"runs"`
+	}
+	err := c.do(ctx, http.MethodGet, "/api/runners/held-runs", nil, &r)
+	return r.Runs, err
+}
+
 type runnerInfo struct {
 	Name   string `json:"name"`
 	OS     string `json:"os"`

@@ -735,6 +735,58 @@ func (s *Runners) ReleaseRevoked(ctx context.Context) error {
 	})
 }
 
+// HeldRun is work reserved on a revoked runner that may still be executing. Only the owner, after inspecting that
+// machine, can release it.
+type HeldRun struct {
+	RunnerID   string          `json:"runnerId"`
+	RunnerName string          `json:"runnerName"`
+	Hostname   string          `json:"hostname,omitempty"`
+	RunID      string          `json:"runId"`
+	ProjectID  string          `json:"projectId"`
+	TaskID     string          `json:"taskId"`
+	TaskTitle  string          `json:"taskTitle,omitempty"`
+	State      domain.RunState `json:"state"`
+	StartedAt  time.Time       `json:"startedAt"`
+}
+
+// HeldRevoked lists the active runs on revoked runners that negotiated offline continuation. Revoked runners are not
+// listed with the others, so without this the owner could not find the work that still needs a decision.
+func (s *Runners) HeldRevoked(ctx context.Context) ([]HeldRun, error) {
+	out := []HeldRun{}
+	err := s.Store.View(ctx, func(tx store.Tx) error {
+		runs, err := tx.Runs().ListActive(ctx)
+		if err != nil {
+			return err
+		}
+		known := map[string]*domain.Runner{}
+		for _, run := range runs {
+			if !run.Remote || run.RunnerID == "" {
+				continue
+			}
+			r, ok := known[run.RunnerID]
+			if !ok {
+				if r, err = tx.Runners().Get(ctx, run.RunnerID); err != nil {
+					if errors.Is(err, domain.ErrNotFound) {
+						continue
+					}
+					return err
+				}
+				known[run.RunnerID] = r
+			}
+			if !r.Removed || !r.Capabilities.OfflineContinuation {
+				continue
+			}
+			held := HeldRun{RunnerID: r.ID, RunnerName: r.Name, Hostname: r.Hostname, RunID: run.ID, ProjectID: run.ProjectID, TaskID: run.TaskID, State: run.State, StartedAt: run.CreatedAt}
+			if t, e := tx.Tasks().Get(ctx, run.TaskID); e == nil {
+				held.TaskTitle = t.Title
+			}
+			out = append(out, held)
+		}
+		return nil
+	})
+	return out, err
+}
+
 // ResolveRevoked is a local owner's explicit assertion after inspecting the runner.
 // Revocation has already fenced reports; this is the only way to release its
 // offline-capable execution without trusting an elapsed timeout.

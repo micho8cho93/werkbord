@@ -166,7 +166,7 @@ func (s *Server) handleRevokeRunner(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]string{"status": "revoked", "message": "Identity fenced immediately. Offline-capable work remains reserved until you verify execution has stopped."})
+	writeJSON(w, 200, map[string]string{"status": "revoked", "message": "Identity fenced immediately. Offline-capable work remains reserved, and is listed under Work held on revoked machines, until you verify execution has stopped."})
 }
 
 func (s *Server) handleResolveRevokedRunner(w http.ResponseWriter, r *http.Request) {
@@ -189,4 +189,21 @@ func (s *Server) handleResolveRevokedRunner(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	writeJSON(w, 200, map[string]bool{"resolved": true})
+}
+
+func (s *Server) handleHeldRunnerRuns(w http.ResponseWriter, r *http.Request) {
+	if !s.clientManagementReady(w, r) {
+		return
+	}
+	if s.opt.Distributed == nil {
+		writeError(w, 503, "unavailable", "runner management unavailable")
+		return
+	}
+	held, err := s.opt.Distributed.HeldRevoked(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, 200, map[string]any{"runs": held})
 }

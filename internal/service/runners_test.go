@@ -26,6 +26,7 @@ type runnerTest struct {
 	key      ed25519.PrivateKey
 	runner   *domain.Runner
 	sequence int64
+	offline  bool // advertise offline continuation
 }
 
 func newRunnerTest(t *testing.T) *runnerTest {
@@ -70,7 +71,7 @@ func newRunnerTest(t *testing.T) *runnerTest {
 	return rt
 }
 func (rt *runnerTest) caps() domain.RunnerCapabilities {
-	return domain.RunnerCapabilities{CPU: 8, Agents: []domain.Agent{{ID: "codex", Available: true}}, Repositories: []string{rt.project.ID}, Options: []domain.AgentOptions{{AgentID: "codex", CustomModels: true}}}
+	return domain.RunnerCapabilities{OfflineContinuation: rt.offline, CPU: 8, Agents: []domain.Agent{{ID: "codex", Available: true}}, Repositories: []string{rt.project.ID}, Options: []domain.AgentOptions{{AgentID: "codex", CustomModels: true}}}
 }
 func (rt *runnerTest) sync(reports []runnerwire.Report) (runnerwire.SyncReply, error) {
 	rt.sequence++
@@ -524,5 +525,88 @@ func TestFailedRunnerDeliveryDoesNotPublishSuccess(t *testing.T) {
 	}
 	if !failure {
 		t.Fatal("missing durable failure feedback")
+	}
+}
+
+func TestRevokedOfflineRunnerWorkIsListedAndOnlyTheOwnerReleasesIt(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	rt.offline = true
+	rt.syncMust(t, nil)
+	task := rt.task(t)
+	run := rt.start(t, task)
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run)}}})
+
+	if held, err := rt.svc.HeldRevoked(ctx); err != nil || len(held) != 0 {
+		t.Fatalf("a live runner's work was reported as held: %v %v", held, err)
+	}
+	if err := rt.svc.ResolveRevoked(ctx, rt.runner.ID, run.ID); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("work on a runner that is not revoked was releasable: %v", err)
+	}
+	if err := rt.svc.Revoke(ctx, rt.runner.ID); err != nil {
+		t.Fatal(err)
+	}
+	rs, _ := rt.svc.List(ctx)
+	for _, r := range rs {
+		if r.ID == rt.runner.ID {
+			t.Fatalf("revoked runner is still listed with live ones: %+v", rs)
+		}
+	}
+	held, err := rt.svc.HeldRevoked(ctx)
+	if err != nil || len(held) != 1 || held[0].RunID != run.ID || held[0].RunnerID != rt.runner.ID || held[0].TaskTitle != task.Title || held[0].ProjectID != run.ProjectID {
+		t.Fatalf("%+v %v", held, err)
+	}
+
+	// No amount of elapsed time releases it.
+	rt.now = rt.now.Add(24 * time.Hour)
+	if err := rt.svc.ReleaseRevoked(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held, _ = rt.svc.HeldRevoked(ctx); len(held) != 1 {
+		t.Fatal("work on a revoked offline-capable runner was released by time")
+	}
+	if _, err := rt.f.runs.Create(ctx, NewRun{TaskID: task.ID, AgentID: "codex", Prompt: "again"}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("held task was started a second time: %v", err)
+	}
+
+	for name, c := range map[string][2]string{"unknown run": {rt.runner.ID, "run_missing"}, "unknown runner": {"rnr_missing", run.ID}} {
+		if err := rt.svc.ResolveRevoked(ctx, c[0], c[1]); err == nil {
+			t.Errorf("%s was resolved", name)
+		}
+	}
+	if err := rt.svc.ResolveRevoked(ctx, rt.runner.ID, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if held, _ = rt.svc.HeldRevoked(ctx); len(held) != 0 {
+		t.Fatalf("still held after confirmation: %+v", held)
+	}
+	ended, err := rt.f.runs.Get(ctx, run.ID)
+	if err != nil || !ended.State.Terminal() || !strings.Contains(ended.Reason, "owner verified") {
+		t.Fatalf("%+v %v", ended, err)
+	}
+	// Confirming twice is harmless.
+	if err := rt.svc.ResolveRevoked(ctx, rt.runner.ID, run.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRevokedRunnerWithoutOfflineContinuationKeepsItsTimedRelease(t *testing.T) {
+	rt := newRunnerTest(t)
+	ctx := context.Background()
+	task := rt.task(t)
+	run := rt.start(t, task)
+	rt.syncMust(t, []runnerwire.Report{{RunID: run.ID, Observations: []runnerwire.Observation{rt.started(run)}}})
+	if err := rt.svc.Revoke(ctx, rt.runner.ID); err != nil {
+		t.Fatal(err)
+	}
+	if held, _ := rt.svc.HeldRevoked(ctx); len(held) != 0 {
+		t.Fatalf("an older runner stops itself; nothing is held for the owner: %+v", held)
+	}
+	rt.now = rt.now.Add(runnerwire.Lease + runnerwire.OnlineWindow + time.Minute)
+	if err := rt.svc.ReleaseRevoked(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if ended, err := rt.f.runs.Get(ctx, run.ID); err != nil || !ended.State.Terminal() {
+		t.Fatalf("%+v %v", ended, err)
 	}
 }

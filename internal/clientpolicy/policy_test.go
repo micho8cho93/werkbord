@@ -7,7 +7,7 @@ import (
 )
 
 func TestDefaultDenyManifestAndEventProjection(t *testing.T) {
-	for _, path := range []string{"/api/connections", "/api/phones", "/api/clients", "/api/mcp/grants", "/api/personal/v1/workspaces", "/api/assistant/sessions", "/api/runner/sync", "/api/folders", "/api/projects/prj_x/git/push", "/api/projects/prj_x/terminals"} {
+	for _, path := range []string{"/api/connections", "/api/phones", "/api/clients", "/api/mcp/grants", "/api/personal/v1/workspaces", "/api/assistant/sessions", "/api/runner/sync", "/api/folders", "/api/runners/held-runs", "/api/runners/rnr_x/runs/run_x/resolve", "/api/runners/rnr_x/revoke", "/api/projects/prj_x/git/push", "/api/projects/prj_x/terminals"} {
 		for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
 			if Allowed(httptest.NewRequest(method, path, nil)) {
 				t.Fatalf("exposed %s %s", method, path)

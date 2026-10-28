@@ -192,6 +192,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/runners/{id}", s.handleManageRunner)
 	mux.HandleFunc("DELETE /api/runners/{id}", s.handleManageRunner)
 	mux.HandleFunc("POST /api/runners/{id}/revoke", s.handleRevokeRunner)
+	mux.HandleFunc("GET /api/runners/held-runs", s.handleHeldRunnerRuns)
 	mux.HandleFunc("GET /api/routing-rules", s.handleRoutingRules)
 	mux.HandleFunc("PUT /api/routing-rules", s.handleRoutingRules)
 	mux.HandleFunc("PUT /api/projects/{pid}/runs/{id}/usage", s.handleRunUsage)

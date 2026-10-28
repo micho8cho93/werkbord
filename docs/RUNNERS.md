@@ -115,8 +115,9 @@ Do not clear journals or copy an identity onto another machine to recover it.
 Settings → Runners → Revoke lost runner handles a permanently lost machine. It immediately rejects
 its signatures. A runner that negotiated offline continuation may still be executing, so its runs
 stay reserved, and no timer releases them. After inspecting that machine and stopping its work, the
-owner confirms it (`POST /api/runners/{runnerId}/runs/{runId}/resolve`, see
-[MULTI_DEVICE.md](MULTI_DEVICE.md)); the run then fails as **owner verified execution stopped on
+owner confirms it under **Work held on revoked machines** in Settings → Runners, with
+`werkbord runners confirm-stopped <runner-id> <run-id> --confirm-stopped`, or with
+`POST /api/runners/{runnerId}/runs/{runId}/resolve` (see [MULTI_DEVICE.md](MULTI_DEVICE.md)); the run then fails as **owner verified execution stopped on
 revoked runner**, retained for inspection. Revocation never launches a replacement run. Reconcile the
 owning machine's branch before retrying.
 Disabling a runner or revoking project access queues stops; ordinary removal still requires all

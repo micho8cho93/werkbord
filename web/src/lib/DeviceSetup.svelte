@@ -101,7 +101,7 @@
         <dt>Stop, finish or reply while a runner is offline</dt>
         <dd>The command waits and is delivered once the runner reconnects; it is shown as pending until it is acknowledged.</dd>
         <dt>A computer was lost or revoked</dt>
-        <dd>Its access ends at once. Work that may still be running stays reserved until you have checked that machine and confirmed it stopped; nothing is released by a timer. The multi-device guide (docs/MULTI_DEVICE.md) lists the steps.</dd>
+        <dd>Its access ends at once. Work that may still be running stays reserved until you have checked that machine and confirmed it stopped; nothing is released by a timer. The controller’s Settings → Runners lists that work under “Work held on revoked machines”.</dd>
         <dt>A pairing code failed</dt>
         <dd>Codes work once. Ask the other computer for a new code; nothing is saved from a failed attempt that would block trying again.</dd>
       </dl>

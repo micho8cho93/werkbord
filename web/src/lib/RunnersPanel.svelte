@@ -1,5 +1,6 @@
 <script lang="ts">
   import DeviceTerminals from './DeviceTerminals.svelte';
+  import HeldRunnerWork from './HeldRunnerWork.svelte';
   import { onMount } from 'svelte';
   import { api } from './api';
   import { formatDateTime, formatTime } from './clock.svelte';
@@ -20,6 +21,7 @@
   let pairing = $state<Pairing | null>(null);
   let copied = $state(false);
   let now = $state(Date.now());
+  let held = $state<{ refresh(): Promise<void> }>();
  let expanded = $state<string[]>([]);
   const expired = $derived(pairing ? now >= Date.parse(pairing.expiresAt) : false);
   const size = (n?: number) => n === undefined ? 'Unknown' : `${(n / 1024 ** 3).toFixed(1)} GB`;
@@ -47,9 +49,9 @@
     finally { busy = ''; }
   }
   async function revoke(r: Runner) {
-    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Offline-capable runs remain reserved until you verify execution has stopped. Inspect that machine before resolving ownership.`)) return;
+    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Offline-capable runs remain reserved, and appear under “Work held on revoked machines” below, until you have inspected that machine and confirmed they stopped.`)) return;
     busy = r.id;
-    try { await api.revokeRunner(r.id); await refresh(); }
+    try { await api.revokeRunner(r.id); await refresh(); await held?.refresh(); }
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { busy = ""; }
   }
@@ -115,6 +117,7 @@
     </div>
   {/each}
 </section>
+{#if !isPhone() && !app.remote}<HeldRunnerWork bind:this={held} />{/if}
 <DeviceTerminals />
 
 <style>

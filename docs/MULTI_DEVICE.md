@@ -147,11 +147,16 @@ Unknown/private event types are omitted rather than inherited.
   to replace a client credential.
 - Revoking an offline-capable **runner** fences its key immediately. Its active
   work remains reserved, because the controller cannot prove an offline process
-  stopped. Inspect and stop execution on that machine before confirming recovery.
-  The local controller owner can then call
-  `POST /api/runners/{runnerId}/runs/{runId}/resolve` with
-  `{"confirmStopped":true}` using the owner token. This assertion is audited in
-  the resulting run state. Never make it based on elapsed time alone.
+  stopped, and it is listed under **Work held on revoked machines** in
+  Settings → Runners (`werkbord runners held` on the controller). Inspect and stop
+  execution on that machine, then release each run with the confirmation there,
+  with `werkbord runners confirm-stopped <runner-id> <run-id> --confirm-stopped`,
+  or with `POST /api/runners/{runnerId}/runs/{runId}/resolve` and
+  `{"confirmStopped":true}` using the owner token. Only the local controller
+  owner may; desktop clients, phones and programs are refused. The assertion is
+  audited in the resulting run state. Never make it based on elapsed time alone.
+  Runners that did not negotiate offline continuation stop their own work when
+  their lease expires, so their runs are still released after that timeout.
 - Runner daemon termination/restart is different from a network disconnect:
   existing process recovery and uncertain-journal handling still apply. This
   milestone does not promise process survival across daemon termination.
@@ -200,7 +205,7 @@ reconnect. The app's update guard checks runner journals, running native termina
 |---|---|
 | Pairing code expired, reused or mistyped | Ask the controller for a new code. Codes are single-use and have bounded attempts. A failed attempt leaves no half-paired state that blocks a retry. |
 | Laptop's desktop credential lost or revoked | Revoke it under Desktop control, then pair again with a fresh desktop code. The laptop's runner is unaffected. |
-| Laptop's runner lost or compromised | Revoke the runner (**Revoke lost runner**). Its work stays reserved. Inspect the machine, stop anything still running, then confirm per run with `POST /api/runners/{runnerId}/runs/{runId}/resolve` and `{"confirmStopped":true}` using the owner token. No timer releases it. |
+| Laptop's runner lost or compromised | On the controller, revoke it (**Revoke lost runner**). Its credentials stop working at once but its work stays reserved, because the controller cannot prove an offline process stopped. Inspect that machine and stop anything still running. Then, under **Work held on revoked machines** in Settings → Runners, tick that you inspected it and choose **Release this work**; or run `werkbord runners held` and `werkbord runners confirm-stopped <runner-id> <run-id> --confirm-stopped`. Only the local owner can do this, and no timer does it for you. The run is recorded as failed with *owner verified execution stopped on revoked runner*. Its work on that machine is unverified: reconcile its branch before running the task again. |
 | Operation interrupted on a runner | Follow *Disconnects, revocation and recovery* above: inspect Git and process state, then `werkbord runner operation <id> --confirm-inspected`. |
 | Switch interrupted | Repeat the same connect or `device local` command. The controller is never replaced by an automatic local fallback. |
 
@@ -243,9 +248,9 @@ tests for stale/bound confirmations, hooks/filter refusal, staged-file
 preservation, commit and push, interrupted/replayed receipts, terminal input
 deduplication, independent grants and late result recovery.
 
-Still required before calling this beta-ready: real two-machine Tailscale
+Still required before calling this beta-ready (the step-by-step run and results table are in
+[MULTI_DEVICE_ACCEPTANCE.md](MULTI_DEVICE_ACCEPTANCE.md); none of it has been run yet): real two-machine Tailscale
 acceptance with sleep/wake and disconnects over 90 seconds, and Linux/Windows
-acceptance before claiming mixed-OS support. A graphical control for confirming a
-revoked runner stopped is not built; use the owner API above. No Tailscale
+acceptance before claiming mixed-OS support. No Tailscale
 replacement, SQLite replication, Werkbord-hosted control plane, or controller
 failover is introduced.
