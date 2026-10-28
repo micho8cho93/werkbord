@@ -541,7 +541,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(beforePlanConfirm, before + 1, 'the form action prepared a proposal but did not create a task');
             const actionPosts = requests.filter(r => /\/actions\//.test(r)).length;
             await planCard.getByRole('button', { name: 'Confirm', exact: true }).evaluate(button => { button.click(); button.click(); });
-            await page.locator('section.confirm[data-state="confirmed"]').last().waitFor();
+            await page.locator('section.confirm[data-state="confirmed"]').filter({ has: page.locator('.task-title', { hasText: 'Launch board task' }) }).waitFor();
             assert.equal(requests.filter(r => /\/actions\//.test(r)).length, actionPosts + 1, 'rapid confirm clicks resolve once');
             const afterPlanConfirm = (await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks;
             assert.equal(afterPlanConfirm.length, beforePlanConfirm + 1);
@@ -558,8 +558,9 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const declinePlanCard = page.locator('section.confirm[data-state="waiting"]').last();
             await declinePlanCard.waitFor();
             await declinePlanCard.getByRole('button', { name: 'Decline', exact: true }).click();
-            await page.locator('section.confirm[data-state="declined"]').last().waitFor();
-            await page.locator('section.confirm[data-state="declined"]').last().getByText('Declined.', { exact: true }).waitFor();
+            const declinedPlan = page.locator('section.confirm[data-state="declined"]').filter({ has: page.locator('.task-title', { hasText: 'Declined plan task' }) });
+            await declinedPlan.waitFor();
+            await declinedPlan.getByText('Declined.', { exact: true }).waitFor();
             assert.equal((await api(base, 'GET', `/api/projects/${project.id}/tasks`)).tasks.length, afterPlanConfirm.length, 'rejecting the plan proposal leaves the board unchanged');
             ok('a user can reject a generated plan proposal without changing the board');
             await ctx.close();
