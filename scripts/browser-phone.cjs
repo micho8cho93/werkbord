@@ -349,12 +349,20 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         const page = await ctx.newPage();
         page.setDefaultTimeout(30000);
         page.on('pageerror', (e) => errors.push(e.message));
-        await page.goto(base + '/#token=' + token);
-        // The app rewrites the address to "#/" once it has taken the token; on a slow runner that landed after the next goto.
-        await page.getByRole('link', { name: 'Workspace' }).first().waitFor();
+        // Start on the target route: token-link bootstrap can rewrite a second navigation after startup.
+        await page.addInitScript(({ origin, token }) => {
+            if (location.origin === origin) localStorage.setItem('werkbord.token', token);
+        }, { origin: new URL(base).origin, token });
         await page.goto(base + '/#/settings?phones');
+        await page.waitForURL(url => url.hash === '#/settings?phones');
         const row =page.locator(`[data-phone="${ph.id}"]`);
-        await row.waitFor();
+        try { await row.waitFor(); }
+        catch (error) {
+            console.error('Phone settings URL:', page.url());
+            console.error('Phone settings page:', await page.locator('body').innerText().catch(() => '<unavailable>'));
+            await page.screenshot({ path: path.join(artifacts, 'phone-settings-failure.png'), fullPage: true }).catch(() => {});
+            throw error;
+        }
         assert.match(await row.innerText(), /Desk iPad/);
         assert.match(await row.innerText(), /added .*last seen/);
         await page.getByRole('button', { name: 'Add a phone' }).click();
