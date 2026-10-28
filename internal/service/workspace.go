@@ -24,6 +24,10 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 	}
 	out := SummaryOf(ov, s.now())
 	err = s.Store.View(ctx, func(tx store.Tx) error {
+		out.Changes, err = recentWorkspaceChanges(ctx, tx, ov, out.At)
+		if err != nil {
+			return err
+		}
 		for _, p := range ov.Projects {
 			tasks, err := tx.Tasks().ListByProject(ctx, p.ProjectID)
 			if err != nil {

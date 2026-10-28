@@ -7,6 +7,7 @@ import SquareKanban from '@lucide/svelte/icons/square-kanban';
 import Calendar from '@lucide/svelte/icons/calendar';
 import ChartGantt from '@lucide/svelte/icons/chart-gantt';
 import GitFork from '@lucide/svelte/icons/git-fork';
+import GitCompareArrows from '@lucide/svelte/icons/git-compare-arrows';
 import Radar from '@lucide/svelte/icons/radar';
 import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 import ChartColumn from '@lucide/svelte/icons/chart-column';
@@ -54,6 +55,7 @@ export const appIconComponents = {
   calendar: Calendar,
   timeline: ChartGantt,
   git: GitFork,
+  'product-map': GitCompareArrows,
   activity: Radar,
   runs: SquareTerminal,
   analytics: ChartColumn,
@@ -104,6 +106,7 @@ export const appIconSources: Record<AppIconName, string> = {
   calendar: 'calendar',
   timeline: 'chart-gantt',
   git: 'git-fork',
+  'product-map': 'git-compare-arrows',
   activity: 'radar',
   runs: 'square-terminal',
   analytics: 'chart-column',

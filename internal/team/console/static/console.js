@@ -39,10 +39,10 @@ const FRAMED = window.parent !== window;
 // moves about.
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['product-map', 'Product Map'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
 const ADVANCED_TABS = new Set(['hosts', 'connectivity']);
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
-const PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people', 'project-settings']);
+const PROJECT_TABS = new Set(['product-map', 'overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people', 'project-settings']);
 // The team's own sub-areas, in the order of their tabs. They are the team as a major part; a project's are PROJECT_TABS.
 const WORKSPACE_TABS = ['workspace', 'projects', 'initiatives', 'members'];
 const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
@@ -923,6 +923,7 @@ async function loadProject() {
     // Which tickets have a shared request for agent work: their dependencies gate its start. Only a marking, so it is optional.
     d.schedules = await api('GET', '/projects/' + id + '/schedules').catch(() => []);
   }
+  if (state.tab === 'product-map') d.productMap = await api('GET', '/projects/' + id + '/product-map');
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
   if (state.tab === 'activity' || state.tab === 'board') {
     d.progressReports = await Promise.all(board.tickets.filter(k => k.assigneeId === state.me.member.id).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) })));
@@ -962,9 +963,9 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ...(p.repository ? [['product-map', 'Product Map', 0]] : [])]);
   const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
-  const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
@@ -2427,4 +2428,31 @@ async function initiativesView() {
       h('details', {}, h('summary', {}, 'Activity and changes'), v.activity.map(a => h('p', {}, a.kind + ' · ' + a.ticketKey + ' · ', when(a.createdAt))), v.initiative.history.map(a => h('p', {}, 'Initiative ' + a.kind + ' · ', when(a.at)))),
       h('p', { class: 'muted small' }, 'Updated ', when(v.initiative.updatedAt)),
       v.initiative.ownerId === state.me.member.id || can('projects.manage') ? h('button', { class: 'plain', onclick: () => edit(v.initiative).catch(e => { state.error = e.message; render(); }) }, 'Edit Initiative') : '')) : h('p', { class: 'muted' }, 'No Initiatives to show. Create an Initiative to link work around a shared objective.'));
+}
+
+
+// Published maps are documentation projections. Team never analyses source.
+function productMapTab(d) {
+  const data=d.productMap;
+  const published=data.records.filter(r=>r.state==='published').sort((a,b)=>b.version-a.version);
+  const pending=data.records.filter(r=>r.state==='proposed');
+  const body=h('section', {'aria-label':'Product Map'},h('h2',{},'Product Map'),h('p',{class:'muted'},data.freshness==='updates_available'?'Updates available':data.freshness==='current_as_reported'?'Current according to a recent member report':'Freshness unknown — Team does not inspect local repositories.'));
+  const show=(container,record)=>{
+    container.replaceChildren(h('p',{class:'muted'},'Analysed '+record.snapshot.branch+' · '+record.snapshot.commit.slice(0,12)+' · by '+record.authorId+(record.reviewerId?' · reviewed by '+record.reviewerId:'')));
+    const viewer=h('div');container.append(viewer);
+    import('./ui/product-map.js').then(({mountProductMap})=>{if(viewer.isConnected)mountProductMap(viewer,record.state==='published'?{...record.snapshot,version:record.version}:record.snapshot,published.map(r=>({...r.snapshot,version:r.version})));}).catch(()=>viewer.replaceChildren(h('p',{class:'error'},'The map viewer could not load. Reload this page to retry.')));
+  };
+  if(published.length){const container=h('div');body.append(container);show(container,published[0]);if(published.length>1){const choose=h('select',{'aria-label':'Published map version',onchange:e=>show(container,published.find(r=>r.id===e.target.value))},published.map(r=>h('option',{value:r.id},'Published version '+r.version)));body.prepend(choose);}}
+  else body.append(h('p',{},'No map has been published. Generate a map in your own Werkbord, review it, then propose it to this project. In the desktop app, use the Product Map button beside the project in the sidebar.'));
+  for(const record of pending){
+    const details=h('details',{},h('summary',{},'Review proposed map · '+record.authorId+' · '+new Date(record.createdAt).toLocaleString()));
+    const content=h('div');details.append(content);let loaded=false;details.addEventListener('toggle',()=>{if(details.open&&!loaded){loaded=true;show(content,record);}});
+    if(data.canPublish){
+      const reviewed=h('input',{type:'checkbox'});details.append(h('label',{},reviewed,' I reviewed this exact snapshot and its limitations.'));
+      const decide=decision=>act(()=>api('POST','/projects/'+d.id+'/product-map/proposals/'+record.id+'/review',{decision,digest:record.digest,expectedVersion:record.baseVersion}));
+      details.append(h('div',{class:'actions'},h('button',{class:'primary',onclick:()=>{if(reviewed.checked)decide('publish');else toast('Review the snapshot and tick the acknowledgement first.');}},'Publish map'),h('button',{class:'plain',onclick:()=>decide('decline')},'Decline')));
+    }
+    body.append(details);
+  }
+  return body;
 }

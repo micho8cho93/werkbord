@@ -40,6 +40,9 @@ type Store interface {
 // Tx is a transaction's queries. It is deliberately a plain list of questions in
 // the domain's terms, with no SQL, row or cursor in any signature.
 type Tx interface {
+	ProductMaps(context.Context, string, string) ([]domain.ProductMapRecord, error)
+	ProductMap(context.Context, string, string, string) (domain.ProductMapRecord, error)
+	SaveProductMap(context.Context, string, string, domain.ProductMapRecord, bool) error
 	Initiatives(context.Context, string) ([]domain.Initiative, error)
 	Initiative(context.Context, string, string) (domain.Initiative, error)
 	SaveInitiative(context.Context, string, domain.Initiative, int64) error

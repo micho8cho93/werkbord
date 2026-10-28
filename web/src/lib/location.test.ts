@@ -92,7 +92,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'analytics', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'analytics', 'settings', 'help']);
   });
 
@@ -104,7 +104,7 @@ describe('navigation is data, so it can grow', () => {
 });
 
 describe('a work project has no repository to show', () => {
-  it('lacks the calendar, Git and runs, and keeps the rest', () => {
+  it('keeps planning pages but excludes repository analysis', () => {
     expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'analytics', 'defaults']);
     expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs']);
   });

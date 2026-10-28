@@ -148,3 +148,22 @@ func (r eventRepo) Prune(ctx context.Context, now time.Time) (int, error) {
 func (r eventRepo) ListProjectLifecycle(ctx context.Context) ([]domain.Event, error) {
 	return r.list(ctx, `SELECT seq, type, project_id, task_id, run_id, payload, created_at FROM events WHERE type = 'project.updated' AND json_valid(payload) AND json_extract(payload, '$.lifecycle') IS NOT NULL ORDER BY seq DESC LIMIT 1000`)
 }
+
+// RecentChanges projects only meaningful task transitions and authenticated PR
+// observations. Windowing before limiting prevents edits to Done tasks being
+// mistaken for new completions. No prompts or agent output leave this query.
+func (r eventRepo) RecentChanges(ctx context.Context) ([]domain.Event, error) {
+	return r.list(ctx, `WITH states AS (
+ SELECT seq,type,project_id,task_id,run_id,payload,created_at,
+ LAG(json_extract(payload,'$.state')) OVER (PARTITION BY task_id ORDER BY seq) AS previous
+ FROM events WHERE type IN ('task.created','task.updated') AND json_valid(payload)
+ ), changes AS (
+ SELECT seq,type,project_id,task_id,run_id,
+ json_object('title',json_extract(payload,'$.title'),'sourceRef',json_extract(payload,'$.sourceRef')) AS payload,created_at
+ FROM states WHERE json_extract(payload,'$.state')='done' AND previous IS NOT NULL AND previous!='done'
+ UNION ALL
+ SELECT seq,type,project_id,task_id,run_id,payload,created_at FROM events
+ WHERE type='git.pull_requests_observed' AND json_valid(payload)
+ ) SELECT seq,type,project_id,task_id,run_id,payload,created_at FROM changes
+ ORDER BY seq DESC LIMIT 201`)
+}

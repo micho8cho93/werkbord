@@ -1223,9 +1223,9 @@ func TestMembersLearnOfEachOthersChanges(t *testing.T) {
 
 func TestProjectRolePermissions(t *testing.T) {
 	want := map[domain.ProjectRole]map[domain.ProjectPermission]bool{
-		domain.ProjectContributor: {domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
+		domain.ProjectContributor: {domain.PPProductMapRead: true, domain.PPProductMapPropose: true, domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
 			domain.PPActivityView: true, domain.PPRepositoryView: true, domain.PPCommentsPost: true, domain.PPMemoryRead: true, domain.PPMemoryPropose: true},
-		domain.ProjectReviewer: {domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
+		domain.ProjectReviewer: {domain.PPProductMapRead: true, domain.PPProductMapPropose: true, domain.PPProductMapPublish: true, domain.PPTicketsView: true, domain.PPTicketsCreate: true, domain.PPTicketsClaim: true, domain.PPGitReport: true, domain.PPHandoffOwnTasks: true,
 			domain.PPActivityView: true, domain.PPRepositoryView: true, domain.PPTicketsReview: true, domain.PPGitReportAny: true, domain.PPCommentsPost: true, domain.PPMemoryRead: true, domain.PPMemoryPropose: true, domain.PPMemoryPublish: true, domain.PPMemoryEdit: true, domain.PPMemoryApprove: true, domain.PPMemoryReadRestricted: true},
 	}
 	for _, role := range domain.ProjectRoles() {

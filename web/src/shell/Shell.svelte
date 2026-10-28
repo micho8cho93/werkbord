@@ -14,6 +14,8 @@
   import FloatingSalie from './FloatingSalie.svelte';
   import { salie } from './salie.svelte';
   import Hub from './Hub.svelte';
+  import { catchUpSession } from './catchup-session.svelte';
+  $effect(() => { catchUpSession.ingest(model.overview); });
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
   import AssistantFrame from './AssistantFrame.svelte';
@@ -49,9 +51,10 @@
     else if (pages.includes(where as Page)) model.go(where as Page);
   }
   onMount(() => {
+    const stopCatchUp = catchUpSession.start();
     void model.start();
     const unsubscribe = onApp('shell:go', go);
-    return () => { unsubscribe(); model.stop(); };
+    return () => { stopCatchUp(); unsubscribe(); model.stop(); };
   });
   function key(e: KeyboardEvent): void {
     // ⌘K goes to a project, a place or a page; ⌘⇧K still does, for whoever learnt it when it switched workspace.

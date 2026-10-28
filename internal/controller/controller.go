@@ -40,6 +40,7 @@ import (
 	"werkbord/internal/mcpgrant"
 	"werkbord/internal/netprivate"
 	"werkbord/internal/phoneaccess"
+	"werkbord/internal/productmap"
 	"werkbord/internal/runner"
 	"werkbord/internal/runnerwire"
 	"werkbord/internal/service"
@@ -66,6 +67,7 @@ type Controller struct {
 	db          *sqlite.DB
 	broker      *events.Broker
 	runner      *runner.Manager
+	maps        *productmap.Engine
 	assistant   *assistant.Engine
 	appOps      *appops.Service
 	connections *connections.Service
@@ -280,7 +282,12 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("terminals: %w", err)
 	}
+	c.maps, err = productmap.New(ctx, productmap.Config{Store: c.db, Git: &gitrepo.CLI{}, Providers: providers, WorkDir: filepath.Join(c.cfg.DataDir, "product-maps")})
+	if err != nil {
+		return fmt.Errorf("product maps: %w", err)
+	}
 	apiOpts := api.Options{
+		ProductMaps:  c.maps,
 		Terminals:    c.terminals,
 		Personal:     personal,
 		Memory:       c.knowledge,
@@ -325,6 +332,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// reviewed for (api/phone.go): the owner's token never opens it from the network (api.personalReady).
 	privateOpts.PersonalPhonesOnly = true
 	privateOpts.AuthRequired, privateOpts.Token = true, token
+	privateOpts.ProductMaps = nil
 	privateOpts.Assistant = nil       // the assistant is not served on the private network
 	privateOpts.Connections = nil     // upstream credentials and broker controls stay on this computer
 	privateOpts.MCPManagement = false // the private network gets scoped MCP clients, never grant administration
@@ -395,6 +403,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	clientOpts.Clients, clientOpts.ClientListener = clients, true
 	clientOpts.DeviceOperations = c.deviceOps
 	clientOpts.Phones, clientOpts.LocalAccess, clientOpts.Personal, clientOpts.Terminals = nil, nil, nil, nil
+	clientOpts.ProductMaps = nil
 	clientOpts.Assistant, clientOpts.Memory, clientOpts.Connections, clientOpts.Web = nil, nil, nil, nil
 	clientOpts.Terminals = c.terminals
 	clientHandler.set(api.New(clientOpts).Handler())
@@ -510,6 +519,10 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 // database is still there to record how their runs ended, then the event
 // broker and the database.
 func (c *Controller) teardown(ctx ...context.Context) error {
+	if c.maps != nil {
+		c.maps.Close()
+		c.maps = nil
+	}
 	if c.terminals != nil {
 		c.terminals.Close()
 		c.terminals = nil

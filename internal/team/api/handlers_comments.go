@@ -19,6 +19,9 @@ const maxCommentBodyBytes = 512 << 10
 
 // bodyLimit is the most a request's body may be.
 func bodyLimit(r *http.Request) int64 {
+	if strings.HasSuffix(r.URL.Path, "/product-map/proposals") {
+		return 600 << 10
+	}
 	if p := r.URL.Path; strings.HasSuffix(p, "/comments") || strings.Contains(p, "/comments/") {
 		return maxCommentBodyBytes
 	}

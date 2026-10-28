@@ -183,7 +183,12 @@ func main() {
 	opsDone := make(chan struct{})
 	go func() { defer close(opsDone); deviceOps.RunLocal(opsCtx) }()
 	defer func() { stopOps(); <-opsDone }()
-	handler := api.New(api.Options{DeviceOperations: deviceOps, Clients: clients, Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
+	maps, err := newFixtureProductMaps(ctx, dir, db)
+	if err != nil {
+		panic(err)
+	}
+	defer maps.Close()
+	handler := api.New(api.Options{ProductMaps: maps, DeviceOperations: deviceOps, Clients: clients, Terminals: terminals, Personal: &service.Personal{Deps: deps}, MCP: mcpServer, MCPManagement: true, Connections: connections.New(db, nil, nil, nil), Memory: knowledge, Recommender: recommender, Phones: phones, Assistant: assistantEngine, EmbedOrigins: strings.Fields(os.Getenv("WERKBORD_BROWSER_SHELL_ORIGIN")), Version: "browser-fixture", LocalAccess: access, Distributed: distributed, Scheduler: scheduler, Handoffs: hand, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Runner: mgr, Worktrees: wt, Git: gc, Agents: agents, Settings: settings, Network: network{}, Relay: fixtureRelay{}, Store: db, Events: broker, AuthRequired: true, Token: "disposable-browser-credential", Web: webui.Handler()}).Handler()
 	addr := os.Getenv("WERKBORD_BROWSER_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:17421"

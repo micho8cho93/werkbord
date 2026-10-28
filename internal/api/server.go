@@ -19,6 +19,7 @@ import (
 	"werkbord/internal/localaccess"
 	"werkbord/internal/mcpaccess"
 	"werkbord/internal/phoneaccess"
+	"werkbord/internal/productmap"
 	"werkbord/internal/runner"
 	"werkbord/internal/service"
 	"werkbord/internal/store"
@@ -28,6 +29,7 @@ import (
 
 // Options configures a Server.
 type Options struct {
+	ProductMaps         *productmap.Engine
 	DeviceOperations    *service.DeviceOperations
 	PrepareDeviceSwitch func(context.Context) error
 	ResumeDeviceSwitch  func()
@@ -131,6 +133,7 @@ func New(opt Options) *Server {
 // Handler returns the root handler with middleware applied.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	s.productMapRoutes(mux)
 	s.personalRoutes(mux)
 	s.deviceOperationRoutes(mux)
 	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) {

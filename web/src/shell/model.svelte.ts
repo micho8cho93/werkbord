@@ -135,7 +135,7 @@ export class Model {
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state<{open: boolean; waiting: number; running: boolean; compact?: boolean}>({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle' | 'compact'; run?: {projectId: string; runId: string}; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string } | null>(null);
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle' | 'compact'; run?: {projectId: string; runId: string}; rect: Anchor; personalWorkspace?: string; personalRevision?: number; personalPrompt?: string; catchUpPrompt?: string } | null>(null);
   /** The launcher used most recently; preference changes can remove either launcher. */
   private lastAssistantButton: HTMLElement | undefined;
   assistantSidebarButton: HTMLElement | undefined;
@@ -259,6 +259,11 @@ export class Model {
     this.assistantAsk = { action: 'open', rect, ...(personalPrompt === undefined ? {} : {personalPrompt}), ...(personalWorkspace === undefined ? {} : { personalWorkspace, ...(personalRevision === undefined ? {} : { personalRevision }) }) };
   }
 
+  async explainCatchUp(prompt: string): Promise<void> {
+    await this.toggleAssistant({ x: 24, y: 24, width: 0, height: 0 }, '');
+    if (this.assistantAsk) this.assistantAsk = { action: 'open', rect: this.assistantAsk.rect, catchUpPrompt: prompt.slice(0, 24000) };
+  }
+
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
   setAssistant(s: { open: boolean; waiting: number; running: boolean; compact?: boolean }): void {
     const was = this.assistant.open;
@@ -368,13 +373,15 @@ export class Model {
     }
   }
 
-  async refreshOverview(): Promise<void> {
+  async refreshOverview(): Promise<boolean> {
     try {
       const overview = await ask((a) => a.Overview());
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
       this.overview = { ...overview, entries: this.accessibleEntries(overview) };
+      return true;
     } catch {
       // The overview is what is beside the work; a failure to read it is shown by its pages, not as an error here.
+      return false;
     }
   }
 

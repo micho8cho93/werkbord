@@ -169,6 +169,7 @@ export class AssistantSessions {
       else if (req.action === 'compact') this.compact = !this.compact;
       else if (req.run) this.openRun(req.run.projectId, req.run.runId);
       else {
+        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; this.personalEditing = undefined; }
         if (req.personalWorkspace !== undefined) {
           this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
           this.personalEditing = req.personalWorkspace && req.personalRevision ? { workspaceId: req.personalWorkspace, revision: req.personalRevision } : undefined;

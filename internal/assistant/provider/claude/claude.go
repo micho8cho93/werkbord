@@ -88,6 +88,7 @@ func (p *Provider) Detect(ctx context.Context) provider.Info {
 
 func (p *Provider) capabilities(help string) provider.Capabilities {
 	c := provider.Capabilities{
+		Isolated:  strings.Contains(help, "--safe-mode"),
 		Streaming: provider.StreamTokens, Resume: true, Cancel: true, ModelChoice: true,
 		ReasoningChoice: strings.Contains(help, "--effort"), NativeTools: "mcp", Voice: "none",
 		Notes: []string{

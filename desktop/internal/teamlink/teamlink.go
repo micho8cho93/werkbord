@@ -153,7 +153,14 @@ func (l *Link) call(ctx context.Context, method, path string, in, out any) error
 		return workspaces.ErrNotRunning
 	}
 	defer res.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	limit := int64(1 << 20)
+	if strings.Contains(path, "/product-map") {
+		limit = 16 << 20
+	}
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, limit+1))
+	if int64(len(raw)) > limit {
+		return errors.New("workspace response exceeds its size limit")
+	}
 	if res.StatusCode >= 300 {
 		var e struct {
 			Error struct {

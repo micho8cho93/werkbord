@@ -157,6 +157,7 @@ type Options struct {
 
 // Shell is the app, as the loading screen, the menu and the web app see it.
 type Shell struct {
+	mapShares      productMapShares
 	projectMoves   projectMoves
 	workspaceCalls workspaceCallCache
 	o              Options

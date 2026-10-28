@@ -114,3 +114,5 @@ func (t *txn) Savepoint(ctx context.Context, fn func() error) error {
 	}
 	return err
 }
+
+func (t *txn) ProductMaps() store.ProductMapRepo { return productMapRepo{t.q} }

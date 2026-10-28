@@ -31,6 +31,7 @@ var publicRoutes = map[string]bool{
 // projectRoutes are scoped to one project: a person who is not on it must not be
 // able to tell it exists. Path parameters: {id} project, {tid} ticket.
 var projectRoutes = []string{
+	"GET /projects/{id}/product-map", "POST /projects/{id}/product-map/proposals", "POST /projects/{id}/product-map/proposals/{mid}/review",
 	// Reviewed text-only project transfer and conditional archive; no local path, credential or execution fields.
 	"GET /project-transfer/{id}", "POST /project-transfer/{id}/archive",
 	"GET /projects/{id}/initiatives", // read-only full-scope coordination summaries
@@ -62,6 +63,7 @@ var projectRoutes = []string{
 
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
+	"GET /catch-up",
 	"GET /initiatives", "GET /initiatives/{iid}", "POST /initiatives", "PUT /initiatives/{iid}", // metadata only; no execution
 	// Closed memory DTOs only; exact body scopes are authorized inside each transaction.
 	"POST /memory/delivery", // bounded signed projection events and durable receipts; no file/process access

@@ -114,7 +114,11 @@ export interface Infra {
   warnings?: string[];
 }
 
+export interface Change { id: string; key: string; kind: 'completed' | 'pr_merged'; title: string; href: string; origin?: string; at: string }
+export interface RecentChanges { since: string; through: string; cursor: number; items: Change[]; incomplete: boolean }
+
 export interface Summary {
+  changes?: RecentChanges;
   schema: string;
   workspace: Entry;
   projects: Project[];
@@ -177,6 +181,8 @@ export interface App {
   AssistantWorkspaces(): Promise<{ id: string; name: string }[]>;
   AssistantWorkspaceCall(session: string, request: string, proposal: string, id: string, method: string, args: unknown): Promise<unknown>;
   Overview(): Promise<Overview>;
+  PreviewProductMapShare(local: string, workspace: string, project: string): Promise<{ token: string; workspace: string; project: string; snapshot: import('../../../internal/uipresentation/static/product-map.js').MapSnapshot }>;
+  ConfirmProductMapShare(token: string): Promise<string>;
   RememberPlace(id: string, place: string): Promise<void>;
   TeamDefaults(): Promise<{ name: string; device: string }>;
   CheckInvitation(link: string): Promise<Invitation>;

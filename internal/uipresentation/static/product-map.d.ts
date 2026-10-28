@@ -1,0 +1,3 @@
+export interface MapContent { features: { id: string; name: string; description: string; scenarios: string[]; evidence: { path: string; start: number; end: number }[]; inferred: boolean }[]; relationships: { from: string; to: string; description: string }[]; limitations: string[] }
+export interface MapSnapshot { schema: string; id: string; version: number; repository: string; branch: string; commit: string; tree: string; sourceDigest: string; rules: number; provider: string; model: string; createdAt: string; filesRead: number; filesAvailable: number; content: MapContent }
+export function mountProductMap(root: HTMLElement, snapshot: MapSnapshot, history?: MapSnapshot[]): () => void;

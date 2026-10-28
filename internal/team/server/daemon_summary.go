@@ -36,6 +36,7 @@ type summaryInputs struct {
 	ReadOnly   bool
 	// Schedules are the shared schedule requests, by project.
 	Schedules map[string][]domain.Schedule
+	Changes   *workspace.RecentChanges
 	Planned   []workspace.Planned
 	Progress  map[string]*domain.ProgressRecord
 }
@@ -134,6 +135,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		Projects: []workspace.Project{}, Work: []workspace.Item{}, Attention: []workspace.Attention{}, Schedule: []workspace.Scheduled{},
 		At:      in.Now.UTC(),
 		Planned: in.Planned,
+		Changes: in.Changes,
 	}
 	if out.Workspace.Name == "" {
 		out.Workspace.Name = "Team"
@@ -386,6 +388,10 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	if err := host.Do(ctx, http.MethodGet, "/overview", nil, &ov); err == nil {
 		in.Overview = &ov
 		in.Planned = ov.Planned
+	}
+	var changes workspace.RecentChanges
+	if err := host.Do(ctx, http.MethodGet, "/catch-up", nil, &changes); err == nil {
+		in.Changes = &changes
 	}
 	var rq service.ReviewQueue
 	if err := host.Do(ctx, http.MethodGet, "/reviews", nil, &rq); err == nil {

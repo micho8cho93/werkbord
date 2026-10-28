@@ -9,6 +9,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"werkbord/internal/devicewire"
@@ -32,6 +33,7 @@ type Store interface {
 
 // Tx exposes the repositories bound to one transaction.
 type Tx interface {
+	ProductMaps() ProductMapRepo
 	DeviceOperations() DeviceOperationRepo
 	Personal() PersonalRepo
 	// Savepoint rolls back only fn on failure, retaining other work in this transaction.
@@ -222,6 +224,7 @@ type HealthRepo interface {
 
 // EventRepo is the sequenced event log; terminal transcript retention is bounded.
 type EventRepo interface {
+	RecentChanges(context.Context) ([]domain.Event, error)
 	ListProjectLifecycle(ctx context.Context) ([]domain.Event, error)
 	ListAfterProject(ctx context.Context, projectID string, after int64, limit int) ([]domain.Event, error)
 	// ReplayFloor is the latest event removed by retention. Older clients resnapshot.
@@ -331,4 +334,15 @@ type DeviceOperationRepo interface {
 	Save(context.Context, *devicewire.Record) error
 	Pending(context.Context, string) ([]devicewire.Record, error)
 	Prune(context.Context, time.Time) error
+}
+
+// ProductMapRepo stores immutable snapshots and durable jobs; Publish performs
+// a compare-and-swap of the current map inside the caller's transaction.
+type ProductMapRepo interface {
+	Current(context.Context, string) (*integration.ProductMapSnapshot, error)
+	History(context.Context, string) ([]integration.ProductMapSnapshot, error)
+	Publish(context.Context, string, int64, *integration.ProductMapSnapshot) error
+	SaveJob(context.Context, string, string, any) error
+	Jobs(context.Context, string) ([]json.RawMessage, error)
+	InterruptJobs(context.Context) error
 }

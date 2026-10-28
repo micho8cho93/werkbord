@@ -24,6 +24,9 @@ const (
 type ProjectPermission string
 
 const (
+	PPProductMapRead       ProjectPermission = "product_map.read"
+	PPProductMapPropose    ProjectPermission = "product_map.propose"
+	PPProductMapPublish    ProjectPermission = "product_map.publish"
 	PPMemoryRead           ProjectPermission = "memory.read"
 	PPMemoryPropose        ProjectPermission = "memory.propose"
 	PPMemoryPublish        ProjectPermission = "memory.publish"
@@ -59,6 +62,7 @@ const (
 // AllProjectPermissions lists every project permission.
 func AllProjectPermissions() []ProjectPermission {
 	return []ProjectPermission{
+		PPProductMapRead, PPProductMapPropose, PPProductMapPublish,
 		PPTicketsView, PPTicketsCreate, PPTicketsEdit, PPTicketsClaim, PPTicketsAssign, PPTicketsReview, PPTicketsReopen,
 		PPGitReport, PPGitReportAny, PPInvitesManage, PPMembersManage, PPActivityView, PPRepositoryView, PPHandoffOwnTasks,
 		PPCommentsPost, PPCommentsModerate,
@@ -67,12 +71,13 @@ func AllProjectPermissions() []ProjectPermission {
 }
 
 var contributorPermissions = []ProjectPermission{
+	PPProductMapRead, PPProductMapPropose,
 	PPTicketsView, PPTicketsCreate, PPTicketsClaim, PPGitReport, PPActivityView, PPRepositoryView, PPHandoffOwnTasks, PPCommentsPost, PPMemoryRead, PPMemoryPropose,
 }
 
 var projectRolePermissions = map[ProjectRole][]ProjectPermission{
 	ProjectOwner:       AllProjectPermissions(),
-	ProjectReviewer:    append(append([]ProjectPermission(nil), contributorPermissions...), PPTicketsReview, PPGitReportAny, PPMemoryPublish, PPMemoryEdit, PPMemoryApprove, PPMemoryReadRestricted),
+	ProjectReviewer:    append(append([]ProjectPermission(nil), contributorPermissions...), PPProductMapPublish, PPTicketsReview, PPGitReportAny, PPMemoryPublish, PPMemoryEdit, PPMemoryApprove, PPMemoryReadRestricted),
 	ProjectContributor: contributorPermissions,
 }
 

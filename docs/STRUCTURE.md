@@ -154,6 +154,10 @@ add a `teamMode` flag, a Team-only branch, or a Team import to one of Personal's
 API routes to `web/` or `internal/api`. If one of Personal's packages needs to change so Team can reuse it, the change makes
 it more general and stays free of Team's concepts.
 
+## Catch-up and Product Map
+
+[Project Catch-Up](CATCH_UP.md) adds measured, permission-filtered activity to Home. [Living Product Map](PRODUCT_MAP.md) runs user-initiated analysis in the local controller under `internal/productmap`, using restricted provider sessions and Git object reads. Team receives only reviewed snapshots through the neutral integration contract; its map storage, permissions, APIs and UI stay under `internal/team`. The desktop shell freezes an exact publication projection and never links the analysis engine.
+
 ## What Team has
 
 Team also coordinates cross-repository [Initiatives](INITIATIVES.md) under `internal/team/`: reference-only

@@ -143,6 +143,7 @@ const (
 // Capabilities is what was found out about a provider by trying it, not by reading its marketing. Each claim here
 // is documented, with how it was checked and what is not supported, in docs/ASSISTANT.md.
 type Capabilities struct {
+	Isolated  bool        `json:"isolated,omitempty"`
 	Streaming Granularity `json:"streaming"`
 	// Resume: a later turn can continue the same conversation.
 	Resume bool `json:"resume"`

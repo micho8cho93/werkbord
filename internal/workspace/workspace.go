@@ -404,15 +404,16 @@ func DecodeListing(r io.Reader) (Listing, error) {
 
 // Summary is everything the shell shows of one workspace outside the workspace's own interface.
 type Summary struct {
-	Schema    string      `json:"schema"`
-	Workspace Entry       `json:"workspace"`
-	Projects  []Project   `json:"projects"`
-	Work      []Item      `json:"work"`
-	Attention []Attention `json:"attention"`
-	Schedule  []Scheduled `json:"schedule"`
-	Planned   []Planned   `json:"planned,omitempty"`
-	Infra     *Infra      `json:"infra,omitempty"`
-	At        time.Time   `json:"at"`
+	Changes   *RecentChanges `json:"changes,omitempty"`
+	Schema    string         `json:"schema"`
+	Workspace Entry          `json:"workspace"`
+	Projects  []Project      `json:"projects"`
+	Work      []Item         `json:"work"`
+	Attention []Attention    `json:"attention"`
+	Schedule  []Scheduled    `json:"schedule"`
+	Planned   []Planned      `json:"planned,omitempty"`
+	Infra     *Infra         `json:"infra,omitempty"`
+	At        time.Time      `json:"at"`
 }
 
 var (
@@ -466,6 +467,9 @@ func Clip(s string, max int) string { return clip(s, max) }
 
 // Validate checks a whole summary as a strict reader would. It reports the first problem.
 func (s Summary) Validate() error {
+	if !s.Changes.valid() {
+		return errors.New("workspace: invalid recent changes")
+	}
 	if s.Schema != Schema {
 		return fmt.Errorf("workspace: schema %q is not %q", s.Schema, Schema)
 	}
@@ -547,6 +551,10 @@ func (e Entry) validate() error {
 func (s Summary) Clean() (Summary, int) {
 	dropped := 0
 	out := s
+	if !out.Changes.valid() {
+		out.Changes = nil
+		dropped++
+	}
 	out.Projects = make([]Project, 0, len(s.Projects))
 	for _, p := range s.Projects {
 		p.Name = clip(p.Name, MaxName)
@@ -647,6 +655,9 @@ func Decode(r io.Reader, want string) (Summary, int, error) {
 	}
 	s.Workspace.Name = clip(s.Workspace.Name, MaxName)
 	s.Workspace.Detail = clip(s.Workspace.Detail, 500)
+	if !s.Changes.valid() {
+		return Summary{}, 0, errors.New("workspace: invalid recent changes")
+	}
 	if s.Schema != Schema {
 		return Summary{}, 0, fmt.Errorf("workspace: schema %q is not %q", s.Schema, Schema)
 	}

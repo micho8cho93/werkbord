@@ -189,6 +189,7 @@ export class AssistantStore {
     onAssistantRequest((req) => {
       if (req.action === 'close') this.hide();
       else if (req.action === 'open') {
+        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; this.personalEditing = undefined; }
         if (req.personalWorkspace !== undefined) {
           this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
           this.personalEditing = req.personalWorkspace && req.personalRevision ? {workspaceId: req.personalWorkspace, revision: req.personalRevision} : undefined;

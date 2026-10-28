@@ -1,5 +1,7 @@
 <script lang="ts">
   import MoveProject from './MoveProject.svelte';
+  import ShareProductMap from './ShareProductMap.svelte';
+  let mapShare = $state<{workspace: string; project: string; name: string} | null>(null);
   import { onMount } from 'svelte';
   import Icon, { type IconName } from '../lib/Icon.svelte';
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
@@ -117,7 +119,7 @@
         {#each listed(summaryOf(i.id)?.projects) as p (p.id)}
           <div class="project-row"><button class="nav proj" type="button" aria-current={here === `project:${p.id}` ? 'page' : undefined} onclick={() => model.goTo(i.id, p.href)} title={p.name} data-project={p.id}>
             <span class="sq" aria-hidden="true"></span><span class="label">{p.name}</span>
-          </button><button class="move-project" type="button" title="Move {p.name}…" aria-label="Move {p.name}…" onclick={() => moving = {source: i.id, project: p.id, name: p.name}}><Icon name="right" size={14} /></button></div>
+          </button>{#if kind === 'team' && !model.remotePersonal}<button class="move-project" type="button" title="Product Map for {p.name}" aria-label="Product Map for {p.name}" onclick={() => mapShare = {workspace: i.id, project: p.id, name: p.name}}><Icon name="product-map" size={14} /></button>{/if}<button class="move-project" type="button" title="Move {p.name}…" aria-label="Move {p.name}…" onclick={() => moving = {source: i.id, project: p.id, name: p.name}}><Icon name="right" size={14} /></button></div>
         {/each}
         {#if kind === 'personal' && !model.remotePersonal}
           <button class="nav proj add" type="button" onclick={() => model.goTo(i.id, '#/projects')} title="New personal project" data-page="add-project">
@@ -416,3 +418,5 @@
     padding: 0 3px;
   }
 </style>
+
+{#if mapShare}<ShareProductMap {...mapShare} onclose={() => mapShare = null} />{/if}

@@ -356,3 +356,8 @@ func (s *Server) handlePresentPremium(w http.ResponseWriter, r *http.Request) {
 	st, err := s.opt.Service.PresentPremium(r.Context(), actorOf(r), in.Key)
 	s.respond(w, r, http.StatusOK, st, err)
 }
+
+func (s *Server) handleCatchUp(w http.ResponseWriter, r *http.Request) {
+	out, err := s.opt.Service.CatchUp(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, out, err)
+}

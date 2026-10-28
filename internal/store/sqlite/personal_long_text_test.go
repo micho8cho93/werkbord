@@ -28,6 +28,8 @@ func TestPersonalRecordBoundWidensWithoutLosingRecords(t *testing.T) {
 		`ALTER TABLE assistant_sessions DROP COLUMN selection_mode`,
 		`ALTER TABLE assistant_sessions DROP COLUMN selection_json`,
 		`DROP TABLE device_operations`,
+		`DROP TABLE product_map_jobs`,
+		`DROP TABLE product_map_snapshots`,
 		`DELETE FROM schema_migrations WHERE version>=28`,
 	} {
 		if _, err := db.writer.ExecContext(ctx, statement); err != nil {

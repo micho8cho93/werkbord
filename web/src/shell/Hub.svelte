@@ -2,6 +2,7 @@
   import Icon from '../lib/Icon.svelte';
   import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Calendar from './Calendar.svelte';
+  import CatchUp from './CatchUp.svelte';
   import Inbox from './Inbox.svelte';
   import { attentionGroups, standing, tallyByKind } from './aggregate';
   import { model } from './model.svelte';
@@ -46,6 +47,8 @@
     {/if}
   </header>
 
+  <CatchUp {overview} {waiting} />
+
   <div class="places-heading"><h2>Places</h2>{#if !model.remotePersonal}<button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button>{/if}</div>
   <ul class="shelf" aria-label="Places to go">
     {#each places as i (i.id)}
@@ -77,7 +80,7 @@
 
   <div class="deck">
     <section class="panel needs" aria-labelledby="hub-needs-h">
-      <h2 id="hub-needs-h">Needs attention</h2>
+      <h2 id="hub-needs-h" tabindex="-1">Needs attention</h2>
       <div class="body"><Inbox {overview} embedded /></div>
     </section>
     <section class="panel plan" aria-labelledby="hub-plan-h">

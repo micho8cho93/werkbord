@@ -22,7 +22,7 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
  */
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
-export type ProjectSection = 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
+export type ProjectSection = 'product-map' | 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'personal' | PhoneView>; label: string; short: string }[] = [
@@ -42,6 +42,7 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
   { id: 'calendar', label: 'Calendar' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'git', label: 'Git' },
+  { id: 'product-map', label: 'Product Map' },
   { id: 'runs', label: 'Runs' },
   { id: 'analytics', label: 'Analytics' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
@@ -56,7 +57,7 @@ export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => !['defaults', 'timeli
  * Sections that exist only for a project with a Git repository: the calendar schedules agents, Git is
  * the repository, and runs are agents' sessions. A work project has none of them.
  */
-const REPOSITORY_ONLY: readonly ProjectSection[] = [];
+const REPOSITORY_ONLY: readonly ProjectSection[] = ['product-map'];
 
 /** Whether a section is there for a project of this kind. */
 export function sectionApplies(section: ProjectSection, kind: string | undefined): boolean {
