@@ -30,7 +30,7 @@ let browser, activePage;
  const runners = page.locator('.pn.runners');
  const local = (await personal('GET','/runners')).runners.find(r => r.kind === 'local');
  assert(local && local.online && !local.disabled, 'the local fixture runner is connected and accepts work');
- const machine = runners.locator('.runner').filter({hasText:' · Werkbord computer'});
+ const machine = runners.locator('.runner').filter({hasText:' · Controller'});
  await machine.getByText('Connected',{exact:true}).waitFor();
  assert(!/\d+\s*[\/]\s*\d+/.test(await machine.locator('.state').innerText()),'runner connection is not a capacity fraction');
  await machine.locator('summary').click();
