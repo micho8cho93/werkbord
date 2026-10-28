@@ -136,6 +136,8 @@ jobs:
         with:
           path: .cache/rqlite
           key: rqlite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('internal/team/infra/rqlite/manifest.go', 'scripts/fetch-rqlite.sh') }}
+      - name: Install locked web dependencies before installing browsers
+        run: make web/node_modules
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
         run: |
           cd web && npx playwright install --with-deps chromium webkit && cd ..

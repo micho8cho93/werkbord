@@ -243,6 +243,10 @@ if release
     suite = ci && ci["jobs"][name]
     check(suite && !suite.key?("needs") && !suite.key?("if"), "#{name} is an independent required CI job")
   end
+  browser_steps = ci.dig("jobs", "browser", "steps") || []
+  npm_install = browser_steps.index { |step| step["run"].to_s.include?("make web/node_modules") }
+  browser_install = browser_steps.index { |step| step["run"].to_s.include?("npx playwright install") }
+  check(npm_install && browser_install && npm_install < browser_install, "browser CI installs the locked Playwright version before its browsers")
   check(JSON.generate(ci.dig("jobs", "audit")).include?("audit-release.py"), "CI surfaces dependency audit findings before a tag's signing build")
   %w[release-build desktop-build].each do |name|
     steps = jobs[name]["steps"]
