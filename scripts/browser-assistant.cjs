@@ -951,11 +951,15 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
         // ======== states: offline, disconnected, restarted ========
         {
             const { ctx, page } = await newPage();
+            // A restored/selected conversation can prepare providers during startup.
+            // Install the outage before navigation so readiness cannot win the race.
+            let blockedProviders = 0;
+            await page.route('**/api/assistant/providers', route => { blockedProviders++; return route.abort(); });
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
-            await page.route('**/api/assistant/providers', route => route.abort());
             await openAssistant(page);
             await page.getByText('Cannot reach Werkbord').waitFor();
+            assert.ok(blockedProviders > 0, 'the offline state follows an actual aborted provider request');
             await page.unroute('**/api/assistant/providers');
             await page.getByRole('button', { name: 'Try again' }).click();
             await page.getByTestId('assistant-empty').waitFor();
