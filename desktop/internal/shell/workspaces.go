@@ -286,8 +286,9 @@ func (s *Shell) PendingInvitation() string {
 // always could (to open a link in the browser, to choose a folder for a project, to update); a Team page may ask to connect
 // the person's runner to its own workspace and to start or stop the Team service. Neither may ask what the other may.
 var relayable = map[workspace.Kind]map[string]bool{
-	workspace.KindIndividual: {"AnswerQuestion": true, "Info": true, "OpenExternal": true, "ChooseDirectory": true, "ChooseFiles": true, "RequestUpdate": true, "UpdateStatus": true},
-	workspace.KindTeam:       {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
+	workspace.KindIndividual: {"AnswerQuestion": true, "Info": true, "OpenExternal": true, "ChooseDirectory": true, "ChooseFiles": true, "RequestUpdate": true, "UpdateStatus": true,
+		"DeviceStatus": true, "DeviceConnect": true, "DeviceLocal": true, "DeviceBind": true},
+	workspace.KindTeam: {"Info": true, "OpenExternal": true, "ConnectRunner": true, "TeamService": true, "PendingInvitation": true},
 }
 
 // Relay performs, for the page of the workspace id, something that page asked of the app. Which kind of workspace it is
@@ -377,6 +378,8 @@ func (s *Shell) Relay(id, method string, args []json.RawMessage) (any, error) {
 			}
 		}
 		return s.UpdateStatus(force), nil
+	case "DeviceStatus", "DeviceConnect", "DeviceLocal", "DeviceBind":
+		return s.device(method, one, none)
 	case "ConnectRunner":
 		if err := none(); err != nil {
 			return nil, err

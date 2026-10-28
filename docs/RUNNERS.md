@@ -112,10 +112,13 @@ other reports and heartbeat renewal, stopped on its runner, and quarantined with
 A restored controller database quarantines that identity durably; recover or revoke it and re-pair.
 Do not clear journals or copy an identity onto another machine to recover it.
 
-Settings → Runners → Revoke identity handles a permanently lost machine. It immediately rejects
-its signatures and holds capacity for 120 seconds (lease plus the in-flight request allowance).
-Its unresolved runs then become failed with **unverified work**, retained for inspection. Revocation
-never launches a replacement run. Inspect the owning machine and reconcile its branch before retrying.
+Settings → Runners → Revoke lost runner handles a permanently lost machine. It immediately rejects
+its signatures. A runner that negotiated offline continuation may still be executing, so its runs
+stay reserved, and no timer releases them. After inspecting that machine and stopping its work, the
+owner confirms it (`POST /api/runners/{runnerId}/runs/{runId}/resolve`, see
+[MULTI_DEVICE.md](MULTI_DEVICE.md)); the run then fails as **owner verified execution stopped on
+revoked runner**, retained for inspection. Revocation never launches a replacement run. Reconcile the
+owning machine's branch before retrying.
 Disabling a runner or revoking project access queues stops; ordinary removal still requires all
 runs to end. History is retained. Local disable prevents new launches.
 

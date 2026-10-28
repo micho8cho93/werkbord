@@ -98,6 +98,7 @@ func cmdJoin(cfg config.Config, args []string, out, errOut io.Writer) error {
 	commonFlags(fs, &cfg)
 	name := fs.String("name", "", "runner display name")
 	allowClone := fs.Bool("allow-clone", false, "allow cloning owner-authorized repositories with this machine's own Git credentials")
+	pairOnly := fs.Bool("pair-only", false, "save the runner grant without starting its service")
 	foreground := fs.Bool("foreground", false, "run here instead of installing a separate runner login service")
 	positional, e := parseInterspersed(fs, args)
 	if e != nil {
@@ -187,6 +188,9 @@ func cmdJoin(cfg config.Config, args []string, out, errOut io.Writer) error {
 	}
 	_ = os.Remove(pendingPath)
 	fmt.Fprintf(out, "Paired %s (%s). Project access is controlled in Settings → Runners.\n", r.Name, r.ID)
+	if *pairOnly {
+		return nil
+	}
 	if *foreground {
 		return cmdRunner(cfg, []string{"serve"}, out, errOut)
 	}

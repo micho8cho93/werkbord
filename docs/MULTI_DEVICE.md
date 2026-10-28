@@ -1,4 +1,4 @@
-# Desktop control and execution: Milestones 1–2
+# Desktop control and execution
 
 One fixed Personal controller owns the board, SQLite database and scheduling. A
 second desktop can control that workspace while its separately paired runner
@@ -7,24 +7,35 @@ runtime. Team and the Cloudflare phone relay retain their existing trust boundar
 
 ## Connect another computer
 
-Both computers need a build containing this milestone. Existing single-computer
+Both computers need a build containing this feature. Existing single-computer
 installations retain their current startup and do not need Tailscale.
 
 1. On the controller, enable the existing private network and sign in to your own
-   tailnet. In Settings → Runners, pair the laptop runner if it should execute work.
-   Use the existing `werkbord join` and `werkbord runner repo` commands to authorise
-   projects and bind local clones, or explicitly allow cloning at both ends.
-2. In the same Settings section, under Desktop control, choose **Pair desktop**.
-   Copy the controller address. The desktop pairing code expires in five minutes.
-3. On the laptop, run `werkbord device connect <controller-address> --runner`.
-   Omit `--runner` for control only. Enter the desktop code when prompted; it is
-   read from standard input, never a command-line argument. Sign in to the same
-   tailnet if requested.
-4. Open the existing Werkbord desktop app. It opens its normal loopback interface,
-   backed by the selected controller. Tasks and run history remain on that controller.
+   tailnet. In Settings → Runners, choose **Add runner** if the laptop should
+   execute work, and **Pair desktop** under Desktop control. Each shows a code
+   that works once and expires after five minutes. Copy the controller address
+   shown with the desktop code.
+2. On the laptop, open the Werkbord desktop app, go to Settings → Runners and
+   find **Connect to existing Werkbord**. Enter the address, the desktop code and a
+   name for the laptop. To also run agents there, tick the runner option and enter
+   the runner code. The two codes pair two separate grants. Confirm the app's
+   dialog. Sign in to the same tailnet if requested.
+3. Werkbord waits for local work to finish, switches, and reloads the window onto
+   the controller's board. Tasks and run history remain on that controller.
+4. If the laptop runs agents, choose **Choose clone** for each project under
+   *Where each project lives on this computer*, and pick the existing Git
+   repository in the system folder dialog. Without a clone, runs need cloning
+   allowed at both ends.
 
-Connection and repository binding currently use the CLI.
-Guided first-run setup is a later milestone. Client control includes board edits,
+The same steps are available in a terminal: `werkbord device connect
+<controller-address> [--runner]`, `werkbord join <runner-code> --pair-only`,
+`werkbord runner repo <project-id> <clone-path>` and `werkbord device local`.
+The guided screen runs those commands: pairing codes reach them on standard input
+only, never as arguments, in logs or in a confirmation dialog, and the folder
+comes from the system dialog, never from the page. A failed attempt keeps an
+already-consumed code's result, so a retry does not need a second code.
+
+Client control includes board edits,
 runner selection, agent launch, managed output, questions and existing managed-run
 commands. Device/credential administration, global configuration, Salie and private
 Personal data remain on the controller. Git inspection and explicitly confirmed
@@ -183,19 +194,58 @@ Installed backend updates and database restore are refused in remote mode.
 Finish/resolve work and switch back to local mode before those operations, then
 reconnect. The app's update guard checks runner journals, running native terminals, interrupted device receipts and pending controller operations.
 
-## Validation and remaining milestones
+## Credential recovery and uncertain execution
+
+| Situation | What to do |
+|---|---|
+| Pairing code expired, reused or mistyped | Ask the controller for a new code. Codes are single-use and have bounded attempts. A failed attempt leaves no half-paired state that blocks a retry. |
+| Laptop's desktop credential lost or revoked | Revoke it under Desktop control, then pair again with a fresh desktop code. The laptop's runner is unaffected. |
+| Laptop's runner lost or compromised | Revoke the runner (**Revoke lost runner**). Its work stays reserved. Inspect the machine, stop anything still running, then confirm per run with `POST /api/runners/{runnerId}/runs/{runId}/resolve` and `{"confirmStopped":true}` using the owner token. No timer releases it. |
+| Operation interrupted on a runner | Follow *Disconnects, revocation and recovery* above: inspect Git and process state, then `werkbord runner operation <id> --confirm-inspected`. |
+| Switch interrupted | Repeat the same connect or `device local` command. The controller is never replaced by an automatic local fallback. |
+
+## Restoring the previous controller
+
+Choose **Use this computer's Werkbord** (or `werkbord device local`). It refuses
+while controller-started agents, terminals, or unsettled device operations remain
+on this computer, then stops remote participation, restores the preserved service
+configuration and reopens the preserved local database. The board on the other
+controller is not copied here and this computer's board is not copied there. Both
+databases stay intact.
+
+## Supported combinations
+
+- Controller and every participating computer should run a build containing this
+  feature. A runner without offline-continuation support keeps its previous
+  behaviour (it stops sessions after its lease expires) and is listed in Settings →
+  Runners as stopping after a lost controller lease. It works, but does not give
+  the offline guarantee.
+- The device runtime and controller use the same wire contracts on macOS, Linux and
+  Windows builds, but only combinations that have passed real two-machine
+  acceptance should be called supported. No combination is recorded as having
+  passed yet.
+- A computer is one controller or one client of a controller, never both at once.
+  Team workspaces and the phone relay are unaffected.
+
+## Validation and remaining work
 
 Automated coverage includes independent credentials and revocation, stream
 filtering/cancellation, proxy host/origin checks and token substitution, offline
 completion replay, simultaneous worker sessions, controller recovery, safe mode
-selection and launcher behavior without an online controller. Run `make check`
-and `make desktop-check` before committing changes.
+selection and launcher behavior without an online controller, the guided setup
+bridge (a Team page cannot ask for it, confirmations cannot be skipped, codes stay
+out of dialogs and arguments, the page cannot choose the clone path), and strict
+input handling for `device configure` and `device bind`. Run `make check` and
+`make desktop-check` before committing changes.
 
-Real two-machine Tailscale/sleep-wake acceptance remains required before beta.
-Milestone 2 includes native-terminal routing and confirmed Git operations on the
-owning runner. Automated tests cover stale/bound confirmations, hooks/filter
-refusal, staged-file preservation, commit and push, interrupted/replayed receipts,
-terminal input deduplication, independent grants and late result recovery.
-Milestone 3 remains: guided pairing, repository binding, and broader
-mixed-OS and recovery acceptance. No Tailscale replacement, SQLite replication,
-Werkbord-hosted control plane, or controller failover is introduced.
+Terminal routing and confirmed Git operations on the owning runner are covered by
+tests for stale/bound confirmations, hooks/filter refusal, staged-file
+preservation, commit and push, interrupted/replayed receipts, terminal input
+deduplication, independent grants and late result recovery.
+
+Still required before calling this beta-ready: real two-machine Tailscale
+acceptance with sleep/wake and disconnects over 90 seconds, and Linux/Windows
+acceptance before claiming mixed-OS support. A graphical control for confirming a
+revoked runner stopped is not built; use the owner API above. No Tailscale
+replacement, SQLite replication, Werkbord-hosted control plane, or controller
+failover is introduced.

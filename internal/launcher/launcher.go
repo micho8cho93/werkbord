@@ -105,6 +105,7 @@ type Options struct {
 
 	// Run runs a command; ShellPATH is the PATH of the user's login shell. Both default
 	// to the real thing.
+	RunInput  func(context.Context, []string, string, []string, io.Reader, io.Writer) error
 	Run       Runner
 	ShellPATH func(ctx context.Context) string
 	// Describe reads the installed service's definition (default: launchd's).
@@ -125,9 +126,11 @@ type Options struct {
 type Launcher struct {
 	opt Options
 
-	mu      sync.Mutex
-	install Install // the installed program, as last found
-	checker *update.Checker
+	deviceMu  sync.Mutex
+	deviceJob DeviceJob
+	mu        sync.Mutex
+	install   Install // the installed program, as last found
+	checker   *update.Checker
 	// A program was replaced while nothing was running. The program keeps the old executable beside the new one until
 	// someone has seen the new controller come up, and refuses every later update while it is there. That someone is
 	// the next connection that finds the controller running on the new version.

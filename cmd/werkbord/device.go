@@ -30,6 +30,15 @@ import (
 // cmdDevice configures local capabilities. Client credentials are never supplied
 // as command-line arguments, logged, or sent to the local-controller API.
 func (a *app) cmdDevice(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] == "bind" {
+		return a.bindDeviceRepository(ctx, args[1:], os.Stdin)
+	}
+	if len(args) > 0 && args[0] == "configure" {
+		return a.configureDevice(ctx, args[1:], os.Stdin)
+	}
+	return a.deviceCommand(ctx, args, os.Stdin)
+}
+func (a *app) deviceCommand(ctx context.Context, args []string, input io.Reader) error {
 	if len(args) == 0 {
 		return errors.New("usage: werkbord device <connect|local|start|stop|serve|status>")
 	}
@@ -144,7 +153,7 @@ func (a *app) cmdDevice(ctx context.Context, args []string) error {
 	}
 	if *pairAgain || errors.Is(err, os.ErrNotExist) || credential.Controller != address {
 		fmt.Fprintln(a.out, "Enter the desktop pairing code from the controller:")
-		raw, err := bufio.NewReader(io.LimitReader(os.Stdin, 201)).ReadString('\n')
+		raw, err := bufio.NewReader(io.LimitReader(input, 201)).ReadString('\n')
 		if err != nil && err != io.EOF {
 			return err
 		}

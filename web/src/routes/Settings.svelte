@@ -15,6 +15,7 @@
   import { globalHref, router } from '../lib/router.svelte';
   import RoutingRules from '../lib/RoutingRules.svelte';
   import RunnersPanel from '../lib/RunnersPanel.svelte';
+  import DeviceSetup from '../lib/DeviceSetup.svelte';
   import AgentSettings from '../lib/AgentSettings.svelte';
   import GitHubCard from '../lib/setup/GitHubCard.svelte';
   import { embedded } from '../lib/embed';
@@ -174,6 +175,7 @@
     {:else if section === 'runners'}
       <RunnersPanel />
  {#if !isPhone() && !app.remote}<ClientsPanel />{/if}
+      {#if !isPhone()}<DeviceSetup />{/if}
     {:else if section === 'routing'}
       <RoutingRules />
     {:else if section === 'phones'}
