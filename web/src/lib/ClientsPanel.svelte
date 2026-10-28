@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { confirmAction } from './confirm.svelte';
   import { formatDateTime } from './clock.svelte';
   let clients = $state<Awaited<ReturnType<typeof api.clients>>['clients']>([]);
   let code = $state<Awaited<ReturnType<typeof api.clientCode>> | null>(null);
@@ -13,7 +14,12 @@
     try { code = await api.clientCode(); } catch (e) { error = (e as Error).message; } finally { busy = false; }
   }
   async function revoke(id: string, name: string) {
-    if (!confirm(`Revoke desktop control for ${name}? Its open connections will close. Its separate runner access is unchanged.`)) return;
+    if (!(await confirmAction({
+      title: `Revoke desktop control for ${name}?`,
+      message: 'Its open connections will close. Its separate runner access is unchanged.',
+      confirmLabel: 'Revoke desktop control',
+      danger: true,
+    }))) return;
     busy = true; error = '';
     try { await api.revokeClient(id); await refresh(); } catch (e) { error = (e as Error).message; } finally { busy = false; }
   }

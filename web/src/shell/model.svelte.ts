@@ -48,7 +48,12 @@ export interface OpenFrame {
   /** A place to go to as soon as the page says it is ready. */
   pending?: string;
   ready: boolean;
+  /** Raised to load the page again, as a new frame (the same address would not reload one). */
+  epoch?: number;
 }
+
+/** A page refused its sign-in again within this long of the app signing it in again: signing in again is not the answer. */
+const REAUTH_EVERY = 30000;
 
 const VIEW_EVERY = 4000;
 const OVERVIEW_EVERY = 10000;
@@ -427,6 +432,42 @@ export class Model {
     const p = f.pending;
     f.pending = undefined;
     return p;
+  }
+
+  private reauthAt: Record<string, number> = {};
+
+  /**
+   * A workspace's page was refused its sign-in. Asks the app for the page's address as it is now (it reads the token again) and
+   * loads the page again at the place it was. Returns why that could not be done, or null when it was; a page that is refused
+   * again straight after is not given the same answer in a circle.
+   */
+  async reauth(id: string, manual = false): Promise<string | null> {
+    const now = Date.now();
+    if (!manual && now - (this.reauthAt[id] ?? 0) < REAUTH_EVERY) {
+      return 'Signing in again a moment ago did not help: Werkbord is not accepting this app’s access token.';
+    }
+    this.reauthAt[id] = now;
+    let target: Target;
+    try {
+      target = await ask((a) => a.LoadWorkspace(id));
+    } catch (e) {
+      return (e as Error).message || 'The app could not read Werkbord’s access token.';
+    }
+    const main = this.frames[id];
+    if (main) {
+      main.target = target;
+      main.ready = false;
+      main.pending = this.places[id] || main.pending;
+      main.epoch = (main.epoch ?? 0) + 1;
+    }
+    const settings = this.hosted[id];
+    if (settings) {
+      settings.target = target;
+      settings.ready = false;
+      settings.epoch = (settings.epoch ?? 0) + 1;
+    }
+    if (settings && this.page === 'settings') this.openSettings();
+    return null;
   }
 
   /** Shows a workspace's page in a frame of its own at a place inside it: for Settings and Help. */

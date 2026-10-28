@@ -2,6 +2,7 @@
   import { setToken } from './api';
   import Mark from './Mark.svelte';
   import { enrollment } from './phones/enroll.svelte';
+  import { askForSignIn, canAskForSignIn, signIn } from './signin.svelte';
   import { app } from './state.svelte';
 
   let token = $state('');
@@ -17,7 +18,13 @@
   <form class="card" onsubmit={submit}>
     <div class="brand"><Mark height={22} /><span class="wm">werkbord</span></div>
     <h1>Connect to Werkbord</h1>
-    {#if app.remote}
+    {#if canAskForSignIn() && !app.remote && signIn.state === 'asking'}
+      <p class="muted" role="status" data-testid="signing-in-again">Signing this window back in…</p>
+    {:else if canAskForSignIn() && !app.remote && signIn.state === 'failed'}
+      <p class="error" role="alert" data-testid="sign-in-failed">Werkbord could not sign this window in. {signIn.message}</p>
+      <p class="muted">Quit Werkbord and open it again. If this keeps happening, Help → Show Diagnostics… says what is wrong.</p>
+      <button class="btn primary" type="button" onclick={() => askForSignIn(true)}>Try again</button>
+    {:else if app.remote}
       <p class="muted">Desktop control was refused by {app.device.controller}. If this grant was revoked, create a new desktop code on the controller.</p>
       <p class="muted">On this computer, run <code>werkbord device connect {app.device.controller} --pair{app.device.runnerId ? ' --runner' : ''}</code>, then reopen Werkbord. The runner has its own permission.</p>
       <button class="btn primary" type="button" onclick={() => app.reconnect()}>Reconnect</button>
@@ -28,7 +35,7 @@
         On a phone, scan a new code: Settings → Phones on your computer. A phone that was revoked is signed out for good.
       </p>
     {/if}
-    {#if !app.remote}<p class="muted">
+    {#if !app.remote && !(canAskForSignIn() && signIn.state === 'asking')}<p class="muted">
       On the computer running Werkbord, run <code>werkbord token</code> and paste the token here. Or run
       <code>werkbord token --url</code> to create a sign-in link for this browser.
     </p>

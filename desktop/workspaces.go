@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -64,7 +65,15 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 		if err != nil {
 			return workspaces.Access{}, err
 		}
-		tok, _ := cfg.ResolveToken(false)
+		// A page opened without the token shows a sign-in prompt for a token the person cannot find, so a token that is needed
+		// and cannot be read is an error to report, not an empty string to open the page with.
+		tok, err := cfg.ResolveToken(false)
+		if err != nil {
+			return workspaces.Access{}, fmt.Errorf("%w: %v", workspaces.ErrNoAccessToken, err)
+		}
+		if tok == "" && cfg.AuthRequired() {
+			return workspaces.Access{}, fmt.Errorf("%w: there is no token file at %s", workspaces.ErrNoAccessToken, cfg.TokenPath())
+		}
 		return workspaces.Access{Base: cfg.ControllerURL(), Token: tok}, nil
 	})
 	individual.DeviceRoles = func() []string {

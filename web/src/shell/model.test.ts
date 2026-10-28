@@ -257,6 +257,31 @@ describe('one sidebar, no switcher', () => {
     expect(model.frames['team:main'].pending).toBe('?tab=members');
   });
 
+  it('signs a refused page in again at the place it was, and does not do it in a circle', async () => {
+    const model = new Model();
+    model.view = view([individual]);
+    model.frames.personal = { target: target('personal'), ready: true };
+    model.places.personal = '#/p/prj_1';
+    let url = 'http://127.0.0.1:1/#token=NEW';
+    native.app.LoadWorkspace = async (id: string) => ({ ...target(id), url });
+    expect(await model.reauth('personal')).toBeNull();
+    expect(model.frames.personal.target.url).toBe(url);
+    expect(model.frames.personal.epoch).toBe(1);
+    expect(model.frames.personal.ready).toBe(false);
+    expect(model.frames.personal.pending).toBe('#/p/prj_1');
+    // Refused again straight away: it says so rather than loading the page in a circle.
+    expect(await model.reauth('personal')).toMatch(/did not help/);
+    expect(model.frames.personal.epoch).toBe(1);
+    // The person asking is always attempted, and an app that cannot read the token says why.
+    native.app.LoadWorkspace = async () => { throw new Error('this app could not read Werkbord\'s access token'); };
+    expect(await model.reauth('personal', true)).toMatch(/could not read/);
+    expect(model.frames.personal.epoch).toBe(1);
+    url = 'http://127.0.0.1:1/#token=NEWER';
+    native.app.LoadWorkspace = async (id: string) => ({ ...target(id), url });
+    expect(await model.reauth('personal', true)).toBeNull();
+    expect(model.frames.personal.epoch).toBe(2);
+  });
+
   it('folds a section and remembers it, and unfolds it again', () => {
     const kept = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v), removeItem: (k: string) => void kept.delete(k) });

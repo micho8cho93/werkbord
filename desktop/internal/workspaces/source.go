@@ -55,6 +55,9 @@ var (
 	ErrOutdated = errors.New("the service is older than this app and needs updating")
 	// ErrNoCredential: there is no credential to ask with, so the service has not been set up for this person.
 	ErrNoCredential = errors.New("the service has not been set up for this person")
+	// ErrNoAccessToken: the controller wants an access token and this app could not read one from its token file. Opening the
+	// controller's page without it would show a sign-in prompt for a token the person has no way to find, so nothing is opened.
+	ErrNoAccessToken = errors.New("this app could not read Werkbord's access token")
 )
 
 // loopbackClient talks only to literal loopback addresses, with no proxy, no redirect and no name lookup: the address

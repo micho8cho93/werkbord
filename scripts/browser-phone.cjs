@@ -375,15 +375,19 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         assert.equal(await page.getByTestId('phone-enroll').locator('img').count(), 1, 'the QR code is shown');
         assert(!(await page.content()).includes(token), 'the owner token is nowhere on the page');
         await page.screenshot({ path: path.join(artifacts, 'settings-phones.png') });
-        // Revoke asks first.
-        let asked = '';
-        page.once('dialog', (d) => { asked = d.message(); d.dismiss(); });
+        // Revoke asks first, in the page (a native confirm() is silently declined by the desktop app's web view).
+        let dialogs = 0;
+        page.on('dialog', (d) => { dialogs++; d.dismiss(); });
         await row.getByRole('button', { name: 'Revoke' }).click();
-        await page.waitForTimeout(200);
-        assert.match(asked, /Revoke Desk iPad\?/);
+        const ask = page.getByRole('dialog', { name: /Revoke Desk iPad\?/ });
+        await ask.waitFor();
+        assert.equal(await ask.getByTestId('confirm-ok').innerText(), 'Revoke phone');
+        await ask.getByRole('button', { name: 'Cancel' }).click();
+        await ask.waitFor({ state: 'detached' });
         assert.equal((await api('GET', '/api/phones')).phones.length, 1, 'declining the confirm revokes nothing');
-        page.once('dialog', (d) => d.accept());
         await row.getByRole('button', { name: 'Revoke' }).click();
+        await page.getByRole('dialog', { name: /Revoke Desk iPad\?/ }).getByTestId('confirm-ok').click();
+        assert.equal(dialogs, 0, 'no native dialog is used');
         await row.waitFor({ state: 'detached' });
         assert.equal((await api('GET', '/api/phones')).phones.length, 0);
         console.log('PASS Settings -> Phones: list, add with a countdown, revoke with a confirm');

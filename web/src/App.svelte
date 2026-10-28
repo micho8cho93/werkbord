@@ -25,6 +25,7 @@
   import TabRow from './lib/shell/TabRow.svelte';
   import Rail from './lib/shell/Rail.svelte';
   import Toasts from './lib/shell/Toasts.svelte';
+  import ConfirmDialog from './lib/ConfirmDialog.svelte';
   import { app } from './lib/state.svelte';
   import Deck from './lib/mobile/Deck.svelte';
   import Agents from './lib/mobile/Agents.svelte';
@@ -353,6 +354,7 @@
     <ProjectSwitcher />
     {#if app.newTaskOpen && project}{#key project.id}<NewTaskDialog {project} />{/key}{/if}
     <Toasts />
+    <ConfirmDialog />
   </div>
   <!-- In the desktop window the assistant is the shell's own frame over the whole window (lib/assistant/AssistantSurface). -->
   {#if !framed}<Assistant />

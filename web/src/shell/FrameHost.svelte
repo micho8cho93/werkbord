@@ -64,6 +64,7 @@
         if (place) navigate(id, place, hosted);
       },
       reply: (frame, message) => sendTo(frame.id, !!frame.hosted, message),
+      reauth: (id, manual) => model.reauth(id, manual),
       // "Open in Werkbord" on a Team ticket: show the person's own Werkbord at that task.
       open: (_id, _target, place) => {
         const generated = generatedWorkspaceID(place);
@@ -123,6 +124,7 @@
 
 <div class="frames" hidden={!shown}>
   {#each frameList as { key, id, hosted, f } (key)}
+    {#key f.epoch ?? 0}
     <iframe
       bind:this={elements[key]}
       class="frame"
@@ -134,6 +136,7 @@
       data-workspace={hosted ? undefined : id}
       data-hosted={hosted ? id : undefined}
     ></iframe>
+    {/key}
   {/each}
 </div>
 

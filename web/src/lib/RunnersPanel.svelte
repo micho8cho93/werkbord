@@ -3,6 +3,7 @@
   import HeldRunnerWork from './HeldRunnerWork.svelte';
   import { onMount } from 'svelte';
   import { api } from './api';
+  import { confirmAction } from './confirm.svelte';
   import { formatDateTime, formatTime } from './clock.svelte';
   import { runnerConnection } from './format';
   import { app } from './state.svelte';
@@ -49,7 +50,12 @@
     finally { busy = ''; }
   }
   async function revoke(r: Runner) {
-    if (!confirm(`Revoke ${r.name}? Its credentials stop working immediately. Offline-capable runs remain reserved, and appear under “Work held on revoked machines” below, until you have inspected that machine and confirmed they stopped.`)) return;
+    if (!(await confirmAction({
+      title: `Revoke ${r.name}?`,
+      message: 'Its credentials stop working immediately. Offline-capable runs remain reserved, and appear under “Work held on revoked machines” below, until you have inspected that machine and confirmed they stopped.',
+      confirmLabel: 'Revoke runner',
+      danger: true,
+    }))) return;
     busy = r.id;
     try { await api.revokeRunner(r.id); await refresh(); await held?.refresh(); }
     catch (e) { error = e instanceof Error ? e.message : String(e); }

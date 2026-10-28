@@ -232,10 +232,11 @@ test-install-team:
 test-team-signed-release:
 	scripts/test-team-signed-release.sh
 
-## test-onboarding-browser: guided setup, persistence, recovery and the desktop window gate
+## test-onboarding-browser: guided setup, persistence, recovery, the desktop window gate and a window refused its sign-in
 test-onboarding-browser: build web-shell
 	node scripts/browser-onboarding.cjs
 	node scripts/browser-setup-settle.cjs
+	node scripts/browser-shell-signin.cjs
 
 ## test-assistant-browser: the assistant's screen in a real browser (animation, streaming, confirmations, recovery, files, dictation,
 ## accessibility, a phone) and from the desktop window's sidebar, with the real engine and API and a scripted provider in place of

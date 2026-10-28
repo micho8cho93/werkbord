@@ -47,6 +47,12 @@ export interface Deps {
   settings(id: string, place: string): void;
   /** A Team page says the person needs Premium for what they were doing: show Settings at Plan. */
   plan?(id: string): void;
+  /**
+   * The person's own Werkbord page was refused its sign-in. The app reads the token again and loads the page afresh; the answer is
+   * why it could not, in words for the person, or null when it did (the page is then replaced and needs no answer).
+   * `manual` is the person pressing "Try again", which is always attempted.
+   */
+  reauth?(id: string, manual: boolean): Promise<string | null>;
 }
 
 export interface Alert {
@@ -127,6 +133,10 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       if (m.revision !== undefined && (!Number.isSafeInteger(m.revision) || (m.revision as number) < 1 || !m.workspaceId)) return;
       if (m.revision === undefined) d.personalAssistant?.(m.workspaceId);
       else d.personalAssistant?.(m.workspaceId, m.revision as number);
+    }
+    else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
+      const problem = await d.reauth?.(frame.id, m.manual === true);
+      if (problem) d.reply(frame, { type: 'werkbord.reauth', ok: false, message: problem });
     }
     else if (m.event === 'ready') d.ready(frame.id);
     // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.

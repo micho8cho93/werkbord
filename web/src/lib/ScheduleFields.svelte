@@ -3,6 +3,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import type { Orchestration, Task } from "./types";
   import { canScheduleAnother, instantFromWall, wallTime } from "./scheduling";
+  import { confirmAction } from "./confirm.svelte";
   let {
     value = $bindable(),
     tasks,
@@ -260,7 +261,7 @@
     >{busy ? "Saving…" : "Save schedule and dependencies"}</button
   >
 {#if canScheduleAnother(original, value.enabled)}
-  <button type="button" class="btn ok" disabled={busy} onclick={() => { if (confirm("Schedule another run? This authorises another attempt when the requirements are met; it does not start an agent now.")) void save(true); }}>Schedule another run</button>
+  <button type="button" class="btn ok" disabled={busy} onclick={async () => { if (await confirmAction({ title: "Schedule another run?", message: "This authorises another attempt when the requirements are met; it does not start an agent now.", confirmLabel: "Schedule another run" })) void save(true); }}>Schedule another run</button>
 {/if}
 </form>
 

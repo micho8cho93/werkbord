@@ -58,17 +58,35 @@ func (p *Individual) entry(state workspace.State, detail string) workspace.Liste
 func (p *Individual) List(ctx context.Context) ([]workspace.Listed, error) {
 	a, err := p.Access(ctx)
 	if err != nil {
-		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Cannot find or reach Werkbord on this computer.")}, nil
+		detail := "Cannot find or reach Werkbord on this computer."
+		if errors.Is(err, ErrNoAccessToken) {
+			detail = "Werkbord is installed, but this app could not read its access token, so it cannot sign in. Quit and open Werkbord again. If that does not help, Help → Show Diagnostics… says what is wrong."
+		}
+		return []workspace.Listed{p.entry(workspace.StateUnavailable, detail)}, nil
 	}
 	b, err := get2(ctx, p.hc, a.Base, "/api/health", "")
 	if err != nil {
 		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is not answering. It may still be running; check the connection and refresh.")}, nil
+	}
+	if a.Token != "" && p.refusesToken(ctx, a) {
+		return []workspace.Listed{p.entry(workspace.StateUnavailable, "Werkbord is running but did not accept this app's access token, so it cannot sign in. Quit and open Werkbord again. If that does not help, Help → Show Diagnostics… says what is wrong.")}, nil
 	}
 	var health struct {
 		Version string `json:"version"`
 	}
 	_ = json.Unmarshal(b, &health)
 	return []workspace.Listed{p.entry(workspace.StateReady, "")}, nil
+}
+
+// refusesToken says whether the controller answers 401 to this app's token on a cheap route that needs it. Any other answer, or
+// none, is not a refusal: the page and the summary say what else is wrong.
+func (p *Individual) refusesToken(ctx context.Context, a Access) bool {
+	body, err := get(ctx, p.hc, a.Base, "/api/device", a.Token)
+	if err == nil {
+		body.Close()
+		return false
+	}
+	return errors.Is(err, ErrRefused)
 }
 
 func get2(ctx context.Context, hc *http.Client, base, path, key string) ([]byte, error) {

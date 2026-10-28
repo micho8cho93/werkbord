@@ -16,6 +16,7 @@ import { ApiError, api, eventsURL } from './api';
 import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
+import { askForSignIn } from './signin.svelte';
 import { ProjectScope } from './scope.svelte';
 import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, LabelUse, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
 
@@ -439,11 +440,20 @@ class AppState {
 
   handleError(err: unknown): void {
     if (err instanceof ApiError && err.status === 401) {
-      this.connection = 'unauthorized';
-      this.source?.close();
+      this.refused();
       return;
     }
     this.error = err instanceof Error ? err.message : String(err);
+  }
+
+  /**
+   * The controller refused this page's token. In the desktop window the app holds the token and can sign the page in again, so it is
+   * asked to before the person is asked for anything; anywhere else the person has to bring the token.
+   */
+  private refused(): void {
+    this.connection = 'unauthorized';
+    this.source?.close();
+    if (!this.remote) askForSignIn();
   }
 
   reconnect(): void {
@@ -488,7 +498,7 @@ class AppState {
       await api.listProjects();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        this.connection = 'unauthorized';
+        this.refused();
         return;
       }
     }

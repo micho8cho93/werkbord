@@ -29,6 +29,22 @@ describe('what a frame may say about the window', () => {
     expect(placement).toHaveBeenLastCalledWith(value);
     expect(d.reply).toHaveBeenLastCalledWith(frames[0], { type: 'werkbord.salie-placement', value });
   });
+  it('lets only the main page of the person\'s own Werkbord ask to be signed in again, and answers with why it could not', async () => {
+    const reauth = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce('It could not read the token.');
+    const d = { ...deps(), reauth };
+    // Not a Team page, not the assistant's frame, not from another origin.
+    await handle(frames, say(team, frames[1].origin, { event: 'reauth' }), d);
+    await handle([surface], say(assistantWindow, surface.origin, { event: 'reauth' }), d);
+    await handle(frames, say(individual, 'https://other.example', { event: 'reauth' }), d);
+    expect(reauth).not.toHaveBeenCalled();
+    // Signed in again: the page is replaced, so there is nothing to answer.
+    await handle(frames, say(individual, frames[0].origin, { event: 'reauth' }), d);
+    expect(reauth).toHaveBeenLastCalledWith('personal', false);
+    expect(d.reply).not.toHaveBeenCalled();
+    await handle(frames, say(individual, frames[0].origin, { event: 'reauth', manual: true }), d);
+    expect(reauth).toHaveBeenLastCalledWith('personal', true);
+    expect(d.reply).toHaveBeenLastCalledWith(frames[0], { type: 'werkbord.reauth', ok: false, message: 'It could not read the token.' });
+  });
   it('may say which theme the person chose, and nothing else about it', async () => {
     const d = deps();
     for (const theme of ['dark', 'light', '']) await handle(frames, say(individual, frames[0].origin, { event: 'theme', theme }), d);

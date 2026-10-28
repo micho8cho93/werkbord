@@ -421,6 +421,46 @@ func TestIndividualIsReadWithTheControllersCredentialAndOpenedSignedIn(t *testin
 	}
 }
 
+// A token the app cannot read, or one the controller refuses, used to open Individual's page with no sign-in at all: the person was
+// asked for an access token they cannot find. It is now said, in the list and when the page is asked for.
+func TestIndividualSaysWhyItCannotSignInInsteadOfOpeningAPageThatCannotBeSignedIn(t *testing.T) {
+	missing := NewIndividual(func(context.Context) (Access, error) {
+		return Access{}, fmt.Errorf("%w: there is no token file at /x/token", ErrNoAccessToken)
+	})
+	l, err := missing.List(bg)
+	if err != nil || l[0].Entry.State != workspace.StateUnavailable || !strings.Contains(l[0].Entry.Detail, "could not read its access token") {
+		t.Fatalf("a missing token was not reported: %+v %v", l, err)
+	}
+	if _, err := missing.Frame(bg, l[0], ""); !errors.Is(err, ErrNoAccessToken) {
+		t.Fatalf("a page was opened without the token it needs: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/health":
+			_, _ = w.Write([]byte(`{"status":"ok","version":"1"}`))
+		case "/api/device":
+			if r.Header.Get("Authorization") != "Bearer RIGHT" {
+				w.WriteHeader(401)
+				return
+			}
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	stale := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "STALE"}, nil })
+	l, _ = stale.List(bg)
+	if l[0].Entry.State != workspace.StateUnavailable || !strings.Contains(l[0].Entry.Detail, "did not accept this app's access token") {
+		t.Fatalf("a refused token was not reported: %+v", l)
+	}
+	right := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "RIGHT"}, nil })
+	if l, _ = right.List(bg); l[0].Entry.State != workspace.StateReady {
+		t.Fatalf("a token the controller accepts made Individual unavailable: %+v", l)
+	}
+}
+
 func TestAGrantIsNarrowNamedAndReplacesTheOneItReconnects(t *testing.T) {
 	var mu sync.Mutex
 	entries := []map[string]string{{"id": "lac_old", "name": "Team: Acme"}, {"id": "lac_other", "name": "Team: Globex"}}

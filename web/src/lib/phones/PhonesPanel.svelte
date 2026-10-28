@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, ApiError, setToken } from '../api';
   import { formatDateTime } from '../clock.svelte';
+  import { confirmAction } from '../confirm.svelte';
   import type { PhoneEntry, RelayStatus } from '../types';
   import { isPhone } from './capability';
   import PhoneEnroll from './PhoneEnroll.svelte';
@@ -53,7 +54,12 @@
   });
 
   async function revoke(p: PhoneEntry) {
-    if (!confirm(`Revoke ${p.name}? It is signed out at once and cannot reach Werkbord again until you add it with a new code.`)) return;
+    if (!(await confirmAction({
+      title: `Revoke ${p.name}?`,
+      message: 'It is signed out at once and cannot reach Werkbord again until you add it with a new code.',
+      confirmLabel: 'Revoke phone',
+      danger: true,
+    }))) return;
     busy = p.id;
     try {
       await api.revokePhone(p.id);
@@ -79,7 +85,12 @@
   }
 
   async function signOut() {
-    if (!confirm('Sign this phone out of Werkbord? You will need a new code from your computer to come back.')) return;
+    if (!(await confirmAction({
+      title: 'Sign this phone out?',
+      message: 'You will need a new code from your computer to come back.',
+      confirmLabel: 'Sign out',
+      danger: true,
+    }))) return;
     try {
       await api.signOutSelf();
     } catch {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from './api';
+  import { confirmAction } from './confirm.svelte';
   import { app } from './state.svelte';
   import { globalHref } from './router.svelte';
   import type { Project } from './types';
@@ -7,7 +8,12 @@
   let busy = $state(false);
   let error = $state('');
   async function change(state: 'active' | 'archived' | 'deleted') {
-    if (state !== 'active' && !confirm(`${state === 'archived' ? 'Archive' : 'Delete'} ${project.name}? You can restore it from Settings → Project history. Tasks, memory and files will be kept.`)) return;
+    if (state !== 'active' && !(await confirmAction({
+      title: `${state === 'archived' ? 'Archive' : 'Delete'} ${project.name}?`,
+      message: 'You can restore it from Settings → Project history. Tasks, memory and files will be kept.',
+      confirmLabel: state === 'archived' ? 'Archive project' : 'Delete project',
+      danger: state === 'deleted',
+    }))) return;
     busy = true; error = '';
     try {
       await api.setProjectLifecycle(project.id, state);
