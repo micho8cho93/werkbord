@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Security regressions for exact-byte candidate review and preview package ordering."""
 import base64
+import copy
+import datetime
 import importlib.util
 import json
 import os
 from pathlib import Path
 import functools
 import http.server
+import io
 import platform
 import subprocess
+import tarfile
 import tempfile
 import threading
 import unittest
@@ -18,6 +22,64 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("candidate", ROOT / "scripts/release-candidate.py")
 candidate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(candidate)
+audit_spec = importlib.util.spec_from_file_location("audit", ROOT / "scripts/audit-release.py")
+audit = importlib.util.module_from_spec(audit_spec)
+audit_spec.loader.exec_module(audit)
+
+
+class PreviewAdvisoryTests(unittest.TestCase):
+    def setUp(self):
+        self.review = json.loads((ROOT / "scripts/preview-build-advisories.json").read_text())
+        self.lock = {"packages": {"node_modules/"+name: {"version": version, "dev": True, "integrity": self.review["integrities"][name]} for name, version in self.review["packages"].items()}}
+        self.scan = {"auditReportVersion": 2, "vulnerabilities": {
+            "deepmerge": {"severity": "low", "nodes": ["node_modules/deepmerge"], "fixAvailable": False, "via": [{"url": self.review["advisory"], "severity": "low"}]},
+            "@sveltejs/vite-plugin-svelte": {"severity": "low", "nodes": ["node_modules/@sveltejs/vite-plugin-svelte"], "fixAvailable": False, "via": ["deepmerge"]}
+        }}
+
+    def accepted(self, version="5.6.0-preview.4", date="2026-10-28"):
+        return audit.reviewed_preview_advisory(self.scan, self.lock, self.review, version, datetime.date.fromisoformat(date))
+
+    def test_only_the_exact_reviewed_preview_build_finding_is_accepted(self):
+        self.assertTrue(self.accepted())
+        self.assertFalse(self.accepted("5.6.0"))
+        self.assertFalse(self.accepted("5.6.0-rc.1"))
+        self.assertFalse(self.accepted(date="2026-11-29"))
+        self.assertFalse(self.accepted(date="2026-10-27"))
+        self.assertFalse(audit.reviewed_preview_advisory(self.scan, self.lock, self.review, "5.6.0-preview.4", datetime.date(2026, 10, 28), ["import merge from 'deepmerge';"]))
+
+    def test_runtime_changes_new_findings_and_scanner_errors_stay_blocked(self):
+        for change in (
+            lambda: self.lock["packages"]["node_modules/deepmerge"].update(dev=False),
+            lambda: self.lock["packages"]["node_modules/deepmerge"].update(version="4.3.2"),
+            lambda: self.lock["packages"]["node_modules/deepmerge"].update(integrity="changed"),
+            lambda: self.scan.update(error={"code": "EAUDITNOLOCK"}),
+            lambda: self.scan["vulnerabilities"].update(other={}),
+            lambda: self.scan["vulnerabilities"]["deepmerge"].update(severity="high"),
+            lambda: self.scan["vulnerabilities"]["deepmerge"].update(fixAvailable={"version": "4.3.2"}),
+            lambda: self.scan["vulnerabilities"]["deepmerge"]["via"].append({"url": "https://github.com/advisories/another", "severity": "low"}),
+            lambda: self.scan["vulnerabilities"]["deepmerge"]["nodes"].append("node_modules/another/node_modules/deepmerge"),
+        ):
+            saved_scan, saved_lock = copy.deepcopy(self.scan), copy.deepcopy(self.lock)
+            change()
+            self.assertFalse(self.accepted())
+            self.scan, self.lock = saved_scan, saved_lock
+
+    def test_release_notes_disclose_only_a_retained_advisory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "audit.tar.gz"
+            notes = Path(tmp) / "notes.md"
+            finding = [{"reviewedPreviewAdvisory": self.review}]
+            for source, native, expected in (([], [], False), (finding, [], True), ([], finding, True), (finding, finding, True)):
+                with tarfile.open(archive, "w:gz") as bundle:
+                    for scope, checks in (("source", source), ("native", native)):
+                        data = json.dumps({"checks": checks}).encode()
+                        info = tarfile.TarInfo(f"./{scope}/audit.json")
+                        info.size = len(data)
+                        bundle.addfile(info, io.BytesIO(data))
+                notes.write_text("Release notes\n")
+                subprocess.run(["python3", str(ROOT / "scripts/release-audit-notes.py"), str(archive), str(notes)], check=True)
+                self.assertEqual(self.review["advisory"] in notes.read_text(), expected)
+                self.assertLessEqual(notes.read_text().count(self.review["advisory"]), 1)
 
 
 class CandidateTests(unittest.TestCase):

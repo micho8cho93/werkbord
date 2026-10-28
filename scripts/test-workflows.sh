@@ -109,7 +109,13 @@ if release
       _, err, status = Open3.capture3({"EVENT" => event, "REF_NAME" => ref, "GITHUB_OUTPUT" => output.path}, "bash", "-c", plan_script)
       check(status.success?, "release plan failed for #{ref}: #{err}")
       values = File.read(output.path)
-      check(values.include?("desktop=#{desktop}\n") && values.include?("stable=#{stable}\n"), "wrong release routing for #{event} #{ref}: #{values}")
+      check(values.include?("desktop=#{desktop}\n") && values.include?("stable=#{stable}\n") && values.include?("linux=false\n"), "wrong release routing for #{event} #{ref}: #{values}")
+    end
+  end
+  [["werkbord-v4.28.5-preview.1", "true"], ["werkbord-v4.28.5", "true"]].each do |ref, linux|
+    Tempfile.create("werkbord-plan-linux") do |output|
+      _, err, status = Open3.capture3({"EVENT" => "push", "REF_NAME" => ref, "LINUX_BETA_ENABLED" => "true", "GITHUB_OUTPUT" => output.path}, "bash", "-c", plan_script)
+      check(status.success? && File.read(output.path).include?("linux=#{linux}\n"), "Linux packaging remains explicitly opt-in: #{ref}: #{err}")
     end
   end
   check(needs(jobs["release-build"]).include?("plan"), "release-build reads the stable decision from plan")
@@ -228,14 +234,27 @@ if release
   [latest, preview].each { |job| check(job["if"].include?("needs.linux-public-verify.result == 'success'") && job["if"].include?("needs.macos-public-verify.result == 'success'"), "a failed platform verifier cannot promote either feed") }
   # The tests themselves are required in ci (one place), and the receipt lists them, so a browser regression cannot be dropped silently.
   ci = workflows["#{DIR}/ci.yml"]
-  ci_steps = JSON.generate(ci && ci["jobs"]["check"]["steps"])
+  ci_steps = JSON.generate(ci && ci["jobs"])
   %w[make\ check make\ test-nebula make\ test-rqlite make\ test-browser make\ test-team-desktop-browser make\ test-unified-desktop-browser make\ test-onboarding-browser make\ test-assistant-browser make\ test-personal-browser browser-salie-sessions.cjs go\ test\ -race make\ test-desktop-sign].each do |command|
     check(ci_steps.include?(command), "ci must run #{command}, because tag releases rely on it")
     check(JSON.generate(release_build).include?(command), "the release receipt must list #{command}")
   end
+  %w[race browser].each do |name|
+    suite = ci && ci["jobs"][name]
+    check(suite && !suite.key?("needs") && !suite.key?("if"), "#{name} is an independent required CI job")
+  end
+  check(JSON.generate(ci.dig("jobs", "audit")).include?("audit-release.py"), "CI surfaces dependency audit findings before a tag's signing build")
+  %w[release-build desktop-build].each do |name|
+    steps = jobs[name]["steps"]
+    audit = steps.find { |step| step["run"].to_s.include?("audit-release.py") }
+    check(audit && audit.dig("env", "PREVIEW").to_s.include?("needs.plan.outputs.stable != 'true'") && audit["run"].include?('[ "$PREVIEW" = true ]'), "#{name} permits reviewed build advisories only on preview builds")
+    transport = steps.find { |step| %w[release-audit native-audit].include?(step.dig("with", "name")) }
+    check(transport && transport["if"] == "always()", "#{name} retains audit evidence even when a scan fails")
+  end
 
   # An unsigned test preview published under a tag is replaced by the signed release, and nothing else is ever overwritten.
   draft_steps = JSON.generate(jobs["desktop-draft"]["steps"])
+  check(draft_steps.include?("scripts/release-audit-notes.py"), "preview notes disclose reviewed build advisories from the candidate evidence")
   check(draft_steps.include?("Werkbord-preview.dmg") && draft_steps.include?("gh release delete") && draft_steps.include?("is not an unsigned test preview"), "the signed release replaces only an unsigned test preview under the same tag")
 
   # Every action is pinned to a full commit SHA, including artifact transport.

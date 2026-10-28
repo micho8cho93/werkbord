@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collect repeatable inventories and advisory evidence without customer data or credentials."""
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -13,6 +14,38 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def reviewed_preview_advisory(raw, lock, review, version, today=None, runtime_sources=()):
+    """Accept only the reviewed build-only finding; malformed/changed scans fail closed."""
+    today = today or datetime.date.today()
+    if any("deepmerge" in source for source in runtime_sources):
+        return False
+    if not re.fullmatch(r"\d+\.\d+\.\d+-preview\.[1-9]\d*", version):
+        return False
+    if not (datetime.date.fromisoformat(review["reviewedAt"]) <= today <= datetime.date.fromisoformat(review["expiresAt"])):
+        return False
+    if raw.get("error") or raw.get("auditReportVersion") != 2:
+        return False
+    findings = raw.get("vulnerabilities", {})
+    expected = review["packages"]
+    if not findings or set(findings) != set(expected):
+        return False
+    for name, version in expected.items():
+        node = "node_modules/" + name
+        dependency = lock.get("packages", {}).get(node, {})
+        finding = findings[name]
+        if dependency.get("version") != version or dependency.get("dev") is not True or dependency.get("integrity") != review["integrities"][name]:
+            return False
+        if finding.get("severity") != review["severity"] or finding.get("nodes") != [node] or finding.get("fixAvailable") is not False:
+            return False
+        via = finding.get("via", [])
+        if name == "deepmerge":
+            if len(via) != 1 or not isinstance(via[0], dict) or via[0].get("url") != review["advisory"] or via[0].get("severity") != review["severity"]:
+                return False
+        elif via != ["deepmerge"]:
+            return False
+    return True
 
 
 def objects(raw):
@@ -111,8 +144,12 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--scan", action="store_true")
     parser.add_argument("--native-desktop", action="store_true", help="also analyze the actual desktop,production entrypoint (requires native build dependencies)")
+    parser.add_argument("--reviewed-preview-build-advisories", action="store_true", help="allow only the expiring, reviewed development-tool advisory in preview builds")
     parser.add_argument("--artifact", action="append", default=[], help="explicit executable to inventory/scan; universal Macs are scanned per slice")
     options = parser.parse_args()
+    version = (ROOT / "cmd/werkbord/VERSION").read_text().strip()
+    if options.reviewed_preview_build_advisories and not re.fullmatch(r"\d+\.\d+\.\d+-preview\.[1-9]\d*", version):
+        raise ValueError("reviewed build advisories are permitted only for preview versions")
     out = Path(options.out).resolve()
     if out == ROOT or ROOT in out.parents and out.parts[len(ROOT.parts)] not in ("output", ".cache", "dist"):
         raise ValueError("write evidence outside sources or under output/, .cache/, dist/")
@@ -180,11 +217,29 @@ def main():
             code, raw, err = capture(["npm", "audit", "--json"], ROOT / module)
             name = module.replace("/", "-")
             (out / (name+"-audit.json")).write_text(raw)
-            results.append({"check": module, "exit": code})
-    report = {"schema": 1, "version": (ROOT / "cmd/werkbord/VERSION").read_text().strip(), "sourceCommit": commit, "dirty": dirty,
+            (out / (name+"-audit.stderr.txt")).write_text(err)
+            result = {"check": module, "exit": code}
+            if code == 1 and module == "web" and options.reviewed_preview_build_advisories:
+                review = json.loads((ROOT / "scripts/preview-build-advisories.json").read_text())
+                lock = json.loads((ROOT / "web/package-lock.json").read_text())
+                sources = (path.read_text() for folder in (ROOT / "web/src", ROOT / "web/shell", ROOT / "internal/uipresentation/static") for path in folder.rglob("*") if path.is_file() and path.suffix in (".ts", ".js", ".svelte"))
+                if reviewed_preview_advisory(json.loads(raw), lock, review, version, runtime_sources=sources):
+                    result.update(exit=0, scannerExit=code, reviewedPreviewAdvisory=review)
+                    print(f"WARNING: preview build-only advisory retained: {review['advisory']} (review expires {review['expiresAt']})", file=sys.stderr)
+            results.append(result)
+            if code:
+                try:
+                    for dependency, finding in json.loads(raw).get("vulnerabilities", {}).items():
+                        print(f"npm audit: {module}: {dependency}: {finding.get('severity', 'unknown')}", file=sys.stderr)
+                except (ValueError, AttributeError):
+                    pass
+    report = {"schema": 1, "version": version, "sourceCommit": commit, "dirty": dirty,
               "tools": tools, "externalCLIs": external_clis, "artifacts": artifacts, "checks": results,
               "acceptance": "pending", "limitations": ["Source SBOM is not a binary/license completeness claim", "No customer account, credentials, customer data or private key collected", "No clean-machine, independent-host, live-provider or soak acceptance inferred"]}
     (out / "audit.json").write_text(json.dumps(report, sort_keys=True, indent=2)+"\n")
+    for result in results:
+        if result.get("exit", 0) or result.get("status") == "missing":
+            print(f"audit failed: {result.get('check', result.get('inventory'))}: exit {result.get('exit', 'missing')}; details in {out}", file=sys.stderr)
     print(out / "audit.json")
     return int(any(result.get("exit", 0) != 0 or result.get("status") == "missing" for result in results))
 

@@ -104,8 +104,22 @@ node scripts/browser-salie-sessions.cjs
 
 The audit also collects available dependency license/notice texts and records unavailable entries for review. Collected notices, the index and source SBOM are carried in desktop bundles and controller archives; Sparkle’s own license is included before the Mac app is sealed. The audit writes resolved direct/transitive/development inventories, a source
 CycloneDX SBOM, explicit executable identities, tool versions and advisory output.
-It fails for scan failures and records pending operational acceptance. Run native
-desktop-tag scans and each shipping binary/slice as well; source inventories do
+It fails for scanner errors and unreviewed findings and records pending operational acceptance.
+
+Preview-only dependency assessment (2026-10-28): the Svelte Vite plugin's
+development dependency `deepmerge@4.3.1` is affected by
+[GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4), updated
+2026-10-27 with no upstream fix available. The plugin merges repository-owned
+build configuration; this dependency is not used by runtime source or shipped
+as an app runtime dependency. `scripts/preview-build-advisories.json` records the
+exact versions/integrities and a review expiry of 2026-11-28. Only an explicitly
+requested preview audit can retain this finding. The audit records the original
+scanner exit, advisory and rationale, and preserves raw evidence. Runtime use,
+changed packages, available fixes, new findings, higher severity, expired review
+or scanner failure still block. Stable acceptance remains blocked by this
+finding until it is resolved or separately reviewed under stable policy.
+
+Run native desktop-tag scans and each shipping binary/slice as well; source inventories do
 not prove native framework/license completeness. Include Sparkle, WebKit/runtime
 requirements, Wintun for future Windows releases, and external Git/gh/provider CLI
 versions in the distribution review. Source-built infrastructure never trusts a

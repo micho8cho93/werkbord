@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "advisory": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+  "reviewedAt": "2026-10-28",
+  "expiresAt": "2026-11-28",
+  "severity": "low",
+  "packages": {
+    "deepmerge": "4.3.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1"
+  },
+  "rationale": "Preview-only assessment: the Svelte Vite plugin uses deepmerge to merge repository-controlled build configuration. Both packages are development-only and deepmerge is absent from the application's runtime dependency graph. No patched upstream version is available. Keep the full advisory evidence; stable releases remain blocked. Remove this exception when an upstream fix is available, the dependency changes, or the review expires.",
+  "integrities": {
+    "deepmerge": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==",
+    "@sveltejs/vite-plugin-svelte": "sha512-ZPsLN8B1e/En+Ak5s4V7srFDT532oS0qieLsQwu63NGKsS+iAjoO2Js1BochlHlglcU+Pt7WAO3C5Ee+4f6gVA=="
+  }
+}

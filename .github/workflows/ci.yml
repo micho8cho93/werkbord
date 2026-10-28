@@ -5,7 +5,36 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  # Surface dependency findings before anyone spends time approving a signed build.
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Audit source and build dependencies
+        run: |
+          extra=""
+          case "$(scripts/product.sh werkbord version)" in *-preview.*) extra=--reviewed-preview-build-advisories ;; esac
+          python3 scripts/audit-release.py --out output/ci-audit --scan $extra
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: ci-audit
+          path: output/ci-audit/*
+          if-no-files-found: warn
+
   check:
     strategy:
       matrix:
@@ -53,16 +82,61 @@ jobs:
         run: make test-desktop-sign
       - name: Installers, against a local release server
         run: make test-install test-install-team
-      - name: Race and concurrency checks
+      - name: Every release platform builds, for both products
         if: matrix.os == 'ubuntu-24.04'
+        run: |
+          make web web-embed
+          for p in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord
+            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord-team
+          done
+
+  # These suites used to run after the native matrix. Keep every check, but run
+  # independent workloads together so a Mac preview need not wait for their sum.
+  race:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build Nebula from pinned source with patched dependencies
+        run: scripts/fetch-nebula.sh
+      - name: Build the same embedded web assets used by the native checks
+        run: make web web-embed web-shell
+      - name: Race and concurrency checks
         env:
           # The tests that start real database clusters run in their own step, one package at a time, and not under the race detector.
           WERKBORD_SKIP_RQLITE: "1"
         # The race detector makes the service and Team packages several times slower on a shared runner than on a laptop; the default
         # ten-minute limit per package stopped internal/service while it was still making progress.
         run: go test -race -timeout 30m ./...
+
+  browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build Nebula from pinned source with patched dependencies
+        run: scripts/fetch-nebula.sh
+      - name: "The pinned rqlite source build (a fresh build is required; cached records never authorize execution)"
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: .cache/rqlite
+          key: rqlite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('internal/team/infra/rqlite/manifest.go', 'scripts/fetch-rqlite.sh') }}
       - name: Disposable desktop/mobile browsers and Individual → Team workflow
-        if: matrix.os == 'ubuntu-24.04'
         run: |
           cd web && npx playwright install --with-deps chromium webkit && cd ..
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser" make test-browser
@@ -73,7 +147,7 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
           node scripts/browser-salie-sessions.cjs
       - name: Browser diagnostics
-        if: failure() && matrix.os == 'ubuntu-24.04'
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: browser-diagnostics
@@ -81,11 +155,3 @@ jobs:
             ${{ runner.temp }}/werkbord-browser/*.png
             ${{ runner.temp }}/werkbord-browser/**/*.png
           if-no-files-found: ignore
-      - name: Every release platform builds, for both products
-        if: matrix.os == 'ubuntu-24.04'
-        run: |
-          make web web-embed
-          for p in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
-            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord
-            CGO_ENABLED=0 GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -o /dev/null ./cmd/werkbord-team
-          done

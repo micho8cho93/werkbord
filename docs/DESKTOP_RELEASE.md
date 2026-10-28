@@ -88,6 +88,12 @@ release is extensively tested and verified, so it is the long one. The tag decid
 
 With CI already green on the commit, a preview's release workflow does only what is specific to a release:
 
+Preview downloads are Mac-only while `LINUX_BETA_ENABLED` is off (the default).
+An Ubuntu runner in the release graph prepares **Mac**
+controller archives; its operating system does not mean a Linux app is shipped.
+CI runs native checks, race checks, browser checks and dependency auditing in
+parallel. The exact-commit gate still requires the complete workflow to pass.
+
 | Job | Time | Waits for |
 | --- | --- | --- |
 | `ci-gate` | seconds | a successful `ci` run on exactly the tagged commit |
@@ -98,6 +104,15 @@ With CI already green on the commit, a preview's release workflow does only what
 The time you take to approve is the rest. Approve `desktop-release` as soon as the run is waiting: the build holds the Apple
 secrets, so it will not start without it. Publication needs both builds to succeed, so approving early cannot publish anything
 that failed. If Linux is off (the default), its skipped job no longer skips the approval and publication jobs after it.
+
+Dependency audit failures print their failing check and retain the complete
+`release-audit` / `native-audit` artifacts even when the job fails. The narrowly
+reviewed development-only advisory in `scripts/preview-build-advisories.json`
+may be retained by a preview until its review expires. It is restricted to the
+exact package versions and integrity hashes, low severity, no available fix,
+development-only dependencies and no runtime-source use. All original scanner
+output remains in the candidate. New findings, scanner errors and stable builds
+still fail; this is not a clean-security or production-acceptance claim.
 
 ### What a preview skips, and what it keeps
 

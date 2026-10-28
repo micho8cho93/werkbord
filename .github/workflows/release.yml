@@ -155,8 +155,13 @@ jobs:
       - name: Source, frontend and build dependency audit (no acceptance inferred)
         env:
           CI_RUN: ${{ needs.ci-gate.outputs.ci_run }}
+          PREVIEW: ${{ needs.plan.outputs.stable != 'true' }}
         run: |
-          python3 scripts/audit-release.py --out output/release-audit --scan
+          extra=""
+          if [ "$PREVIEW" = true ]; then
+            case "$(scripts/product.sh werkbord version)" in *-preview.*) extra=--reviewed-preview-build-advisories ;; esac
+          fi
+          python3 scripts/audit-release.py --out output/release-audit --scan $extra
           python3 - <<'PY'
           import json, os
           from pathlib import Path
@@ -173,10 +178,11 @@ jobs:
           Path('output/release-audit/validation.json').write_text(json.dumps(receipt, sort_keys=True, indent=2)+'\n')
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: release-audit
           path: output/release-audit/*
-          if-no-files-found: error
+          if-no-files-found: warn
       - name: Build the controller archives for the unified release
         env:
           LINUX: ${{ needs.plan.outputs.linux }}
@@ -257,18 +263,24 @@ jobs:
       - name: Scan the actual universal binaries and native desktop source
         env:
           CGO_LDFLAGS: -framework UniformTypeIdentifiers
+          PREVIEW: ${{ needs.plan.outputs.stable != 'true' }}
         run: |
-          python3 scripts/audit-release.py --out output/native-audit --scan --native-desktop \
+          extra=""
+          if [ "$PREVIEW" = true ]; then
+            case "$(scripts/product.sh werkbord version)" in *-preview.*) extra=--reviewed-preview-build-advisories ;; esac
+          fi
+          python3 scripts/audit-release.py --out output/native-audit --scan --native-desktop $extra \
             --artifact dist/desktop/Werkbord.app/Contents/MacOS/Werkbord \
             --artifact dist/desktop/Werkbord.app/Contents/Helpers/werkbord \
             --artifact dist/desktop/Werkbord.app/Contents/Helpers/werkbord-team \
             --artifact dist/desktop/Werkbord.app/Contents/Helpers/nebula \
             --artifact dist/desktop/Werkbord.app/Contents/Helpers/rqlited
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: native-audit
           path: output/native-audit/*
-          if-no-files-found: error
+          if-no-files-found: warn
       - name: Sign the Sparkle update archive and feed
         run: |
           mkdir -p dist/feed
@@ -512,6 +524,7 @@ jobs:
 
           The preview is not marked latest and is not distributed through the stable update feed. Preview apps update from the preview feed (the `werkbord-preview-feed` release), which this release replaces once its downloads and signed feed have been verified. Linux packages are opt-in after acceptance; Windows downloads remain deferred.
           EOF
+            python3 scripts/release-audit-notes.py release-assets/release-audit.tar.gz release-notes.md
           fi
           # An unsigned test preview (make desktop-preview, docs/DESKTOP_RELEASE.md) may already be published under this tag so it can be
           # downloaded before the owner's signature exists. The signed release replaces exactly that; any other existing release is an error.
