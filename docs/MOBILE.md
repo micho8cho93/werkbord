@@ -94,7 +94,7 @@ Settings. The table below lists the navigation catalogue, rather than the initia
 | Key | Page | Reuses | Counts |
 | --- | --- | --- | --- |
 | Needs attention | `#/control` | the Needs attention page (`routes/ControlCenter.svelte`) | what needs you (the app's own count) |
-| Calendar | `#/schedule` | `lib/mobile/Schedule.svelte`: Month, Week, Timeline | |
+| Calendar | `#/schedule` | `lib/mobile/Schedule.svelte`: Month and Week | |
 | Projects | `#/projects` | the Projects page, each project with what it asks of you | |
 | My Work | `#/mywork` | `lib/mobile/MyWork.svelte`, the board's status words | |
 | Agents | `#/agents` | `lib/mobile/Agents.svelte`: a card for each agent (working, waiting for you, idle, not available) with its sessions, `RunBadge`, Reply and a Stop that asks twice; the task page for output and questions | runs working |
@@ -133,12 +133,11 @@ Every key is at least 44px square (82px on a 320px screen), and a key is an ordi
 `calendar.ts` turns every project's tasks into two kinds of item and never mixes them (DESIGN.md: a **plan** is the dates of work, a
 **schedule** is when an agent starts):
 
-- a **planned** span (`task.plan`, whole days, or a milestone) is cobalt and drawn as a bar;
+- a **planned** span (`task.plan`, whole days, or a milestone) is cobalt and shown on its planned days;
 - a **scheduled** start (`task.orchestration.scheduledAt`, when the schedule is on) is amber and drawn at its hour.
 
 Month has marks per day and the day's items underneath; Week has the seven days across and the chosen day's hours scrolling, with whole-day
-work above them; Timeline reuses `lib/timeline.ts` (range, zoom, bars, milestones and dependency arrows) at Week, Month and Quarter zoom and
-scrolls sideways. An item opens a sheet with the task, its plan or schedule, and the scheduler's own decision for it; it links to the task and
+work above them. An item opens a sheet with the task, its plan or schedule, and the scheduler's own decision for it; it links to the task and
 opens the same editor the board uses for the dates. Nothing is moved by dragging on the phone.
 
 ## The Assistant
@@ -176,7 +175,7 @@ workspace console, device API or execution routes. The Assistant runs through In
   Runners sections, because the desktop does not.
 - **Reviews** is Individual's: tasks ready for review, opened on the task, where its Git review and the one action that settles it already are.
   Team's reviews are Team's.
-- **Calendar and Timeline** show; they do not drag. Dates are changed in the same editor the board uses.
+- **Calendar** show; they do not drag. Dates are changed in the same editor the board uses.
 - **Provider** for an agent is its name (Claude Code, Codex): the controller reports no separate provider field.
 - **Progress** is shown only for what an agent reports: tokens used. No percentage is shown because none is reported.
 
@@ -187,7 +186,7 @@ workspace console, device API or execution routes. The Assistant runs through In
   code is signed in with a credential of its own, a second scan of the same code is refused, its own screens meet no refusal, the owner's things are refused, and a revoked phone is
   signed out while its page is open; Settings → Phones lists, adds (with the countdown) and revokes with a confirm. And the nine positions
   are equal and in three columns with material round them, each opens its page and Back returns, a held key drops (and does not move with reduced motion),
-  Month, Week and Timeline, the Assistant's place in the bar, 320 to 430px and landscape in both themes without horizontal overflow, one board column at a time,
+  Month and Week, the Assistant's place in the bar, 320 to 430px and landscape in both themes without horizontal overflow, one board column at a time,
   and a wide window that stays the desktop.
 - `scripts/measure-legibility.cjs --check` measures the phone-only pages too (the deck, My Work, Agents, Reviews, Git, Runners and the Calendar's three views): no text
   under 11.5px and none under its contrast floor. (It reports one finding that is not on these pages and was there before: dark-theme "Run settings" in the

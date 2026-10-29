@@ -16,7 +16,7 @@ The assessment follows current UI source and the handlers and state conditions b
 
 | Surface | Reviewed content |
 | --- | --- |
-| Desktop shell | Home, attention lists, calendar, analytics, saved workspaces, settings, Devices & Hosting, project moves, Team creation and native confirmation copy |
+| Desktop shell | Home, attention lists, calendar, analytics, settings, Devices & Hosting, project moves, Team creation and native confirmation copy |
 | Personal | Setup, tours, projects, board, task creation/details, run results, review, Git dialogs, planning and scheduling |
 | Settings | Agents, defaults, runners, phone pairing, display, MCP services/clients, project memory, memory sharing and repository relationships |
 | Salie | Opening suggestions, empty/unavailable states, proposals, confirmations, run sessions and recommendation explanations |
@@ -121,15 +121,6 @@ Priority: **P1** = misleading stage or next action; **P2** = avoidable confusion
 - **Observed:** After a saved task’s launch fails, the dialog offers “View saved task”, “Close”, “Keep saved task” and possibly “Retry start.” “Keep” implies the saved task needs another persistence decision. Close and Keep also differ in recovery-draft cleanup.
 - **Change:** Use a recovery view with “View task”, an eligible retry and one close action. Define draft cleanup deliberately.
 - **Acceptance:** Closing preserves the saved task without suggesting another save is required. Reopening does not accidentally restore an obsolete creation draft. An uncertain start remains protected against unsafe retry.
-
-### D07 — Workspace error states duplicate reload controls · P2
-
-**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
-
-- **Source:** [GeneratedWorkspace.svelte:55](../web/src/shell/GeneratedWorkspace.svelte#L55), [PersonalWorkspace.svelte:126](../web/src/routes/PersonalWorkspace.svelte#L126).
-- **Observed:** A header reload remains present when a load error or rendering failure adds another reload/retry control nearby.
-- **Change:** Give the error state one authoritative recovery action. Keep routine reload available in the normal state if useful.
-- **Acceptance:** Inspect successful loading, failed loading and failed rendering; each error presents one appropriate recovery control. Preserve boundary-reset behaviour where required.
 
 ### D08 — Phone preview has two identical exit actions · P3
 
@@ -333,15 +324,6 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 - **Proposed:** “Update Git details”; “Starts a new conversation in this task’s worktree, using its saved summary and changes”; “Runner offline. This run still belongs to it.” “Agent-reported tests · not independently verified”, with notes below. Push hint: “Push without force. The push is refused if the remote has newer commits.” Worktree removal: “Removes this worktree folder. The branch and commits are kept.”
 - **Acceptance:** Keep branch/target/SHA evidence and live blockers where needed. Preserve uncommitted-work protection, reported-versus-verified test facts and remote ownership. Move implementation explanations into optional details instead of removing decision-critical facts.
 
-### C21 — Generated workspace copy exposes implementation and taxonomy · P2
-
-**Implementation status:** Completed in the recovery and saved-workspace group; the original observation is retained below.
-
-- **Source:** [WorkspaceManagement.svelte:76](../web/src/lib/personal/WorkspaceManagement.svelte#L76), [deletion/history:87](../web/src/lib/personal/WorkspaceManagement.svelte#L87), [PersonalWorkspace.svelte:140](../web/src/routes/PersonalWorkspace.svelte#L140), [PersonalLibrary.svelte:61](../web/src/lib/personal/PersonalLibrary.svelte#L61).
-- **Problem:** Explaining Lucide’s icon matching does not help users choose an icon. “Definition history”, “exclusively owned personal data”, “workspace references” and keeping a workspace URL are implementation-oriented instructions.
-- **Proposed:** “Choose another icon”; remove the matching-algorithm paragraph. “Layout history” with “Restore the interface; current records are kept.” “Used by N workspaces.” Deletion should name the actual collections and record counts, then distinguish shared/protected data. Where a saved workspace is discoverable, point to its real navigation or Data library instead of requiring URL memorisation.
-- **Acceptance:** History copy must mention restored names/icons/locations where relevant. Preserve exact deletion scope, protected shared collections and confirmation. Verify a reliable reopening route before removing the URL fallback.
-
 ### C22 — Workflow monitor uses a recovery label even when no retry is needed · P2
 
 **Implementation status:** Completed in the phone workflows batch; the original observation is retained below.
@@ -373,7 +355,7 @@ Each replacement below is proposed wording. Validate dynamic state, permissions 
 
 **Implementation status:** Completed in batch 1; the original observation and proposed wording are retained below.
 
-- **Source:** [Projects.svelte:111](../web/src/routes/Projects.svelte#L111), [tours.ts:28](../web/src/lib/setup/tours.ts#L28), [FilesView.svelte:134](../web/src/lib/personal/views/FilesView.svelte#L134), [Conversation.svelte:170](../web/src/lib/assistant/Conversation.svelte#L170).
+- **Source:** [Projects.svelte:111](../web/src/routes/Projects.svelte#L111), [tours.ts:28](../web/src/lib/setup/tours.ts#L28), [Conversation.svelte:170](../web/src/lib/assistant/Conversation.svelte#L170).
 - **Problem:** A work project says “Nothing is read from or written to your disk” despite being saved application data. The tour says every project is a repository, excluding work projects. File copy says “this computer” even though storage can be on the viewing device. An offline message speculates that a restart will usually resolve in seconds.
 - **Proposed:** “A board and timeline for work without a Git repository.” Tour: “Each project has its own board.” File view: “Files added here are stored on this device”; scope any no-upload claim to that feature. Offline: “Werkbord is not responding. Check that it is running, then try again.”
 - **Acceptance:** Reassurance is tied to a verified feature/state. No blanket guarantees about disk writes, all projects, all file sharing or recovery timing. Check desktop and phone storage semantics before finalising copy.

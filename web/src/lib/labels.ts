@@ -1,4 +1,4 @@
-import '../../../internal/uipresentation/static/timeline.js';
+import '../../../internal/uipresentation/static/planning.js';
 // Labels and work modes: what they look like and how tasks are filtered by them. No framework code,
 // so it can be tested on its own. The controller owns the rules (names, colours, uniqueness); this
 // is only presentation and the same filter the API offers.

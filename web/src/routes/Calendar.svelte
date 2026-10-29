@@ -5,7 +5,7 @@
   import { formatWall, hourLabel } from '../lib/clock.svelte';
   import { agentWorkable } from '../lib/board';
   import { agentLabel, resolveFor } from '../lib/execution';
-  import { spanOf } from '../lib/timeline';
+  import { spanOf } from '../lib/planning-dates';
   import { runStatus } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
@@ -313,7 +313,7 @@
     <aside class="side" aria-label="Planning">
       <section>
         <h3>Not scheduled to run<span class="chip">{unscheduled.length}</span></h3>
-        {#if !scope.activeTasks.some(t => t.orchestration?.enabled && t.orchestration.scheduledAt)}<p class="empty-s">To plan dates and milestones, use Timeline.</p>{/if}
+        {#if !scope.activeTasks.some(t => t.orchestration?.enabled && t.orchestration.scheduledAt)}<p class="empty-s">To plan work without starting an agent, edit the task’s planned dates and milestone.</p>{/if}
         {#if unscheduled.length}
           <ul class="items">
             {#each unscheduled as t (t.id)}

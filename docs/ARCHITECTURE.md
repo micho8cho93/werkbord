@@ -92,7 +92,7 @@ GitRepository    │
 
 - **Project**: a registered local Git repository (`Kind` `repository`). `RepoPath` is the repository's
   top-level directory, absolute and symlink-resolved. The repository is never copied. A **work project**
-  (`Kind` `work`) has no repository at all: a board and a timeline for work that is not code, with no Git,
+  (`Kind` `work`) has no repository at all: a board and Calendar for work that is not code, with no Git,
   worktrees or runs. Everything that reads a repository asks `Project.HasRepository` first.
 - **GitRepository**: the last inspection snapshot of a project's repository (branch, HEAD,
   origin/HEAD, remotes with any embedded credentials redacted). Refreshed on demand. It
@@ -683,8 +683,8 @@ domain, not left to the frontend.
 ```
 Global                      Needs you (aggregates actionable state across every project)
                             Projects (every repository; registering one)
-Project A                   Board · Timeline · Calendar · Git · Runs
-Project B (work project)    Board · Timeline             (no repository: no Calendar, Git or Runs)
+Project A                   Board · Calendar · Git · Runs
+Project B (work project)    Board · Calendar             (planned dates only; no agent execution)
 ```
 
 **API.** Everything that belongs to a project is reached *through* it:
@@ -1000,8 +1000,7 @@ The window has one sidebar and nothing else to navigate by. Top to bottom it hol
 (the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
 needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**,
 **Reviews** and **Analytics**; then **a section for Personal and one for each team the person belongs to**, each listing what
-belongs to that workspace alone (its projects, and for Personal New personal project) and the saved workspaces
-Salie made for it, and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, the Data library, Settings and the
+belongs to that workspace alone (its projects, and for Personal New personal project), and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, Settings and the
 plan chip (Free or Premium; [PLANS.md](PLANS.md)). **Go to…** (⌘K, or the Workspace menu) reaches any project, place or page by typing.
 Choosing a place asks the workspace to show it (`werkbord.navigate`, a place inside the page); the workspace says where it is
 (`werkbord.frame`/`place`) and the sidebar marks that entry. The projects are the ones each workspace reports in its summary. There

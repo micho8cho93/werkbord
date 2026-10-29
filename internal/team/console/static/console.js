@@ -39,10 +39,10 @@ const FRAMED = window.parent !== window;
 // moves about.
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['timeline', 'Timeline'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['product-map', 'Product Map'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['product-map', 'Product Map'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
 const ADVANCED_TABS = new Set(['hosts', 'connectivity']);
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
-const PROJECT_TABS = new Set(['product-map', 'overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'people', 'project-settings']);
+const PROJECT_TABS = new Set(['product-map', 'overview', 'board', 'calendar', 'repository', 'activity', 'people', 'project-settings']);
 // The team's own sub-areas, in the order of their tabs. They are the team as a major part; a project's are PROJECT_TABS.
 const WORKSPACE_TABS = ['workspace', 'projects', 'initiatives', 'members'];
 const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
@@ -56,9 +56,8 @@ const state = {
   showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
   advancedSettings: false, archiveProjectId: '',
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
-  filter: { labels: [], match: 'any' }, // the board's and the timeline's label filter: a way of looking, never stored
-  calendarMode: 'calendar', calendarAnchor: null,
-  tlZoom: 'week', tlGroup: 'none', tlCollapsed: {},
+  filter: { labels: [], match: 'any' }, // the board's label filter: a way of looking, never stored
+  calendarAnchor: null,
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
   memberQuery: '', validationIssues: [], focusId: '',
@@ -129,7 +128,6 @@ function icon(name) {
     workspace: [['rect',{width:'7',height:'7',x:'3',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'14',rx:'1'}],['rect',{width:'7',height:'7',x:'3',y:'14',rx:'1'}]],
     projects: [['path',{d:'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'}],['path',{d:'M8 10v4'}],['path',{d:'M12 10v2'}],['path',{d:'M16 10v6'}]],
     board: [['rect',{width:'18',height:'18',x:'3',y:'3',rx:'2'}],['path',{d:'M8 7v7'}],['path',{d:'M12 7v4'}],['path',{d:'M16 7v9'}]],
-    timeline: [['path',{d:'M10 6h8'}],['path',{d:'M12 16h6'}],['path',{d:'M3 3v16a2 2 0 0 0 2 2h16'}],['path',{d:'M8 11h7'}]],
     plans: [['path',{d:'M13 5h8'}],['path',{d:'M13 12h8'}],['path',{d:'M13 19h8'}],['path',{d:'m3 17 2 2 4-4'}],['rect',{x:'3',y:'4',width:'6',height:'6',rx:'1'}]],
     mywork: [['rect',{width:'8',height:'4',x:'8',y:'2',rx:'1',ry:'1'}],['path',{d:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'}],['path',{d:'m9 14 2 2 4-4'}]],
     reviews: [['circle',{cx:'18',cy:'18',r:'3'}],['circle',{cx:'6',cy:'6',r:'3'}],['path',{d:'M6 21V9a9 9 0 0 0 9 9'}]],
@@ -234,7 +232,7 @@ matchMedia('(max-width: 899px)').addEventListener('change', revealActiveNavigati
 let navigationResize = 0;
 window.addEventListener('resize', () => {
   cancelAnimationFrame(navigationResize);
-  navigationResize = requestAnimationFrame(() => { revealActiveNavigation(); centerTimeline(); });
+  navigationResize = requestAnimationFrame(() => { revealActiveNavigation(); });
 });
 function initial(name) { return h('span', { class: 'av', 'aria-hidden': 'true' }, (String(name || '?').trim()[0] || '?').toUpperCase()); }
 
@@ -450,7 +448,7 @@ function toast(message) {
 // ---- a host older than this window ----
 
 let hostVersion = '';
-const WHAT_THE_HOST_LACKS = { calendar: 'Calendar', timeline: 'Timeline', analytics: 'Analytics', mcp: 'MCP clients', plans: 'Plans', labels: 'Labels', initiatives: 'Initiatives', reviews: 'Reviews', overview: 'Overview' };
+const WHAT_THE_HOST_LACKS = { calendar: 'Calendar', analytics: 'Analytics', mcp: 'MCP clients', plans: 'Plans', labels: 'Labels', initiatives: 'Initiatives', reviews: 'Reviews', overview: 'Overview' };
 async function hostOutdatedView() {
   if (!hostVersion) hostVersion = await api('GET', '/health').then((r) => String(r.version || '').replace(/^v/, '').replace(/-\d+-g[0-9a-f]+$/, '')).catch(() => '');
   const what = WHAT_THE_HOST_LACKS[state.tab] || ([...TABS, ...ADMIN_TABS].find(([id]) => id === state.tab) || [])[1] || 'This screen';
@@ -472,7 +470,7 @@ function askForSettings(tab, part) {
 }
 function go(tab, part) { if (FRAMED && !HOSTED && ADMIN_TABS.some(([id]) => id === tab)) return askForSettings(tab, part); focusMain = true; if (tab === 'settings') state.settingsPart = SETTINGS_PARTS.has(part) ? part : state.settingsPart; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
 function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
-function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && ['calendar', 'timeline'].includes(state.tab); state.projectId = projectId; if (!keepCalendar) state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
+function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && state.tab === 'calendar'; state.projectId = projectId; if (!keepCalendar) state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
 
@@ -560,10 +558,10 @@ async function renderNow() {
   const motion = window.WerkbordMotion;
   const motionBefore = motion?.snapshot(app, '[data-board-item], [data-plan-item]');
   const chartsBefore = motion?.chartSnapshot(app);
-  const nextMotionFilter = JSON.stringify([state.filter, state.showArchived, state.ownTickets, state.calendarMode, state.calendarAnchor, state.tlZoom, state.tlGroup, state.tlCollapsed]);
+  const nextMotionFilter = JSON.stringify([state.filter, state.showArchived, state.ownTickets, state.calendarAnchor]);
   const animateSaved = renderedScope === screenScope() && state.online && !motionResync && motionFilter === nextMotionFilter;
   motionFilter = nextMotionFilter;
-  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' || state.tab === 'timeline' ? ' is-board' : '') + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
+  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
@@ -917,7 +915,7 @@ async function loadProject() {
     d.comments = await loadComments(id, state.ticketId);
   } else forgetOpenComment();
   if (state.tab === 'overview') d.mentions = await loadMentions(id);
-  if (state.tab === 'timeline' || state.tab === 'calendar') {
+  if (state.tab === 'calendar') {
     // A host from before the Calendar cannot answer: the tab says so, and the project's other tabs stay one click away.
     d.timeline = await api('GET', '/projects/' + id + '/timeline').catch((e) => { if (e.code === 'host_outdated') return null; throw e; });
     // Which tickets have a shared request for agent work: their dependencies gate its start. Only a marking, so it is optional.
@@ -964,12 +962,12 @@ async function projectScopedView() {
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
   const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['product-map', 'Product Map', 0]]);
-  const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
-  const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const calendarLacking = state.tab === 'calendar' && d.timeline === null ? await hostOutdatedView() : null;
+  const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
-  if (['calendar', 'timeline'].includes(state.tab) && state.ticketId) {
+  if (state.tab === 'calendar' && state.ticketId) {
     const k = d.ticket || d.board.tickets.find(k => k.id === state.ticketId);
     if (k) view = h('div', { class: 'calendar-with-ticket' }, content, ticketPanel(d, k));
   }
@@ -1034,7 +1032,7 @@ function tabNav(label, prefix, choices, isCurrent, open) {
 
 // A project's own sections, where the window's sidebar (which lists the project) does not: Board, Git, Runs, People.
 function projectTabs(projectId, choices) {
-  return tabNav('Project sections', 'project-tab-', choices, (id) => state.tab === id || (id === 'calendar' && state.tab === 'timeline'), (id) => openProject(projectId, id));
+  return tabNav('Project sections', 'project-tab-', choices, (id) => state.tab === id, (id) => openProject(projectId, id));
 }
 
 // One choice among a few, as a row of buttons that say which is on: a way of looking at the page, not a place to go (that is tabNav).
@@ -1061,9 +1059,6 @@ function projectOverviewTab(d) {
       mentionRows(d.mentions, 'No unread mentions in this project.')));
 }
 function calendarTab(d) {
-  const toggle = choiceGroup('Calendar presentation', [['calendar', 'Calendar'], ['timeline', 'Timeline']], mode => state.calendarMode === mode || state.tab === 'timeline' && mode === 'timeline',
-    mode => { state.calendarMode = mode; if (state.tab === 'timeline') state.tab = 'calendar'; render(); }, 'actions calendar-switch');
-  if (state.calendarMode === 'timeline' || state.tab === 'timeline') return h('div', {}, toggle, timelineTab(d));
   const anchor = state.calendarAnchor || TL.localToday(Date.now());
   const day = new Date(anchor + 'T12:00:00'); day.setDate(day.getDate() - (day.getDay() + 6) % 7);
   const dates = Array.from({ length: 7 }, (_, i) => { const t = new Date(day); t.setDate(t.getDate() + i); return TL.localToday(t.getTime()); });
@@ -1072,7 +1067,7 @@ function calendarTab(d) {
   const week = h('div', { class: 'calendar-week' }, dates.map(date => h('section', { class: 'calendar-day', 'data-plan-day': date }, h('h3', {}, new Date(date + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })),
     d.board.tickets.filter(k => { const span = TL.spanOf(k); return span && span.start <= date && span.end >= date; }).map(k => h('button', { class: 'calendar-event', 'data-status': k.status, ...planAttrs(k), onclick: () => openTicket(d.id, k.id) }, k.title, h('small', {}, statusName(k.status) + ' · Planned work'))),
     requests.filter(s => TL.localToday(new Date(s.at).getTime()) === date).map(s => { const k = d.board.tickets.find(k => k.id === s.ticketId); return h('button', { class: 'calendar-event scheduled', ...(k ? planAttrs(k, s) : {}), onclick: () => k && openTicket(d.id, k.id) }, k?.title || 'Scheduled work', h('small', {}, new Date(s.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' · ' + s.state)); }))));
-  return h('div', { class: 'team-calendar', 'data-plan-surface': '' }, toggle, h('div', { class: 'actions' }, h('button', { class: 'plain small', onclick: () => change(-7) }, 'Previous week'), h('button', { class: 'plain small', onclick: () => { state.calendarAnchor = null; render(); } }, 'Today'), h('button', { class: 'plain small', onclick: () => change(7) }, 'Next week')), h('p', { class: 'muted small' }, 'Planned dates and shared schedule requests. Requests wait for the owner’s own runner and approval.'), h('div', { class: 'scroll' }, week));
+  return h('div', { class: 'team-calendar', 'data-plan-surface': '' }, h('div', { class: 'actions' }, h('button', { class: 'plain small', onclick: () => change(-7) }, 'Previous week'), h('button', { class: 'plain small', onclick: () => { state.calendarAnchor = null; render(); } }, 'Today'), h('button', { class: 'plain small', onclick: () => change(7) }, 'Next week')), h('p', { class: 'muted small' }, 'Planned dates and shared schedule requests. Requests wait for the owner’s own runner and approval.'), h('div', { class: 'scroll' }, week));
 }
 
 // ---- My Work ----
@@ -1327,9 +1322,9 @@ function matchesFilter(k) { return !state.ownTickets || k.assigneeId === state.m
 
 function labelChip(l) {
   const chip = h('span', { class: 'lbl', title: l.name }, l.name);
-  const color = WerkbordTimeline.safeColor(l.color);
+  const color = WerkbordPlanning.safeColor(l.color);
   chip.style.background = color; // the colour is set through the style object, never built into markup
-  chip.style.color = WerkbordTimeline.inkFor(color);
+  chip.style.color = WerkbordPlanning.inkFor(color);
   return chip;
 }
 
@@ -1687,7 +1682,7 @@ function ticketTabs(k) {
   }, label, id === 'chat' && pending ? h('span', { class: 'num pend', 'aria-label': pending + (pending === 1 ? ' question waiting for you' : ' questions waiting for you') }, String(pending)) : '')));
 }
 
-// When it is planned for. These dates are what the Calendar and the Timeline draw.
+// When it is planned for. These dates are what the Calendar draw.
 function datesCard(d, k, path, canEdit) {
   const plan = k.plan || {};
   const fmt = (day) => day ? new Date(day + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
@@ -1705,7 +1700,7 @@ function datesCard(d, k, path, canEdit) {
     h('form', { class: 'stack plan-fields dates-form', 'data-ticket-id': draftId, 'data-ticket-version': k.version,
       onsubmit: (e) => { e.preventDefault(); if (!form.validate()) return; const { plan: next } = form.read(); act(() => api('PATCH', path, { plan: next, version }).then(() => { discardTicketDraft(draftId); toast('Dates saved for ' + k.key + '.'); })); } },
       form.dates, form.summaryError, changedSubmit('Save dates', form.controls)),
-    h('p', { class: 'muted small' }, 'Shown in Calendar and Timeline. ', set ? toCalendar : ''));
+    h('p', { class: 'muted small' }, 'Shown in Calendar. ', set ? toCalendar : ''));
 }
 
 function executionProgress(records, note = true) {
@@ -1746,10 +1741,10 @@ function editTicket(d, k, path) {
   const title = h('input', { name: 'e-title-' + k.id, value: k.title, maxlength: 200 });
   const desc = h('textarea', { name: 'e-desc-' + k.id, rows: 3 }); desc.value = k.description;
   const reqs = h('textarea', { name: 'e-reqs-' + k.id, rows: 3 }); reqs.value = k.requirements;
-  return h('details', { open: ['calendar', 'timeline'].includes(state.tab) || state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
+  return h('details', { open: state.tab === 'calendar' || state.validationIssues.some((issue) => issue.itemId === k.id || issue.otherId === k.id) }, h('summary', {}, 'Edit this ticket'),
     ticketVersion(k) !== k.version ? h('div', { role: 'alert' }, h('p', { class: 'error' }, 'Someone changed this ticket while you were editing. Your draft is kept. Copy your text before loading their version and combining the changes.'), h('button', { class: 'plain', type: 'button', onclick: () => { discardTicketDraft(k.id); render(); } }, 'Load latest version')) : '',
     h('form', { class: 'stack', 'data-ticket-id': k.id, 'data-ticket-version': k.version, onsubmit: (e) => { e.preventDefault(); if (!plan.validate()) return; act(() => api('PATCH', path, { title: title.value, description: desc.value, requirements: reqs.value, ...plan.read(), version: ticketVersion(k) }).then(() => discardTicketDraft(k.id)));  } },
-      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, changedSubmit(['calendar', 'timeline'].includes(state.tab) ? 'Save changes' : 'Save', [title, desc, reqs, ...plan.node.querySelectorAll('input, select, textarea')])));
+      field('Title', title), field('Description', desc), field('Requirements and context', reqs), plan.node, changedSubmit(state.tab === 'calendar' ? 'Save changes' : 'Save', [title, desc, reqs, ...plan.node.querySelectorAll('input, select, textarea')])));
 }
 
 // What the member's own Werkbord reports, entered by hand: useful until it reports for them.
@@ -1884,7 +1879,7 @@ function peopleTab(d) {
 
 function readLocation() {
  const q = new URLSearchParams(location.search);
- const tab = q.get('tab');
+ const tab = q.get('tab') === 'timeline' ? 'calendar' : q.get('tab');
  state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
  if (FRAMED && !HOSTED && ADMIN_TABS.some(x => x[0] === state.tab)) state.tab = 'workspace'; // the window's own Settings shows these
  state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
@@ -2018,108 +2013,9 @@ function teamSchedulePanel(k, b) {
   return box;
 }
 
-// ---- the timeline ----
-// A project's tickets placed in time: planned date ranges, milestones and the dependencies between them, grouped as the
-// person chooses. It shows and never moves anything: a conflict is marked (the server finds them) and the person decides.
+// Shared calendar date utilities.
 
-const TL = WerkbordTimeline;
-function svgEl(name, attrs) {
-  const el = document.createElementNS('http://www.w3.org/2000/svg', name);
-  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
-  return el;
-}
-
-function timelineTab(d) {
-  const b = d.board, warnings = (d.timeline && d.timeline.warnings) || [];
-  const today = TL.localToday(Date.now());
-  const year = Number(today.slice(0, 4));
-  const px = TL.PX_PER_DAY[state.tlZoom];
-  const visible = b.tickets.filter(matchesFilter);
-  const dated = visible.filter((k) => TL.spanOf(k));
-  const undated = visible.filter((k) => !TL.spanOf(k));
-  const groups = TL.groupTasks(dated, b.labels, state.tlGroup);
-  const range = TL.viewRange(dated.map((k) => TL.spanOf(k)), today);
-  const width = (TL.daysBetween(range.start, range.end) + 1) * px;
-  const todayX = TL.daysBetween(range.start, today) * px + px / 2;
-  const byTicket = TL.warningsByTask(warnings);
-  const ticketOf = (id) => [...b.tickets, ...(b.archived || [])].find((k) => k.id === id);
-
-  const rows = [];
-  for (const g of groups) {
-    if (state.tlGroup !== 'none') rows.push({ kind: 'group', key: g.key, group: g });
-    if (state.tlGroup !== 'none' && state.tlCollapsed[g.key]) continue;
-    for (const k of g.tasks) rows.push({ kind: 'ticket', key: g.key + ':' + k.id, k });
-  }
-  const bars = TL.barsFor(dated, range, state.tlZoom);
-  const rowOf = TL.firstRows(rows.map((r) => (r.kind === 'ticket' ? r.k.id : null)));
-  const links = TL.arrows(bars, rowOf, TL.dependencyMap(dated));
-  const requested = new Set((d.schedules || []).filter((v) => !['completed', 'canceled'].includes(v.state)).map((v) => v.ticketId));
-  const gates = (l) => requested.has(l.to);
-  const open = (k) => () => openTicket(d.id, k.id);
-
-  const tools = h('div', { class: 'actions board-tools tl-tools' },
-    choiceGroup('Zoom', ['day', 'week', 'month', 'quarter'].map((z) => [z, z[0].toUpperCase() + z.slice(1)]), z => state.tlZoom === z, z => { state.tlZoom = z; render(); }),
-    h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
-      [['none', 'Nothing'], ['status', 'Status']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
-    h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'));
-
-  const warnPanel = warnings.length ? h('details', { class: 'tl-warns' }, h('summary', {}, 'Planning issues ', h('span', { class: 'badge' }, String(warnings.length))),
-    h('ul', {}, warnings.map((w) => { const k = ticketOf(w.itemId); return h('li', { 'data-sev': w.severity },
-      h('span', { class: 'sev' }, w.severity === 'error' ? 'Problem' : w.severity === 'warning' ? 'Conflict' : 'Note'), h('span', { class: 'msg' }, w.message),
-      k ? h('button', { type: 'button', class: 'plain small', onclick: open(k) }, 'Open ' + k.key) : ''); }))) : '';
-
-  let chart;
-  if (!dated.length) {
-    chart = h('div', { class: 'tl-empty' }, h('p', {}, 'Nothing is planned yet.'), h('p', { class: 'muted' }, 'Give a ticket a start and end date (or make it a milestone) and it appears here.'));
-  } else {
-    const axis = h('div', { class: 'tl-axis' }, TL.ticks(range, state.tlZoom).map((t) => { const el = h('span', { class: 'tl-tick' + (t.major ? ' major' : '') }, t.label); el.style.left = t.x + 'px'; return el; }));
-    axis.style.width = width + 'px';
-    const names = h('div', { class: 'tl-names' }, rows.map((r) => {
-      if (r.kind === 'group') {
-        const btn = h('button', { type: 'button', class: 'tl-group', 'aria-expanded': String(!state.tlCollapsed[r.key]), onclick: () => { state.tlCollapsed[r.key] = !state.tlCollapsed[r.key]; render(); } },
-          h('span', { class: 'caret' }, state.tlCollapsed[r.key] ? '▸' : '▾'), r.group.color ? labelChip({ name: r.group.title, color: r.group.color }) : h('span', {}, r.group.title), h('span', { class: 'badge' }, String(r.group.tasks.length)));
-        return btn;
-      }
-      const ws = byTicket.get(r.k.id), worst = TL.worst(ws);
-      return h('button', { type: 'button', class: 'tl-name', 'data-status': r.k.status, title: r.k.key + ' · ' + r.k.title, onclick: open(r.k) },
-        worst ? h('span', { class: 'tl-warn', 'data-sev': worst, title: ws.map((x) => x.message).join('\n'), 'aria-label': 'Has ' + plural(ws.length, 'warning') }, '!') : '',
-        h('span', { class: 'nt' }, r.k.title));
-    }));
-    const plot = h('div', { class: 'tl-plot' });
-    plot.style.width = width + 'px'; plot.style.height = rows.length * TL.ROW_HEIGHT + 'px';
-    for (const t of TL.ticks(range, state.tlZoom)) { const g = h('span', { class: 'tl-grid' + (t.major ? ' major' : '') }); g.style.left = t.x + 'px'; plot.append(g); }
-    const tl = h('span', { class: 'tl-today', title: 'Today' }); tl.style.left = todayX + 'px'; plot.append(tl);
-    rows.forEach((r, i) => {
-      if (r.kind === 'group') { const band = h('span', { class: 'tl-band' }); band.style.top = i * TL.ROW_HEIGHT + 'px'; band.style.height = TL.ROW_HEIGHT + 'px'; plot.append(band); return; }
-      const bar = bars.get(r.k.id);
-      if (!bar) return;
-      const worst = TL.worst(byTicket.get(r.k.id)), label = r.k.key + ' · ' + r.k.title + ' · ' + TL.spanTitle(bar.span, year);
-      if (bar.milestone) {
-        const m = h('button', { type: 'button', class: 'tl-ms', 'data-status': r.k.status, 'data-sev': worst, 'aria-label': 'Milestone: ' + label, 'data-tooltip': label, ...planAttrs(r.k), onclick: open(r.k) }, h('span', {}));
-        m.style.left = bar.x + bar.width / 2 - 8 + 'px'; m.style.top = i * TL.ROW_HEIGHT + TL.ROW_HEIGHT / 2 - 8 + 'px';
-        const t = h('span', { class: 'tl-mt' }, r.k.title); t.style.left = bar.x + bar.width / 2 + 14 + 'px'; t.style.top = i * TL.ROW_HEIGHT + 9 + 'px';
-        plot.append(m, t);
-      } else {
-        const rb = h('button', { type: 'button', class: 'tl-bar', 'data-status': r.k.status, 'data-sev': worst, 'data-tooltip': label, ...planAttrs(r.k), onclick: open(r.k) }, h('span', { 'data-plan-edge': 'start', 'aria-hidden': 'true' }), h('span', { class: 'bt' }, r.k.title), h('span', { 'data-plan-edge': 'end', 'aria-hidden': 'true' }));
-        rb.style.left = bar.x + 'px'; rb.style.width = Math.max(bar.width - 2, 6) + 'px'; rb.style.top = i * TL.ROW_HEIGHT + 6 + 'px'; rb.style.height = TL.ROW_HEIGHT - 12 + 'px';
-        plot.append(rb);
-      }
-    });
-    const svg = svgEl('svg', { class: 'tl-links', width, height: rows.length * TL.ROW_HEIGHT, 'aria-hidden': 'true' });
-    const defs = svgEl('defs'), marker = svgEl('marker', { id: 'tl-head', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto' });
-    marker.append(svgEl('path', { d: 'M0 0 L8 4 L0 8 z', fill: 'currentColor' })); defs.append(marker); svg.append(defs);
-    for (const l of links) svg.append(svgEl('path', { d: l.d, class: 'tl-link' + (gates(l) ? ' gates' : '') + (l.conflict ? ' clash' : ''), 'marker-end': 'url(#tl-head)' }));
-    plot.append(svg);
-    chart = h('div', { class: 'tl-chart' }, h('div', { class: 'tl-axis-row' }, h('div', { class: 'tl-corner' }, 'Work'), axis), h('div', { class: 'tl-body' }, names, plot));
-  }
-
-  const unplanned = undated.length ? h('section', { class: 'tl-undated', 'aria-label': 'Not planned yet' }, h('h3', {}, 'Not planned yet ', h('span', { class: 'badge' }, String(undated.length))),
-    undated.map((k) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('button', { type: 'button', class: 'link', onclick: open(k) }, k.key + ' · ' + k.title)),
-      ''))) : '';
-
-  const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
-  return h('div', { class: 'timeline-view', 'data-plan-surface': '' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline', 'data-today-x': todayX, 'data-plan-grid': '', 'data-plan-px': px, onwheel: e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const scales = ['day', 'week', 'month', 'quarter']; state.tlZoom = scales[Math.max(0, Math.min(3, scales.indexOf(state.tlZoom) + (e.deltaY > 0 ? 1 : -1)))]; render(); } }, chart), gating, unplanned);
-}
+const TL = WerkbordPlanning;
 
 // Read-only snapshots: live board updates do not repeat aggregation queries.
 const analyticsState = { view: 'Activity', scopes: Object.fromEntries(['Activity', 'Categories', 'Completion'].map(view => [view, { project: '', days: 30, appliedProject: '', appliedDays: 30 }])), report: null, key: '', visibility: '', series: 'both', metric: 'completed', category: '' };
@@ -2248,22 +2144,6 @@ async function analyticsView() {
       r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Some history is unavailable. Totals may be incomplete.') : '', body));
 }
 
-const timelineTooltip = h('div', { class: 'timeline-tooltip', role: 'tooltip', hidden: true });
-document.body.append(timelineTooltip);
-function showTimelineTooltip(event) {
- const target = event.target.closest?.('[data-tooltip]');
- if (!target) { timelineTooltip.hidden = true; return; }
- const rect = target.getBoundingClientRect();
- timelineTooltip.textContent = target.dataset.tooltip;
- timelineTooltip.style.left = Math.max(12, Math.min(rect.left, innerWidth - 332)) + 'px';
- timelineTooltip.style.top = Math.min(rect.bottom + 6, innerHeight - 80) + 'px';
- timelineTooltip.hidden = false;
-}
-document.addEventListener('pointerover', showTimelineTooltip);
-document.addEventListener('focusin', showTimelineTooltip);
-document.addEventListener('pointerout', () => timelineTooltip.hidden = true);
-document.addEventListener('focusout', () => timelineTooltip.hidden = true);
-
 function dropRefusal(d, k, to) {
   if (d.board.project.archived) return 'Unarchive this project before moving tickets.';
   if (to === 'done' && k.status === 'review') return d.board.completion[k.id] || 'You need review permission to complete this ticket.';
@@ -2288,13 +2168,6 @@ document.addEventListener('werkbord-board-drop', event => {
   const k = d?.board?.tickets.find(k => k.id === id);
   if (k) performBoardDrop(d, k, to);
 });
-
-function centerTimeline() {
- const scroller = app.querySelector('.tl-scroller');
- if (!scroller) return;
- const namesWidth = scroller.querySelector('.tl-names')?.clientWidth || 280;
- scroller.scrollLeft = Math.max(0, Number(scroller.dataset.todayX) - Math.max(0, scroller.clientWidth - namesWidth) / 2);
-}
 
 // Calendar gestures use the same versioned plan and schedule operations as the editor.
 function planAttrs(k, schedule) {

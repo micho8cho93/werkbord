@@ -17,8 +17,8 @@ describe('bundled Help discovery', () => {
   });
 
   it('links repository and work projects to views that exist for each kind', () => {
-    expect(helpHref({ kind: 'project', repository: 'calendar', work: 'timeline' }, 'repo-id', 'repository')).toBe('#/p/repo-id/calendar');
-    expect(helpHref({ kind: 'project', repository: 'calendar', work: 'timeline' }, 'work-id', 'work')).toBe('#/p/work-id/timeline');
+    expect(helpHref({ kind: 'project', repository: 'calendar', work: 'calendar' }, 'repo-id', 'repository')).toBe('#/p/repo-id/calendar');
+    expect(helpHref({ kind: 'project', repository: 'calendar', work: 'calendar' }, 'work-id', 'work')).toBe('#/p/work-id/calendar');
     expect(helpHref({ kind: 'settings', section: 'runners' }, 'repo-id', 'repository')).toBe('#/settings?runners');
     expect(helpHref({ kind: 'project', repository: 'runs', work: 'board' }, '', undefined)).toBe('#/projects');
   });

@@ -31,7 +31,7 @@ a ticket; change a ticket's title, description, column, work mode, labels or pla
 question.
 
 It cannot, by construction, not by instruction: start, stop or configure a run, change Git or a repository, change a
-setting, archive or delete core board/project/Team data, or give an agent permission to run a command. Personal workspace deletion has the narrow owner-only, human-confirmed path described under Phase 5 below. (`recommend_next_actions` reads a bounded
+setting, archive or delete core board/project/Team data, or give an agent permission to run a command. (`recommend_next_actions` reads a bounded
 projection of repository state to work out suggestions: branch names and counts, never a path or a diff, and no operation
 changes anything.) There is no operation for any of it
 (`TestTheAssistantOffersNoRouteToRunsGitOrSettings`).
@@ -695,90 +695,6 @@ Lower tiers can order what higher tiers allow and can never add what they remove
   project allow-list. Without the bridge, the pull request route is assumed, never a direct merge.
 * Feedback is recorded by the person pressing a button on a card (a REST call with the controller token), not by the model:
   there is no assistant operation that writes memory.
-
-## Personal generative workspaces — Phase 3
-
-Salie can create and revise persistent personal interfaces with three application
-operations: `list_personal_workspaces`, `get_personal_workspace` and
-`propose_personal_workspace`. The additional permissions are `personal:read` and
-`personal:propose`: the first reads private definitions and schemas; the second
-only proposes a definition and compatible schema changes for human confirmation.
-Neither grants agent, Git, execution, Team or arbitrary network access. These
-operations are available only on authenticated controllers to unrestricted owner
-assistant sessions, never MCP or project-restricted sessions. Tokenless controllers
-do not expose personal tools, matching the personal owner API. Read-only assistants receive only the read grant.
-
-Describe the workspace you want (for example “a notebook with nested pages and tags” or “a board for my sprint”), then choose
-Universal, Individual, selected Team context IDs, or a combination. Salie proposes
-a short name, an existing registry icon, registered layout/view components and
-empty personal collection schemas. The fixed confirmation card previews the exact
-interface and locations, exposes its fields and record controls, and saves the
-workspace and all collections atomically only after **Confirm**. Preview controls
-cannot write or approve. Generated OpenUI conversation forms still have no
-approval capability. Creation uses a durable normalised-name key and stable
-collection alias IDs; retries share pending proposals, and subsequent creation
-attempts direct Salie to reopen the saved workspace rather than duplicate it.
-Choose another name to deliberately create a distinct workspace.
-
-Use **Edit with Salie** on a saved workspace, or name its exact `pws_…` ID in the
-conversation. Salie fetches its current definition and collection schemas from
-SQLite each time. An edit carries the exact workspace ID, current workspace
-revision and every bound collection revision. Its preview reads existing records
-locally for display; records are never sent to the model. Edits preserve collection
-IDs, order, field keys/types, records and bindings. Name, icon, layout, visible
-fields, saved equality filters, compatible schema additions and display locations
-can change. In the desktop shell these buttons open the existing Salie frame using
-only a bounded workspace ID, and the saved-workspace link returns to the local
-workspace frame. No conversation or record text crosses this handoff. Removing fields/options, changing field types or making fields newly
-required is refused with an explicit migration-review explanation. Phase 3 does
-not implement destructive migrations.
-
-Saved names, definitions and schemas are untrusted operation-result data, never
-system instructions, approvals or permissions. Collection records have no assistant
-read/write tool in this phase. The model cannot submit records or executable
-source. Closed grammar validation runs before proposal storage and again inside
-the atomic save transaction. Existing appops expiry, grant rechecks, proposal
-ownership/digests and fail-closed audit apply unchanged; private proposal prose
-is omitted from the audit detail.
-
-Every valid workspace revision is retained in SQLite, including definitions saved
-before this phase's migration. `get_personal_workspace` with `revision` retrieves a
-historical definition with current collection schemas. Salie can propose that
-definition as a rollback using the current workspace/schema revisions; it requires
-the same preview and confirmation. Failed or stale updates retain the previous
-valid definition and records. Memory may supply useful context, but never replaces
-SQLite. Changing models, providers or conversations does not change saved data.
-
-Verification: `TestSaliePersonalWorkspaceConversationCreateReopenModify` exercises
-creation, human approval, record entry, model switching, reopening, a filtered
-urgent section and moving progress to the top, another approval and unchanged task
-IDs/values. `internal/appops/personal_test.go` covers durable deduplication,
-rollback, invalid output, stale revisions, transaction failure, permissions and
-audit/approval isolation. `node scripts/browser-personal-assistant.cjs` demonstrates
-both complete flows with the real API, SQLite, engine and renderer using a scripted
-provider, and captures desktop/mobile previews. No external model account is
-required for these deterministic tests.
-
-
-### Personal workspace lifecycle — Phase 5
-
-Salie can propose `propose_delete_personal_workspace` with `keep_data` (delete the
-interface, retain all personal collections) or `delete_data` (also delete only
-exclusively owned personal collections). This narrowly extends the existing
-owner-only `personal:propose` authority; it adds no core-task/project/Git/Team or
-memory deletion permission. Model text cannot confirm anything. The fixed human
-card loads the full authoritative deletion preview and verifies its fingerprint;
-the UI and Salie execute the same `Personal.DeleteWorkspaceReviewed` operation.
-Both recheck live revisions, record changes, ownership and workspace dependencies
-inside the deletion transaction. Shared/unowned collections are explicitly kept.
-A changed plan requires a fresh review and confirmation.
-
-Retained data stays discoverable in the Data library and through
-`list_personal_collections`. A future creation proposal may reuse a retained
-collection by its exact saved ID, revision and unchanged schema. No records are
-copied, reset or generated. Definition rollback keeps current collection schemas
-and records. See [Personal workspaces](PERSONAL_WORKSPACES.md#phase-5--management-deletion-and-recovery)
-for ownership, retention, backup limitations and the full endpoint contract.
 
 ## Model selection objectives
 

@@ -40,15 +40,6 @@ async function ready(url, child) {
     return fetch(url).then(r => r.ok).catch(() => false);
   }, 'Server did not start: ' + child.diagnostics);
 }
-async function api(base, method, url, data, status) {
-  const res = await fetch(base + '/api/personal/v1' + url, {
-    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: data === undefined ? undefined : JSON.stringify(data),
-  });
-  if (status) { assert.equal(res.status, status); return; }
-  const raw = await res.text(); assert.ok(res.ok, `${method} ${url}: ${res.status} ${raw}`);
-  return raw ? JSON.parse(raw) : undefined;
-}
 const ok = text => console.log('PASS ' + text);
 (async () => {
   const binary = path.join(temp, 'fixture');
@@ -71,8 +62,8 @@ const ok = text => console.log('PASS ' + text);
   page.on('request', r => { if (r.method() === 'POST' && /\/api\/assistant/.test(r.url())) modelRequests.push(r.url()); });
   page.setDefaultTimeout(10000);
 
-  await page.goto(web + '/#/personal');
-  await page.getByRole('button', { name: 'Create with Salie', exact: true }).click();
+  await page.goto(web + '/#/control');
+  await page.getByTestId('assistant-button').first().click();
   const box = page.getByRole('textbox', { name: 'Message to Salie' });
   const newTab = async () => {
     await page.getByRole('button', { name: 'New tab', exact: true }).click();

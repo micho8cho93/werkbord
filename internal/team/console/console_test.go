@@ -11,11 +11,18 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/motion.js", "/theme.js", "/search.js", "/timeline.js", "/ui/timeline.js", "/ui/tokens.css", "/ui/controls.css", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/motion.js", "/theme.js", "/search.js", "/ui/planning.js", "/ui/tokens.css", "/ui/controls.css", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {
 			t.Errorf("%s: %d %v", path, rec.Code, rec.Header())
+		}
+	}
+	for _, path := range []string{"/timeline.js", "/ui/timeline.js"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("retired asset %s: %d", path, rec.Code)
 		}
 	}
 	rec := httptest.NewRecorder()
@@ -82,22 +89,22 @@ func TestTheConsoleNeverBuildsHTMLFromData(t *testing.T) {
 	}
 }
 
-// The timeline and the labels put server data on the page: names, colours, dates. Names are text, and a colour is only ever
+// Calendar dates and labels put server data on the page: names, colours, dates. Names are text, and a colour is only ever
 // used if it is #rrggbb, and only through the element's style object, never built into markup.
-func TestTheTimelineAndLabelsNeverBuildMarkupFromData(t *testing.T) {
+func TestPlanningAndLabelsNeverBuildMarkupFromData(t *testing.T) {
 	root, _ := fs.Sub(static, "static")
 	rec := httptest.NewRecorder()
-	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/timeline.js", nil))
+	Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ui/planning.js", nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("shared timeline: %d", rec.Code)
+		t.Fatalf("shared planning utilities: %d", rec.Code)
 	}
-	timeline := rec.Body.Bytes()
+	planning := rec.Body.Bytes()
 	for _, banned := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
-		if strings.Contains(string(timeline), banned) {
-			t.Errorf("timeline.js uses %s", banned)
+		if strings.Contains(string(planning), banned) {
+			t.Errorf("planning.js uses %s", banned)
 		}
 	}
-	if !regexp.MustCompile(`safeColor = \(c\) => \(typeof c === 'string' && /\^#\[0-9a-f\]\{6\}\$/i\.test\(c\)`).Match(timeline) {
+	if !regexp.MustCompile(`safeColor = \(c\) => \(typeof c === 'string' && /\^#\[0-9a-f\]\{6\}\$/i\.test\(c\)`).Match(planning) {
 		t.Error("a label colour must be checked to be #rrggbb before it is used")
 	}
 	js, _ := fs.ReadFile(root, "console.js")
@@ -108,8 +115,8 @@ func TestTheTimelineAndLabelsNeverBuildMarkupFromData(t *testing.T) {
 		}
 	}
 	index, _ := fs.ReadFile(root, "index.html")
-	if strings.Index(string(index), "timeline.js") < 0 || strings.Index(string(index), "timeline.js") > strings.Index(string(index), "console.js") {
-		t.Error("index.html must load timeline.js before console.js")
+	if strings.Index(string(index), "planning.js") < 0 || strings.Index(string(index), "planning.js") > strings.Index(string(index), "console.js") {
+		t.Error("index.html must load planning.js before console.js")
 	}
 }
 

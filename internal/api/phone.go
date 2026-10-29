@@ -26,7 +26,7 @@ import (
 // phone's requests to the same handler, as a request that phoneDoor accepts.
 //
 // A phone is the owner's remote control, not a second owner. It can see everything the Control Deck and the task pages
-// show, work with tasks and runs, answer agents, use the Assistant and work with the records of the personal workspaces. It cannot change a setting, register or change a
+// show, work with tasks and runs, answer agents, use the Assistant. It cannot change a setting, register or change a
 // repository, touch the controller's token, pair or revoke a runner, change general execution settings (fixed deck workflows may choose agent/model), or enroll or
 // revoke phones. Those are the owner's, at the computer. Git (merge, push, branch delete, worktree clean, pull request)
 // and the whole Assistant are allowed: the owner decided so.
@@ -120,20 +120,6 @@ var phoneRoutes = []phoneRoute{
 	{method: "POST", pattern: "/api/projects/{}/git/health/refresh"},
 	{method: "POST", pattern: "/api/projects/{}/git/health/findings/{}/dismiss"},
 	{method: "POST", pattern: "/api/projects/{}/git/health/findings/{}/reopen"},
-
-	// Generated personal workspaces: a phone opens them and works with their records (the to-dos it ticks off). It does
-	// not change what a workspace is, delete one, or touch the data library's housekeeping; creating or editing a
-	// workspace goes through the Assistant's confirmation card, and the rest is the owner's, at the computer.
-	{method: "GET", pattern: "/api/personal/v1/capabilities"},
-	{method: "GET", pattern: "/api/personal/v1/workspaces"},
-	{method: "GET", pattern: "/api/personal/v1/workspaces/{}"},
-	{method: "GET", pattern: "/api/personal/v1/collections"},
-	{method: "GET", pattern: "/api/personal/v1/collections/{}"},
-	{method: "GET", pattern: "/api/personal/v1/collections/{}/records"},
-	{method: "GET", pattern: "/api/personal/v1/collections/{}/records/{}"},
-	{method: "POST", pattern: "/api/personal/v1/collections/{}/records", anyBody: true},
-	{method: "PUT", pattern: "/api/personal/v1/collections/{}/records/{}", anyBody: true},
-	{method: "DELETE", pattern: "/api/personal/v1/collections/{}/records/{}", anyBody: true},
 
 	// Terminal attachment only: creation and grant management remain local-owner only.
 	{method: "GET", pattern: "/api/terminals"},

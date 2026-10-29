@@ -18,7 +18,6 @@ package assistant
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -105,16 +104,10 @@ type Engine struct {
 	work     string
 }
 
-type PersonalEditingContext struct {
-	WorkspaceID string `json:"workspaceId"`
-	Revision    int64  `json:"revision"`
-}
-
 type activeTurn struct {
-	personalEditing *PersonalEditingContext
-	id              string
-	cancel          context.CancelCauseFunc
-	done            chan struct{}
+	id     string
+	cancel context.CancelCauseFunc
+	done   chan struct{}
 }
 
 // The reasons a turn ends before it is done, as the cause of its context.
@@ -561,12 +554,6 @@ func (e *Engine) SendMessage(ctx context.Context, sessionID, text string, attach
 // SendMessageWithOpenUIPrompt starts a normal assistant turn and optionally adds the web registry's generated OpenUI
 // component prompt. The prompt controls formatting only; tool availability remains the server's appops catalog.
 func (e *Engine) SendMessageWithOpenUIPrompt(ctx context.Context, sessionID, text string, attachmentIDs []string, openUIPrompt string) (string, error) {
-	return e.SendMessageWithPersonalContext(ctx, sessionID, text, attachmentIDs, openUIPrompt, nil)
-}
-
-// SendMessageWithPersonalContext validates shell-selected editing identity against
-// owner storage. Names and editable message text cannot change this context.
-func (e *Engine) SendMessageWithPersonalContext(ctx context.Context, sessionID, text string, attachmentIDs []string, openUIPrompt string, editing *PersonalEditingContext) (string, error) {
 	text = strings.TrimSpace(text)
 	openUIPrompt = strings.TrimSpace(openUIPrompt)
 	if text == "" && len(attachmentIDs) == 0 {
@@ -581,21 +568,6 @@ func (e *Engine) SendMessageWithPersonalContext(ctx context.Context, sessionID, 
 	s, err := e.loadSession(ctx, sessionID)
 	if err != nil {
 		return "", err
-	}
-	if editing != nil {
-		if !domain.ValidPersonalID(editing.WorkspaceID, domain.PrefixPersonalWorkspace) || editing.Revision < 1 {
-			return "", fmt.Errorf("%w: invalid workspace editing context", domain.ErrInvalid)
-		}
-		raw, _ := json.Marshal(map[string]string{"workspaceId": editing.WorkspaceID})
-		result, err := e.ops.Call(ctx, e.principal(s), "get_personal_workspace", raw)
-		if err != nil {
-			return "", err
-		}
-		snapshot, ok := result.Data.(*domain.PersonalSnapshot)
-		if !ok || snapshot.Workspace == nil || snapshot.Workspace.Revision != editing.Revision {
-			return "", fmt.Errorf("%w: workspace revision changed; reopen Customize with Salie", domain.ErrConflict)
-		}
-		editing = &PersonalEditingContext{WorkspaceID: editing.WorkspaceID, Revision: editing.Revision}
 	}
 	if e.cfg.Selection != nil && s.Mode != "" && s.Mode != domain.SelectionManual && s.Selection == nil {
 		e.selectionMu.Lock()
@@ -638,7 +610,7 @@ func (e *Engine) SendMessageWithPersonalContext(ctx context.Context, sessionID, 
 	}
 	turnID := domain.NewID(turnPrefix)
 	tctx, cancel := context.WithCancelCause(e.base)
-	run := &activeTurn{personalEditing: editing, id: turnID, cancel: cancel, done: make(chan struct{})}
+	run := &activeTurn{id: turnID, cancel: cancel, done: make(chan struct{})}
 	e.runs[sessionID] = run
 	e.mu.Unlock()
 

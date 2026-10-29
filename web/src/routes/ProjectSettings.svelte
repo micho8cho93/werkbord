@@ -87,7 +87,7 @@
     <section class="pn">
       <h3>{project.name}</h3>
       <p class="muted">
-        A work project is a board and a timeline for anything that is not code. It has no repository, so there are no agents, runs or task
+        A work project is a board and calendar for anything that is not code. It has no repository, so there are no agents, runs or task
         defaults to set. Planning dates are set on each task.
       </p>
       <dl class="kv"><dt>Project ID</dt><dd class="mono">{project.id}</dd></dl>

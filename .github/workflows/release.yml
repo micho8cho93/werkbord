@@ -115,7 +115,6 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
           node scripts/browser-salie-sessions.cjs
 
   release-build:
@@ -169,7 +168,7 @@ jobs:
           commands = ['make check', 'make test-nebula', 'make test-rqlite', 'go test -race ./...', 'make test-desktop-sign',
                       'make test-browser', 'make test-team-desktop-browser',
                       'make test-unified-desktop-browser', 'make test-onboarding-browser',
-                      'make test-assistant-browser', 'make test-personal-browser',
+                      'make test-assistant-browser',
                       'node scripts/browser-salie-sessions.cjs']
           receipt = {'schema': 1, 'sourceCommit': os.environ['GITHUB_SHA'],
                      'workflowRun': os.environ['GITHUB_RUN_ID'], 'ciRun': os.environ['CI_RUN'],

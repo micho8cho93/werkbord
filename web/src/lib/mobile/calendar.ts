@@ -4,7 +4,7 @@
 // neither has no place in time and is not shown. No framework code, so it can be tested on its own.
 
 import { addDays, weekStart } from '../calendar';
-import { daysBetween, localToday, spanOf } from '../timeline';
+import { daysBetween, localToday, spanOf } from '../planning-dates';
 import type { Task, TaskState } from '../types';
 
 export type CalKind = 'planned' | 'scheduled';

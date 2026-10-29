@@ -54,11 +54,6 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
         Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
-        PersonalWorkspaceCall: async (method, path, body) => {
-            const res = await fetch(ind + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: body === null ? undefined : JSON.stringify(body) });
-            const raw = await res.text(); return {status: res.status, body: raw ? JSON.parse(raw) : null};
-        },
-        PersonalTeamProjects: () => ({projects: [], at: new Date().toISOString()}),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
         Workspaces: () => ({ items, selected: 'personal', problems: null, team: { state: 'ready' }, teamInstaller: false, invitation: false }),
         Overview: () => ({ entries: items.map(i => ({ workspace: entry(i.id, i.kind, i.name), summary: summary(entry(i.id, i.kind, i.name)) })), at: new Date().toISOString() }),
@@ -256,7 +251,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // And the window under it can be used again.
         await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();
         await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
-        await page.getByRole('group', { name: 'Calendar presentation' }).waitFor();
+        await page.getByRole('region', { name: 'Week calendar' }).waitFor();
         await page.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
         ok('closing collapses toward the button and leaves the window as it was');
@@ -385,37 +380,6 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await personal.getByTestId('assistant').count(), 0);
         ok('the workspace’s own page carries no second assistant');
 
-        // Personal workspaces use the same Salie frame, carrying only the saved ID.
-        await personal.locator('body').evaluate(() => location.hash = '#/personal');
-        await personal.getByRole('button', { name: 'Create with Salie', exact: true }).click();
-        const draftBox = assistantFrame.getByRole('textbox', { name: 'Message to Salie' });
-        await draftBox.waitFor();
-        // A general statement that a new generative workspace is coming, then the person's own description: no thing to build is suggested.
-        const opening = await draftBox.inputValue();
-        assert.match(opening, /new generative workspace/);
-        assert.match(opening, /type of workspace I want and the style/);
-        assert.doesNotMatch(opening, /to-do|planner|deadline|priorit/i);
-        await draftBox.fill('Create a weekly to-do list with deadlines and priorities in Universal and Individual and team:design.');
-        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
-        let preview = assistantFrame.locator('.confirm[data-state="waiting"]').filter({ has: assistantFrame.getByRole('heading', { name: 'Weekly to-dos', exact: true }) });
-        await preview.getByRole('button', { name: 'Confirm', exact: true }).click();
-        await assistantFrame.getByRole('link', { name: 'Open saved workspace', exact: true }).last().click();
-        await page.getByRole('heading', { name: 'Weekly to-dos', exact: true }).waitFor();
-        const saved = (await api(ind, 'GET', '/api/personal/v1/workspaces')).items[0];
-        const cid = saved.collectionIds[0];
-        const task = await api(ind, 'POST', `/api/personal/v1/collections/${cid}/records`, { values: { title: 'Keep shell task', priority: 'Urgent', done: false } });
-        await page.getByRole('button', { name: 'Customize with Salie', exact: true }).click();
-        await draftBox.waitFor();
-        assert.match(await draftBox.inputValue(), new RegExp(saved.id));
-        await draftBox.fill(`Reopen ${saved.id}. Add a section for urgent tasks and move progress to the top.`);
-        await assistantFrame.getByRole('button', { name: 'Send', exact: true }).click();
-        preview = assistantFrame.locator('.confirm[data-state="waiting"]').filter({ has: assistantFrame.getByRole('heading', { name: 'Weekly to-dos', exact: true }) });
-        await preview.getByRole('region', { name: 'Urgent tasks', exact: true }).getByText('Keep shell task', { exact: true }).waitFor();
-        await preview.getByRole('button', { name: 'Confirm', exact: true }).click();
-        await assistantFrame.getByRole('link', { name: 'Open saved workspace', exact: true }).last().click();
-        await page.getByRole('region', { name: 'Urgent tasks', exact: true }).getByText('Keep shell task', { exact: true }).waitFor();
-        assert.deepEqual(await api(ind, 'GET', `/api/personal/v1/collections/${cid}/records/${task.id}`), task);
-        ok('desktop Create/Customize with Salie use the saved ID and revision; approved links reopen the shell-managed interface with task data intact');
         await ctx.close();
 
         // Reduced motion applies here as well.

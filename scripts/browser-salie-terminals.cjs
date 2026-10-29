@@ -48,7 +48,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
   const page = await context.newPage(); lastPage = page; const errors = []; page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000);
-  await page.goto(web + '/#/personal'); await page.getByRole('button', { name: 'Create with Salie', exact: true }).click();
+  await page.goto(web + '/#/control'); await page.getByTestId('assistant-button').first().click();
   async function launch(agent) { await page.getByRole('button', { name: 'New tab', exact: true }).click(); await page.getByRole('dialog', { name: 'New tab', exact: true }).getByRole('button', { name: agent, exact: true }).click(); await page.getByRole('button', { name: 'Open terminal', exact: true }).click(); await page.locator('.terminal-session .identity').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready')); }
   await launch('claude-code'); await page.locator('.xterm-helper-textarea').pressSequentially('alpha'); await page.keyboard.press('Enter');
   await launch('codex'); await page.locator('.xterm-helper-textarea').pressSequentially('beta'); await page.keyboard.press('Enter');

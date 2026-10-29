@@ -76,16 +76,9 @@ func (m *Manager) ScheduleLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	nextRetention := time.Time{}
-	nextMaintenance := time.Time{}
 	for {
 		if ctx.Err() != nil {
 			return
-		}
-		if m.opt.Maintenance != nil && time.Now().After(nextMaintenance) {
-			if err := m.opt.Maintenance(ctx); err != nil && ctx.Err() == nil {
-				m.log().Warn("personal maintenance failed", "err", err)
-			}
-			nextMaintenance = time.Now().Add(time.Minute)
 		}
 		if time.Now().After(nextRetention) {
 			n := 0

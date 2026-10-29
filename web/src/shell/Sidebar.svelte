@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Icon, { type IconName } from '../lib/Icon.svelte';
-  import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Mark from '../lib/Mark.svelte';
   import AssistantGlyph from '../lib/AssistantGlyph.svelte';
   import { salie } from './salie.svelte';
@@ -17,7 +16,7 @@
   // The window's one sidebar. Top to bottom: Salie, Home, Calendar, Reviews and Analytics (what spans everything, each one page with
   // its own choice of where to look), then a section for Personal and one
   // for each team the person belongs to, each with its own projects, then Create with Salie, and last, pinned to the
-  // bottom whatever else is shown, the things about this computer: Devices & Hosting, the Data library, Settings and the plan.
+  // bottom whatever else is shown, the things about this computer: Devices & Hosting, Settings and the plan.
   // There is no switcher and no mode: a project is reached from the section it belongs to.
   const sections = $derived(sectionItems(model.view?.items));
   const needs = $derived(model.overview ? counts(model.overview).needsYou : 0);
@@ -29,7 +28,6 @@
   const needsOf = (i: Item): number => (summaryOf(i.id)?.attention ?? []).filter((a) => a.severity !== 'info').length;
   // A workspace that cannot be shown (not running, too old) has nowhere to go to inside it: its header opens the page that says why.
   const usable = (i: Item): boolean => !!model.frames[i.id] || i.state === 'ready';
-  const generatedIn = (i: Item) => model.generatedFor(i.id);
 
   // A narrow window keeps room for the workspace's pages (they change to a phone layout under about 900px): the sidebar
   // folds to icons.
@@ -56,8 +54,8 @@
 </script>
 
 {#snippet item(title: string, icon: IconName | string, current: boolean, go: () => void, id: string, count = 0)}
-  <button class="nav" type="button" aria-current={current ? 'page' : undefined} onclick={go} {title} aria-label={id.startsWith('generated-') ? title : undefined} data-page={id}>
-    {#if id.startsWith('generated-')}<WorkspaceIcon {icon} name={title} />{:else}<Icon name={icon as IconName} />{/if}<span class="label">{title}</span>
+  <button class="nav" type="button" aria-current={current ? 'page' : undefined} onclick={go} {title} data-page={id}>
+    <Icon name={icon as IconName} /><span class="label">{title}</span>
     {#if count}<span class="num" aria-label="{count} waiting for you">{count}</span>{/if}
   </button>
 {/snippet}
@@ -88,11 +86,6 @@
     {@render item('Calendar', 'calendar', model.page === 'calendar', () => model.go('calendar'), 'calendar')}
     {@render item('Reviews', 'merge', model.page === 'reviews', () => model.go('reviews'), 'reviews', reviews)}
     {@render item('Analytics', 'analytics', model.page === 'analytics', () => model.go('analytics'), 'analytics')}
-    {#each model.generatedFor('universal') as workspace (workspace.id)}
-      {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
-    {/each}
-    {#if !model.remotePersonal}{@render item('Create with Salie', 'plus', false, () => { void model.customizeGenerated(); }, 'create-generated')}{/if}
-    {#if model.generatedError}<button class="nav" title={model.generatedError} aria-label="Saved workspaces unavailable. Retry" onclick={() => model.refreshGenerated()}><Icon name="reply" /><span class="label">Retry saved workspaces</span></button>{/if}
   </div>
 
   {#each sections as i (i.id)}
@@ -122,9 +115,6 @@
             <Icon name="plus" size={14} /><span class="label">New personal project</span>
           </button>
         {/if}
-        {#each generatedIn(i) as workspace (workspace.id)}
-          {@render item(workspace.name, workspace.icon, model.page === 'generated' && model.generatedID === workspace.id, () => model.openGenerated(workspace.id), 'generated-' + workspace.id)}
-        {/each}
       {/if}
     </div>
   {/each}
@@ -135,7 +125,6 @@
       <Icon name="plus" /><span class="label">New team or join…</span>
     </button>
     {@render item('Devices & Hosting', 'runner', model.page === 'workspaces', () => model.go('workspaces'), 'workspaces')}
-    {#if !model.remotePersonal}{@render item('Data library', 'database', model.page === 'personal-library', () => model.go('personal-library'), 'personal-library')}{/if}
     {@render item('Settings', 'settings', model.page === 'settings', () => model.openSettings(), 'settings')}
     <button class="plan" class:on={plan.premium} type="button" onclick={() => model.openSettings('general/plan')} data-testid="plan-chip" aria-label={plan.premium ? 'Plan: Premium' : 'Plan: Free. See Premium'}>
       <span class="label">{plan.premium ? 'Premium' : 'Free plan'}</span><span class="pill"><span class="full">{plan.premium ? 'Active' : 'Upgrade'}</span><span class="short">Free</span></span>

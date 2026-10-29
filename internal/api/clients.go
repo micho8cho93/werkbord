@@ -127,7 +127,7 @@ func (s *Server) clientAuthenticate(next http.Handler) http.Handler {
 		case "/api/client/v1/self":
 			writeJSON(w, 200, e)
 		case "/api/client/v1/capabilities":
-			writeJSON(w, 200, map[string]any{"version": 2, "workspaceControl": true, "gitWrites": s.opt.DeviceOperations != nil, "terminals": s.opt.DeviceOperations != nil, "assistant": false, "personal": false, "deviceAdministration": false, "routes": clientpolicy.Routes})
+			writeJSON(w, 200, map[string]any{"version": 2, "workspaceControl": true, "gitWrites": s.opt.DeviceOperations != nil, "terminals": s.opt.DeviceOperations != nil, "assistant": false, "deviceAdministration": false, "routes": clientpolicy.Routes})
 		default:
 			next.ServeHTTP(w, r)
 		}

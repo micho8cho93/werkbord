@@ -8,11 +8,7 @@
     import Mark from '../Mark.svelte';
   import { globalHref, taskHref } from '../location';
   import { app } from '../state.svelte';
-  import { activeRunners, connectionWord, deckCounts, deckKeys, workspaceHref, type DeckKey } from './deck';
-  import { assistant } from '../assistant/sessions.svelte';
-  import { personalAPI } from '../personal/api';
-  import { personalWorkspaceDraft } from '../personal/conversation';
-  import type { Workspace } from '../personal/schema';
+  import { activeRunners, connectionWord, deckCounts, deckKeys, type DeckKey } from './deck';
   import Keycap from './Keycap.svelte';
   import { markHere, seenHere, tourDue } from '../setup/tours';
   import { eligibleRunners, executionAgents, resolveFor } from '../execution';
@@ -26,7 +22,7 @@
   import { suggestedWorkflow } from '../recommend/recommend';
   import { workflows } from './workflows.svelte';
   import { terminal, workflowRecovery } from './workflow-progress';
-  import { deckApi, isWorkspaceButton, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
+  import { deckApi, targetLabel, initialLayout, newSlot, place, rearrange, workflow, type ButtonId, type DeckExecution, type DeckLayout, type DeckSlot, type DeckStart } from './layout';
 
   const counts = $derived(deckCounts(app.overview, app.needsYou));
   const keys = $derived(deckKeys(counts));
@@ -34,24 +30,6 @@
   const runners = $derived(activeRunners(app.runners));
   const loaded = $derived(app.overview !== null);
   let layout = $state<DeckLayout>(initialLayout());
-  // The generated workspaces, whichever device made them: they are the controller's, so a change anywhere reloads this list.
-  let workspaces = $state<Workspace[]>([]);
-  let workspacesLoaded = $state(false);
-  $effect(() => {
-    void app.personalRevision;
-    let live = true;
-    personalAPI.workspaces().then((list) => { if (live) { workspaces = list; workspacesLoaded = true; } }, () => { /* not served here: the deck shows no workspaces */ });
-    return () => { live = false; };
-  });
-  // Tapping an empty position starts Edit Deck itself; going to Salie from there changes nothing yet, so the deck goes back to normal.
-  let openedEditing = false;
-  function createWithSalie() {
-    if (openedEditing) editing = false;
-    openedEditing = false;
-    assistant.personalEditing = undefined;
-    assistant.draft = personalWorkspaceDraft('');
-    assistant.show();
-  }
   let ready = $state(false);
   let saving = $state(false);
   let savedRevision = $state(0);
@@ -206,11 +184,6 @@
   }
   function keyFor(slot: DeckSlot | null): DeckKey {
     if (!slot) return { id: 'empty', label: 'Add button', icon: 'plus', href: '', count: 0, tone: 'plain', note: '' };
-    if (isWorkspaceButton(slot.button)) {
-      const made = workspaces.find((w) => w.id === slot.button);
-      if (made) return { id: slot.id, label: made.name, icon: 'folder', workspaceIcon: made.icon, href: guide ? '' : workspaceHref(made.id), count: 0, tone: 'plain', note: '' };
-      return { id: slot.id, label: workspacesLoaded ? 'Removed workspace' : 'Workspace', icon: 'folder', href: '', count: 0, tone: 'plain', note: workspacesLoaded ? 'No longer saved. Edit the deck to remove this button.' : '' };
-    }
     const w = workflow(slot.button);
     if (!w) { const key = keys.find(k => k.id === slot.button)!; return guide ? {...key, href: ''} : key; }
     const run = latest(slot);
@@ -327,7 +300,7 @@
               if (guide === 3) configureGuide();
               else if (guide === 4 && preview) advance(5);
               else if (guide === 4) void launch(slot);
-            } : !slot || editing ? () => { if (guide) { if (guide === 2 && i >= 6) library = i; } else { openedEditing = !editing; editing = true; library = i; } } : slot && workflow(slot.button) ? () => void launch(slot) : undefined}
+            } : !slot || editing ? () => { if (guide) { if (guide === 2 && i >= 6) library = i; } else { editing = true; library = i; } } : slot && workflow(slot.button) ? () => void launch(slot) : undefined}
             onconfigure={slot && workflow(slot.button) ? () => { if (guide) guideSlot = slot.id; configuring = i; } : undefined}
             ondrag={(x,y) => dragging(i,x,y)} ondrop={drop} />
         </div>
@@ -349,7 +322,7 @@
   <DeckRuns {history} />
   </div>
   {#if library !== null}
-    <DeckLibrary onboarding={!!guide} {workspaces} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose} oncreate={() => { library = null; createWithSalie(); }}
+    <DeckLibrary onboarding={!!guide} position={library} slot={layout.slots[library]} onclose={() => library = null} onchoose={choose}
       onremove={() => { if (library !== null) layout.slots = place(layout.slots,library,null); library = null; if (guide) void persist().catch(() => {}); }}
       onmove={to => { if (library !== null) move(library,to); }}
       onconfigure={() => { configuring = library; library = null; }} />

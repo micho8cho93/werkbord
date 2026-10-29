@@ -116,13 +116,6 @@ func RecoverPanics(log *slog.Logger, next http.Handler) http.Handler {
 const DefaultCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
 	"connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
 
-// WithLocalFiles is csp for a product whose owner opens files from their own computer inside it (a PDF, a picture, a clip in a
-// generated workspace): pages made from those files are blob: addresses that only this page's own scripts can create, so
-// allowing them lets such a file be shown and lets nothing else in. Scripts, styles and connections are unchanged.
-func WithLocalFiles(csp string) string {
-	return strings.Replace(csp, "img-src 'self' data:", "img-src 'self' data: blob:", 1) + "; media-src 'self' blob:; frame-src 'self' blob:"
-}
-
 // DesktopFrameAncestor is the one scheme that may show a page of a product inside a frame without being asked twice: the
 // Werkbord desktop app's own window, whose pages come from the app and from no network. A web page on the Internet or in a
 // browser cannot have it as its address, so allowing it lets the app compose Individual and Team workspaces in one window

@@ -159,7 +159,7 @@ async function labelsView() {
     if (editingLabel === l.id) {
       const n = h('input', { name: 'edit-label-name', value: l.name, maxlength: 40, required: true });
       const ds = h('input', { name: 'edit-label-desc', value: l.description || '', maxlength: 200 });
-      const co = h('input', { name: 'edit-label-color', type: 'color', value: WerkbordTimeline.safeColor(l.color), 'aria-label': 'Colour' });
+      const co = h('input', { name: 'edit-label-color', type: 'color', value: WerkbordPlanning.safeColor(l.color), 'aria-label': 'Colour' });
       return h('form', { class: 'row label-row', onsubmit: (e) => { e.preventDefault(); act(async () => { await api('PATCH', '/labels/' + l.id, { name: n.value, description: ds.value, color: co.value, version: l.version }); editingLabel = null; }); } },
         h('div', { class: 'grow stack' }, field('Name', n), field('What it is for', ds), field('Colour', co)),
         h('button', { class: 'primary small' }, 'Save'), h('button', { class: 'plain small', type: 'button', onclick: () => { editingLabel = null; render(); } }, 'Cancel'));

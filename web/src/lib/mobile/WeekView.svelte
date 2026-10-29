@@ -5,7 +5,7 @@
   import { lanes } from '../calendar';
   import Icon from '../Icon.svelte';
   import { app } from '../state.svelte';
-  import { localToday } from '../timeline';
+  import { localToday } from '../planning-dates';
   import CalRow from './CalRow.svelte';
   import { dayLayout, dayTitle, marks, weekDays, type CalItem } from './calendar';
   import { cal } from './calstate.svelte';

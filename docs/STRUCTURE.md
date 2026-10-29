@@ -32,8 +32,7 @@ Connectivity Hosts, backups and local runners. Personal's tsnet support is separ
 [TEAM_INSTALL.md](TEAM_INSTALL.md), [PLANS.md](PLANS.md) and the [release gate](TEAM_SECURITY_GATE.md).
 
 > **Words in the interface.** The controller’s projects are **Personal**, and shared projects belong to a **Team**. Existing
-> source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire values `"personal"` and the saved
-> workspaces' `visibility.universal`/`individual` fields keep their names because other programs and stored data speak them.
+> source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire value `"personal"` keeps its name because other programs and stored data speak it.
 >
 > **Naming.** Werkbord was called Dev Board. Nothing of the old name remains: the executable, the `WERKBORD_*` variables, the data
 > directory, the database file, the module path and the branch namespace are all `werkbord`.
@@ -88,7 +87,7 @@ A package is **shared** when both engines use it and it holds no behaviour of ei
 | `internal/mcpcontract` | MCP Streamable HTTP framing, bounded tool request/response handling, and validated project/operation scopes. Holds no credentials, board operations or product permissions. Uses the official MCP Go SDK. | Personal MCP server, Team MCP server, `internal/mcpbridge` |
 | `internal/mcpplan` | The neutral batch-plan wire shape, temporary task IDs, and validation of single-project requests. Holds no board data or authorization. | Personal appops, Team MCP service |
 | `internal/mcpbridge` | Stdio MCP client forwarding tools, resources and prompts to the configured Streamable HTTP endpoint. Holds no product identity or board behavior. | `cmd/werkbord`, `cmd/werkbord-team` |
-| `internal/uipresentation` | Shared design tokens, segmented controls, section tabs, board and timeline layout; products supply data, status names, permissions and actions. | Both web frontends and the desktop shell |
+| `internal/uipresentation` | Shared design tokens, segmented controls, section tabs, board layout and calendar utilities; products supply data, status names, permissions and actions. | Both web frontends and the desktop shell |
 | `internal/nativebridge` | Product-neutral WebKit/Wails request and callback transport. No product methods, credentials or policies. | both desktop frontends |
 | `internal/entitlement` | The Free plan's team size and the offline check of a Premium unlock key: pure functions over a public key stamped into the build. No workspace, role, storage or process. See [PLANS.md](PLANS.md). | Team service, vendor tool, the desktop app |
 | `internal/logging` | `slog` logger construction | both |
@@ -110,7 +109,7 @@ not to reach across.
 
 The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
 console (`internal/team/console`). Both consume the framework-neutral components in `internal/uipresentation/static/`:
-shared tokens, segmented controls, section tabs, board geometry, motion, planning gestures and timeline calculations.
+shared tokens, segmented controls, section tabs, board geometry, motion, calendar planning gestures and date calculations.
 Personal imports them through its Svelte build; Team embeds and serves them under `ui/` without a Node build step.
 Status vocabulary and data/permission adapters stay in their product. Do not put Team screens in `web/`.
 
@@ -279,7 +278,7 @@ The assistant has its own (`internal/archtest/assistant_test.go`, [ASSISTANT.md]
 21. no provider is ever run with its safety checks off (`--dangerously…`, `bypassPermissions`, a writable sandbox, MCP
     configuration, extra directories), and the flags that turn its tools off are still there;
 22. the assistant's permissions are the reviewed list: none of them is about starting or stopping a run, Git, a setting,
-    a repository, or deleting core data. Owner-only personal workspace deletion is a reviewed personal proposal, with mandatory human confirmation and transactional collection-dependency checks (see PERSONAL_WORKSPACES.md).
+    a repository, or deleting core data.
 
 The gate also fixes the production team-size and authentication wiring in architecture tests and restricts the native Keychain wrapper to reviewed Security/memory calls. There is one build: no release script, build tag or linker flag selects an edition (`TestThereIsOneBuildAndNoEditionIsSelectedAtBuildTime`). Runner operations stay the reviewed semantic bridge, never a general remote administration API.
 

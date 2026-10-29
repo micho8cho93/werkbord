@@ -1,6 +1,4 @@
 <script lang="ts">
-  import Icon from '../lib/Icon.svelte';
-  import WorkspaceIcon from '../lib/personal/WorkspaceIcon.svelte';
   import Calendar from './Calendar.svelte';
   import CatchUp from './CatchUp.svelte';
   import Inbox from './Inbox.svelte';
@@ -9,8 +7,7 @@
   import type { Item, Overview } from './types';
 
   // Home is everything that spans the whole of Werkbord on one page. At the top, how much waits in Personal and in your teams;
-  // then a shelf of every place to go (Personal, each team, the workspaces
-  // Salie made, the Data library); then what needs you beside the calendar. The panels scroll inside themselves, so the page
+  // then Personal and each team; then what needs you beside the calendar. The panels scroll inside themselves, so the page
   // itself uses the whole window and does not scroll on a screen that is large enough.
   let { overview }: { overview: Overview | null } = $props();
 
@@ -49,7 +46,7 @@
 
   <CatchUp {overview} {waiting} />
 
-  <div class="places-heading"><h2>Places</h2>{#if !model.remotePersonal}<button class="btn small add" type="button" onclick={() => { void model.customizeGenerated(); }}><Icon name="plus" size={14} />Create with Salie</button>{/if}</div>
+  <div class="places-heading"><h2>Places</h2></div>
   <ul class="shelf" aria-label="Places to go">
     {#each places as i (i.id)}
       <li>
@@ -60,23 +57,8 @@
         </button>
       </li>
     {/each}
-    {#each model.visibleGenerated as w (w.id)}
-      <li>
-        <button class="tile" type="button" data-kind="generated" onclick={() => model.openGenerated(w.id)} data-testid="hub-generated-{w.id}">
-          <span class="gi"><WorkspaceIcon icon={w.icon} name={w.name} /></span>
-          <span class="tx"><strong>{w.name}</strong><small>Made by Salie</small></span>
-        </button>
-      </li>
-    {/each}
-    {#if !model.remotePersonal}<li>
-      <button class="tile" type="button" data-kind="library" onclick={() => model.go('personal-library')} data-testid="hub-library">
-        <span class="gi"><Icon name="database" size={18} /></span>
-        <span class="tx"><strong>Data library</strong><small>Collections your workspaces share</small></span>
-      </button>
-    </li>{/if}
   </ul>
 
-  {#if model.generatedError}<p class="error" role="status">Saved workspaces are unavailable. {model.generatedError} <button class="btn small quiet" type="button" onclick={() => model.refreshGenerated()}>Retry saved workspaces</button></p>{/if}
 
   <div class="deck">
     <section class="panel needs" aria-labelledby="hub-needs-h">
@@ -101,7 +83,6 @@
     overflow: hidden;
   }
   h1 { margin: 0; }
-  .error { margin: 0; color: var(--danger-text); }
   .top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
   .lede { margin: 4px 0 0; color: var(--text-2); }
   .tally { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 0; list-style: none; }
@@ -141,11 +122,8 @@
     transition: border-color 0.14s, background 0.14s;
   }
   .tile[data-kind='team'] { --kind: var(--block); }
-  .tile[data-kind='generated'],
-  .tile[data-kind='library'] { --kind: var(--text-2); }
   .tile:hover { border-color: color-mix(in srgb, var(--text-2) 50%, var(--border)); background: var(--surface-2); }
   .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .gi { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); }
   .tx { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
   .tx strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
   .tx small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12px; }

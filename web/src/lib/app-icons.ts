@@ -1,11 +1,8 @@
 // The icons the app itself draws (navigation, actions, status), one Lucide icon for each meaning and never the same one twice.
-// They are chosen apart from the icons generated workspaces can take (internal/domain/personal_icon_catalog.json), so a
-// workspace in the sidebar never looks like a page of the app. app-icons.test.ts keeps all of this true.
 import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 import LayoutPanelLeft from '@lucide/svelte/icons/layout-panel-left';
 import SquareKanban from '@lucide/svelte/icons/square-kanban';
 import Calendar from '@lucide/svelte/icons/calendar';
-import ChartGantt from '@lucide/svelte/icons/chart-gantt';
 import GitFork from '@lucide/svelte/icons/git-fork';
 import GitCompareArrows from '@lucide/svelte/icons/git-compare-arrows';
 import Radar from '@lucide/svelte/icons/radar';
@@ -53,7 +50,6 @@ export const appIconComponents = {
   overview: LayoutPanelLeft,
   board: SquareKanban,
   calendar: Calendar,
-  timeline: ChartGantt,
   git: GitFork,
   'product-map': GitCompareArrows,
   activity: Radar,
@@ -104,7 +100,6 @@ export const appIconSources: Record<AppIconName, string> = {
   overview: 'layout-panel-left',
   board: 'square-kanban',
   calendar: 'calendar',
-  timeline: 'chart-gantt',
   git: 'git-fork',
   'product-map': 'git-compare-arrows',
   activity: 'radar',

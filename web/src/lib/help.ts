@@ -94,16 +94,16 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
   {
     id: 'plan-schedule',
     title: 'Plan dates or schedule a run',
-    summary: 'Timeline dates plan when work should happen. Calendar schedules when Werkbord starts agent work. They answer different questions.',
-    example: 'Put “Book the venue” on next week’s Timeline to plan the work. Add an execution schedule in Calendar only if an agent should start it at a chosen time.',
+    summary: 'Calendar shows planned work dates and scheduled agent starts. Planned dates do not launch agents.',
+    example: 'Plan “Book the venue” for next week in Calendar. Add an execution schedule in Calendar only if an agent should start it at a chosen time.',
     steps: [
-      'Use Timeline for planned task dates, milestones and dependencies. Setting a date there does not start an agent.',
+      'Edit planned task dates, milestones and dependencies on the task. Planned dates appear in Calendar and do not start an agent.',
       'Use Calendar for agent execution schedules. A scheduled task starts only under the configured runner and execution rules.',
-      'Work projects have Timeline planning, but no Calendar or agent execution controls.',
+      'Work projects show planned dates in Calendar without agent execution controls.',
     ],
-    recovery: 'If you meant to plan work rather than launch an agent, edit the task on Timeline. If you meant to schedule execution, check the task’s Calendar entry and runner availability.',
+    recovery: 'If you meant to plan work rather than launch an agent, edit the task’s planned dates. If you meant to schedule execution, check the task’s Calendar entry and runner availability.',
     searchTerms: ['plan', 'planning', 'timeline', 'schedule', 'calendar', 'date', 'milestone', 'work project'],
-    destination: { kind: 'project', repository: 'calendar', work: 'timeline' },
+    destination: { kind: 'project', repository: 'calendar', work: 'calendar' },
     linkLabel: 'Open planning or schedule',
   },
   {

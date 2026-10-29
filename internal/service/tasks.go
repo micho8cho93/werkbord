@@ -506,7 +506,7 @@ func (s *Tasks) ListFiltered(ctx context.Context, projectID string, f TaskFilter
 	return out, nil
 }
 
-// Timeline is what the timeline view needs beyond the tasks themselves, which it already has: what is
+// Timeline is planning validation beyond the tasks themselves, which it already has: what is
 // wrong with the dependencies and the dates among them. It only reports. Nothing here, or anywhere
 // that calls it, moves a date, a task or a dependency.
 type Timeline struct {

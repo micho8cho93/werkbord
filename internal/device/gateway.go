@@ -129,7 +129,7 @@ func Gateway(o GatewayOptions) (http.Handler, error) {
 			return
 		}
 		if r.Method == "GET" && r.URL.Path == "/api/device" {
-			gatewayJSON(w, 200, map[string]any{"remote": true, "controller": o.Credential.Controller, "clientId": o.Credential.ID, "runnerId": o.RunnerID, "workspaceControl": true, "gitWrites": true, "terminals": true, "assistant": false, "personal": false})
+			gatewayJSON(w, 200, map[string]any{"remote": true, "controller": o.Credential.Controller, "clientId": o.Credential.ID, "runnerId": o.RunnerID, "workspaceControl": true, "gitWrites": true, "terminals": true, "assistant": false})
 			return
 		}
 		if !clientpolicy.Allowed(r) {

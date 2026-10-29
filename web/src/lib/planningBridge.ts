@@ -1,6 +1,6 @@
 import { api } from './api';
 import { parse } from './location';
-import { spanOf } from './timeline';
+import { spanOf } from './planning-dates';
 import { editableOrchestration, emptyOrchestration, instantFromWall, wallTime } from './scheduling';
 
 /** The parent shell asks this authenticated page for planning edits; the controller remains the authority. */

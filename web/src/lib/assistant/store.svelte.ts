@@ -8,7 +8,6 @@
 
 import { tick } from 'svelte';
 import { ApiError } from '../api';
-import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../personal/conversation';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { assistantApi } from './api';
 import { openUISystemPrompt } from './openui/library';
@@ -114,7 +113,6 @@ export class AssistantStore {
   transcript = $state<Transcript>(emptyTranscript());
   link = $state<Link>('idle');
   draft = $state('');
-  personalEditing = $state<{workspaceId: string; revision: number} | undefined>(undefined);
   staged = $state<Staged[]>([]);
   /** An "all of them" answer that is under way. */
   batch = $state<{ done: number; total: number; decision: 'approve' | 'decline' } | null>(null);
@@ -189,11 +187,7 @@ export class AssistantStore {
     onAssistantRequest((req) => {
       if (req.action === 'close') this.hide();
       else if (req.action === 'open') {
-        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; this.personalEditing = undefined; }
-        if (req.personalWorkspace !== undefined) {
-          this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
-          this.personalEditing = req.personalWorkspace && req.personalRevision ? {workspaceId: req.personalWorkspace, revision: req.personalRevision} : undefined;
-        }
+        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; }
         this.show(req.origin, null);
       }
       else if (this.isOpen) this.hide();
@@ -506,8 +500,8 @@ export class AssistantStore {
       const before = this.draft;
       if (!opts.again) this.draft = '';
       try {
-        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean), openUISystemPrompt, this.personalEditing);
-        this.personalEditing = undefined;
+        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean), openUISystemPrompt);
+
         if (!this.transcript.items.some((i) => i.kind === 'reply' && i.turnId === turnId)) {
           this.transcript.items.push({ kind: 'reply', id: turnId, turnId, text: '', attempt: 0, attemptStart: 0, steps: [], notices: [], status: 'working' });
         }
@@ -775,7 +769,7 @@ export class AssistantStore {
     this.transcript = emptyTranscript();
     this.staged = [];
     this.draft = '';
-    this.personalEditing = undefined;
+
     this.problem = '';
     this.link = 'idle';
     writeStore('session', this.storageKey, null);

@@ -173,7 +173,6 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	c.knowledge = &service.Knowledge{Memory: memory, Freshness: c.freshness}
 	c.knowledge.Watch(healthCtx)
 
-	personal := &service.Personal{Deps: deps}
 	scheduler := &service.Scheduler{Deps: deps, Git: git}
 	handoffs := &service.Handoffs{Deps: deps, Git: git}
 	runs.Handoffs = handoffs
@@ -234,7 +233,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 			}
 			return nil
 		},
-		Maintenance: personal.Maintain, Distributed: distributed, Scheduler: scheduler, Handoffs: handoffs, RepositoryLock: gitControl.LockExecution,
+		Distributed: distributed, Scheduler: scheduler, Handoffs: handoffs, RepositoryLock: gitControl.LockExecution,
 		Runs: runs, Tasks: tasks, Projects: projects, Settings: settings, Worktrees: worktrees, Git: git, Agents: agents,
 		Log: c.log, WorktreeRoot: worktreeRoot,
 	})
@@ -262,13 +261,8 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	// Suggested next steps read the board, Git, GitHub and memory through the services the screens already use; they hold no
 	// way to push, merge, branch or start anything.
 	recommender := &service.Recommender{Deps: deps, Control: gitControl, Knowledge: c.knowledge, Runners: distributed}
-	assistantSvc := assistantServices{personal: personal, recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
+	assistantSvc := assistantServices{recommender: recommender, knowledge: c.knowledge, projects: projects, tasks: tasks, labels: labels, runs: runs,
 		control: &service.ControlCenter{Deps: deps, Scheduler: scheduler, Runners: distributed}, runner: c.runner, connections: c.connections}
-	// Match the personal owner API: a tokenless controller cannot expose private
-	// definitions through assistant tools as an alternate path.
-	if !c.cfg.AuthRequired() {
-		assistantSvc.personal = nil
-	}
 	c.appOps = newApplicationOperations(c.db, c.log, assistantSvc)
 	mcpGrants, err := mcpgrant.Open(filepath.Join(c.cfg.DataDir, "mcp-clients.json"))
 	if err != nil {
@@ -289,7 +283,6 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	apiOpts := api.Options{
 		ProductMaps:  c.maps,
 		Terminals:    c.terminals,
-		Personal:     personal,
 		Memory:       c.knowledge,
 		Recommender:  recommender,
 		EmbedOrigins: c.cfg.EmbedOrigins,
@@ -328,9 +321,6 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	privateOpts.Memory = nil
 	// Terminal handlers still require an enrolled phone with a per-session grant.
 	privateOpts.Terminals = c.terminals
-	// Personal data is served here to an enrolled phone and to no one else, and only on the routes a phone has been
-	// reviewed for (api/phone.go): the owner's token never opens it from the network (api.personalReady).
-	privateOpts.PersonalPhonesOnly = true
 	privateOpts.AuthRequired, privateOpts.Token = true, token
 	privateOpts.ProductMaps = nil
 	privateOpts.Assistant = nil       // the assistant is not served on the private network
@@ -402,7 +392,7 @@ func (c *Controller) Start(ctx context.Context) (err error) {
 	clientOpts := privateOpts
 	clientOpts.Clients, clientOpts.ClientListener = clients, true
 	clientOpts.DeviceOperations = c.deviceOps
-	clientOpts.Phones, clientOpts.LocalAccess, clientOpts.Personal, clientOpts.Terminals = nil, nil, nil, nil
+	clientOpts.Phones, clientOpts.LocalAccess, clientOpts.Terminals = nil, nil, nil
 	clientOpts.ProductMaps = nil
 	clientOpts.Assistant, clientOpts.Memory, clientOpts.Connections, clientOpts.Web = nil, nil, nil, nil
 	clientOpts.Terminals = c.terminals

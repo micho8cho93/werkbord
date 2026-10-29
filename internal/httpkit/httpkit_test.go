@@ -98,20 +98,3 @@ func TestAFramedPageNamesTheDesktopWindowAndNoOneElse(t *testing.T) {
 		t.Fatalf("headers = %v", rec.Header())
 	}
 }
-
-func TestWithLocalFilesAllowsBlobPagesAndNothingElse(t *testing.T) {
-	csp := WithLocalFiles(DefaultCSP)
-	for _, want := range []string{"img-src 'self' data: blob:", "media-src 'self' blob:", "frame-src 'self' blob:", "script-src 'self';", "connect-src 'self';", "frame-ancestors 'none'", "default-src 'self';"} {
-		if !strings.Contains(csp, want) {
-			t.Errorf("%q missing from %s", want, csp)
-		}
-	}
-	for _, bad := range []string{"script-src 'self' blob", "connect-src 'self' blob", "worker-src 'self' blob", "object-src", "unsafe-eval", "data: blob: data:"} {
-		if strings.Contains(csp, bad) {
-			t.Errorf("%q must not appear in %s", bad, csp)
-		}
-	}
-	if strings.Contains(DefaultCSP, "blob:") {
-		t.Fatal("the shared policy was widened for products that show no local files")
-	}
-}

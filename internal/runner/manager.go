@@ -34,7 +34,6 @@ import (
 type Options struct {
 	Selection      domain.SelectionResolver
 	RefreshRemotes func(context.Context, string) error
-	Maintenance    func(context.Context) error
 	Distributed    *service.Runners
 	Scheduler      *service.Scheduler
 	Handoffs       *service.Handoffs

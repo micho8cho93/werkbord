@@ -11,7 +11,6 @@
   import type { Overview } from './types';
   // `embedded` is Home's panel: it fills the panel and leaves the title to the hub.
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
-  let timeline = $state(false);
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
     ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
     ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' '), workspace: e.workspace.id, kind: 'scheduled' as const }; })
@@ -60,8 +59,8 @@
 </script>
 <section class="page" class:embedded aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">Scheduled and planned work across all projects</p>
-  <div class="seg" role="group" aria-label="Calendar presentation"><button aria-pressed={!timeline} onclick={() => timeline = false}>Calendar</button><button aria-pressed={timeline} onclick={() => timeline = true}>Timeline</button></div></header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {timeline} dense={embedded} onopen={id => void open(id)} onmove={move} />{/if}
+</header>
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} dense={embedded} onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}

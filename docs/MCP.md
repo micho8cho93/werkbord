@@ -66,7 +66,7 @@ The response contains the new `wbtm_…` credential once. The member can list th
 and revoke one with `DELETE /api/team/v1/mcp/grants/<grant id>`. A grant cannot add to the member's role or project
 membership: Team rechecks both on every request. A grant that includes `create_ticket` or `update_ticket` can make those
 single-task changes directly. `propose_task_plan` submits one project's new or version-checked task batch for review; it
-does not apply the plan. Open **Plans** in the Team console to edit the task list, inspect timeline warnings, and approve
+does not apply the plan. Open **Plans** in the Team console to edit the task list, inspect planning warnings, and approve
 or decline it. Approval rechecks current permissions, task versions, source references, and dependencies, then applies
 the batch in one transaction. Temporary IDs (`tmp_…`) let new tasks depend on each other. Reuse an idempotency key only
 when retrying the same request. The client can list and check only its own proposals; a person makes the decision.

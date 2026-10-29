@@ -42,7 +42,7 @@ type Change struct {
 	SourceRef    *string         `json:"sourceRef,omitempty"`
 }
 
-// Preview contains timeline conflicts that a reviewer should see before the
+// Preview contains planning conflicts that a reviewer should see before the
 // batch is approved. Errors are rejected by the product service.
 type Preview struct {
 	Warnings []planning.Warning `json:"warnings"`

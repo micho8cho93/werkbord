@@ -35,7 +35,6 @@ type Store interface {
 type Tx interface {
 	ProductMaps() ProductMapRepo
 	DeviceOperations() DeviceOperationRepo
-	Personal() PersonalRepo
 	// Savepoint rolls back only fn on failure, retaining other work in this transaction.
 	Savepoint(context.Context, func() error) error
 	Projects() ProjectRepo

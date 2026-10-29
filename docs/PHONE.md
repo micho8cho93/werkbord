@@ -63,7 +63,6 @@ not serve Individual memory (and a phone is never given it, wherever it connects
 applied, and which record, not what it said), and a phone's *Useful / Not useful / Dismiss* is kept on the phone only: the
 feedback route is not on its list. See [RECOMMENDATIONS.md](RECOMMENDATIONS.md).
 
-A phone also opens the owner's generated personal workspaces and works with their records, and can put one on its Control Deck as a button (docs/PERSONAL_WORKSPACES.md, “Phone and the Control Deck”); it cannot change what a workspace is.
 
 The list is fixed and reviewed (`internal/api/phone.go`); a test fails when it changes without the change being read.
 

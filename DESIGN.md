@@ -23,7 +23,7 @@ outcome. Tell people to check uncertain outcomes before repeating an action.
 Use British English in new Werkbord prose: *colour*, *organise*, *authorised*, *synchronise*, *cancelled* and
 *acknowledgement*. Preserve brand and provider names, commands, API and domain identifiers, provider output, and text
 entered by people. Individual calls its board item a **task**; Team calls its coordination record a **ticket**. Explain that
-opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for work dates shown in Calendar or Timeline,
+opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for work dates shown in Calendar,
 **schedule** for agent starts, **Review** for inspection, **Done** for completed work, and **Archive** for work removed
 from the active board.
 
@@ -110,9 +110,7 @@ always on ink with the dark ramps (`public/icon.svg`, `favicon.svg`, PNGs genera
 (`lib/Icon.svelte`) use [Lucide](https://lucide.dev/) (ISC; the notice is in `web/public/licenses/LUCIDE.txt`),
 drawn with one 1.6px line at every size, except Salie’s restored original two-sparkle mark
 (`lib/AssistantGlyph.svelte`). Each meaning has its own icon and no icon is used for two meanings
-(`lib/app-icons.ts`; the Team console uses the same set). The icons the app draws are chosen apart from the 152 a generated
-workspace can take (`internal/domain/personal_icon_catalog.json`), so a workspace in the sidebar is never mistaken for a page
-of the app; `app-icons.test.ts` enforces both. No emoji or font-glyph icons; Salie’s hand-drawn SVG is the named exception to Lucide.
+(`lib/app-icons.ts`; the Team console uses the same set). The app icon catalogue is checked by `app-icons.test.ts` for unique meanings. No emoji or font-glyph icons; Salie’s hand-drawn SVG is the named exception to Lucide.
 
 ### Button tones
 
@@ -127,7 +125,7 @@ No button underlines its label. A lone button needs none.
 | *(none)* | change or manage | Edit, Settings, Rename |
 | `primary` | the one thing a place is for (filled) | Save, Edit with Salie |
 | `add` | bring something new in (accent edge) | Add record, New icon, Add to Control Deck |
-| `open` | go somewhere or look (accent label) | Open, Data library, Review |
+| `open` | go somewhere or look (accent label) | Open, Calendar, Review |
 | `ok` | approve, confirm, finish (green) | Merge, Restore, Keep, Start Team service |
 | `warn` | stop or pause, can be undone (amber) | Stop Team service, Remove file, Skip |
 | `danger` | remove for good (red edge and label) | Delete, Revoke |
@@ -147,8 +145,7 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
   places, the deck and the Assistant ([docs/MOBILE.md](docs/MOBILE.md)). The deck is the one place the flat paper gives way to material,
   built from the same tokens; every other phone page is the desktop's page in a phone layout.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
-- Project tabs in both Individual and Team: Overview · Board · Calendar · Git · Runs. Timeline is a presentation
-  within Calendar, selected beside the Calendar presentation; it is not a sixth project tab. Calendar opens on a week.
+- Project tabs in both Individual and Team: Overview · Board · Calendar · Git · Runs. Calendar shows both planned work dates and scheduled agent starts. Calendar opens on a week.
   Individual work projects keep the same five tabs: Git explains that there is no repository, and Runs explains that
   there is no execution history. Their Calendar shows planned work. Pages use `.split` (main + side column, each
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
@@ -168,22 +165,12 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
   panel's actions wrap onto their own row rather than clip. A loaded task detail has one visible close control,
   with a 44px target on phones.
 
-### The window's workspace selector
+### The window's workspace navigation
 
-Universal is a peer choice beside Individual and each Team workspace, and the default full-width desktop hub. Its
-workspace shelf contains Individual, Teams, saved workspaces made by Salie and the Data library, with a plus-marked
-Create with Salie action beside the shelf heading. Needs attention and Calendar sit in separate panels below it. At wide widths,
-the shelf and panel bodies scroll internally; below 1000px the panels stack and the page scrolls.
-
-Universal's sidebar starts collapsed on every entry. It contains the workspace switcher, Devices & Hosting, Data library and Settings;
-the hub carries workspace navigation, generated workspaces and the Data library. Individual's workspace destinations are
-Workspace and Projects, with Analytics immediately below Add project. Each Team workspace lists Workspace, Projects,
-Reviews, Members and Analytics. In Individual and Team, workspace destinations, Create with Salie and generated workspaces
-share a scrollable upper group; Devices & Hosting → Data library → Settings stay pinned at the bottom independently of
-that scroll. Salie defaults to a floating button in Universal and a sidebar button in Individual and Team. Settings → Appearance and the final onboarding review offer separate placement choices for Universal and Individual/Team: Sidebar, Floating or Both. These preferences are stored per device. Theme controls live in Settings → Appearance. Universal has no workspace-specific
-Settings or project list. Project sections belong above the project's content, not in the workspace sidebar. The window
-uses its own 208px sidebar, collapsing to 48px; the intermediate-width label control reveals the names without changing
-the route. Workspace and Data library content can widen to 1800px; Devices & Hosting uses an auto-fill card grid.
+Home shows Personal and Team places, recorded catch-up, attention and Calendar. The sidebar lists Home, Calendar,
+Reviews and Analytics, then Personal and each Team with its projects. Devices & Hosting and Settings remain at the foot.
+Salie uses the existing sidebar/floating placement preference and the same conversation surface.
+Generated workspaces, their creation actions and Data Library are removed. Calendar has no Timeline presentation.
 
 ### Team console
 
@@ -194,7 +181,7 @@ desktop app the window's sidebar replaces the rail. Location has two levels: the
 one row of tabs for its sub-areas, never a sidebar entry. A project's Overview, Board, Calendar, Git, Runs and People are tabs above
 its content (People is who is on the project, with roles and invitations; Project settings keeps the rest); a team's Workspace,
 Projects, Initiatives and People, and Personal's Workspace and Projects, are the same row above its pages. Both rows are drawn by one function. Calendar shows planned dates and shared schedule requests;
-Timeline is its alternate presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
+Calendar is its sole date presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
 Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
 
@@ -248,9 +235,8 @@ a heading (the provider chooser, New, Close) and the box.
 
 Motion preserves the current icons and layout and acknowledges observed state. Salie’s activity mark uses the six approved pixel studies; Git and attachment transfers use bounded directional and indeterminate feedback, with success reserved for reported results. Salie fades only newly appended text; boards preserve card continuity; charts reveal proportions without delaying their labels or exact values. Initial loads and reconnects establish a baseline rather than replaying accomplishments. All spatial effects respect reduced motion. See [MOTION.md](docs/MOTION.md) for timing, interaction and verification details.
 
-- **Vocabulary.** Needs attention names attention; Questions is its question filter. Calendar contains Calendar and Timeline
-  presentations. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects
-  show planned work. Timeline plans work dates and milestones ("Not planned yet"). Team Calendar combines planned
+- **Vocabulary.** Needs attention names attention; Questions is its question filter. Calendar shows planned work and scheduled agent starts. A repository project's Calendar schedules agent execution ("Not scheduled to run"); work projects
+  show planned work. Team Calendar combines planned
   dates with shared schedule requests that wait for the owner's runner and approval. Review means work is ready
   for a person's inspection, Done means the work was completed or merged, and Archive keeps a task out of the active
   board. Accept work / Reject work record a verdict; Merge… changes the repository after confirmation.
@@ -352,11 +338,7 @@ Motion preserves the current icons and layout and acknowledges observed state. S
 - Individual board drops follow the work: Backlog → Doing starts an agent where execution is available; Review → Done
   opens the merge confirmation when Git merge is applicable and moves the card once merged; other permitted drops
   move the card. Team drops follow Team's role and ticket-action permissions, never local execution or Git operations.
-- **Dates move where they are shown.** Individual, Team and Universal calendars and timelines use the shared pointer/keyboard date transport in `internal/uipresentation`. Dragging a planned card moves its inclusive date range; timeline edges resize it. Scheduled events reschedule agent starts and preserve time of day. Alt + Left/Right moves a day; Alt + Shift + Left/Right resizes. Controller and Team validation remain authoritative, and a refused drop preserves the original position with actionable feedback. Clicking opens an editor beside the current calendar or timeline, with Save changes. Universal sends bounded requests to each authenticated workspace frame, without changing the visible workspace or gaining execution authority.
-- **Timeline zoom.** Day, Week, Month and Quarter provide progressively broader scales. Ctrl/⌘ + wheel zooms; ordinary scrolling pans the chart.
-- **Timeline keeps names quiet.** The name column shows task or ticket titles without repeating dates. A custom tooltip
-  reveals the title and planned span immediately on hover or focus. Week is the default scale; Today recentres in the
-  available chart width after resize, accounting for the fixed name column.
+- **Dates move where they are shown.** Individual, Team and Universal calendars use the shared pointer/keyboard date transport in `internal/uipresentation`. Dragging a planned card moves its inclusive date range. Scheduled events reschedule agent starts and preserve time of day. Alt + Left/Right moves a day; Alt + Shift + Left/Right resizes. Controller and Team validation remain authoritative, and a refused drop preserves the original position with actionable feedback. Clicking opens an editor beside the current calendar, with Save changes. Universal sends bounded requests to each authenticated workspace frame, without changing the visible workspace or gaining execution authority.
 - Anything that changes the repository is confirmed in a `Sheet` with the controller's own checks.
 - Keyboard: ⌘/Ctrl K Jump to (projects, sections, tasks, actions), N new task, Esc closes.
 - Motion is state, not decoration: 150–250ms, `cubic-bezier(.16, 1, .3, 1)`, and none under reduced motion.
@@ -476,7 +458,6 @@ Settings → Agents owns the complete searchable CLI catalogue, inclusion toggle
 
 Team Analytics follows Individual’s coloured statistic tiles and twelve-column chart panels using coordination data: daily throughput, cumulative progress, Done against created, activity by day and categories. Filters apply on selection. Reviews places To review beside Waiting for review; Projects leads with compact workload cards and keeps create/join controls in disclosures beside them. Workspace groups Needs attention and Working now beneath compact counts. Narrow windows stack these groups in reading order.
 
-Data library places Saved workspaces beside Personal collections, showing four entries per list initially with independent Show all / Show fewer controls. Collection inspection stays below both lists. Universal keeps Devices & Hosting → Data library → Settings pinned in its sidebar, and workspace tiles reserve room for hover lift and focus outlines.
 
 Project identity in Team contains only the repository, when present, above the project title; ticket branches belong in ticket and Git views. Individual and Team preserve saved work modes without a Human / Agent / Hybrid selector in create/edit forms. Done cards carry their own Archive action, and the bulk Archive Done button is removed. Archive preserves details and supports restoration.
 
@@ -489,14 +470,13 @@ The vendor-only licensing page preserves its paper/ink/cobalt and bundled Geist 
 
 Reviews groups To review, Changes requested and Your work in review into adjacent columns when space allows, stacking
 in reading order on narrow windows. Team project settings and independent computer settings sections use responsive
-columns. Personal workspace pages use the same available width as the desktop shell. Preserve explicitly saved workspace
-layouts and existing records.
+columns.
 
 Project sidebar entries open the project; they have no project transfer or Product Map shortcut. Product Map is a project
 tab in Team, with Generate or share a map opening the reviewed local snapshot flow. Personal analysis chooses its provider,
 model and target branch from connected providers and locally known branches. Ticket forms, cards and planning controls
 omit labels, preserving existing label assignments for reports. The project overview lists only ready or active agents.
-Week timeline dates occupy bounded two-line cells. Git query tabs keep the overview's frame. Runs page through the rows
+Git query tabs keep the overview's frame. Runs page through the rows
 that fit the available viewport, with filters resetting to the first page.
 
 The shell always sends its theme, including Device, when a workspace opens. A Team service with a different release is

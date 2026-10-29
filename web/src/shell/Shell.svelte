@@ -1,9 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Icon from '../lib/Icon.svelte';
-  import PersonalLibrary from '../lib/personal/PersonalLibrary.svelte';
-  import { shellPersonalAPI } from './personal';
-  import GeneratedWorkspace from './GeneratedWorkspace.svelte';
   import Sidebar from './Sidebar.svelte';
   import Palette from './Palette.svelte';
   import FrameHost from './FrameHost.svelte';
@@ -85,7 +82,7 @@
     <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
-        {#if model.universal && ['workspaces', 'personal-library', 'generated', 'calendar', 'reviews', 'analytics'].includes(model.page)}
+        {#if model.universal && ['workspaces', 'calendar', 'reviews', 'analytics'].includes(model.page)}
           <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Home</button></div>
         {/if}
         <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
@@ -101,8 +98,6 @@
             {:else if model.page === 'reviews'}<Reviews />
             {:else if model.page === 'analytics'}<Analytics />
             {:else if model.page === 'inbox'}<Hub overview={model.overview} />
-            {:else if model.page === 'personal-library'}<PersonalLibrary api={shellPersonalAPI} onopen={async w => { await model.refreshGenerated(); model.openGenerated(w.id, true); }} />
-            {:else if model.page === 'generated'}<GeneratedWorkspace id={model.generatedID} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>
         {/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatTime } from '../clock.svelte';
   import { TASK_STATE_LABELS } from '../types';
-  import { spanTitle } from '../timeline';
+  import { spanTitle } from '../planning-dates';
   import type { CalItem } from './calendar';
 
   // One calendar item as a row: what it is, where it sits in time and which kind of time that is. A plan (work dates) is cobalt;

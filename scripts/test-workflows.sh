@@ -225,7 +225,7 @@ if release
   sc = jobs["stable-checks"] || {}
   sc_runs = (sc["steps"] || []).map { |step| step["run"].to_s }.join("\n")
   check(sc["if"].to_s.include?("needs.plan.outputs.stable == 'true'") && needs(sc).include?("ci-gate") && perms(sc, release) == { "contents" => "read" } && !mentions_secret?(sc), "stable-checks runs only for stable tags, after the CI gate, read-only and with no secrets")
-  ["make check", "make test-nebula", "make test-rqlite", "make test-browser", "make test-team-desktop-browser", "make test-unified-desktop-browser", "make test-onboarding-browser", "make test-assistant-browser", "make test-personal-browser", "browser-salie-sessions.cjs"].each do |command|
+  ["make check", "make test-nebula", "make test-rqlite", "make test-browser", "make test-team-desktop-browser", "make test-unified-desktop-browser", "make test-onboarding-browser", "make test-assistant-browser", "browser-salie-sessions.cjs"].each do |command|
     check(sc_runs.include?(command), "a stable release repeats #{command} at tag time")
   end
   check(jobs["desktop-build"]["if"].include?("needs.stable-checks.result == 'success'") && jobs["desktop-build"]["if"].include?("needs.plan.outputs.stable != 'true'") && needs(jobs["desktop-build"]).include?("stable-checks"), "a stable release's signing build waits for the full suite; a preview's does not")
@@ -235,7 +235,7 @@ if release
   # The tests themselves are required in ci (one place), and the receipt lists them, so a browser regression cannot be dropped silently.
   ci = workflows["#{DIR}/ci.yml"]
   ci_steps = JSON.generate(ci && ci["jobs"])
-  %w[make\ check make\ test-nebula make\ test-rqlite make\ test-browser make\ test-team-desktop-browser make\ test-unified-desktop-browser make\ test-onboarding-browser make\ test-assistant-browser make\ test-personal-browser browser-salie-sessions.cjs go\ test\ -race make\ test-desktop-sign].each do |command|
+  %w[make\ check make\ test-nebula make\ test-rqlite make\ test-browser make\ test-team-desktop-browser make\ test-unified-desktop-browser make\ test-onboarding-browser make\ test-assistant-browser browser-salie-sessions.cjs go\ test\ -race make\ test-desktop-sign].each do |command|
     check(ci_steps.include?(command), "ci must run #{command}, because tag releases rely on it")
     check(JSON.generate(release_build).include?(command), "the release receipt must list #{command}")
   end

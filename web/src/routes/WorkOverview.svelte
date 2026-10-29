@@ -3,7 +3,7 @@
   import { projectHref, taskHref } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
-  import { spanOf, spanTitle, daysBetween, localToday } from '../lib/timeline';
+  import { spanOf, spanTitle, daysBetween, localToday } from '../lib/planning-dates';
   import { TASK_STATES, TASK_STATE_LABELS, type Project, type TimelineWarning } from '../lib/types';
 
   // A work project at a glance: where its tasks stand, what is coming up, and whether the plan
@@ -47,7 +47,7 @@
   </section>
 
   <section class="pn">
-    <div class="ph">Coming up<a class="end small" href={projectHref(project.id, 'timeline')}>Timeline →</a></div>
+    <div class="ph">Coming up<a class="end small" href={projectHref(project.id, 'calendar')}>Calendar →</a></div>
     {#if upcoming.length}
       <ul class="list">
         {#each upcoming as { t, s } (t.id)}
@@ -59,7 +59,7 @@
         {/each}
       </ul>
     {:else}
-      <p class="muted small">Nothing is planned. Give a task dates to see it here and on the timeline.</p>
+      <p class="muted small">Nothing is planned. Give a task dates to see it here and in Calendar.</p>
     {/if}
   </section>
 
@@ -79,7 +79,7 @@
   <section class="pn">
     <div class="ph">Plan check<span class="chip">{warnings.length}</span></div>
     {#if warnings.length}
-      <p class="small">{warnings.length} {warnings.length === 1 ? 'thing' : 'things'} in the plan {warnings.length === 1 ? 'needs' : 'need'} a look. <a href={projectHref(project.id, 'timeline')}>See the timeline →</a></p>
+      <p class="small">{warnings.length} {warnings.length === 1 ? 'thing' : 'things'} in the plan {warnings.length === 1 ? 'needs' : 'need'} a look. <a href={projectHref(project.id, 'calendar')}>See the calendar →</a></p>
     {:else}
       <p class="muted small">Dependencies and dates agree with each other.</p>
     {/if}

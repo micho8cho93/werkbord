@@ -123,10 +123,9 @@ function measure(minPx) {
     // The pages only the phone has: the Control Deck, the screens its keys open, and the Calendar's three views. Measured at phone width only.
     const phoneOnly = [['phone-deck', '#/deck'], ['phone-my-work', '#/mywork'], ['phone-agents', '#/agents'], ['phone-reviews', '#/reviews'], ['phone-git', '#/repositories'], ['phone-runners', '#/runners'], ['phone-calendar-month', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Month', exact: true }).click()]];
     phoneOnly.push(['phone-calendar-week', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Week', exact: true }).click()]);
-    phoneOnly.push(['phone-calendar-timeline', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Timeline', exact: true }).click()]);
     for (const [label, p] of [['repo', repo], ['work', work]]) {
         if (!p) continue;
-        const secs = p.kind === 'work' ? ['overview', 'board', 'timeline', 'defaults'] : ['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'defaults'];
+        const secs = p.kind === 'work' ? ['overview', 'board', 'calendar', 'defaults'] : ['overview', 'board', 'calendar', 'git', 'runs', 'defaults'];
         for (const s of secs) pages.push([`${label}-${s}`, `#/p/${p.id}/${s}`]);
         const tasks = (await api(`/api/projects/${p.id}/tasks`)).tasks;
         for (const t of tasks.filter((t) => t.state === 'review' || t.state === 'doing').slice(0, 2)) pages.push([`${label}-task-${t.state}`, `#/p/${p.id}/task/${t.id}`]);

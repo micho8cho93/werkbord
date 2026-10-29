@@ -32,7 +32,7 @@ let browser, shellServer;
  await page.goto(`${individual}/#/p/${project.id}/board`);
  await page.getByRole('heading', { name: project.name }).waitFor();
  const tabs = page.getByRole('navigation', { name: project.name + ' sections' });
- assert.deepEqual((await tabs.locator('a').allTextContents()).map(t=>t.trim()), ['Overview','Board','Calendar','Git','Runs']);
+ assert.deepEqual((await tabs.locator('a').allTextContents()).map(t=>t.trim()), ['Overview','Board','Calendar','Git','Product Map','Runs']);
  assert.equal(await page.getByText('Who', { exact: true }).count(),0);
  assert.equal(await page.getByText('Human', { exact: true }).count(),0);
  const title = page.locator('[data-board-item="'+task.id+'"] .title');
@@ -66,12 +66,6 @@ let browser, shellServer;
  await page.goto(`${individual}/#/p/${project.id}/calendar`);
  await page.getByRole('button',{name:'Week',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Week',exact:true}).getAttribute('aria-pressed'),'true');
- await page.getByRole('link',{name:'Timeline',exact:true}).click();
- await page.locator('.nrow .nt').waitFor();
- assert.equal(await page.locator('.nrow .when').count(),0);
- await page.locator('[data-tooltip]').first().hover();
- await page.getByRole('tooltip').waitFor();
- await capture('individual-timeline');
  await page.goto(`${individual}/#/analytics`);
  await page.getByRole('heading',{name:'Created and completed over time',exact:true}).waitFor();
  assert.equal(await page.getByLabel('Analytics project').inputValue(),'');
@@ -133,13 +127,10 @@ let browser, shellServer;
  await page.locator('[data-board-item="'+tk.id+'"]').waitFor();
  await teamTabs.getByRole('button',{name:'Calendar',exact:true}).click();
  await page.getByText(/Planned work/).first().waitFor();
- await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
- await page.locator('.tl-name .nt').waitFor(); assert.equal(await page.locator('.tl-name .when').count(),0);
- await capture('team-timeline');
  await teamTabs.getByRole('button',{name:'Runs',exact:true}).click();
  await page.getByText(/Execution reported by members/).waitFor();
  await teamTabs.getByRole('button',{name:'Git',exact:true}).click();
- console.log('PASS Team native claim drag, keyboard submit, integrated Calendar/Timeline and coordinated Runs');
+ console.log('PASS Team native claim drag, keyboard submit, Calendar and coordinated Runs');
  // Archiving a Done card preserves the record and leaves other completed work on the board.
  let doneA=await personal('POST',`/projects/${work.id}/tasks`,{title:'Archive this completed task',description:'Keep this completion evidence'});
  let doneB=await personal('POST',`/projects/${work.id}/tasks`,{title:'Keep this completed task'});
@@ -167,12 +158,6 @@ let browser, shellServer;
  assert(summary.planned.some(p=>p.id===planned.id),'summary carries planned dates for unexecuted tasks');
  const shellRoot = path.resolve(__dirname,'../desktop/frontend/dist/shell');
  shellServer = http.createServer((req,res)=> {
-  if (req.method === 'POST' && req.url === '/fixture/personal') {
-   let raw=''; req.on('data', part=>raw+=part); req.on('end', async()=> {
-    try { const {method,route,body}=JSON.parse(raw); const response=await fetch(individual+route,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===null?undefined:JSON.stringify(body)}); const value=await response.text(); res.setHeader('Content-Type','application/json'); res.end(JSON.stringify({status:response.status,body:value?JSON.parse(value):null})); }
-    catch(error) { res.statusCode=500;res.end(JSON.stringify({error:error.message})); }
-   }); return;
-  }
   const file=path.join(shellRoot,decodeURIComponent(req.url.split('?')[0])); if (!file.startsWith(shellRoot) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {res.writeHead(404);res.end();return;} res.setHeader('Content-Type', file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream'); res.end(fs.readFileSync(file)); });
  await new Promise(resolve=>shellServer.listen(Number(new URL(process.env.PLANNING_SHELL_URL).port),'127.0.0.1',resolve));
  const shellPage = await browser.newPage({viewport:{width:1440,height:1000}}); shellPage.on('pageerror',e=>errors.push(e.message));
@@ -181,7 +166,7 @@ let browser, shellServer;
   try { localStorage.setItem('werkbord.token','disposable-browser-credential'); sessionStorage.setItem('werkbord-team-token',teamToken); } catch (_) { /* Initial about:blank frames have no storage. */ }
   if(window.parent!==window)return;
   window.runtime={EventsOn:()=>()=>{}};
-  window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}), OpenWorkspace:async id=>({id,kind:id==='personal'?'personal':'team',url:id==='personal'?individual:team,origin:id==='personal'?individual:team}), Overview:async()=>({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{...summary,workspace:items[1],work:[],planned:[],schedule:[],attention:[],projects:[]}}],at:new Date().toISOString()}), RememberPlace:async()=>{}, PersonalWorkspaceCall:async(method,route,body)=>(await fetch('/fixture/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,route,body})})).json()}}};
+  window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}), OpenWorkspace:async id=>({id,kind:id==='personal'?'personal':'team',url:id==='personal'?individual:team,origin:id==='personal'?individual:team}), Overview:async()=>({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{...summary,workspace:items[1],work:[],planned:[],schedule:[],attention:[],projects:[]}}],at:new Date().toISOString()}), RememberPlace:async()=>{}}}};
  },{items,summary,individual,team,teamToken});
  await shellPage.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  const side=shellPage.getByRole('navigation',{name:'Werkbord',exact:true});
@@ -195,7 +180,7 @@ let browser, shellServer;
  await shellPage.getByTestId('sidebar-salie').waitFor();
  assert.equal(await shellPage.getByTestId('salie-button').count(),0,'Home takes the same default as projects: Salie in the sidebar');
  const bottom=side.locator('.bottom [data-page]');
- assert.deepEqual(await bottom.evaluateAll(nodes=>nodes.map(el=>el.dataset.page)),['add-team','workspaces','personal-library','settings']);
+ assert.deepEqual(await bottom.evaluateAll(nodes=>nodes.map(el=>el.dataset.page)),['add-team','workspaces','settings']);
  await shellPage.getByTestId('hub-workspace-personal').hover();
  const hoverFits=await shellPage.getByTestId('hub-workspace-personal').evaluate(el=>{const card=el.getBoundingClientRect(),shelf=el.closest('.shelf').getBoundingClientRect();return card.top-3>=shelf.top && card.bottom+3<=shelf.bottom;});
  assert(hoverFits,'hover lift and outline fit inside the shelf');
@@ -203,39 +188,9 @@ let browser, shellServer;
  assert.equal(await side.getByRole('button',{name:'Projects',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Calendar',exact:true}).count(),1,'Calendar is in the one sidebar');
  try { await shellPage.getByRole('button').filter({hasText:'Plan the venue opening'}).waitFor(); } catch (error) { await shellPage.screenshot({path:path.join(artifacts,'universal-failure.png')}); console.log('Shell:', (await shellPage.locator('body').innerText()).slice(0,3000), 'errors:', errors); throw error; }
- await shellPage.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
- await shellPage.getByRole('region',{name:'Planning timeline'}).waitFor();
- await shellPage.waitForTimeout(350);
- await shellPage.screenshot({path:path.join(artifacts,'universal-timeline-desktop.png')});
- await shellPage.setViewportSize({width:900,height:800}); await shellPage.screenshot({path:path.join(artifacts,'universal-timeline-window.png')});
- await shellPage.setViewportSize({width:1440,height:1000});
  await shellPage.keyboard.press('Meta+k'); await shellPage.getByTestId('palette').waitFor();
  await shellPage.screenshot({path:path.join(artifacts,'universal-palette-desktop.png')});
  await shellPage.keyboard.press('Escape');
- for (const destination of ['Workspaces','Calendar']) {
-  await shellPage.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:destination === 'Calendar' ? 'Calendar' : 'Timeline',exact:true}).click();
-  await shellPage.waitForTimeout(350);
-  await shellPage.screenshot({path:path.join(artifacts,'universal-'+destination.toLowerCase().replaceAll(' ','-')+'-desktop.png')});
- }
-
- // Library and placement controls use the built shell and real personal storage.
- for(let i=0;i<6;i++) {
-  const collection=await personal('POST','/personal/v1/collections',{name:'Library collection '+i,schemaVersion:1,fields:[{key:'title',name:'Title',type:'text',required:true}]});
-  await personal('POST','/personal/v1/workspaces',{name:'Saved workspace '+i,icon:'auto',uiSchemaVersion:1,collectionIds:[collection.id],readBindings:[],visibility:{universal:true,individual:true,teamWorkspaceIds:[]},definition:{views:[{id:'records',name:'Records',kind:'table',collectionId:collection.id,fields:['title'],operations:['create','update','delete']}],layout:{type:'view',viewId:'records'}}});
- }
- await side.getByRole('button',{name:'Data library',exact:true}).click();
- const saved=shellPage.getByRole('region',{name:'Saved workspaces',exact:true}), collections=shellPage.getByRole('region',{name:'Personal collections',exact:true});
- await saved.locator('.card-row').first().waitFor();
- assert.equal(await saved.locator('.card-row').count(),4); assert.equal(await collections.locator('.card-row').count(),4);
- const [savedBox,collectionBox]=await Promise.all([saved.boundingBox(),collections.boundingBox()]);
- assert(Math.abs(savedBox.y-collectionBox.y)<2 && collectionBox.x>savedBox.x,'library lists sit side by side');
- await collections.getByRole('button',{name:'Show all 6 collections'}).click(); assert.equal(await collections.locator('.card-row').count(),6);
- await collections.getByRole('button',{name:'Show fewer collections'}).click(); assert.equal(await collections.locator('.card-row').count(),4);
- for(const [width,height,suffix] of [[1440,1000,'desktop'],[390,844,'narrow']]) {
-  await shellPage.setViewportSize({width,height}); await shellPage.screenshot({path:path.join(artifacts,'data-library-'+suffix+'.png'),fullPage:true});
-  assert(await shellPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'library fits window');
- }
- await shellPage.setViewportSize({width:1440,height:1000});
  await side.getByRole('button',{name:'Settings',exact:true}).click();
  const placement=shellPage.getByRole('group',{name:'Where Salie appears',exact:true});
  assert.equal(await placement.count(),1,'one Salie placement control for the whole app, not one per area');
@@ -266,5 +221,5 @@ let browser, shellServer;
  console.log('PASS onboarding reads and updates the same saved Salie placement as Settings');
 
  assert.deepEqual(errors,[]);
- console.log('PASS Universal peer selector, scoped sidebar and aggregated planning timeline');
+ console.log('PASS Universal peer selector, scoped sidebar and aggregated Calendar');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();if(shellServer)await new Promise(r=>shellServer.close(r));});

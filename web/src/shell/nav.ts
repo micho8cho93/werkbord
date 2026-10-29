@@ -39,7 +39,7 @@ export function entries(kind: Kind): NavEntry[] {
   ];
 }
 
-const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
+const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
 
 /** The entry a workspace's current place belongs to; '' when it is somewhere the sidebar does not list. */
 export function activeKey(kind: Kind, place: string | undefined): NavKey {
@@ -54,7 +54,7 @@ export function activeKey(kind: Kind, place: string | undefined): NavKey {
   }
   if (!place.startsWith('?')) return '';
   const q = new URLSearchParams(place);
-  const tab = q.get('tab') ?? 'workspace';
+  const tab = q.get('tab') === 'timeline' ? 'calendar' : q.get('tab') ?? 'workspace';
   if (tab === 'workspace') return 'home';
   if (tab === 'projects') return 'projects';
   if (tab === 'reviews' || tab === 'members' || tab === 'analytics') return tab;
@@ -66,19 +66,6 @@ export function activeKey(kind: Kind, place: string | undefined): NavKey {
 export function listed(projects: Project[] | undefined): Project[] {
   const seen = new Set<string>();
   return (projects ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
-}
-
-/** Display associations never confer Team permissions. One ID produces one row in a context. */
-export function generatedEntries(workspaces: import('../lib/personal/schema').Workspace[], universal: boolean, context: string) {
-  const seen = new Set<string>();
-  return workspaces.filter(w => !seen.has(w.id) && !!seen.add(w.id) && (universal
-    ? w.visibility.universal
-    : context === 'personal' ? w.visibility.individual : w.visibility.teamWorkspaceIds?.includes(context)));
-}
-
-/** Salie's saved-workspace links may include their approved revision as a reload hint. */
-export function generatedWorkspaceID(place: string): string | undefined {
-  return /^#\/personal\?id=(pws_[a-z2-7]{16})(?:&revision=[1-9][0-9]{0,15})?$/.exec(place)?.[1];
 }
 
 /** The place inside a workspace that a shortcut to one of its own pages opens. */
@@ -120,7 +107,7 @@ export interface Destination {
   /** Where it is, in words: "Acme · project", "Personal". */
   hint: string;
   go:
-    | { page: 'inbox' | 'calendar' | 'reviews' | 'analytics' | 'workspaces' | 'personal-library' | 'settings' }
+    | { page: 'inbox' | 'calendar' | 'reviews' | 'analytics' | 'workspaces' | 'settings' }
     | { workspace: string; place: string }
     | { addTeam: true };
 }
@@ -144,7 +131,6 @@ export function destinations(items: readonly Item[] | undefined, overview: Overv
   }
   out.push(
     { id: 'page:workspaces', title: 'Devices & Hosting', hint: 'This computer, hosts and runners', go: { page: 'workspaces' } },
-    { id: 'page:personal-library', title: 'Data library', hint: 'Collections your workspaces share', go: { page: 'personal-library' } },
     { id: 'page:settings', title: 'Settings', hint: 'Appearance, alerts, plan and more', go: { page: 'settings' } },
     { id: 'add-team', title: 'New team or join…', hint: 'Create a team, or join one with a link', go: { addTeam: true } },
   );

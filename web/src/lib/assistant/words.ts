@@ -78,10 +78,6 @@ export function clock(ms: number): string {
 /** What a proposed change's operation is, in plain words. */
 export function operationTitle(op: string): string {
   switch (op) {
-    case 'propose_personal_workspace':
-      return 'Save personal workspace';
-    case 'propose_delete_personal_workspace':
-      return 'Delete personal workspace';
     case 'create_ticket':
       return 'New task';
     case 'update_ticket':
@@ -96,8 +92,6 @@ export function operationTitle(op: string): string {
 /** Names the failed assistant operation without exposing its compatibility tool identifier. */
 export function operationFailureTitle(op: string): string {
   switch (op) {
-    case 'propose_personal_workspace': return 'Could not save the workspace';
-    case 'propose_delete_personal_workspace': return 'Could not delete the workspace';
     case 'list_projects': return 'Could not load projects';
     case 'list_tickets': return 'Could not load tasks';
     case 'get_ticket': return 'Could not load this task';

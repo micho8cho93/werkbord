@@ -96,11 +96,11 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     assert.equal(await focusOpener.evaluate(el => el === document.activeElement), true, 'closing task details restores focus to the board card');
     console.log('PASS Settings keyboard access, responsive/theme captures, and task focus order');
     const workProject = await api('POST', '/api/projects', { kind: 'work', name: 'Planning fixture' });
-    await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration' });
-    await page.goto(base + `/#/p/${workProject.id}/timeline`);
-    await page.getByRole('button', { name: 'Plan…', exact: true }).click();
+    await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration', plan: {start: new Date().toISOString().slice(0,10)} });
+    await page.goto(base + `/#/p/${workProject.id}/calendar`);
+    await page.getByRole('button', { name: /Plan the migration/ }).first().click();
     const workEdit = page.getByRole('dialog', { name: 'Edit task', exact: true });
-    await workEdit.getByText('These dates plan the work on Timeline. This project does not run agents.', { exact: true }).waitFor();
+    await workEdit.getByText('These dates plan the work in Calendar. This project does not run agents.', { exact: true }).waitFor();
     assert.equal(await workEdit.getByText('Run automatically from the controller', { exact: true }).count(), 0, 'work projects keep planning without execution controls');
     await captureDecisionSurface('work-plan-edit');
     await workEdit.getByRole('button', { name: 'Cancel', exact: true }).click();

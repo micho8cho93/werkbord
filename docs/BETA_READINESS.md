@@ -98,7 +98,7 @@ make test-nebula
 make test-rqlite
 make desktop-check
 make test-install test-install-team
-make test-browser test-assistant-browser test-personal-browser
+make test-browser test-assistant-browser
 node scripts/browser-salie-sessions.cjs
 ```
 

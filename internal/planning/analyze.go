@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Item is one piece of work as the timeline sees it. Dependencies are the IDs of the work that must
+// Item is one piece of work with its planned dates and dependencies. Dependencies are the IDs of the work that must
 // finish before this one starts.
 type Item struct {
 	ID           string
@@ -128,7 +128,7 @@ func Analyze(items []Item) []Warning {
 			}
 			add(code, SeverityError, it, "", "%s has an unusable planned date: %s", name(it), strings.TrimPrefix(err.Error(), "invalid: "))
 		} else if r.Milestone && r.Start == "" {
-			add(CodeMilestoneWithoutDate, SeverityWarning, it, "", "%s is a milestone with no date, so it cannot be placed on the timeline", name(it))
+			add(CodeMilestoneWithoutDate, SeverityWarning, it, "", "%s is a milestone with no date, so it cannot be placed in Calendar", name(it))
 		}
 
 		seen := map[string]bool{}

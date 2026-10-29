@@ -167,16 +167,15 @@ func (s *Server) handleAssistantSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Text            string                            `json:"text"`
-		Attachments     []string                          `json:"attachments"`
-		OpenUIPrompt    string                            `json:"openuiPrompt"`
-		PersonalEditing *assistant.PersonalEditingContext `json:"personalEditing"`
+		Text         string   `json:"text"`
+		Attachments  []string `json:"attachments"`
+		OpenUIPrompt string   `json:"openuiPrompt"`
 	}
 	if err := decode(w, r, &req); err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	turn, err := s.opt.Assistant.SendMessageWithPersonalContext(r.Context(), r.PathValue("id"), req.Text, req.Attachments, req.OpenUIPrompt, req.PersonalEditing)
+	turn, err := s.opt.Assistant.SendMessageWithOpenUIPrompt(r.Context(), r.PathValue("id"), req.Text, req.Attachments, req.OpenUIPrompt)
 	if err != nil {
 		s.assistantFail(w, r, err)
 		return

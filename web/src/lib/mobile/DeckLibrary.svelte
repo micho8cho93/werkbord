@@ -1,12 +1,10 @@
 <script lang="ts">
   import Sheet from '../Sheet.svelte';
   import Icon from '../Icon.svelte';
-  import WorkspaceIcon from '../personal/WorkspaceIcon.svelte';
   import { deckKeys, type DeckKeyId } from './deck';
   import { WORKFLOWS, type ButtonId, type DeckSlot } from './layout';
-  import type { Workspace } from '../personal/schema';
-  let { onboarding = false, workspaces = [], position, slot, onclose, onchoose, oncreate, onremove, onmove, onconfigure }:
-    { onboarding?: boolean; workspaces?: Workspace[]; position: number; slot: DeckSlot | null; onclose: () => void; onchoose: (id: ButtonId) => void; oncreate: () => void; onremove: () => void; onmove: (to: number) => void; onconfigure: () => void } = $props();
+  let { onboarding = false, position, slot, onclose, onchoose, onremove, onmove, onconfigure }:
+    { onboarding?: boolean; position: number; slot: DeckSlot | null; onclose: () => void; onchoose: (id: ButtonId) => void; onremove: () => void; onmove: (to: number) => void; onconfigure: () => void } = $props();
   const navigation = deckKeys({ needsYou: 0, review: 0, running: 0, repoAttention: 0 });
 </script>
 <Sheet title="{slot ? 'Edit button' : 'Add button'} · position {position + 1}" {onclose}>
@@ -22,16 +20,6 @@
         {#each Array.from({ length: 9 }, (_, i) => i) as i (i)}<option value={String(i)}>{i + 1}{i === position ? ' (current)' : ''}</option>{/each}
       </select>
     </label>
-  {/if}
-  {#if !onboarding}
-    <h3>Your workspaces</h3>
-    <p class="muted">Open a workspace you made with Salie, on this phone or at the computer. These buttons do not start agents.</p>
-    <div class="library" data-testid="deck-workspaces">
-      <button type="button" onclick={oncreate} data-testid="deck-create-workspace"><Icon name="plus" size={20} /><span>Create with Salie<small>Describe a workspace and Salie builds it. Add it to a button afterwards.</small></span></button>
-      {#each workspaces as w (w.id)}
-        <button type="button" onclick={() => onchoose(w.id as ButtonId)} data-workspace-id={w.id}><WorkspaceIcon icon={w.icon} name={w.name} size={20} /><span>{w.name}</span></button>
-      {/each}
-    </div>
   {/if}
   <h3>{slot ? 'Replace with navigation' : 'Navigation'}</h3>
   <p class="muted">Open a page. These buttons do not start agents.</p>

@@ -6,23 +6,21 @@
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import EditTaskSheet from '../task/EditTaskSheet.svelte';
-  import { spanTitle } from '../timeline';
+  import { spanTitle } from '../planning-dates';
   import { TASK_STATE_LABELS, type Task } from '../types';
   import { calendarItems, type CalItem } from './calendar';
   import MonthView from './MonthView.svelte';
   import { cal, type CalMode } from './calstate.svelte';
   import Segmented from '../Segmented.svelte';
-  import TimelineView from './TimelineView.svelte';
   import WeekView from './WeekView.svelte';
   import { projectsLoaded, tasksOf, warmProjects } from './work.svelte';
   import { modeOf } from '../labels';
 
-  // The phone's Calendar: the planned work and the agent starts of every project (or one), as a month, a week or a timeline. It reads
+  // The phone's Calendar: the planned work and the agent starts of every project (or one), as a month or a week. It reads
   // the tasks each project already holds and changes nothing itself; opening an item offers the task, and the same editor the board uses.
   const modes = [
     { id: 'month', label: 'Month' },
     { id: 'week', label: 'Week' },
-    { id: 'timeline', label: 'Timeline' },
   ] as const;
 
   $effect(() => warmProjects());
@@ -36,10 +34,6 @@
   const taskOf = (item: CalItem) => app.scopes.get(item.projectId)?.tasks.find((t) => t.id === item.taskId) ?? null;
   const decision = $derived(shown ? app.scopes.get(shown.projectId)?.decisions.find((d) => d.taskId === shown!.taskId) : undefined);
   const editable = $derived(shown ? taskOf(shown) : null);
-  function openFromTimeline(taskId: string, kind: 'planned' | 'scheduled') {
-    const found = items.find((i) => i.taskId === taskId && i.kind === kind) ?? items.find((i) => i.taskId === taskId);
-    if (found) shown = found;
-  }
   function edit() {
     const t = editable;
     shown = null;
@@ -64,7 +58,7 @@
 
   {#if !ready}
     <p class="note" role="status">Loading the work of every project…</p>
-  {:else if items.length === 0 && cal.mode !== 'timeline'}
+  {:else if items.length === 0}
     <p class="note">Nothing is planned or scheduled{cal.project ? ' in this project' : ''} yet. Plan dates on a task to see them here.</p>
   {/if}
 
@@ -72,8 +66,6 @@
     <MonthView {items} onopen={(i) => (shown = i)} />
   {:else if cal.mode === 'week'}
     <WeekView {items} onopen={(i) => (shown = i)} />
-  {:else}
-    <TimelineView {tasks} onopen={openFromTimeline} />
   {/if}
 </div>
 

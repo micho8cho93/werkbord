@@ -117,7 +117,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
     }
     console.log('PASS keys depress on touch and respect reduced motion');
 
-    // ---- the Calendar: Month, Week and Timeline, plan and schedule kept apart ----
+    // ---- the Calendar: Month and Week, plan and schedule kept apart ----
     {
         const { ctx, page } = await phone(390, 844);
         // Signing in rewrites the address once the page has started; wait for the deck so that it cannot overwrite where we go next.
@@ -139,17 +139,9 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         await page.getByTestId('week-day').first().waitFor();
         assert.equal(await page.getByTestId('week-day').count(), 7, 'seven days across the week');
         await page.getByRole('button', { name: 'Next week' }).waitFor();
-        await page.getByRole('button', { name: 'Timeline', exact: true }).click();
-        await page.getByTestId('timeline-scroll').waitFor();
-        assert((await page.getByTestId('timeline-bar').count()) >= 2, 'planned work is drawn as bars');
-        assert((await page.getByTestId('timeline-start').count()) >= 1, 'an agent start is its own marker');
-        for (const zoom of ['Month', 'Quarter', 'Week']) await page.getByRole('group', { name: 'Timeline zoom' }).getByRole('button', { name: zoom, exact: true }).click();
-        await noOverflow(page, 'the timeline');
-        for (const scheme of ['light', 'dark']) {
-            await page.emulateMedia({ colorScheme: scheme });
-            await page.screenshot({ path: path.join(artifacts, `phone-timeline-${scheme}.png`) });
-        }
-        console.log('PASS phone calendar: month, week and timeline; plan and schedule are separate');
+        assert.equal(await page.getByRole('button', { name: 'Timeline', exact: true }).count(), 0);
+        await noOverflow(page, 'the calendar');
+        console.log('PASS phone calendar: month and week; plan and schedule are separate');
         await ctx.close();
     }
 

@@ -31,7 +31,7 @@ type LabelUse struct {
 	Tasks int `json:"tasks"`
 }
 
-// Plan is a task's planned dates: for the timeline, and nothing else. It is deliberately not the
+// Plan is a task's planned dates: for Calendar. It is deliberately not the
 // task's Orchestration, which says when an agent starts; changing a plan never schedules, delays or
 // moves anything.
 type Plan = planning.Range

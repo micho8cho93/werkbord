@@ -54,8 +54,7 @@ func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantSer
 		// Answering a question reaches the agent through the runner it is on, as it does from the app.
 		services.Answer = svc.runner.Answer
 	}
-	personal := svc.personal
-	return appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log, Personal: personal,
+	return appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log,
 		Injected: connectionOperations(svc.connections)})
 }
 
@@ -71,7 +70,7 @@ func assistantGrants(a config.AssistantConfig) []appops.Permission {
 		}
 		return grants
 	}
-	return []appops.Permission{appops.PermPersonalRead, appops.PermMemoryRead, appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
+	return []appops.Permission{appops.PermMemoryRead, appops.PermProjectsRead, appops.PermTicketsRead, appops.PermAnalyticsRead, appops.PermScheduleRead, appops.PermRunsRead, appops.PermQuestionsRead}
 }
 
 // assistantProjects is the projects it may see: nil for all of them, which is not the same as an empty list (none).
@@ -85,7 +84,6 @@ func assistantProjects(a config.AssistantConfig) []string {
 // assistantServices are the controller's domain services the assistant's operations are made of.
 type assistantServices struct {
 	selection   domain.SelectionResolver
-	personal    *service.Personal
 	recommender *service.Recommender
 	knowledge   *service.Knowledge
 	projects    *service.Projects

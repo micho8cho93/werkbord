@@ -14,7 +14,7 @@ are recorded in [SIMPLIFICATION_VALIDATION.md](SIMPLIFICATION_VALIDATION.md).
 
 Use the existing `internal/uipresentation` library rather than introduce a second Svelte build for Team.
 Personal and Team already share board geometry, motion and planning gestures. Extend that library with
-the common design tokens, segmented controls, project tabs and timeline calculations. Each product
+the common design tokens, segmented controls, project tabs and shared calendar utilities. Each product
 keeps its own data loading, status vocabulary, permissions, routes and action handlers. Remove the
 superseded copies; keep the console independently embedded in `werkbord-team`, with no Node requirement
 for a Team source build. No Team code or credentials enter Personal or the desktop shell.

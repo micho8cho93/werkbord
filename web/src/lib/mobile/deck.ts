@@ -13,7 +13,6 @@ export interface DeckKey {
   id: string;
   label: string;
   icon: IconName;
-  workspaceIcon?: string;
   href: string;
   /** What the key counts, when it counts anything. Zero is not shown. */
   count: number;
@@ -49,8 +48,6 @@ export function deckKeys(c: DeckCounts): DeckKey[] {
   ];
 }
 
-/** Where a generated personal workspace's button, and its row on the deck, goes. */
-export const workspaceHref = (id: string): string => `#/personal?id=${id}`;
 
 /** The counts the keys show, from what the controller reports about every project. */
 export function deckCounts(overview: Overview | null, needsYou: number): DeckCounts {

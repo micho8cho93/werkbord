@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import { localToday } from '../timeline';
+  import { localToday } from '../planning-dates';
   import { app } from '../state.svelte';
   import CalRow from './CalRow.svelte';
   import { dayTitle, itemsOn, marks, monthGrid, monthStart, monthTitle, shiftMonth, type CalItem } from './calendar';

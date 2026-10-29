@@ -38,7 +38,6 @@ type Options struct {
 	ClientListener bool // dedicated tsnet client door, never the phone relay
 
 	Terminals   *terminal.Manager // local owner only; never copied to network listeners
-	Personal    *service.Personal // owner-only loopback persistence; nil on network listeners
 	Distributed *service.Runners
 	Scheduler   *service.Scheduler
 	Memory      *service.Knowledge // private owner-only Individual memory; nil on network listeners
@@ -101,9 +100,6 @@ type Options struct {
 	// AssistantPhonesOnly serves the assistant to enrolled phones and to nobody else: for the private network's
 	// listener, where the controller's own token has never reached it.
 	AssistantPhonesOnly bool
-	// PersonalPhonesOnly serves the personal workspaces' data to enrolled phones (on the routes they are reviewed for) and
-	// to nobody else: for the private network's listener, where the controller's own token never opens it.
-	PersonalPhonesOnly bool
 }
 
 // Server holds the HTTP handlers.
@@ -134,7 +130,6 @@ func New(opt Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.productMapRoutes(mux)
-	s.personalRoutes(mux)
 	s.deviceOperationRoutes(mux)
 	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) {
 		count := 0
@@ -397,7 +392,7 @@ func (s *Server) Handler() http.Handler {
 	h = s.checkOrigin(h)
 	h = s.checkHost(h)
 	// The desktop app shows this web app in a frame beside a person's other workspaces: its window may, and nothing else.
-	h = httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.WithLocalFiles(httpkit.DefaultCSP), s.opt.EmbedOrigins), h)
+	h = httpkit.SecurityHeadersFramed(httpkit.FramedCSP(httpkit.DefaultCSP, s.opt.EmbedOrigins), h)
 	h = httpkit.LogRequests(s.log, h)
 	h = httpkit.RecoverPanics(s.log, h)
 	return h

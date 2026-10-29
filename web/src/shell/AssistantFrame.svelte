@@ -10,7 +10,6 @@
   import { tick, untrack } from 'svelte';
   import { ask } from './native';
   import { handle, type FrameRef } from './frames';
-  import { generatedWorkspaceID } from './nav';
   import { model } from './model.svelte';
   import { look, theme } from '../lib/theme.svelte';
 
@@ -50,8 +49,6 @@
       open: (_id, target, place) => {
         // A card in the assistant leads to a place in the person's own Werkbord: show it, over the assistant, which closes.
         if (target === 'personal') {
-          const generated = generatedWorkspaceID(place);
-          if (generated) { void model.followGenerated(generated); return; }
 
           void (model.current === 'personal' ? model.visit(place) : model.open('personal', place));
           return;
@@ -88,8 +85,6 @@
         action: request.action,
         ...(request.run ? { run: request.run } : {}),
         ...(request.catchUpPrompt === undefined ? {} : {catchUpPrompt: request.catchUpPrompt}),
-        ...(request.personalPrompt === undefined ? {} : {personalPrompt:request.personalPrompt}),
-        ...(request.personalWorkspace === undefined ? {} : { personalWorkspace: request.personalWorkspace, ...(request.personalRevision === undefined ? {} : { personalRevision: request.personalRevision }) }),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },
       });
     });

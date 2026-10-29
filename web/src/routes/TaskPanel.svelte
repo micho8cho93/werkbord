@@ -24,7 +24,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
   import { agentWorkable } from '../lib/board';
-  import { spanOf, spanTitle } from '../lib/timeline';
+  import { spanOf, spanTitle } from '../lib/planning-dates';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type Task, type TaskState, type Worktree } from '../lib/types';
 

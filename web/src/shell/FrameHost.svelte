@@ -5,7 +5,6 @@
   // a workspace cannot call the app; it posts messages to this page, which believes only the ones frames.ts accepts.
   import { ask } from './native';
   import { handle, hostedUrl, type FrameRef } from './frames';
-  import { generatedWorkspaceID } from './nav';
   import { model } from './model.svelte';
   import { alerts } from './alerts.svelte';
   import { look, theme } from '../lib/theme.svelte';
@@ -69,17 +68,11 @@
       reauth: (id, manual) => model.reauth(id, manual),
       // "Open in Werkbord" on a Team ticket: show the person's own Werkbord at that task.
       open: (_id, _target, place) => {
-        const generated = generatedWorkspaceID(place);
-        if (generated) void model.followGenerated(generated);
-        else void model.open('personal', place);
+        void model.open('personal', place);
       },
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
       runSession: (projectId, runId) => { void model.openRunSession(projectId, runId); },
-      personalAssistant: (workspaceId, revision) => {
-        const rect = model.assistantButton?.getBoundingClientRect();
-        void model.toggleAssistant(rect ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : { x: 24, y: 24, width: 0, height: 0 }, workspaceId, revision);
-      },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),
       style: (_id, choice) => look.set(choice),

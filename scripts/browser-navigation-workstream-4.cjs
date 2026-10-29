@@ -123,7 +123,7 @@ async function api(route) {
     const workTabs = primary.locator('.tab');
     const workLabels = await workTabs.allTextContents();
     assert(workLabels.some((label) => label.trim() === 'Board'));
-    assert(workLabels.some((label) => label.trim() === 'Timeline'));
+    assert(workLabels.some((label) => label.trim() === 'Calendar'));
     for (const unavailable of ['Calendar', 'Git', 'Runs']) assert(!workLabels.some((label) => label.trim() === unavailable), `${unavailable} is not offered for a work project`);
     await primary.getByRole('button', { name: 'More', exact: true }).click();
     await page.getByRole('dialog', { name: 'More', exact: true }).getByRole('link', { name: 'Overview', exact: true }).waitFor();

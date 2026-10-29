@@ -74,11 +74,11 @@ func TestAReadOnlyAssistantIsNotGrantedAnythingThatChangesThings(t *testing.T) {
 	ro := assistantGrants(config.AssistantConfig{ReadOnly: true})
 	for _, g := range ro {
 		switch g {
-		case appops.PermTicketsCreate, appops.PermTicketsUpdate, appops.PermQuestionsAnswer, appops.PermPersonalWrite:
+		case appops.PermTicketsCreate, appops.PermTicketsUpdate, appops.PermQuestionsAnswer:
 			t.Errorf("a read-only assistant holds %s", g)
 		}
 	}
-	if len(ro) != 8 {
+	if len(ro) != 7 {
 		t.Errorf("read-only grants = %v", ro)
 	}
 	if p := assistantProjects(config.AssistantConfig{}); p != nil {

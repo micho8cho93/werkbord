@@ -12,10 +12,7 @@ export const WORKFLOWS = [
   { id: 'sprint-summary', label: 'Sprint Summary', icon: 'summary', description: 'Summarise tasks, blockers, agent activity and Git activity from the last 14 days.' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName; description: string }[];
 export type WorkflowId = typeof WORKFLOWS[number]['id'];
-/** A generated personal workspace's button: the workspace's own ID. It opens that workspace's page, like a navigation key. */
-export type WorkspaceButtonId = `pws_${string}`;
-export const isWorkspaceButton = (id: string): id is WorkspaceButtonId => /^pws_[a-z2-7]{16}$/.test(id);
-export type ButtonId = DeckKeyId | WorkflowId | WorkspaceButtonId;
+export type ButtonId = DeckKeyId | WorkflowId;
 export interface DeckSlot { mode?: import('../selection').SelectionMode; id: string; button: ButtonId; projectId?: string; agent?: string; model?: string; reasoning?: string; runner?: string; target?: 'current' | 'selected' | 'all' | 'ask'; projectIds?: string[]; output?: 'report' | 'drafts' | 'changes'; approval?: 'always' | 'changes'; maxRepositories?: number }
 export interface DeckStart { approved?: boolean; currentProjectId?: string; projectIds?: string[]; override?: DeckSlot }
 export function targetLabel(slot: DeckSlot, projects: readonly {id: string; name: string}[], current: string): string {

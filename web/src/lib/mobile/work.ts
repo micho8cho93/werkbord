@@ -4,7 +4,7 @@
 
 import { modeOf } from '../labels';
 import { calendarItems, relativeDay, type CalItem } from './calendar';
-import { localToday } from '../timeline';
+import { localToday } from '../planning-dates';
 import type { Task } from '../types';
 
 export type WorkTab = 'yours' | 'active' | 'upcoming' | 'recent';

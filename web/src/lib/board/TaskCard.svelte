@@ -8,7 +8,7 @@
   import { cardStatus, quickChoices, type CardStatus } from '../board';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
   import Icon from '../Icon.svelte';
-  import { spanOf, spanTitle } from '../timeline';
+  import { spanOf, spanTitle } from '../planning-dates';
   import { answeredNotice, choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
   import { branchHref } from '../gitroute';
   import { taskHref } from '../router.svelte';

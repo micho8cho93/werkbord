@@ -18,7 +18,7 @@ import (
 //
 // None of it changes how a ticket moves, and Team still runs nothing: the work mode decides only whether a request
 // for agent work may be made for a ticket (see SetSchedule), and the dependencies and dates are only ever shown. A
-// conflict between them is a warning (Timeline) and is never resolved by moving anything.
+// conflict between them is a planning warning and is never resolved by moving anything.
 
 // LabelInput is what defining a label takes.
 type LabelInput struct {
@@ -285,7 +285,7 @@ func (s *Service) cleanDependencies(ctx context.Context, tx store.Tx, a Actor, x
 	return out, nil
 }
 
-// Timeline is what a project's timeline needs beyond its tickets, which the board already carries: what is wrong
+// Timeline is planning validation beyond a project's tickets, which the board already carries: what is wrong
 // with the dependencies and the planned dates among them. It only reports.
 type Timeline struct {
 	Warnings []planning.Warning `json:"warnings"`

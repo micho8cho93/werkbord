@@ -2,7 +2,7 @@
   import { cardStatus } from '../board';
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
-  import { spanOf, spanTitle } from '../timeline';
+  import { spanOf, spanTitle } from '../planning-dates';
   import { TASK_STATE_LABELS, type Task } from '../types';
   import { formatDateTime } from '../clock.svelte';
 

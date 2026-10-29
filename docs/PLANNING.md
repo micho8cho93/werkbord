@@ -1,4 +1,4 @@
-# Planning: labels, who does the work, and the timeline
+# Planning: labels, dates and dependencies
 
 Werkbord organizes work in ways that do not depend on what the work is. This page is the model, the rules, the API of both products
 and what is deliberately **not** done. It applies to Individual and to Team alike; where they differ, it says so.
@@ -9,9 +9,9 @@ and what is deliberately **not** done. It applies to Individual and to Team alik
 | --- | --- | --- |
 | **Label** | A name and a #rrggbb colour you chose, kept once and put on any number of tasks (Individual) or tickets (Team), in any project. | Not a status, not a priority, not who does the work. Nothing is built in: there is no "development" or "marketing" label unless you make one. |
 | **Work mode** | Who is expected to do a piece of work: `human`, `agent` or `hybrid`. A fixed classification. | Not a label, however you name your labels: a label called "human" does nothing. |
-| **Plan** | When the work is planned to happen, in whole days (`YYYY-MM-DD`): a start, an end, or a single milestone date. For people and for the timeline. | Not a schedule. When an agent *starts* is a task's schedule (Calendar), which a plan never touches. |
+| **Plan** | When the work is planned to happen, in whole days (`YYYY-MM-DD`): a start, an end, or a single milestone date. For people and Calendar. | Not a schedule. When an agent *starts* is a task's schedule (Calendar), which a plan never touches. |
 | **Dependency** | Work that must finish before this work starts. | Not a date. Setting one never moves anything. |
-| **Work project** | (Individual) A board and a timeline with no Git repository behind it, for work that is not code. | Not a repository: no folder, no Git, no worktrees, no agent runs. |
+| **Work project** | (Individual) A board and Calendar with no Git repository behind it, for work that is not code. | Not a repository: no folder, no Git, no worktrees, no agent runs. |
 
 `internal/planning` is the one shared package behind them ([STRUCTURE.md](STRUCTURE.md#shared-packages)): label names and colours, work
 modes, date ranges and the analysis of dependencies. It is pure functions with no storage, workspace or role in it, so both products
@@ -56,19 +56,17 @@ be put on a ticket (the database refuses it too: the link is keyed by workspace)
   console starts a project with no repository on "Human"). Team does not refuse a ticket for lacking a repository: that was never a rule,
   and the member's own Werkbord, which alone knows whether it has the code, answers the request.
 
-## Plans, milestones and the timeline
+## Plans and milestones in Calendar
 
 A plan is `{start, end, milestone}`: both dates optional and inclusive. Only a start is a one-day item; only an end is something due that
 day; a milestone is a single date (kept in `start`) and needs a date. An end before its start is refused. Plans are **not** an `Orchestration` (Individual)
 or a schedule (Team): changing one never schedules, delays or moves a run.
 
-The timeline shows a project's planned work as bars (milestones as diamonds) on a day scale (week, month or quarter zoom), with a
-line for today, grouped by nothing, label, status or who does it (a task with several labels is listed under each), filtered by label
-and work mode, with dependencies as arrows. Work with no dates is listed under the chart ("Not planned yet") with a way to plan it.
+Calendar shows planned ranges and milestones alongside scheduled starts. Edit planned dates and dependencies on the task; changing a planned date never launches an agent.
 
 **Dependencies are one list, and it is the one the scheduler waits on.** In Individual that is `Orchestration.Dependencies`: an agent is
-not started before they finish, and the timeline draws them. In Team it is the ticket's own list (the `ticket_dependencies` table, set in
-the ticket form): the timeline draws it and checks it, and a shared request for agent work waits on it too ([below](#team-one-list-of-dependencies)).
+not started before they finish. In Team it is the ticket's own list (the `ticket_dependencies` table, set in
+the ticket form): the service validates it, and a shared request for agent work waits on it too ([below](#team-one-list-of-dependencies)).
 A dependency must be another task or ticket **of the same project**.
 
 ### Team: one list of dependencies
@@ -81,7 +79,7 @@ shared request for agent work, typed as raw ticket IDs. Only the second made any
   ticket form and never on a request, now holds a request back too: that is the visible change.
 - **Why one.** Two lists meant the arrows on the timeline could say one thing while the scheduler waited on another. Individual has had
   one list from the start; Team now does as well.
-- **Archived work.** A ticket may depend on a ticket that was archived without being finished (the timeline warns). A request for it then
+- **Archived work.** A ticket may depend on a ticket that was archived without being finished (planning validation warns). A request for it then
   waits, and says so: `waiting for dependency WB-12, which was archived without being finished; finish it or remove it from this ticket's
   dependencies`. Removing it is a ticket edit (see the stale rule).
 - **The request keeps a copy, not a second list.** `Schedule.Dependencies` stays in the request's stored document as a record of what the
@@ -101,11 +99,10 @@ shared request for agent work, typed as raw ticket IDs. Only the second made any
   before this release keep working; one proposed before this release whose ticket waits for exactly what the request recorded also keeps
   working (see below), and one whose ticket now waits for something else is stale.
 - **Circles.** Writing a dependency refuses a circle, as before, and a request is not proposed for a ticket that sits in one. Only data that
-  arrived another way (the migration below) can contain one: the timeline reports `dependency_cycle`, the requests in it wait and say what
+  arrived another way (the migration below) can contain one: planning validation reports `dependency_cycle`, the requests in it wait and say what
   they wait for, and nothing loops (eligibility looks one step along, never recursively). The way out is to remove one dependency.
 - **The console** shows a read-only line in the ticket's *Shared schedule* panel, *Waits for WB-12 Build, WB-14 Design (set on the ticket)*,
-  with a way to the ticket's edit form; a note when the request is stale; and, on the timeline, heavier arrows where the dependent ticket has
-  a live shared request (those gate an agent start).
+  with a way to the ticket's edit form; a note when the request is stale.
 
 ### What is warned about, and what is never done
 
@@ -128,18 +125,19 @@ prerequisite. A newly introduced or worsened conflict with a prerequisite is als
 allowed. An undated prerequisite remains advisory. An unrelated historical conflict does not block a change, so existing plans can be
 corrected incrementally. Rejections return field-addressed issues and leave stored data unchanged. **Nothing is ever rescheduled.**
 
-Existing conflicts are shown in Timeline as a compact issue count and markers on affected rows and bars. Open the count for details and
-the action to open each affected task. Reading the timeline changes nothing: its endpoints are reads, and a test asserts it.
+Planning validation reports conflicts without changing tasks or schedules. The existing read endpoints remain available:
 
-| Product | Timeline |
+| Product | Planning validation |
 | --- | --- |
-| Individual | `GET /api/projects/{pid}/timeline` → `{"warnings": […]}`; the app's **Timeline** section. |
-| Team | `GET /api/team/v1/projects/{id}/timeline` → `{"warnings": […]}` (any member who can see the project); the console's **Timeline** tab. |
+| Personal | `GET /api/projects/{pid}/timeline` → `{"warnings": […]}` |
+| Team | `GET /api/team/v1/projects/{id}/timeline` → `{"warnings": […]}` with project permission checks |
+
+These legacy endpoint names describe retained data validation only. The Timeline/Gantt UI and its routes are removed.
 
 ## Work projects and tickets without a repository
 
 - **Individual**: `POST /api/projects` with `{"kind": "work", "name": "…"}` (the Projects page: **Add a project → Work project**). Nothing is
-  read from or written to the disk. It has a Board, a Timeline and an Overview, and **no** Calendar, Git or Runs. Everything that
+  read from or written to the disk. It has a Board, Calendar for planned dates, and an Overview; it has no agent execution or Git repository. Everything that
   reads a repository (inspection, worktrees, health, Git actions, the doctor's folder check, the Team connector's list of places to hand a
   ticket to) skips it or answers `400`. A work project can never become a repository project, or the other way round (the database refuses
   it). Its tasks have no branch or source to track.

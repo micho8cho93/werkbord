@@ -301,19 +301,6 @@ test-unified-installer: desktop-package
 test-motion-browser: web web-embed web-shell
 	BROWSER_MOTION_ONLY=1 node scripts/test-browser.cjs
 
-.PHONY: test-personal-browser
-## test-personal-browser: personal workspace rendering, Salie, shell navigation and safe lifecycle recovery
-# Browser fixtures use disposable databases and never operate on the installed controller.
-test-personal-browser: web web-shell
-	node scripts/browser-personal.cjs
-	node scripts/browser-personal-assistant.cjs
-	node --experimental-strip-types scripts/browser-personal-navigation.cjs
-	node scripts/browser-personal-phone.cjs
-	node scripts/browser-personal-lifecycle.cjs
-	node scripts/browser-personal-icons.cjs
-	node scripts/browser-personal-productivity.cjs
-	node scripts/browser-personal-productivity-shell.cjs
-
 # Vendor-only hosted Premium console, checked independently of customer executables.
 .PHONY: test-premium-console
 cmd/werkbord-team/licensing/ui/node_modules: cmd/werkbord-team/licensing/ui/package.json cmd/werkbord-team/licensing/ui/package-lock.json

@@ -42,7 +42,6 @@
   import { phoneSubtitle } from './lib/mobile/subtitle';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
-  import PersonalWorkspace from './routes/PersonalWorkspace.svelte';
   import Board from './routes/Board.svelte';
   import Scheduling from './routes/Scheduling.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
@@ -181,10 +180,10 @@
       .filter((s) => sectionApplies(s, project?.kind))
       .map((s) => ({
       id: s,
-      label: { board: 'Board', calendar: 'Calendar', timeline: 'Timeline', git: 'Git', runs: 'Runs' }[s],
+      label: { board: 'Board', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
-      current: inside && (router.view === s || (s === 'board' && router.view === 'task') || (s === 'calendar' && router.view === 'timeline')),
+      current: inside && (router.view === s || (s === 'board' && router.view === 'task')),
     })),
   ]);
 </script>
@@ -202,7 +201,7 @@
     <div class="main-area">
       {#if inside && project}
         <ProjectHeader {project} />
-      {:else if router.view !== 'personal' && (router.view !== 'deck' || !deck) && !(hosted && (router.view === 'settings' || router.view === 'help'))}
+      {:else if (router.view !== 'deck' || !deck) && !(hosted && (router.view === 'settings' || router.view === 'help'))}
         <header class="ghead">
           <div class="gtitle">
             {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}
@@ -231,7 +230,7 @@
 
       {#if deck}<WorkflowMonitor />{/if}
       <PhoneWelcome />
-      {#if router.view !== 'personal'}<Tour surface="desktop" enabled={!deck && !isPhone() && !hosted && !app.needsOnboarding && router.view !== 'onboarding'} />{/if}
+      <Tour surface="desktop" enabled={!deck && !isPhone() && !hosted && !app.needsOnboarding && router.view !== 'onboarding'} />
       {#if router.view !== 'task' || !scope || !project}<ConnectionBanner />{/if}
       <!-- The Control Deck exposes Needs attention through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
@@ -245,12 +244,10 @@
 
       <main id="main-content" tabindex="-1" bind:this={mainEl}>
         {#if phoneMoreLocation && !framed && !deck}<h2 class="phone-more-location">{phoneMoreLocation}</h2>{/if}
-        {#if app.remote && ['defaults', 'onboarding', 'personal'].includes(router.view)}
+        {#if app.remote && ['defaults', 'onboarding'].includes(router.view)}
           <div class="empty"><p>This desktop can control tasks and managed runs.</p><p>Private workspaces and controller settings are managed on the controller.</p></div>
         {:else if app.remote && router.view === 'settings'}
           <div class="page"><RunnersPanel /></div>
-        {:else if router.view === 'personal'}
-          {#key router.query}<PersonalWorkspace id={new URLSearchParams(router.query).get('id') ?? ''} />{/key}
         {:else if router.view === 'deck'}
           {#if deck}<Deck />{/if}
         {:else if router.view === 'reviews'}
@@ -296,7 +293,7 @@
             <ScheduleWatch {scope} />
             {#if router.view === 'overview'}
               {#if project.kind === 'work'}<WorkOverview {scope} {project} />{:else}<ProjectOverview {scope} {project} />{/if}
-            {:else if router.view === 'calendar' || router.view === 'timeline'}
+            {:else if router.view === 'calendar'}
               <Scheduling {scope} {project} />
             {:else if router.view === 'product-map'}
               <ProductMap {project} />

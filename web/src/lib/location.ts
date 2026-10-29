@@ -14,7 +14,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | 'personal' | PhoneView;
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | PhoneView;
 /**
  * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
  * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
@@ -22,10 +22,10 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
  */
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
-export type ProjectSection = 'product-map' | 'overview' | 'board' | 'calendar' | 'timeline' | 'git' | 'runs' | 'analytics' | 'defaults';
+export type ProjectSection = 'product-map' | 'overview' | 'board' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
-export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'personal' | PhoneView>; label: string; short: string }[] = [
+export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Workspace', short: 'Workspace' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
@@ -33,14 +33,13 @@ export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'pe
   { id: 'help', label: 'Help', short: 'Help' },
 ];
 
-/** Direct-only pages: first-time setup and saved personal workspaces. */
-const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding', 'personal'];
+/** Direct-only pages: first-time setup. */
+const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'board', label: 'Board' },
   { id: 'calendar', label: 'Calendar' },
-  { id: 'timeline', label: 'Timeline' },
   { id: 'git', label: 'Git' },
   { id: 'product-map', label: 'Product Map' },
   { id: 'runs', label: 'Runs' },
@@ -51,7 +50,7 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
 ];
 
 /** The sections shown as the project's tabs. Its settings are reached from the gear in the project header. */
-export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => !['defaults', 'timeline', 'analytics'].includes(s.id));
+export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => !['defaults', 'analytics'].includes(s.id));
 
 /**
  * Sections that exist only for a project with a Git repository: the calendar schedules agents, Git is
@@ -92,7 +91,7 @@ export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readon
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
 /** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
-const RENAMED: Record<string, ProjectSection> = { activity: 'runs' };
+const RENAMED: Record<string, ProjectSection> = { activity: 'runs', timeline: 'calendar' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
 /** A path part decoded, or '' when it is not valid percent-encoding. */

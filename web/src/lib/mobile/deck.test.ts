@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeRunners, connectionWord, deckCounts, deckKeys, workspaceHref } from './deck';
+import { activeRunners, connectionWord, deckCounts, deckKeys } from './deck';
 import type { Overview, Runner } from '../types';
 
 const counts = { needsYou: 0, review: 0, running: 0, repoAttention: 0 };
@@ -73,11 +73,5 @@ describe('connectionWord', () => {
     expect(connectionWord('connecting')).toEqual({ word: 'Connecting', tone: 'warn' });
     expect(connectionWord('offline')).toEqual({ word: 'Offline', tone: 'bad' });
     expect(connectionWord('unauthorized').tone).toBe('bad');
-  });
-});
-
-describe('workspaceHref', () => {
-  it('opens a generated workspace by its identifier', () => {
-    expect(workspaceHref('pws_abcdefghij234567')).toBe('#/personal?id=pws_abcdefghij234567');
   });
 });

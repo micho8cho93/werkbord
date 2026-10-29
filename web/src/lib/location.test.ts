@@ -92,7 +92,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'analytics', 'settings', 'help']);
   });
 
@@ -105,7 +105,7 @@ describe('navigation is data, so it can grow', () => {
 
 describe('a work project has no repository to show', () => {
   it('keeps planning pages but excludes repository analysis', () => {
-    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'timeline', 'git', 'runs', 'analytics', 'defaults']);
+    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs', 'analytics', 'defaults']);
     expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs']);
   });
 
@@ -113,12 +113,12 @@ describe('a work project has no repository to show', () => {
     expect(sectionsFor('repository')).toEqual(PROJECT_SECTIONS);
     expect(sectionsFor(undefined)).toEqual(PROJECT_SECTIONS);
     expect(sectionApplies('git', undefined)).toBe(true);
-    expect(sectionApplies('timeline', 'work')).toBe(true);
+    expect(sectionApplies('calendar', 'work')).toBe(true);
   });
 
-  it('knows the timeline address', () => {
-    expect(parse('#/p/prj_a/timeline')).toEqual({ view: 'timeline', projectId: 'prj_a', taskId: '' });
-    expect(hrefOf({ view: 'timeline', projectId: 'prj_a', taskId: '' })).toBe('#/p/prj_a/timeline');
+  it('settles old timeline links to Calendar', () => {
+    expect(parse('#/p/prj_a/timeline')).toEqual({ view: 'calendar', projectId: 'prj_a', taskId: '' });
+    expect(hrefOf({ view: 'calendar', projectId: 'prj_a', taskId: '' })).toBe('#/p/prj_a/calendar');
   });
 });
 
@@ -197,7 +197,7 @@ describe('the phone\'s More entry', () => {
 
   it('marks the tab current on those pages only', () => {
     for (const v of ['overview', 'defaults', 'projects', 'analytics', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
-    for (const v of ['control', 'board', 'task', 'calendar', 'timeline', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
+    for (const v of ['control', 'board', 'task', 'calendar', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
   });
 });
 

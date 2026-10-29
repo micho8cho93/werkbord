@@ -45,10 +45,6 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 		return nil, err
 	}
 	db := &DB{pool: pool, writer: pool.Writer, reader: pool.Reader, log: log}
-	if err := db.upgradePersonalIcons(ctx); err != nil {
-		_ = pool.Close()
-		return nil, err
-	}
 	return db, nil
 }
 

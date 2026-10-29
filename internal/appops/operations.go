@@ -95,7 +95,7 @@ func operations() []*operation {
 			run: opGetTicket,
 		},
 		{
-			Spec: Spec{Name: "get_schedule", Title: "Schedule and timeline", Kind: KindRead, Permission: PermScheduleRead,
+			Spec: Spec{Name: "get_schedule", Title: "Schedule and planned dates", Kind: KindRead, Permission: PermScheduleRead,
 				Description: "A project's planned dates, scheduled starts, deadlines and dependencies, with the problems found in them (a dependency planned to end after its dependent starts, a cycle, a missing task) and the tasks waiting on others.",
 				Input: Object(map[string]*Schema{
 					"projectId":   projectID,
@@ -186,10 +186,9 @@ func operations() []*operation {
 
 // Changed is what a mutation reports once the person has confirmed it and it has been carried out.
 type Changed struct {
-	Workspace *domain.PersonalWorkspace `json:"workspace,omitempty"`
-	Message   string                    `json:"message"`
-	Ticket    *TicketView               `json:"ticket,omitempty"`
-	Question  *QuestionView             `json:"question,omitempty"`
+	Message  string        `json:"message"`
+	Ticket   *TicketView   `json:"ticket,omitempty"`
+	Question *QuestionView `json:"question,omitempty"`
 }
 
 // Outcome is the short account kept with the action.

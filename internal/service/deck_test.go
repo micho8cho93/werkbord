@@ -121,36 +121,6 @@ func TestDeckRejectsInvalidConfiguration(t *testing.T) {
 	}
 }
 
-func TestDeckKeepsAGeneratedWorkspaceButtonAndRefusesAForgedOne(t *testing.T) {
-	db, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "db"), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	s := &Settings{Deps: Deps{Store: db}, Catalog: catalog{"codex": {}}}
-	const id = "pws_abcdefghij234567"
-	in := DefaultDeck()
-	in.Slots[6] = &DeckSlot{ID: id, Button: id}
-	saved, err := s.SetDeck(context.Background(), "owner", in)
-	if err != nil || saved.Slots[6] == nil || saved.Slots[6].Button != id {
-		t.Fatalf("a generated workspace's button was not kept: %+v %v", saved.Slots[6], err)
-	}
-	for name, slot := range map[string]DeckSlot{
-		"wrong prefix":        {ID: "x", Button: "pcl_abcdefghij234567"},
-		"short identifier":    {ID: "x", Button: "pws_abc"},
-		"upper case":          {ID: "x", Button: "pws_ABCDEFGHIJ234567"},
-		"execution settings":  {ID: id, Button: id, Agent: "codex"},
-		"a repository target": {ID: id, Button: id, Target: "all"},
-	} {
-		bad := DefaultDeck()
-		bad.Version = saved.Version
-		bad.Slots[6] = &slot
-		if _, err := s.SetDeck(context.Background(), "owner", bad); err == nil {
-			t.Errorf("%s was accepted: %+v", name, slot)
-		}
-	}
-}
-
 func TestDeckPresetsCaptureScopeAndConfiguration(t *testing.T) {
 	for _, preset := range DeckWorkflows {
 		t.Run(preset.ID, func(t *testing.T) {

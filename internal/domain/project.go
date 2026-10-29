@@ -13,7 +13,7 @@ const (
 	// ProjectRepository is a registered local Git repository: what every project was before work
 	// projects existed, and what an empty kind means.
 	ProjectRepository ProjectKind = "repository"
-	// ProjectWork is a board and a timeline with no repository behind it: marketing, operations,
+	// ProjectWork is a board and Calendar with no repository behind it: marketing, operations,
 	// research, anything that is not code. It has no Git state, no worktrees and no agent runs.
 	ProjectWork ProjectKind = "work"
 )

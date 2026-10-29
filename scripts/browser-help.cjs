@@ -55,7 +55,7 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
     await page.getByRole('link', { name: 'Open planning or schedule' }).click();
-    assert.match(page.url(), new RegExp(`/p/${projects.work}/timeline$`), 'work guide links to Timeline instead of repository-only Calendar');
+    assert.match(page.url(), new RegExp(`/p/${projects.work}/calendar$`), 'work guide links to Calendar for planned dates');
 
     await page.goto(`${base}/#/p/${projects.review}/board`);
     await page.getByRole('button', { name: 'More' }).click();

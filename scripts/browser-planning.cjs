@@ -18,7 +18,6 @@ const today = new Date().toISOString().slice(0,10);
 const monday = add(today, -((new Date(today + 'T12:00Z').getUTCDay()+6)%7));
 const wait = async (check, label) => { for (let n=0;n<100;n++) { if(await check())return; await new Promise(r=>setTimeout(r,100)); } throw Error('Timed out: '+label); };
 async function drag(page, from, to) { const a=await from.boundingBox(), b=await to.boundingBox(); assert(a && b,'drag targets'); await page.mouse.move(a.x+a.width/2,a.y+Math.min(a.height/2,20)); await page.mouse.down(); await page.mouse.move(b.x+b.width/2,b.y+Math.min(b.height/2,60),{steps:12}); await page.mouse.up(); }
-async function shift(page, item, delta) { await wait(async()=>await item.evaluate(el=>el.closest('[data-plan-item]')?.getAttribute('aria-busy') !== 'true'),'date gesture acknowledgement'); await wait(async()=>{try{await item.scrollIntoViewIfNeeded({timeout:1000});return true;}catch(error){if(!/not attached|detached|not stable/i.test(String(error)))throw error;return false;}},'date handle attached after refresh'); await item.evaluate(el=>{const grid=el.closest('[data-plan-grid]');if(!grid)return;const r=el.getBoundingClientRect(),g=grid.getBoundingClientRect();if(r.right>g.right-100 || r.left<g.left+300)grid.scrollLeft+=(r.left+r.right)/2-(g.left+g.right+260)/2;}); const r=await item.boundingBox(); assert(r); await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.mouse.move(r.x+r.width/2+delta,r.y+r.height/2,{steps:10}); await page.mouse.up(); }
 let browser, server, debugPage;
 (async()=>{
   // First-visit tours are covered elsewhere and must not overlay the controls under test.
@@ -43,18 +42,6 @@ let browser, server, debugPage;
     await wait(()=>page.locator('[data-drag-handle]').first().isEnabled(),'Individual move acknowledgement');
     await page.locator('[data-drag-handle]').first().focus(); await page.keyboard.press('ArrowRight');
     await wait(async()=> (await getTask()).state==='review',engine+' keyboard board move');
-    await page.goto(`${personalURL}/#/p/${work.id}/timeline`);
-    const bar=page.locator(`.rb[data-plan-item="${task.id}"]`); await bar.waitFor(); task=await getTask();
-    await shift(page,bar,56); await wait(async()=> (await getTask()).plan.start===add(task.plan.start,1),engine+' timeline move');
-    task=await getTask(); await shift(page,bar.locator('[data-plan-edge=end]'),56);
-    await wait(async()=> (await getTask()).plan.end===add(task.plan.end,1),engine+' timeline resize');
-    await bar.click(); const panel=page.getByRole('dialog',{name:'Edit task'}); await panel.waitFor();
-    assert(page.url().endsWith('/timeline'),'timeline route stays open');
-    await panel.locator('input[maxlength="200"]').fill('Plan the launch '+engine);
-    await panel.getByRole('button',{name:'Save changes',exact:true}).click();
-    await wait(async()=> (await getTask()).title==='Plan the launch '+engine,'Individual in-place save');
-    await page.getByRole('button',{name:'Day',exact:true}).click(); assert.equal(await page.getByRole('button',{name:'Day',exact:true}).getAttribute('aria-pressed'),'true');
-    await page.getByRole('button',{name:'Quarter',exact:true}).click();
     await page.goto(`${personalURL}/#/p/${work.id}/calendar`);
     const event=page.locator(`[data-plan-item="${task.id}"]`).first(); await event.waitFor();
     const original=await getTask(), target=add(original.plan.start,1);
@@ -81,10 +68,7 @@ let browser, server, debugPage;
     const te=page.locator(`[data-plan-item="${ticket.id}"]`).first(); await te.waitFor(); ticket=await getTicket();
     await drag(page,te,page.locator(`[data-plan-day="${add(ticket.plan.start,1)}"]`));
     await wait(async()=> (await getTicket()).plan.start===add(ticket.plan.start,1),'Team calendar move');
-    await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
-    const tb=page.locator(`.tl-bar[data-plan-item="${ticket.id}"]`);await tb.waitFor();ticket=await getTicket();
-    await shift(page,tb,56);await wait(async()=> (await getTicket()).plan.start===add(ticket.plan.start,1),'Team timeline move');
-    ticket=await getTicket();await shift(page,tb.locator('[data-plan-edge=end]'),56);await wait(async()=> (await getTicket()).plan.end===add(ticket.plan.end,1),'Team timeline resize');
+    const tb=page.locator(`[data-plan-item="${ticket.id}"]`).first();
     await tb.click(); await page.locator(`form[data-ticket-id="${ticket.id}"]`).waitFor();
     assert(new URL(page.url()).searchParams.get('tab')==='calendar','Team stays on calendar');
     await page.locator(`[name="e-title-${ticket.id}"]`).fill('Coordinate launch '+engine);
@@ -96,9 +80,9 @@ let browser, server, debugPage;
       await page.screenshot({path:path.join(artifacts,'team-planning-desktop.png')});
       await page.setViewportSize({width:390,height:844}); await page.screenshot({path:path.join(artifacts,'team-planning-mobile.png')});
       await page.setViewportSize({width:1440,height:1000});
-      await page.goto(`${personalURL}/#/p/${work.id}/timeline`);await page.locator('.rb').waitFor(); await page.screenshot({path:path.join(artifacts,'individual-planning-desktop.png')});
+      await page.goto(`${personalURL}/#/p/${work.id}/calendar`);await page.locator('.event').first().waitFor(); await page.screenshot({path:path.join(artifacts,'individual-planning-desktop.png')});
     }
-    console.log('PASS '+engine+' full-card and keyboard board moves, refused drops, calendar dates, timeline drag/resize and edits in place');
+    console.log('PASS '+engine+' full-card and keyboard board moves, refused drops, calendar dates and edits in place');
     await browser.close(); browser=null;
   }
   // An actual agent start and an unavailable-agent refusal use the normal controller workflow.
@@ -134,15 +118,7 @@ let browser, server, debugPage;
   await wait(async()=> (await team('GET',`/projects/${tp.id}/schedules`)).find(s=>s.ticketId===ticket.id).at !== request.at,'Team calendar reschedules shared request');
   assert.deepEqual((await getTicket()).plan,previousPlan,'Team rescheduling preserves planned dates');
   console.log('PASS Individual hour dragging and Team calendar day dragging reschedule execution without changing planned work dates');
-  // Real touch input exercises Pointer Events rather than synthesising a product-specific drop event.
-  await interaction.goto(`${personalURL}/#/p/${work.id}/timeline`);
-  const touchBar=interaction.locator(`.rb[data-plan-item="${task.id}"]`);await touchBar.waitFor();task=await getTask();await touchBar.scrollIntoViewIfNeeded();
-  const b=await touchBar.boundingBox(),cdp=await interaction.context().newCDPSession(interaction);
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:b.x+b.width/2,y:b.y+b.height/2}]});
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:b.x+b.width/2+56,y:b.y+b.height/2}]});
-  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-  await wait(async()=> (await getTask()).plan.start===add(task.plan.start,1),'touch timeline date move');
-  console.log('PASS configured agent starts on drop, unavailable agent stays in Backlog, and real touch input moves planned work');
+  console.log('PASS configured agent starts on drop and unavailable agent stays in Backlog');
   await browser.close();browser=null;
   // Universal uses real authenticated workspace pages; the shell's native registry is substituted for this focused test.
   const items=[{id:'personal',kind:'personal',name:'Individual',state:'ready',source:'Fixture'},{id:'team:main',kind:'team',name:'Team',state:'ready',source:'Fixture'}];
@@ -167,16 +143,12 @@ let browser, server, debugPage;
   const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
   const addTop=await side.getByRole('button',{name:'New personal project',exact:true}).boundingBox(),analyticTop=await side.getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y<addTop.y,'Analytics is in the sidebar\'s own group, above the sections');
   await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
-  await page.getByRole('group',{name:'Calendar presentation'}).getByRole('button',{name:'Timeline',exact:true}).click();
   for (const [workspace,id,getter] of [['personal',task.id,getTask]]) {
-    const row=page.locator(`[data-plan-item="${workspace}/${id}/plan"]`);await row.waitFor();let before=await getter();
-    await shift(page,row,56);await wait(async()=> (await getter()).plan.start===add(before.plan.start,1),'Universal '+workspace+' move');
-    before=await getter();await shift(page,row.locator('[data-plan-edge=end]'),56);await wait(async()=> (await getter()).plan.end===add(before.plan.end,1),'Universal '+workspace+' resize');
+    const row=page.locator(`[data-plan-item="${workspace}/${id}/plan"]`).first();await row.waitFor();
     await row.click();const panel=page.getByRole('dialog',{name:'Edit task'});await panel.locator('input[maxlength="200"]').waitFor();await panel.locator('input[maxlength="200"]').fill('Universal '+workspace);await panel.getByRole('button',{name:'Save changes',exact:true}).click();
     await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await page.getByRole('heading',{name:'Home',exact:true}).count(),1,'Universal stays visible');
   }
-  await page.getByRole('button',{name:'Day',exact:true}).click();await page.getByRole('button',{name:'Quarter',exact:true}).click();
   await page.screenshot({path:path.join(artifacts,'universal-planning-desktop.png')});await page.setViewportSize({width:900,height:800});await page.screenshot({path:path.join(artifacts,'universal-planning-window.png')});
   await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:path.join(artifacts,'universal-planning-dark.png')});
-  assert.deepEqual(errors,[],'Universal page errors');console.log('PASS Universal Individual saves through real APIs, resizes and edits without navigation; sidebar order and zoom');
+  assert.deepEqual(errors,[],'Universal page errors');console.log('PASS Universal Individual edits through real APIs without navigation; sidebar order');
 })().catch(async e=>{console.error(e); if(debugPage && !debugPage.isClosed()) { console.error('Alerts',await debugPage.locator('[role=alert]').allTextContents()); console.error('Rows',await debugPage.locator('[data-plan-item]').evaluateAll(items=>items.map(el=>({id:el.dataset.planItem,start:el.dataset.planStart,end:el.dataset.planEnd,busy:el.getAttribute('aria-busy'),left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right})))); await debugPage.screenshot({path:path.join(artifacts,'planning-failure.png')}); } process.exitCode=1;}).finally(async()=>{await browser?.close();await new Promise(resolve=>server?server.close(resolve):resolve());});

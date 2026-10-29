@@ -1,7 +1,7 @@
 // The calendar's arithmetic, on wall dates ("2026-10-05") so a time zone is applied only once,
 // where a time is read or written. No framework code, so it can be tested on its own.
 
-import '../../../internal/uipresentation/static/timeline.js';
+import '../../../internal/uipresentation/static/planning.js';
 
 const at = (d: string) => Date.parse(`${d}T12:00:00Z`);
 export const addDays = globalThis.WerkbordPlanning.addDays;

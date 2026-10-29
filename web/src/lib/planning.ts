@@ -97,7 +97,7 @@ function analyze(items: Item[]): Finding[] {
     } else if (first !== undefined && last !== undefined && last < first) {
       add('invalid_range', 'error', current, 'plan.end', `“${current.title}” ends before it starts.`);
     } else if (milestone && firstRaw === '') {
-      add('milestone_without_date', 'warning', current, 'plan.start', `“${current.title}” needs a date to appear on the timeline.`);
+      add('milestone_without_date', 'warning', current, 'plan.start', `“${current.title}” needs a date to appear in Calendar.`);
     }
     const seen = new Set<string>();
     for (const id of current.dependencies) {

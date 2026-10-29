@@ -2,7 +2,7 @@
   import type { Task } from './types';
 
   // What a task waits for. These are the same dependencies the scheduler honours (an agent is not
-  // started before they finish), shown here as the timeline's arrows. Choosing them never moves a date.
+  // started before they finish), edited here and checked by the scheduler. Choosing them never moves a date.
 
   let { tasks, taskId, selected = $bindable(), error = '' }: { tasks: readonly Task[]; taskId: string; selected: string[]; error?: string } = $props();
 

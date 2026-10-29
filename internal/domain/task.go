@@ -69,7 +69,7 @@ type Task struct {
 	WorkMode planning.ExecutionMode `json:"workMode"`
 	// LabelIDs are the labels on the task, in the order they were put on.
 	LabelIDs []string `json:"labelIds"`
-	// Plan is when the work is planned to happen, for the timeline. Dependencies are
+	// Plan is when the work is planned to happen, for Calendar. Dependencies are
 	// Orchestration.Dependencies: the same list the scheduler waits on.
 	Plan       Plan       `json:"plan"`
 	Version    int64      `json:"version"`

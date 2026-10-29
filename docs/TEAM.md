@@ -47,7 +47,7 @@ The console (the page Team serves at its address) is organised around one questi
 | **Workspace** | What needs me? What is everyone doing? | Working now, your unread mentions, actionable attention, shortcuts to your work and reviews, and each project's active work. The tab is named **Needs attention**. |
 | **Projects** | Which projects are there, and who is on them? | The projects, creating one, each project's **People & invites**. |
 | **Board** | What work is there in this project? | The shared board: Available, In Progress, Review, Done, and a ticket's details, actions and **comments**. A project switcher keeps the Board, Git and Activity sections on one project. |
-| **Timeline** | When is the work planned, and what waits for what? | The project's tickets as date bars and milestones, grouped by label, status or who does the work, with dependencies as arrows and a list of conflicts. It only shows: nothing is ever rescheduled. See [PLANNING.md](PLANNING.md). |
+| **Calendar** | When is work planned or scheduled? | Planned dates and shared start requests; dependencies are edited on the ticket and validated by the service. See [PLANNING.md](PLANNING.md). |
 | **My Work** | What am I doing, and what waits for me? | What needs your attention (changes requested, a pull request with conflicts, behind its base, ready to submit, stale), your tickets in progress and in review with their Git links, your open pull requests, and the state of your own branches. **Open in my runner** is on every ticket you hold. |
 | **Reviews** | What needs a decision? | Tickets in review, those asked of you first: author, branch, pull request, commits, mergeability, and links to the pull request, branch and comparison on the Git host. Record that you merged, mark done, or request changes. Team does not reproduce a code-review interface; the diff is on the Git host. |
 | **Git** | What is the Git state? | What members' Werkbords reported: branches, pull requests, and what needs attention. The existing `?tab=repository` address is unchanged. |
@@ -231,7 +231,7 @@ share a repository never produce the same branch name.
 
 A ticket also carries the **planning** side of the work ([PLANNING.md](PLANNING.md)): any number of the workspace's shared **labels**, a
 **work mode** (`human`, `agent`, `hybrid`: who is expected to do it, a fixed classification that is not a label), an optional planned
-**date range or milestone**, and the other tickets of its project it **depends on**. That list is the only one: the timeline draws it and a
+**date range or milestone**, and the other tickets of its project it **depends on**. That list is the only one: the service validates it and a
 shared request for agent work waits for it (Done, or a completed request), so changing it makes a live request stale until it is proposed
 again ([PLANNING.md](PLANNING.md#team-one-list-of-dependencies)). Putting these on a ticket is a ticket edit (the
 creator, or `tickets.edit`); defining the labels is `labels.manage`. Human work is never the subject of a shared request for agent
@@ -240,7 +240,7 @@ without a repository runs the whole workflow with no Git report.
 
 The ticket panel lays each of these out as a box of its own: Description, Requirements and context, the agent (yours; for anyone else
 who owns it and whether it is active), **Comments** (type `@` to mention someone on the project), and a side rail with Status, **Dates** (start,
-due or a milestone, edited in place by whoever may edit the ticket; the Calendar and the Timeline draw them), and branch and pull request.
+due or a milestone, edited in place by whoever may edit the ticket; Calendar shows them), and branch and pull request.
 
 The legal moves are written once, in `domain.TicketStatus.CanTransitionTo`:
 

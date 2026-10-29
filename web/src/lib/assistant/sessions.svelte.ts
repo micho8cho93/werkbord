@@ -5,7 +5,6 @@ import { app } from '../state.svelte';
 import { RunSession, liveRun } from './run-session.svelte';
 import { InteractionQueue, type Interaction } from './interactions';
 import { embedded, surface } from '../embed';
-import { contextualWorkspaceDraft, personalWorkspaceDraft } from '../personal/conversation';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { AssistantStore, type Phase } from './store.svelte';
 import { FALLBACK_ORIGIN, type Origin } from './transition';
@@ -58,8 +57,6 @@ export class AssistantSessions {
   get isOpen(): boolean { return this.mounted && this.phase !== 'closing' && this.phase !== 'closed'; }
   get draft(): string { return this.active.draft; }
   set draft(value: string) { this.active.draft = value; }
-  get personalEditing() { return this.active.personalEditing; }
-  set personalEditing(value: AssistantStore['personalEditing']) { this.active.personalEditing = value; }
 
   private add(id = crypto.randomUUID(), title = '', closed = false): SalieTab {
     const tab = { id, title, closed, store: new AssistantStore(keyOf(id), this.streams.connect) };
@@ -169,11 +166,7 @@ export class AssistantSessions {
       else if (req.action === 'compact') this.compact = !this.compact;
       else if (req.run) this.openRun(req.run.projectId, req.run.runId);
       else {
-        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; this.personalEditing = undefined; }
-        if (req.personalWorkspace !== undefined) {
-          this.draft = req.personalPrompt ? contextualWorkspaceDraft(req.personalWorkspace, req.personalPrompt) : personalWorkspaceDraft(req.personalWorkspace);
-          this.personalEditing = req.personalWorkspace && req.personalRevision ? { workspaceId: req.personalWorkspace, revision: req.personalRevision } : undefined;
-        }
+        if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; }
         if (req.action === 'toggle') this.toggle(req.origin, null);
         else this.show(req.origin, null);
       }
