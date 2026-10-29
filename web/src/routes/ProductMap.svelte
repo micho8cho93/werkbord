@@ -6,15 +6,17 @@
   import '../../../internal/uipresentation/static/product-map.css';
   let { project }: { project: Project } = $props();
   interface Job { id: string; state: string; stage: string; mode: string; reason?: string; filesRead: number; error?: string }
-  interface View { disclosures: Record<string, boolean>; snapshot: MapSnapshot | null; history: MapSnapshot[]; jobs: Job[]; branch: string; commit: string; freshness: string; detail?: string; providers: { id: string; name: string; available: boolean; detail?: string; auth?: string; usesApiKey?: boolean }[] }
+  interface View { disclosures: Record<string, boolean>; snapshot: MapSnapshot | null; history: MapSnapshot[]; jobs: Job[]; branch: string; commit: string; freshness: string; detail?: string; models: Record<string, { id: string; name: string }[]>; branches: string[]; providers: { id: string; name: string; available: boolean; detail?: string; auth?: string; usesApiKey?: boolean }[] }
   let view = $state<View | null>(null);
   let error = $state(''); let busy = $state(false); let provider = $state(''); let model = $state(''); let branch = $state(''); let consent = $state(false); let selectedVersion = $state(0);
   let consentProvider = '';
   $effect(() => { if (provider !== consentProvider) { consentProvider = provider; consent = false; } });
+  $effect(() => { if (!view?.models[provider]?.some(m => m.id === model)) model = ''; });
   let viewer = $state<HTMLDivElement>();
   const running = $derived(view?.jobs.find(j => j.state === 'running'));
   const selected = $derived(view?.history.find(s => s.version === selectedVersion) ?? view?.snapshot);
   const engine = $derived(view?.providers.find(p => p.id === provider));
+  const canAnalyse = $derived(!busy && !!engine?.available && !!view?.commit && view.branch === branch && (consent || !!view.disclosures?.[provider]));
   const labels: Record<string, string> = { preparing_source: 'Preparing committed source', discovering_features: 'Discovering features', analysing_scenarios: 'Analysing scenarios and relationships', validating_evidence: 'Validating source evidence', saving: 'Saving map', completed: 'Map saved', unchanged: 'No permitted source changes — no model calls', interrupted: 'Analysis interrupted' };
   const base = () => `/api/projects/${encodeURIComponent(project.id)}/product-map`;
   async function refresh() { try { view = await request<View>('GET', base() + (branch ? `?branch=${encodeURIComponent(branch)}` : '')); error = ''; if (!provider) provider = view.providers.find(p => p.available)?.id ?? ''; if (!branch) branch = view.branch; } catch (e) { error = (e as Error).message; } }
@@ -33,8 +35,8 @@
       <summary>Analysis settings{engine ? ` · ${engine.name}` : ''}{view.branch ? ` · ${view.branch}` : ''}</summary>
     <div class="configuration">
       <label>Analysis agent<select bind:value={provider} disabled={!!running}>{#each view.providers as p (p.id)}<option value={p.id} disabled={!p.available}>{p.name}{!p.available ? ' — unavailable' : ''}</option>{/each}</select></label>
-      <label>Model <input bind:value={model} placeholder="Provider default" disabled={!!running} /></label>
-      <label>Target branch <input bind:value={branch} onchange={() => { void refresh(); }} disabled={!!running} /></label>
+      <label>Model <select bind:value={model} disabled={!!running}><option value="">Agent default</option>{#each view.models[provider] ?? [] as m (m.id)}{#if m.id}<option value={m.id}>{m.name}</option>{/if}{/each}</select></label>
+      <label>Target branch <select bind:value={branch} onchange={() => { void refresh(); }} disabled={!!running}><option value="" disabled>Select a branch</option>{#each view.branches as name (name)}<option value={name}>{name}</option>{/each}</select></label>
     </div>
     {#if engine}<p class="muted">{engine.detail || `Uses your connected ${engine.name} runtime${engine.usesApiKey ? ' with API billing' : engine.auth ? ` (${engine.auth})` : ''}.`}</p>{/if}
     {#each view.providers.filter(p => !p.available) as p (p.id)}<p class="muted">{p.name}: {p.detail || 'Connect an eligible agent in Settings → Agents.'}</p>{/each}
@@ -44,8 +46,8 @@
     <div class="actions">
       {#if running}<p role="status">{labels[running.stage] ?? running.stage} · {running.filesRead} files read</p><button class="btn small" onclick={() => { void cancel(); }} disabled={busy}>Cancel analysis</button>
       {:else}
-        {#if !view.snapshot}<button class="btn primary" onclick={() => { void start('generate'); }} disabled={busy || !engine?.available || !view.commit}>Generate Product Map</button>
-        {:else}<span class="status">{view.freshness === 'current' ? 'Current as of the local target revision' : view.freshness === 'updates_available' ? 'Updates available' : 'Freshness unknown'}</span><button class="btn primary" onclick={() => { void start('update'); }} disabled={busy || !engine?.available || !view.commit}>Update Map</button><button class="btn" onclick={() => { void start('rebuild'); }} disabled={busy || !engine?.available || !view.commit}>Rebuild Map</button>{/if}
+        {#if !view.snapshot}<button class="btn primary" onclick={() => { void start('generate'); }} disabled={!canAnalyse}>Generate Product Map</button>
+        {:else}<span class="status">{view.freshness === 'current' ? 'Current as of the local target revision' : view.freshness === 'updates_available' ? 'Updates available' : 'Freshness unknown'}</span><button class="btn primary" onclick={() => { void start('update'); }} disabled={!canAnalyse}>Update Map</button><button class="btn" onclick={() => { void start('rebuild'); }} disabled={!canAnalyse}>Rebuild Map</button>{/if}
       {/if}
     </div>
     {#if !running && view.jobs[0] && view.jobs[0].state !== 'completed'}<p class="muted" role="status">{view.jobs[0].error || labels[view.jobs[0].stage] || view.jobs[0].state}{view.jobs[0].reason ? ` · ${view.jobs[0].reason}` : ''}</p>{/if}
@@ -66,9 +68,9 @@
   .scan-settings > p,.scan-settings > label {margin-top:10px;}
   .configuration,.actions {display:flex;align-items:center;flex-wrap:wrap;gap:12px;}
   .configuration label,.history {display:flex;flex-direction:column;gap:5px;font-size:13px;}
-  .configuration input,.configuration select,.history select {font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;}
+  .configuration select,.history select {font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;}
   .disclosure {display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5;max-width:85ch;}
   .disclosure input {margin-top:4px;} .status {font-size:13px;} .error {color:var(--danger-text);}
   .empty {padding:40px 0;color:var(--text-2);} .history {max-width:360px;}
-  @media(max-width:899px){.map-page{padding:16px;}.configuration{align-items:stretch;}.configuration label{flex:1;min-width:160px;}.configuration input,.configuration select{font-size:16px;}}
+  @media(max-width:899px){.map-page{padding:16px;}.configuration{align-items:stretch;}.configuration label{flex:1;min-width:160px;}.configuration select{font-size:16px;}}
 </style>

@@ -3,6 +3,7 @@ package teaminstall
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,7 +50,7 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 		}
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	switch {
 	case len(args) == 1 && args[0] == "--verify-release":
@@ -79,12 +80,13 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 		}
 		running := Probe(ctx, key, version) == nil
 		if !(installed && isolated && running) {
-			// A service that belongs to a workspace is never replaced here. Say so now, not after an administrator's
-			// password has been asked for.
-			if err := PreflightReplacement(ctx, key); err != nil {
+			// Updating an enrolled service needs the verified-backup maintenance path. Ordinary
+			// installation still refuses it, including its repeated checks under administrator authority.
+			action, err := activationAction(PreflightReplacement(ctx, key), runtime.GOOS)
+			if err != nil {
 				return say(false, err.Error())
 			}
-			if err := AuthorizeService(ctx, ActionInstallIsolated); err != nil {
+			if err := AuthorizeService(ctx, action); err != nil {
 				return say(false, err.Error())
 			}
 		}
@@ -144,4 +146,16 @@ func Run(version string, args []string, out, errOut io.Writer) int {
 		return say(true, "done")
 	}
 	return say(false, "unknown request")
+}
+
+// activationAction selects maintenance only for a service known to hold a workspace.
+// Its privileged checks still refuse unsettled workspaces and verify the backup before replacement.
+func activationAction(preflight error, platform string) (string, error) {
+	if preflight == nil {
+		return ActionInstallIsolated, nil
+	}
+	if errors.Is(preflight, ErrReplacementDeferred) && platform == "darwin" {
+		return ActionMaintain, nil
+	}
+	return "", preflight
 }

@@ -187,7 +187,7 @@ func (s *Shell) teamError(err error) error {
 
 // ActivateTeam sets Team up on this computer, or brings its service up to date, after asking the person in a dialog a web
 // page cannot press. It runs the app's own installer; macOS then asks for an administrator's authorization. A service that
-// belongs to a Team workspace is not replaced: the installer says so before it asks for anything, and the person is told.
+// belongs to a Team workspace uses verified-backup maintenance, preserving its data and restoring the previous programs if needed.
 func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 	if _, err := s.o.TeamInstaller.Find(); err != nil {
 		return teamlink.Status{State: "not_installed", Detail: err.Error()}, err
@@ -210,15 +210,15 @@ func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 		yes = "Update Team"
 		dialog.Title = "Update the Team service on this Mac?"
 		dialog.Message = "Team's background service on this Mac is older than this app. Updating replaces it, with your administrator password.\n\n" +
-			"If the service belongs to a Team workspace on this Mac, it is not replaced: that takes coordinated administrator maintenance with a verified backup. " +
-			"You are told so before your password is asked for, and nothing is changed.\n\nNothing is replaced until you choose Update."
+			"If the service belongs to a Team workspace, the update first takes a verified backup, checks that this app can read it, and preserves the workspace and its keys. " +
+			"The previous programs are restored if the updated service does not become healthy. A workspace being created, joined or left must settle first.\n\nNothing is replaced until you choose Update."
 		dialog.Buttons = []string{yes, "Not now"}
 	}
 	if s.o.UI.Ask(dialog) != yes {
 		return teamlink.Status{State: "not_installed", Detail: "Team was not set up."}, errors.New("Team was not set up")
 	}
 	s.o.Log.Info("setting up Team on the person's say-so", "updating", updating)
-	ctx, cancel := s.timeout(4 * time.Minute)
+	ctx, cancel := s.timeout(16 * time.Minute)
 	defer cancel()
 	if _, err := s.o.TeamInstaller.Activate(ctx); err != nil {
 		s.o.Log.Warn("Team could not be set up", "err", err)

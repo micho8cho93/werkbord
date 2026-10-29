@@ -29,6 +29,21 @@ describe('what a frame may say about the window', () => {
     expect(placement).toHaveBeenLastCalledWith(value);
     expect(d.reply).toHaveBeenLastCalledWith(frames[0], { type: 'werkbord.salie-placement', value });
   });
+  it('opens map sharing only from an authenticated main Team frame with a bounded project ID', async () => {
+    const productMap = vi.fn();
+    const d = { ...deps(), productMap };
+    const message = { event: 'product_map', projectId: 'project-123' };
+    for (const frame of [frames[0], hosted, surface, { ...frames[1], hosted: true }]) {
+      await handle([frame], say(frame.window!, frame.origin, message), d);
+    }
+    await handle(frames, say(team, 'https://other.example', message), d);
+    for (const projectId of ['', '../escape', 'x'.repeat(121), null]) {
+      await handle(frames, say(team, frames[1].origin, { ...message, projectId }), d);
+    }
+    expect(productMap).not.toHaveBeenCalled();
+    await handle(frames, say(team, frames[1].origin, message), d);
+    expect(productMap).toHaveBeenCalledExactlyOnceWith('team:main', 'project-123');
+  });
   it('lets only the main page of the person\'s own Werkbord ask to be signed in again, and answers with why it could not', async () => {
     const reauth = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce('It could not read the token.');
     const d = { ...deps(), reauth };

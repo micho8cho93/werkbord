@@ -3,6 +3,7 @@ package teaminstall
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -100,13 +101,11 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 		return fmt.Errorf("the staged Team service reports %q, not this app's version %q; nothing was changed", got, nativeVersion)
 	}
 
-	before, err := readMaintenanceState(ctx, BaseURL, key)
+	targets, err := maintenanceTargets(ctx, data, BaseURL, key)
 	if err != nil {
 		return fmt.Errorf("the running Team service could not be asked: %w", err)
 	}
-	if err := beforeMaintenance(before); err != nil {
-		return err
-	}
+	before := targets[0].Before
 	if strings.TrimPrefix(before.Version, "v") == strings.TrimPrefix(nativeVersion, "v") {
 		return nil // already current
 	}
@@ -129,25 +128,33 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 	}
 	if string(newPlist) != string(oldPlist) {
 		// The service needs a backup directory to back up into, and has none. Its only other change is that argument.
-		if err := restartWith(ctx, newPlist, oldPlist, key, before); err != nil {
+		if err := restartWith(ctx, newPlist, oldPlist, key, targets); err != nil {
 			return err
 		}
 	}
-	started := time.Now().Add(-2 * time.Second)
-	if err := requestBackup(ctx, BaseURL, key); err != nil {
-		return err
+	for i := range targets {
+		started := time.Now().Add(-2 * time.Second)
+		if err := requestBackup(ctx, targets[i].Base, key); err != nil {
+			return fmt.Errorf("workspace %s: %w", targets[i].Slot, err)
+		}
+		backup, err := newestBackup(backupDir, started)
+		if err != nil {
+			return err
+		}
+		if err := checkBackupFile(backupDir, backup); err != nil {
+			return err
+		}
+		retained, err := retainMaintenanceBackup(backupDir, backups, targets[i].Slot, backup)
+		if err != nil {
+			return err
+		}
+		if err := verifyBackupWith(ctx, filepath.Join(stage, "werkbord-team"), retained, backup); err != nil {
+			return err
+		}
+		targets[i].Backup = backup
+		targets[i].BackupDir = retained
 	}
-	backup, err := newestBackup(backupDir, started)
-	if err != nil {
-		return err
-	}
-	if err := checkBackupFile(backupDir, backup); err != nil {
-		return err
-	}
-	if err := verifyBackupWith(ctx, filepath.Join(stage, "werkbord-team"), backupDir, backup); err != nil {
-		return err
-	}
-	if err := writeMaintenanceRecord(SystemDir, map[string]any{"from": before.Version, "to": nativeVersion, "backupDir": backupDir, "backup": backup, "verified": true}); err != nil {
+	if err := writeMaintenanceRecord(SystemDir, map[string]any{"from": before.Version, "to": nativeVersion, "backupDir": backupDir, "workspaces": targets, "verified": true}); err != nil {
 		return err
 	}
 
@@ -160,7 +167,7 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 		if !rollback {
 			return
 		}
-		note := fmt.Sprintf("; the verified backup %s is in %s", backup, backupDir)
+		note := fmt.Sprintf("; verified workspace backups are in %s", backupDir)
 		if err := stopInstalledService(); err != nil {
 			resultErr = errors.Join(resultErr, err)
 			return
@@ -173,7 +180,7 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 			resultErr = errors.Join(resultErr, fmt.Errorf("the previous Team service was restored but could not restart%s: %w", note, err))
 			return
 		}
-		if _, err := waitHealthy(ctx, key, before.Version, before.Connected); err != nil {
+		if err := waitAllHealthy(ctx, key, before.Version, targets); err != nil {
 			resultErr = errors.Join(resultErr, fmt.Errorf("the previous Team service was restored but is not healthy (a newer database schema may need the backup restored)%s: %w", note, err))
 		}
 	}()
@@ -182,6 +189,9 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 	}
 	// The workspace may have changed shape while the service was stopping.
 	if err := CheckMaintenance(data); err != nil {
+		return err
+	}
+	if err := checkMaintenanceTargets(data, targets); err != nil {
 		return err
 	}
 	installed := filepath.Join(SystemDir, "Helpers")
@@ -198,7 +208,7 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 	if err := exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run(); err != nil {
 		return err
 	}
-	if _, err := waitHealthy(ctx, key, nativeVersion, before.Connected); err != nil {
+	if err := waitAllHealthy(ctx, key, nativeVersion, targets); err != nil {
 		return fmt.Errorf("the updated Team service did not become healthy, so the previous one was put back: %w", err)
 	}
 	if err := finishInstall(SystemDir); err != nil {
@@ -210,7 +220,7 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 
 // restartWith swaps the service definition and restarts the same programs. If the service does not come back with its
 // workspace open, the original definition is restored and started again.
-func restartWith(ctx context.Context, next, original []byte, key string, before maintenanceState) (err error) {
+func restartWith(ctx context.Context, next, original []byte, key string, targets []maintenanceTarget) (err error) {
 	if err := stopInstalledService(); err != nil {
 		return err
 	}
@@ -233,19 +243,19 @@ func restartWith(ctx context.Context, next, original []byte, key string, before 
 	if err := exec.Command("/bin/launchctl", "bootstrap", "system", ServicePlist).Run(); err != nil {
 		return err
 	}
-	if _, err := waitHealthy(ctx, key, before.Version, before.Connected); err != nil {
+	if err := waitAllHealthy(ctx, key, targets[0].Before.Version, targets); err != nil {
 		return fmt.Errorf("the service did not come back with its backup directory: %w", err)
 	}
 	return nil
 }
 
 // waitHealthy waits for the service to report the version with its workspace open, and returns the last answer.
-func waitHealthy(ctx context.Context, key, version string, wasConnected bool) (maintenanceState, error) {
+func waitHealthyAt(ctx context.Context, base, key, version string, wasConnected bool) (maintenanceState, error) {
 	ctx, cancel := context.WithTimeout(ctx, 150*time.Second)
 	defer cancel()
 	var last error = errors.New("no answer")
 	for {
-		s, err := readMaintenanceState(ctx, BaseURL, key)
+		s, err := readMaintenanceState(ctx, base, key)
 		if err == nil {
 			if err = afterMaintenance(s, version, wasConnected); err == nil {
 				return s, nil
@@ -258,4 +268,20 @@ func waitHealthy(ctx context.Context, key, version string, wasConnected bool) (m
 		case <-time.After(time.Second):
 		}
 	}
+}
+
+func waitAllHealthy(ctx context.Context, key, version string, targets []maintenanceTarget) error {
+	for _, target := range targets {
+		after, err := waitHealthyAt(ctx, target.Base, key, version, target.Before.Connected)
+		if err != nil {
+			return fmt.Errorf("workspace %s: %w", target.Slot, err)
+		}
+		var oldID, newID struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(target.Before.Workspace, &oldID) != nil || json.Unmarshal(after.Workspace, &newID) != nil || oldID.ID == "" || oldID.ID != newID.ID {
+			return fmt.Errorf("workspace %s identity changed after update", target.Slot)
+		}
+	}
+	return nil
 }

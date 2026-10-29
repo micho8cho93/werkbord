@@ -21,6 +21,8 @@ type Service struct {
 	key      func() (string, error)
 	listPath string
 	hc       *http.Client
+	// Check verifies that the running service is compatible with this app before opening its interface.
+	Check func(context.Context) error
 }
 
 // NewService makes a source for such a program. base is its loopback address; listPath is where it lists its workspaces.
@@ -59,12 +61,26 @@ func (s *Service) List(ctx context.Context) ([]workspace.Listed, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.Check != nil {
+		if err := s.Check(ctx); err != nil {
+			for i := range l.Workspaces {
+				l.Workspaces[i].Entry.State = workspace.StateUnavailable
+				l.Workspaces[i].Entry.Detail = "Update the service in Devices & Hosting to load this app’s interface."
+			}
+			return l.Workspaces, err
+		}
+	}
 	return l.Workspaces, nil
 }
 
 // Frame implements Source. join, an invitation the person opened the app with, rides in the fragment next to the
 // credential, where the workspace's page reads it once and removes it from the address.
 func (s *Service) Frame(ctx context.Context, l workspace.Listed, join string) (Frame, error) {
+	if s.Check != nil {
+		if err := s.Check(ctx); err != nil {
+			return Frame{}, err
+		}
+	}
 	key, err := s.key()
 	if err != nil {
 		return Frame{}, ErrNoCredential

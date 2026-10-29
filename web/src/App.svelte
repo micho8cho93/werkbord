@@ -305,7 +305,7 @@
             {:else if router.view === 'runs' && project.kind === 'work'}
               <p class="empty">This project has no execution history. Work is tracked on its Board and Calendar.</p>
             {:else if router.view === 'git'}
-              {#if app.remote}<div class="page"><DeviceGit {project} /></div>{:else if router.sub}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
+              {#if app.remote}<div class="page"><DeviceGit {project} /></div>{:else if router.sub && !router.sub.startsWith('?')}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
             {:else if router.view === 'runs'}
               <Runs {scope} {project} />
             {:else if router.view === 'defaults'}

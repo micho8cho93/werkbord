@@ -18,6 +18,7 @@
   const px = $derived(PX_PER_DAY[zoom]);
   const width = $derived((daysBetween(range.start, range.end) + 1) * px);
   const axis = $derived(ticks(range, zoom));
+  const weekday = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString([], { weekday: 'short' });
   const date = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   const status = (r: CalendarRow) => (r.status || (r.kind === 'scheduled' ? 'scheduled' : 'planned')).replaceAll('_', ' ');
   const open = (r: CalendarRow) => { if (!pending[r.id]) onopen?.(r.id); };
@@ -65,7 +66,7 @@
   <div class="scroll" bind:this={scroll} data-plan-grid={timeline ? '' : undefined} data-plan-px={px}>
     {#if timeline}
       <div class="timeline-grid" style:width="{width + 260}px">
-        <div class="axis"><span>Task / project</span><div class="dates" style:width="{width}px">{#each axis as t (t.day)}<time class:major={t.major} style:left="{t.x}px" datetime={t.day}>{zoom === 'day' || zoom === 'week' ? date(t.day) : t.label}</time>{/each}</div></div>
+        <div class="axis"><span>Task / project</span><div class="dates" style:width="{width}px">{#each axis as t, i (t.day)}<time class:major={t.major} class:daily={zoom === 'day' || zoom === 'week'} style:left="{t.x}px" style:width="{(axis[i + 1]?.x ?? width) - t.x}px" datetime={t.day} title={date(t.day)}>{#if zoom === 'day' || zoom === 'week'}<span>{weekday(t.day)}</span>{/if}<span>{t.label}</span></time>{/each}</div></div>
         {#each rows as r (r.id)}
           <div class="trow"><button class="name" onclick={() => open(r)}>{r.title}<small>{r.project}</small><span class="name-status">{status(r)}</span></button>
             <div class="track" style:width="{width}px">
@@ -113,10 +114,12 @@
   small { display: block; font-size: 12px; color: var(--text); opacity: .85; margin-top: 4px; }
   .status { display: block; font-size: 12px; text-transform: capitalize; margin-bottom: 5px; font-weight: 600; }
   .event:hover, .range:hover { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 25%, var(--surface)); }
-  .axis { display: flex; position: sticky; top: 0; z-index: 4; height: 42px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .axis { display: flex; position: sticky; top: 0; z-index: 4; height: 48px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
   .axis > span { position: sticky; left: 0; z-index: 5; width: 260px; flex: none; padding: 12px; border-right: 1px solid var(--border); background: var(--surface-2); font-size: 12px; font-weight: 600; }
   .dates { position: relative; }
-  time { position: absolute; height: 100%; padding: 12px 6px; border-left: 1px solid var(--border); white-space: nowrap; font-size: 12px; color: var(--text-2); }
+  time { position: absolute; box-sizing: border-box; height: 100%; padding: 8px 4px; overflow: hidden; text-overflow: ellipsis; border-left: 1px solid var(--border); white-space: nowrap; font-size: 12px; color: var(--text-2); }
+  time.daily { display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  time span { overflow: hidden; text-overflow: ellipsis; }
   time.major { color: var(--text); font-weight: 600; }
   .trow { display: flex; border-bottom: 1px solid var(--border); min-height: 64px; }
   .name { position: sticky; left: 0; z-index: 3; width: 260px; flex: none; border: 0; border-right: 1px solid var(--border); padding: 10px 12px; background: var(--surface); color: var(--text); text-align: left; overflow-wrap: anywhere; font-size: 13px; cursor: pointer; }

@@ -137,7 +137,7 @@
 </div>
 
 <style>
-  .personal-page { width: 100%; max-width: 1120px; margin: 0 auto; padding: 24px; min-width: 0; }
+  .personal-page { width: 100%; max-width: 1800px; margin: 0 auto; padding: 24px clamp(16px, 2.5vw, 40px); min-width: 0; }
   header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 12px 20px; margin-bottom: 20px; }
   .head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   h1 { margin: 0; font-size: 24px; font-weight: 600; overflow-wrap: anywhere; }

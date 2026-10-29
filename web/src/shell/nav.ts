@@ -39,7 +39,7 @@ export function entries(kind: Kind): NavEntry[] {
   ];
 }
 
-const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'project-settings', 'people']);
+const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'timeline', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
 
 /** The entry a workspace's current place belongs to; '' when it is somewhere the sidebar does not list. */
 export function activeKey(kind: Kind, place: string | undefined): NavKey {

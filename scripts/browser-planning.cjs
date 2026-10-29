@@ -71,7 +71,7 @@ let browser, server, debugPage;
     await drag(page,page.locator(`[data-board-item="${ticket.id}"] .title`),page.locator('[data-board-column=available]'));
     await page.getByText(/This move needs the ticket’s normal workflow action/).waitFor(); assert.equal((await getTicket()).status,'review','refused drop preserves original status');
     const tabs=page.getByRole('navigation',{name:'Project sections'});
-    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs']);
+    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs','Product Map']);
     await page.getByRole('button',{name:/^Project settings/}).waitFor();
     assert.equal(await page.locator('.project-details, .project-people').count(),0,'the project header has no people list or details dropdown');
     await page.getByRole('button',{name:/^Project settings/}).click();

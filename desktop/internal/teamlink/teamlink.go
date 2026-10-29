@@ -101,6 +101,26 @@ func New(base, keyPath string, installed func() bool) (*Link, error) {
 	return &Link{Source: src, base: src.Base(), key: key, Installed: installed, hc: &http.Client{Timeout: 20 * time.Second, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
+// RequireVersion prevents a newly updated app from silently serving an older Team interface.
+// Development builds can talk to development services without a release version fence.
+func (l *Link) RequireVersion(version string) {
+	if version == "" || version == "dev" {
+		return
+	}
+	l.Source.Check = func(ctx context.Context) error {
+		var state struct {
+			Version string `json:"version"`
+		}
+		if err := l.call(ctx, http.MethodGet, "/api/device/v1/state", nil, &state); err != nil {
+			return err
+		}
+		if strings.TrimPrefix(state.Version, "v") != strings.TrimPrefix(version, "v") {
+			return workspaces.ErrOutdated
+		}
+		return nil
+	}
+}
+
 // Status is the state of Team's service for the person.
 type Status struct {
 	// State is one of: not_installed (never set up here), stopped (installed, not answering), ready, outdated (answers, too old
@@ -115,7 +135,7 @@ func (l *Link) StatusOf(err error) Status {
 	case err == nil:
 		return Status{State: "ready"}
 	case errors.Is(err, workspaces.ErrOutdated):
-		return Status{State: "outdated", Detail: "Team's service is older than this app. Update it to use several Team workspaces."}
+		return Status{State: "outdated", Detail: "Team's background service does not match this app. Update it in Devices & Hosting to load the current Team interface."}
 	case errors.Is(err, workspaces.ErrRefused):
 		return Status{State: "refused", Detail: "Team's service did not accept this app. It may be installed for another user of this Mac."}
 	case errors.Is(err, workspaces.ErrNoCredential), errors.Is(err, workspaces.ErrNotRunning):

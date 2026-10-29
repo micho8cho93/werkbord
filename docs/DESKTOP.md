@@ -224,7 +224,8 @@ it; Help has none) do the same thing, which depends on what is behind:
    working, or a runner has unfinished work, the installer refuses and **the controller is left exactly as it is**: the same
    process, on its old program; the window opens, tells you why once, and the move happens the next time you open Werkbord with
    nothing running, or when you choose **Update now** (step 1). It never goes backwards: an app older than the installed program
-   leaves it alone.
+   leaves it alone. The running version is checked even when the executable on disk already matches the app;
+   replacing the file does not restart an old process.
 4. **Only the program is behind** (the feed has no update of the app yet, for instance while a release is still being published,
    or Sparkle is not in this build). The update the terminal has, unchanged: `werkbord update`, behind a native question.
 

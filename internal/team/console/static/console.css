@@ -625,7 +625,9 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 button.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-height: 36px; padding: 0; }
 button.icon-button svg { flex: none; }
 button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var(--press-sh); color: var(--accent); }
-.project-settings { display: grid; gap: 20px; max-width: 760px; }
+.project-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.project-settings > div { display: grid; gap: 20px; min-width: 0; }
+@media (max-width: 899px) { .project-settings { grid-template-columns: minmax(0, 1fr); } }
 .project-settings > .panel, .project-settings > div > .panel { margin: 0; }
 .calendar-with-ticket { min-height: 0; flex: 1; }
 .calendar-with-ticket .ticket { position: fixed; z-index: 20; right: 0; top: 0; bottom: 0; width: min(600px, 100vw); max-height: 100dvh; border-radius: 0; box-shadow: 0 10px 30px #0003; }
@@ -689,7 +691,7 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 /* A section of Settings shown by the window: only the section, with the room a page has. */
 .app-shell.hosted .main-content { padding: 20px 24px 32px; }
 .settings-layout.hosted { display: block; }
-.settings-layout.hosted .settings-content { max-width: 880px; }
+.settings-layout.hosted .settings-content { width: 100%; }
 
 /* In the window the page is the window less its sidebar, so a window of 1100px gives the page under 900px. The board stays a board
    (the page lays out as it does on a desktop, and a narrow frame scrolls the columns sideways) until the frame is phone-sized. */

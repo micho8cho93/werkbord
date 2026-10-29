@@ -47,6 +47,8 @@ export interface Deps {
   settings(id: string, place: string): void;
   /** A Team page says the person needs Premium for what they were doing: show Settings at Plan. */
   plan?(id: string): void;
+  /** Open map sharing for a project reported by an authenticated Team frame. */
+  productMap?(id: string, projectId: string): void;
   /**
    * The person's own Werkbord page was refused its sign-in. The app reads the token again and loads the page afresh; the answer is
    * why it could not, in words for the person, or null when it did (the page is then replaced and needs no answer).
@@ -138,6 +140,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       const problem = await d.reauth?.(frame.id, m.manual === true);
       if (problem) d.reply(frame, { type: 'werkbord.reauth', ok: false, message: problem });
     }
+    else if (m.event === 'product_map' && frame.id.startsWith('team:') && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId)) d.productMap?.(frame.id, m.projectId);
     else if (m.event === 'ready') d.ready(frame.id);
     // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.
     else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});

@@ -19,11 +19,6 @@ const media = typeof matchMedia === 'function' ? matchMedia('(prefers-color-sche
 
 class Theme {
   choice = $state<Choice>(stored());
-  /**
-   * Whether the person has chosen a theme on this device, "Device" included. The desktop window tells its workspaces the theme only
-   * once they have, so a workspace that keeps a choice of its own is not overwritten by a window that never asked.
-   */
-  chosen = this.choice !== '';
   private systemDark = $state(media?.matches ?? false);
 
   constructor() {
@@ -41,7 +36,6 @@ class Theme {
 
   /** fromShell: the window's sidebar chose it and told this page, which has nobody to tell. */
   set(choice: Choice, fromShell = false): void {
-    this.chosen = true;
     this.choice = choice;
     // In the desktop window the theme is the window's: a choice made on this page is told to the sidebar, which tells the rest.
     if (!fromShell && isEmbedded()) window.parent.postMessage({ type: 'werkbord.frame', event: 'theme', theme: choice }, '*');

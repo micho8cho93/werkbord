@@ -535,3 +535,45 @@ func TestInstallerUpgradeUsesCurrentRecoveryOnExistingExecutable(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallerRestartsOlderControllerWhenExecutableIsAlreadyCurrent(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		t.Run(fmt.Sprint("active=", active), func(t *testing.T) {
+			e := newTestEnv(t)
+			self, _ := e.app.executable()
+			if err := os.WriteFile(self, []byte("#!/bin/sh\necho v1.0.0\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.app.cmdSetup(bg, []string{"--no-open"}); err != nil {
+				t.Fatal(err)
+			}
+			// An external update has replaced the file but not the process.
+			if err := os.WriteFile(self, []byte("#!/bin/sh\necho v1.1.0\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			setVersion(t, "v1.1.0")
+			fresh := filepath.Join(t.TempDir(), "werkbord")
+			if err := os.WriteFile(fresh, []byte("#!/bin/sh\necho v1.1.0\n"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			e.app.executable = func() (string, error) { return fresh, nil }
+			if active {
+				if err := remote.AtomicJSON(filepath.Join(runnerDir(e.app.cfg), "runs", "active.json"), map[string]any{"phase": "active"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			err := e.app.cmdInstallRelease(bg, []string{self})
+			running, up := e.app.healthy(bg)
+			if !up {
+				t.Fatal("controller stopped")
+			}
+			if active {
+				if err == nil || running != "v1.0.0" {
+					t.Fatalf("active work disturbed: %s %v", running, err)
+				}
+			} else if err != nil || running != "v1.1.0" {
+				t.Fatalf("stale controller retained: %s %v", running, err)
+			}
+		})
+	}
+}

@@ -465,7 +465,7 @@ func TestAnOlderServiceIsUpdatedNotSetUpAndARefusedUpdateLeavesItAnOlderService(
 	}
 	ask := r.ui.asked[0]
 	if !strings.Contains(ask.Title, "Update") || strings.Contains(ask.Title, "Set up") || !reflect.DeepEqual(ask.Buttons, []string{"Update Team", "Not now"}) || ask.Default != "Not now" ||
-		!strings.Contains(ask.Message, "belongs to a Team workspace") || !strings.Contains(ask.Message, "Nothing is replaced until you choose Update") {
+		!strings.Contains(ask.Message, "verified backup") || !strings.Contains(ask.Message, "Nothing is replaced until you choose Update") {
 		t.Fatalf("%+v", ask)
 	}
 	// The set-up button does not answer an update question.

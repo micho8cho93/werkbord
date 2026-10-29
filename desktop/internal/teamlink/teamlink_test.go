@@ -319,3 +319,39 @@ func TestCreatingAndJoiningGoToTheSlotsOwnDeviceAPI(t *testing.T) {
 		}
 	}
 }
+
+func TestNewAppRefusesAnOlderEmbeddedTeamInterface(t *testing.T) {
+	for _, reported := range []string{"v5.4.0", "", "v5.5.0"} {
+		t.Run(reported, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Authorization") != "Bearer "+key {
+					t.Error("missing credential")
+				}
+				if r.URL.Path == "/api/device/v1/state" {
+					_ = json.NewEncoder(w).Encode(map[string]string{"version": reported})
+					return
+				}
+				_, _ = w.Write([]byte(`{"schema":"werkbord.workspace/v1","workspaces":[{"entry":{"id":"team:main","kind":"team","name":"Orion Services","state":"ready"},"root":"/w/main/","summary":"/w/main/api/device/v1/summary"}]}`))
+			}))
+			defer srv.Close()
+			link, err := New(srv.URL, writeKey(t, 0o600, key), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			link.RequireVersion("5.5.0")
+			listed, err := link.Source.List(bg)
+			if reported == "v5.5.0" {
+				if err != nil || len(listed) != 1 {
+					t.Fatalf("current: %v %+v", err, listed)
+				}
+			} else {
+				if !errors.Is(err, workspaces.ErrOutdated) || len(listed) != 1 || listed[0].Entry.State != "unavailable" {
+					t.Fatalf("old: %v %+v", err, listed)
+				}
+				if _, err := link.Source.Frame(bg, listed[0], ""); !errors.Is(err, workspaces.ErrOutdated) {
+					t.Fatalf("opened old interface: %v", err)
+				}
+			}
+		})
+	}
+}

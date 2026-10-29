@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -66,6 +67,8 @@ type View struct {
 	Freshness   string                           `json:"freshness"`
 	Detail      string                           `json:"detail,omitempty"`
 	Providers   []provider.Info                  `json:"providers"`
+	Models      map[string][]provider.Model      `json:"models"`
+	Branches    []string                         `json:"branches"`
 }
 
 func New(ctx context.Context, c Config) (*Engine, error) {
@@ -154,11 +157,38 @@ func (e *Engine) providers(ctx context.Context) []provider.Info {
 	return out
 }
 func (e *Engine) View(ctx context.Context, id, branch string) (View, error) {
-	out := View{Freshness: "unknown", History: []integration.ProductMapSnapshot{}, Jobs: []Job{}, Providers: e.providers(ctx), Disclosures: map[string]bool{}}
+	out := View{Freshness: "unknown", History: []integration.ProductMapSnapshot{}, Jobs: []Job{}, Providers: e.providers(ctx), Disclosures: map[string]bool{}, Models: map[string][]provider.Model{}, Branches: []string{}}
 	p, err := e.project(ctx, id)
 	if err != nil {
 		return out, err
 	}
+	for _, info := range out.Providers {
+		if info.Available {
+			if prov, ok := e.cfg.Providers.Get(info.ID); ok {
+				out.Models[info.ID] = prov.Models(ctx).Models
+			}
+		}
+	}
+	refs, err := e.cfg.Git.ListRefs(ctx, p.RepoPath)
+	if err != nil {
+		return out, err
+	}
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		name := ref.Name
+		if ref.Remote != "" {
+			// target resolves local branches and origin's locally fetched refs.
+			if ref.Remote != "origin" {
+				continue
+			}
+			name = strings.TrimPrefix(name, "origin/")
+		}
+		if ref.Sha != "" && !seen[name] {
+			seen[name] = true
+			out.Branches = append(out.Branches, name)
+		}
+	}
+	sort.Strings(out.Branches)
 	err = e.cfg.Store.View(ctx, func(tx store.Tx) error {
 		var err error
 		for _, p := range out.Providers {

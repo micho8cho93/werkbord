@@ -484,3 +484,22 @@ Project identity in Team contains only the repository, when present, above the p
 ### Premium operator console (5.5)
 
 The vendor-only licensing page preserves its paper/ink/cobalt and bundled Geist identity, with a searchable person/status register beside the key details and inline issue form. It issues one permanent Premium unlock key per person; no seat, expiry, renewal or workspace terms appear. The plan explanation says teams of up to two are free and teams of three or more need a separate key for every member, including the owner. Operator sign-in, authenticator verification, prepared-request recovery, original-key redelivery and passphrase-encrypted backup stay explicit. Customer activation is Settings → Plan. Narrow layouts stack the header, search, register and details, with full-width search, 16px inputs and visible focus. Signing stays on the protected server; this surface never handles its private key.
+
+### Workspace density and update consistency
+
+Reviews groups To review, Changes requested and Your work in review into adjacent columns when space allows, stacking
+in reading order on narrow windows. Team project settings and independent computer settings sections use responsive
+columns. Personal workspace pages use the same available width as the desktop shell. Preserve explicitly saved workspace
+layouts and existing records.
+
+Project sidebar entries open the project; they have no project transfer or Product Map shortcut. Product Map is a project
+tab in Team, with Generate or share a map opening the reviewed local snapshot flow. Personal analysis chooses its provider,
+model and target branch from connected providers and locally known branches. Ticket forms, cards and planning controls
+omit labels, preserving existing label assignments for reports. The project overview lists only ready or active agents.
+Week timeline dates occupy bounded two-line cells. Git query tabs keep the overview's frame. Runs page through the rows
+that fit the available viewport, with filters resetting to the first page.
+
+The shell always sends its theme, including Device, when a workspace opens. A Team service with a different release is
+shown as needing an update rather than silently loading its old console. Updating an enrolled service uses verified backups
+and post-update identity and health checks for every local workspace. Personal startup also checks the running controller
+when the installed executable already matches the app: a current file does not establish that the process is current.

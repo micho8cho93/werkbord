@@ -128,7 +128,7 @@
     {/if}
     <section class="pn">
       <div class="ph">Agents on the controller</div>
-      {#each app.agents as a (a.id)}
+      {#each app.agents.filter(a => a.available || agentRuns(a.id) > 0) as a (a.id)}
         <div class="agent">
           <span class="dot" data-tone={a.available ? 'ok' : 'bad'}></span>
           <span class="aname">{a.name}</span>
@@ -136,7 +136,7 @@
           <span class="mm end">{agentRuns(a.id)} active</span>
         </div>
       {:else}
-        <p class="muted small">No agents found on the controller.</p>
+        <p class="muted small">No agents are ready or running on the controller.</p>
       {/each}
     </section>
 

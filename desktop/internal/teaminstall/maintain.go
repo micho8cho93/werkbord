@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -122,6 +123,69 @@ func withBackupDir(plist []byte, dir string) ([]byte, string, error) {
 	out = append(out, "<string>--backup-dir</string><string>"+dir+"</string>"...)
 	out = append(out, plist[at:]...)
 	return out, dir, nil
+}
+
+// maintenanceTarget is one on-disk workspace whose backup and health must survive a program update.
+type maintenanceTarget struct {
+	Slot      string           `json:"slot"`
+	Base      string           `json:"-"`
+	Before    maintenanceState `json:"-"`
+	Backup    string           `json:"backup"`
+	BackupDir string           `json:"backupDir"`
+}
+
+var maintenanceSlotPattern = regexp.MustCompile(`^[a-z0-9_]{1,24}$`)
+
+func maintenanceSlotDirs(data string) (map[string]string, error) {
+	dirs := map[string]string{"main": data}
+	entries, err := os.ReadDir(filepath.Join(data, "slots"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			if !maintenanceSlotPattern.MatchString(e.Name()) {
+				return nil, errors.New("invalid Team workspace slot; nothing was changed")
+			}
+			dirs[e.Name()] = filepath.Join(data, "slots", e.Name())
+		}
+	}
+	for slot, dir := range dirs {
+		if _, err := os.Stat(filepath.Join(dir, "workspace")); errors.Is(err, os.ErrNotExist) {
+			delete(dirs, slot)
+		} else if err != nil {
+			return nil, err
+		}
+	}
+	return dirs, nil
+}
+
+// Derive slots from the protected data directory: an omitted API slot must still be backed up.
+func maintenanceTargets(ctx context.Context, data, base, key string) ([]maintenanceTarget, error) {
+	dirs, err := maintenanceSlotDirs(data)
+	if err != nil {
+		return nil, err
+	}
+	var targets []maintenanceTarget
+	for slot := range dirs {
+		address := base
+		if slot != "main" {
+			address += "/w/" + slot
+		}
+		before, err := readMaintenanceState(ctx, address, key)
+		if err != nil {
+			return nil, fmt.Errorf("workspace %s could not be checked: %w", slot, err)
+		}
+		if err := beforeMaintenance(before); err != nil {
+			return nil, fmt.Errorf("workspace %s: %w", slot, err)
+		}
+		targets = append(targets, maintenanceTarget{Slot: slot, Base: address, Before: before})
+	}
+	if len(targets) == 0 {
+		return nil, ErrNothingToMaintain
+	}
+	sort.Slice(targets, func(i, j int) bool { return targets[i].Slot < targets[j].Slot })
+	return targets, nil
 }
 
 // maintenanceState is what the running service says about itself.
@@ -274,6 +338,24 @@ func checkBackupFile(dir, name string) error {
 	return nil
 }
 
+// Keep each slot's verified copy separately: backup names are based on second and write position,
+// so different workspaces can otherwise produce the same name in a shared backup directory.
+func retainMaintenanceBackup(source, root, slot, name string) (string, error) {
+	dir, err := os.MkdirTemp(root, "maintenance-"+slot+"-")
+	if err != nil {
+		return "", err
+	}
+	for _, suffix := range []string{"", ".json"} {
+		if err := copyFile(filepath.Join(source, name+suffix), filepath.Join(dir, name+suffix), 0600); err != nil {
+			return "", err
+		}
+	}
+	if err := checkBackupFile(dir, name); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
 // runProgram runs one fixed program by absolute path with a minimal environment. A test replaces it.
 var runProgram = func(ctx context.Context, prog string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, prog, args...)
@@ -309,4 +391,21 @@ func writeMaintenanceRecord(root string, rec map[string]any) error {
 		return err
 	}
 	return atomicFile(filepath.Join(dir, time.Now().UTC().Format("20060102T150405Z")+".json"), b, 0600)
+}
+
+// Recheck after stopping: a workspace added during backup must never be updated without its own backup.
+func checkMaintenanceTargets(data string, targets []maintenanceTarget) error {
+	dirs, err := maintenanceSlotDirs(data)
+	if err != nil {
+		return err
+	}
+	if len(dirs) != len(targets) {
+		return errors.New("the Team workspace list changed during backup; retry the update. Nothing was replaced")
+	}
+	for _, target := range targets {
+		if _, ok := dirs[target.Slot]; !ok {
+			return errors.New("a Team workspace changed during backup; retry the update. Nothing was replaced")
+		}
+	}
+	return nil
 }

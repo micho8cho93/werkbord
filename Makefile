@@ -254,6 +254,12 @@ test-recommendations-browser: build web-shell
 test-held-runs-browser: web web-embed
 	node scripts/browser-held-runs.cjs
 
+.PHONY: test-workspace-ux-browser
+## test-workspace-ux-browser: project lifecycle, map generation, density, dark mode and Team map sharing
+test-workspace-ux-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-workspace-density.cjs node scripts/test-browser.cjs
+	node scripts/browser-project-actions-map.cjs
+
 ## test-browser: disposable desktop/mobile browsers plus real-process Team handoff
 # Install both browsers once with: cd web && npx playwright install chromium webkit (the Team comments suite also runs in WebKit)
 test-browser: build build-team

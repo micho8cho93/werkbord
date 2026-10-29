@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { formatWeekdayTime } from '../lib/clock.svelte';
   import { agentLabel, optionLabel } from '../lib/execution';
   import { runElapsed, runStatus } from '../lib/format';
@@ -39,6 +40,59 @@
     }),
   );
 
+  let surface = $state<HTMLDivElement>();
+  let viewportHeight = $state(0);
+  $effect(() => {
+    const element = surface;
+    if (!element) return;
+    const measure = () => {
+      const tabbar = document.querySelector('.tabbar');
+      const bottom = tabbar && getComputedStyle(tabbar).position === 'fixed' ? tabbar.getBoundingClientRect().height : 0;
+      viewportHeight = Math.max(180, window.innerHeight - element.getBoundingClientRect().top - bottom);
+    };
+    let frame = 0;
+    const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); });
+    if (element.parentElement) observer.observe(element.parentElement);
+    window.addEventListener('resize', measure);
+    measure();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener('resize', measure); };
+  });
+  let tableArea = $state<HTMLDivElement>();
+  let availableHeight = $state(400);
+  let rowHeight = $state(40);
+  let headerHeight = $state(34);
+  let page = $state(0);
+  const pageSize = $derived(Math.max(1, Math.floor((availableHeight - headerHeight - 2) / rowHeight)));
+  const pages = $derived(Math.max(1, Math.ceil(rows.length / pageSize)));
+  const currentPage = $derived(Math.min(page, pages - 1));
+  const visible = $derived(rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize));
+  $effect(() => { void stateFilter; void agentFilter; void runnerFilter; page = 0; });
+  $effect(() => {
+    const area = tableArea;
+    if (!area) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => availableHeight = area.clientHeight);
+    });
+    observer.observe(area);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  });
+  $effect(() => {
+    const area = tableArea;
+    void visible;
+    if (!area) return;
+    let cancelled = false;
+    void tick().then(() => {
+      if (cancelled) return;
+      const row = area.querySelector('.run > .tr');
+      const header = area.querySelector('.th');
+      if (row) rowHeight = Math.max(1, row.getBoundingClientRect().height);
+      headerHeight = header?.getBoundingClientRect().height ?? 0;
+    });
+    return () => { cancelled = true; };
+  });
+
   const cost = (r: Run) =>
     r.usage?.costUsd === undefined ? '' : `${r.usage.costKind === 'actual_api' ? '' : '≈'}${new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(r.usage.costUsd)}`;
   /** The run whose question is open for answering here; the card is the same one the board and the task panel use. */
@@ -48,7 +102,7 @@
   const started = (iso: string) => formatWeekdayTime(iso);
 </script>
 
-<div class="runs">
+<div class="runs" bind:this={surface} style:height={viewportHeight ? `${viewportHeight}px` : undefined}>
   <div class="bar">
     <HistoryStrip runs={scope.history} />
     <div class="filters">
@@ -85,7 +139,7 @@
     </div>
   </div>
 
-  <div class="table-area">
+  <div class="table-area" bind:this={tableArea}>
     {#if rows.length}
       <div class="tbl" role="table" aria-label="Runs in {project.name}">
         <div class="tr th" role="row">
@@ -100,7 +154,7 @@
           <span role="columnheader" class="num-col">Cost</span>
           <span role="columnheader" class="visually-hidden">Action</span>
         </div>
-        {#each rows as r (r.id)}
+        {#each visible as r (r.id)}
           {@const s = runStatus(r)}
           {@const ask = askedOf(r)}
           <div class="run" role="rowgroup">
@@ -139,6 +193,12 @@
       <p class="empty">{!scope.loaded ? 'Loading…' : filtering ? 'No run matches the filters.' : 'No agent has run in this project yet. Start one from the Board.'}</p>
     {/if}
   </div>
+  <nav class="pagination" aria-label="Run history pages">
+    <span class="mm" aria-live="polite">{rows.length ? currentPage * pageSize + 1 : 0}–{Math.min((currentPage + 1) * pageSize, rows.length)} of {rows.length}</span>
+    <button class="btn small" disabled={currentPage === 0} onclick={() => page = currentPage - 1}>Previous</button>
+    <span class="mm">Page {currentPage + 1} of {pages}</span>
+    <button class="btn small" disabled={currentPage + 1 >= pages} onclick={() => page = currentPage + 1}>Next</button>
+  </nav>
 </div>
 
 <style>
@@ -171,16 +231,18 @@
   }
 
   .table-area {
-    flex: 0 1 auto;
-    max-height: calc(100% - 180px);
+    flex: 1;
     min-height: 0;
     overflow: auto;
-    margin: 0 24px 24px;
+    margin: 0 24px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-tray);
     box-shadow: var(--card-sh);
   }
+
+  .pagination { display: flex; align-items: center; justify-content: flex-end; flex: none; flex-wrap: wrap; gap: 12px; padding: 12px 24px; }
+  .pagination > span:first-child { margin-right: auto; }
 
   .tbl {
     min-width: 900px;
@@ -288,7 +350,7 @@
 
   @media (max-width: 1180px) {
     .runs {
-      height: auto;
+      height: 100%;
     }
 
     .bar {
@@ -300,8 +362,7 @@
     }
 
     .table-area {
-      max-height: none;
-      margin: 0 16px 16px;
+      margin: 0 16px;
     }
 
     /* A phone reads a run as two lines: what and how it went, then who and how long. */

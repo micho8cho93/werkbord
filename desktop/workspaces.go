@@ -110,6 +110,7 @@ func newWorkspaceParts(l *launcher.Launcher, log *slog.Logger) (*workspaceParts,
 	if err != nil {
 		return nil, err
 	}
+	team.RequireVersion(version)
 	reg := workspaces.NewRegistry(workspaces.OpenState(shellStatePath()), log, individual, team.Source)
 	exe, _ := os.Executable()
 	inst := &teamlink.Installer{Program: exe, Run: runProgram}

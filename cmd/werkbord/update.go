@@ -131,8 +131,13 @@ func (a *app) cmdInstallRelease(ctx context.Context, args []string) error {
 		return fmt.Errorf("installer release %s is older than installed %s; use werkbord update --version %s --force for an intentional downgrade", version, current, version)
 	}
 	if current == version {
-		a.printf("Already installed (%s). Run `werkbord setup` to change startup options.\n", version)
-		return nil
+		// The file can have been replaced while the previous controller stayed
+		// alive. Complete the same guarded recovery path before claiming success.
+		running, up := a.healthy(ctx)
+		if !up || !update.Release(running) || update.Compare(running, version) >= 0 {
+			a.printf("Already installed (%s). Run `werkbord setup` to change startup options.\n", version)
+			return nil
+		}
 	}
 	a.executable = func() (string, error) { return self, nil }
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)

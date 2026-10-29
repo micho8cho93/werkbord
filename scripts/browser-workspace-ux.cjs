@@ -116,7 +116,7 @@ let browser, shellServer;
  await page.goto(`${team}/?tab=board&project=${tp.id}`);
  await page.locator('[data-board-item="'+tk.id+'"]').waitFor();
  const teamTabs = page.getByRole('navigation',{name:'Project sections'});
- assert.deepEqual((await teamTabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs']);
+ assert.deepEqual((await teamTabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs','Product Map']);
  await page.locator('[data-board-item="'+tk.id+'"] .title').dragTo(page.locator('[data-board-column=in_progress]'));
  await wait(async()=> (await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).status==='in_progress','Team native claim drag');
  await page.locator('[data-board-item="'+tk.id+'"][data-work-state=in_progress]').waitFor();

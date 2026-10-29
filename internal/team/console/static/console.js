@@ -54,7 +54,7 @@ const state = {
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
-  advancedSettings: false,
+  advancedSettings: false, archiveProjectId: '',
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
   filter: { labels: [], match: 'any' }, // the board's and the timeline's label filter: a way of looking, never stored
   calendarMode: 'calendar', calendarAnchor: null,
@@ -868,7 +868,7 @@ function projectHistoryPanel() {
     projects.length ? projects.map(({ project: p }) => h('div', { class: 'row' },
       h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openProject(p.id, 'overview') }, p.name),
         h('p', { class: 'muted' }, (p.archived ? 'Archived' : 'Active') + ' · ' + new Date(p.updatedAt).toLocaleDateString())),
-      can('projects.manage') ? h('button', { class: 'plain', onclick: () => (p.archived || confirm('Archive ' + p.name + '? Its tickets and memory will be kept in Project history.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Restore project' : 'Archive project') : '')) : h('p', { class: 'muted' }, 'No archived projects yet. Archive a project in Project settings to keep it here.'));
+      can('projects.manage') ? projectArchiveControl(p) : '')) : h('p', { class: 'muted' }, 'No archived projects yet. Archive a project in Project settings to keep it here.'));
 }
 
 
@@ -963,7 +963,7 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ...(p.repository ? [['product-map', 'Product Map', 0]] : [])]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['product-map', 'Product Map', 0]]);
   const calendarLacking = ['calendar', 'timeline'].includes(state.tab) && d.timeline === null ? await hostOutdatedView() : null;
   const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' || state.tab === 'timeline' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
@@ -986,6 +986,32 @@ async function projectScopedView() {
 }
 
 // Project administration: details, relationships, people and archiving. Existing People deep links still work.
+// Keep confirmation in the page: WKWebView does not reliably present window.confirm in a workspace frame.
+function projectArchiveControl(p, restoreLabel = 'Restore project') {
+  const box = h('div', { class: 'actions' });
+  const update = () => act(async () => {
+    await api('PATCH', '/projects/' + p.id, { archived: !p.archived });
+    state.archiveProjectId = '';
+    state.info = p.archived ? 'Project restored.' : 'Project archived. Restore it from Project history.';
+  });
+  const show = () => {
+    if (!p.archived && state.archiveProjectId === p.id) {
+      box.replaceChildren(h('p', { class: 'muted' }, 'Archive ' + p.name + '? Its tickets and memory stay in Project history.'),
+        h('button', { class: 'plain', type: 'button', onclick: () => { state.archiveProjectId = ''; show(); } }, 'Cancel'),
+        h('button', { class: 'danger', type: 'button', onclick: update }, 'Confirm archive'));
+      return;
+    }
+    box.replaceChildren(h('button', { class: p.archived ? 'plain' : 'danger', type: 'button', onclick: () => {
+      if (p.archived) { update(); return; }
+      state.archiveProjectId = p.id;
+      show();
+      box.querySelector('.danger')?.focus();
+    } }, p.archived ? restoreLabel : 'Archive project'));
+  };
+  show();
+  return box;
+}
+
 function projectSettingsTab(d) {
   const p = d.board.project;
   const details = h('section', { class: 'panel', 'aria-labelledby': 'project-details-h' }, h('h2', { id: 'project-details-h' }, 'Details'),
@@ -994,7 +1020,7 @@ function projectSettingsTab(d) {
     h('p', { class: 'muted' }, d.board.member ? 'Your role: ' + d.board.role : 'You are not a project member.'));
   const archive = can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-archive-h' }, h('h2', { id: 'project-archive-h' }, p.archived ? 'Unarchive project' : 'Archive project'),
     h('p', { class: 'muted' }, p.archived ? 'Put this project back among the active ones. Its tickets are as they were.' : 'An archived project leaves the sidebar and cannot take new tickets. Nothing is deleted: you can unarchive it.'),
-    h('button', { class: 'danger', onclick: () => (p.archived || confirm('Archive ' + p.name + '? It leaves the sidebar and takes no new tickets until you unarchive it.')) && act(() => api('PATCH', '/projects/' + p.id, { archived: !p.archived })) }, p.archived ? 'Unarchive project' : 'Archive project')) : '';
+    projectArchiveControl(p, 'Unarchive project')) : '';
   return h('div', { class: 'project-settings' }, details, h('section', { class: 'panel' }, relationshipSettings(p)), peopleTab(d), archive);
 }
 
@@ -1296,15 +1322,8 @@ function dropAction(d, k, to) {
   if (k.status === 'done' && to === 'available' && pcan('tickets.reopen')) return ['move', { status: to }];
   return null;
 }
-// The same rule as the server's: every part of the filter that is set must hold.
-function matchesFilter(k) {
-  const f = state.filter;
-  if (state.ownTickets && k.assigneeId !== state.me.member.id) return false;
-  if (!f.labels.length) return true;
-  const have = new Set(k.labelIds || []);
-  return f.match === 'all' ? f.labels.every((id) => have.has(id)) : f.labels.some((id) => have.has(id));
-}
-function filterActive() { return state.filter.labels.length > 0; }
+// Ownership is the only board filter; saved labels remain available to reports.
+function matchesFilter(k) { return !state.ownTickets || k.assigneeId === state.me.member.id; }
 
 function labelChip(l) {
   const chip = h('span', { class: 'lbl', title: l.name }, l.name);
@@ -1313,26 +1332,11 @@ function labelChip(l) {
   chip.style.color = WerkbordTimeline.inkFor(color);
   return chip;
 }
-function labelsOf(k, labels) { const by = new Map((labels || []).map((l) => [l.id, l])); return (k.labelIds || []).map((id) => by.get(id)).filter(Boolean); }
-
-// The label filter shared by the board and the timeline. It narrows what is shown and changes nothing.
-function filterBar(d) {
-  const labels = d.board.labels || [];
-  const refresh = () => render();
-  const picker = labels.length ? h('details', { class: 'label-filter' }, h('summary', {}, state.filter.labels.length ? plural(state.filter.labels.length, 'label') : 'Labels'),
-    h('div', { class: 'label-menu' }, labels.map((l) => h('label', { class: 'check' },
-      h('input', { type: 'checkbox', checked: state.filter.labels.includes(l.id), onchange: (e) => { state.filter.labels = e.target.checked ? [...state.filter.labels, l.id] : state.filter.labels.filter((x) => x !== l.id); refresh(); } }), ' ', labelChip(l))),
-      state.filter.labels.length > 1 ? choiceGroup('Tickets must have', [['any', 'Any'], ['all', 'All']], m => state.filter.match === m, m => { state.filter.match = m; refresh(); }) : '')) : '';
-  // A label deleted meanwhile cannot hide every ticket.
-  state.filter.labels = state.filter.labels.filter((id) => labels.some((l) => l.id === id));
-  return h('div', { class: 'filter-bar', role: 'group', 'aria-label': 'Filter by label' }, picker,
-    filterActive() ? h('button', { class: 'plain small', type: 'button', onclick: () => { state.filter = { labels: [], match: 'any' }; refresh(); } }, 'Clear filter') : '');
-}
 
 function boardTab(d) {
   const b = d.board;
   const toolbar = h('div', { class: 'actions board-tools' },
-    choiceGroup('Whose tickets', [['all', 'All tickets'], ['own', 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')']], w => (w === 'own') === !!state.ownTickets, w => { state.ownTickets = w === 'own'; render(); }, 'actions', false), filterBar(d),
+    choiceGroup('Whose tickets', [['all', 'All tickets'], ['own', 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')']], w => (w === 'own') === !!state.ownTickets, w => { state.ownTickets = w === 'own'; render(); }, 'actions', false),
     h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
     '');
   const cols = b.statuses.map((s) => {
@@ -1343,7 +1347,7 @@ function boardTab(d) {
       ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket || t.id === e.dataTransfer?.getData('text/plain')); draggedTicket = null; if (k) performBoardDrop(d, k, s.status); }
     },
       h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
-      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets' + (state.filter.labels.length ? ' match the filters.' : ' here yet.'))));
+      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets here yet.')));
   });
   let open = null;
   if (state.ticketId) {
@@ -1413,7 +1417,6 @@ function card(d, k) {
     k.description ? h('p', { class: 'work-detail' }, k.description.length > 180 ? k.description.slice(0, 177) + '…' : k.description) : '',
     k.branch ? h('p', { class: 'work-detail' }, k.branch) : '',
     k.plan && (k.plan.start || k.plan.end) ? h('p', { class: 'work-detail' }, 'Planned ' + (k.plan.start || k.plan.end) + (k.plan.end && k.plan.end !== k.plan.start ? ' – ' + k.plan.end : '')) : '',
-    labelsOf(k, d.board.labels).length ? h('div', { class: 'lbls', 'aria-label': 'Labels' }, labelsOf(k, d.board.labels).map(labelChip)) : '',
     k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId),
       k.status === 'in_progress' && agentWork ? presence(active) : '') : '',
     k.assigneeId && k.claimedAt ? h('p', { class: 'work-detail' }, 'Claimed ' + ago(k.claimedAt)) : '',
@@ -1436,7 +1439,6 @@ function planFields(d, k, scope) {
   const b = d.board;
   const chosen = new Set(k ? k.labelIds || [] : []);
   const deps = new Set(k ? k.dependencies || [] : []);
-  const labelBoxes = (b.labels || []).map((l) => ({ l, box: h('input', { type: 'checkbox', name: 'p-label_' + l.id + '-' + sfx, checked: chosen.has(l.id) }) }));
   const plan = (k && k.plan) || {};
   const start = h('input', { type: 'date', name: 'p-start-' + sfx, value: plan.start || '' });
   const end = h('input', { type: 'date', name: 'p-end-' + sfx, value: plan.end || '' });
@@ -1465,7 +1467,7 @@ function planFields(d, k, scope) {
   // edit leaves what the ticket already has.
   const read = () => ({
     ...(k ? {} : { workMode: b.project.repository ? 'agent' : 'human' }),
-    labelIds: labelBoxes.filter((x) => x.box.checked).map((x) => x.l.id),
+    labelIds: [...chosen],
     plan: milestone.checked ? { start: start.value || end.value, milestone: true } : { start: start.value, end: end.value },
     dependencies: depBoxes.filter((x) => x.box.checked).map((x) => x.t.id),
   });
@@ -1538,9 +1540,6 @@ function planFields(d, k, scope) {
   const dates = h('fieldset', {}, h('legend', {}, 'Planned for ', h('span', { class: 'muted small' }, 'optional')),
     h('div', { class: 'inline dates' }, field('Start date', start, startError), field('Due date', end, endError), h('label', { class: 'check' }, milestone, ' Milestone')));
   const node = h('div', { class: 'stack plan-fields' },
-    h('fieldset', {}, h('legend', {}, 'Labels'),
-      labelBoxes.length ? h('div', { class: 'label-menu' }, labelBoxes.map(({ l, box }) => h('label', { class: 'check' }, box, ' ', labelChip(l))))
-        : h('p', { class: 'muted small' }, can('labels.manage') ? 'No labels yet. Make some under Settings → Labels.' : 'No labels yet. A workspace owner or admin makes them.')),
     dates,
     depBoxes.length ? h('fieldset', {}, h('legend', {}, 'Depends on ', h('span', { class: 'muted small' }, 'must finish first')),
       h('div', { class: 'dep-list' }, depBoxes.map(({ t, box }) => h('label', { class: 'check' }, box, ' ', t.key + ' · ' + t.title)), dependencyError)) : '', summaryError);
@@ -1633,7 +1632,6 @@ function ticketPanel(d, k) {
     k.submittedAt ? [h('dt', {}, 'Submitted'), h('dd', {}, when(k.submittedAt), k.reviewerId ? ' · reviewer ' + personName(d, k.reviewerId) : '')] : '',
     k.completedAt ? [h('dt', {}, 'Completed'), h('dd', {}, when(k.completedAt))] : '',
     h('dt', {}, 'Updated'), h('dd', {}, when(k.updatedAt)),
-    labelsOf(k, b.labels).length ? [h('dt', {}, 'Labels'), h('dd', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))] : '',
     (k.dependencies || []).length ? [h('dt', {}, 'Waits for'), h('dd', {}, k.dependencies.map((id) => { const t = [...b.tickets, ...(b.archived || [])].find((x) => x.id === id); return t ? t.key + ' · ' + t.title : 'a ticket that is not here'; }).join(', '))] : '');
 
   const git = h('dl', { class: 'facts' },
@@ -2062,9 +2060,8 @@ function timelineTab(d) {
   const tools = h('div', { class: 'actions board-tools tl-tools' },
     choiceGroup('Zoom', ['day', 'week', 'month', 'quarter'].map((z) => [z, z[0].toUpperCase() + z.slice(1)]), z => state.tlZoom === z, z => { state.tlZoom = z; render(); }),
     h('label', { class: 'inline' }, 'Group ', h('select', { name: 'tl-group', 'aria-label': 'Group work by', onchange: (e) => { state.tlGroup = e.target.value; render(); } },
-      [['none', 'Nothing'], ['label', 'Label'], ['status', 'Status']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
-    h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'),
-    filterBar(d));
+      [['none', 'Nothing'], ['status', 'Status']].map(([id, name]) => h('option', { value: id, selected: state.tlGroup === id }, name)))),
+    h('button', { type: 'button', class: 'plain small', onclick: () => { centerTimeline(); } }, 'Today'));
 
   const warnPanel = warnings.length ? h('details', { class: 'tl-warns' }, h('summary', {}, 'Planning issues ', h('span', { class: 'badge' }, String(warnings.length))),
     h('ul', {}, warnings.map((w) => { const k = ticketOf(w.itemId); return h('li', { 'data-sev': w.severity },
@@ -2073,7 +2070,7 @@ function timelineTab(d) {
 
   let chart;
   if (!dated.length) {
-    chart = h('div', { class: 'tl-empty' }, h('p', {}, filterActive() ? 'No planned work matches the filter.' : 'Nothing is planned yet.'), h('p', { class: 'muted' }, 'Give a ticket a start and end date (or make it a milestone) and it appears here.'));
+    chart = h('div', { class: 'tl-empty' }, h('p', {}, 'Nothing is planned yet.'), h('p', { class: 'muted' }, 'Give a ticket a start and end date (or make it a milestone) and it appears here.'));
   } else {
     const axis = h('div', { class: 'tl-axis' }, TL.ticks(range, state.tlZoom).map((t) => { const el = h('span', { class: 'tl-tick' + (t.major ? ' major' : '') }, t.label); el.style.left = t.x + 'px'; return el; }));
     axis.style.width = width + 'px';
@@ -2118,7 +2115,7 @@ function timelineTab(d) {
 
   const unplanned = undated.length ? h('section', { class: 'tl-undated', 'aria-label': 'Not planned yet' }, h('h3', {}, 'Not planned yet ', h('span', { class: 'badge' }, String(undated.length))),
     undated.map((k) => h('div', { class: 'row' }, h('div', { class: 'grow' }, h('button', { type: 'button', class: 'link', onclick: open(k) }, k.key + ' · ' + k.title)),
-      h('span', { class: 'lbls' }, labelsOf(k, b.labels).map(labelChip))))) : '';
+      ''))) : '';
 
   const gating = links.some(gates) ? h('p', { class: 'muted small tl-legend' }, 'Heavier arrows gate an agent start: the ticket has a shared request, and it waits for the work the arrow comes from.') : '';
   return h('div', { class: 'timeline-view', 'data-plan-surface': '' }, tools, warnPanel, h('div', { class: 'tl-scroller', 'data-scroll-key': 'timeline', 'data-today-x': todayX, 'data-plan-grid': '', 'data-plan-px': px, onwheel: e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); const scales = ['day', 'week', 'month', 'quarter']; state.tlZoom = scales[Math.max(0, Math.min(3, scales.indexOf(state.tlZoom) + (e.deltaY > 0 ? 1 : -1)))]; render(); } }, chart), gating, unplanned);
@@ -2442,8 +2439,9 @@ function productMapTab(d) {
     const viewer=h('div');container.append(viewer);
     import('./ui/product-map.js').then(({mountProductMap})=>{if(viewer.isConnected)mountProductMap(viewer,record.state==='published'?{...record.snapshot,version:record.version}:record.snapshot,published.map(r=>({...r.snapshot,version:r.version})));}).catch(()=>viewer.replaceChildren(h('p',{class:'error'},'The map viewer could not load. Reload this page to retry.')));
   };
+  if (FRAMED && !HOSTED) body.append(h('button', { class: 'primary', type: 'button', onclick: () => window.parent.postMessage({ type: 'werkbord.frame', event: 'product_map', projectId: d.id }, '*') }, 'Generate or share a map…'));
   if(published.length){const container=h('div');body.append(container);show(container,published[0]);if(published.length>1){const choose=h('select',{'aria-label':'Published map version',onchange:e=>show(container,published.find(r=>r.id===e.target.value))},published.map(r=>h('option',{value:r.id},'Published version '+r.version)));body.prepend(choose);}}
-  else body.append(h('p',{},'No map has been published. Generate a map in your own Werkbord, review it, then propose it to this project. In the desktop app, use the Product Map button beside the project in the sidebar.'));
+  else body.append(h('p',{},'No map has been published. Generate a map in your own Werkbord, review it, then propose it to this project. In the desktop app, choose Generate or share a map above.'));
   for(const record of pending){
     const details=h('details',{},h('summary',{},'Review proposed map · '+record.authorId+' · '+new Date(record.createdAt).toLocaleString()));
     const content=h('div');details.append(content);let loaded=false;details.addEventListener('toggle',()=>{if(details.open&&!loaded){loaded=true;show(content,record);}});

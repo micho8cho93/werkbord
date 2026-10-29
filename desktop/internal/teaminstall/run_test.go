@@ -36,3 +36,19 @@ func TestUnknownOrMalformedRequestsDoNothing(t *testing.T) {
 		t.Error("the privileged step accepted a request with no user")
 	}
 }
+
+func TestActivationUsesVerifiedBackupMaintenanceForAnEnrolledMac(t *testing.T) {
+	action, err := activationAction(ErrReplacementDeferred, "darwin")
+	if err != nil || action != ActionMaintain {
+		t.Fatalf("%q %v", action, err)
+	}
+	action, err = activationAction(nil, "darwin")
+	if err != nil || action != ActionInstallIsolated {
+		t.Fatalf("%q %v", action, err)
+	}
+	for _, platform := range []string{"linux", "windows"} {
+		if _, err := activationAction(ErrReplacementDeferred, platform); err == nil {
+			t.Fatal("unsupported maintenance accepted")
+		}
+	}
+}

@@ -10,6 +10,8 @@
   import { alerts } from './alerts.svelte';
   import { look, theme } from '../lib/theme.svelte';
   import { salie } from './salie.svelte';
+  import ShareProductMap from './ShareProductMap.svelte';
+  let mapShare = $state<{ workspace: string; project: string; name: string } | null>(null);
 
   let { shown }: { shown: boolean } = $props();
 
@@ -38,7 +40,7 @@
    * Paper would otherwise open still showing the style it had before.
    */
   function tell(id: string, hosted: boolean): void {
-    if (theme.chosen) sendTo(id, hosted, { type: 'werkbord.theme', theme: theme.choice });
+    sendTo(id, hosted, { type: 'werkbord.theme', theme: theme.choice });
     sendTo(id, hosted, { type: 'werkbord.style', style: look.choice });
   }
 
@@ -84,6 +86,10 @@
       notify: (_id, alert) => void alerts.tell(alert),
       settings: (id, place) => model.openSettingsAt(id, place),
       plan: () => model.openSettings('general/plan'),
+      productMap: (id, project) => {
+        const p = model.overview?.entries.find(e => e.workspace.id === id)?.summary?.projects.find(p => p.id === project);
+        if (p) mapShare = { workspace: id, project, name: p.name };
+      },
     });
   }
 
@@ -94,10 +100,9 @@
   });
 
   // Changing the theme in Settings changes it in every workspace that is open, and so does going back to Device: a workspace that
-  // was told Dark follows the device again. Nothing is sent before the person has chosen.
+  // was told Dark follows the device again. The window also owns the initial Device choice.
   $effect(() => {
     const choice = theme.choice;
-    if (!theme.chosen) return;
     for (const { id, hosted } of frameList) sendTo(id, hosted, { type: 'werkbord.theme', theme: choice });
   });
 
@@ -139,6 +144,10 @@
     {/key}
   {/each}
 </div>
+
+{#if mapShare}
+  <ShareProductMap {...mapShare} onclose={() => { mapShare = null; }} />
+{/if}
 
 <style>
   .frames {

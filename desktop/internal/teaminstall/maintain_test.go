@@ -200,3 +200,93 @@ func TestBackupMustBeNewIntactAndReadableByTheNewProgram(t *testing.T) {
 		t.Fatal(ran)
 	}
 }
+
+func TestMaintenanceChecksEveryWorkspaceOnDisk(t *testing.T) {
+	data := t.TempDir()
+	for _, slot := range []string{"", "slots/second"} {
+		if err := os.MkdirAll(filepath.Join(data, slot, "workspace"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	answers := map[string]string{
+		"/api/device/v1/state":          `{"daemon":true,"version":"5.4.0","enrolled":true,"workspace":{"id":"one"}}`,
+		"/w/second/api/device/v1/state": `{"daemon":true,"version":"5.4.0","enrolled":true,"workspace":{"id":"two"}}`,
+	}
+	targets, err := maintenanceTargets(context.Background(), data, service(t, answers), testKey)
+	if err != nil || len(targets) != 2 || targets[0].Slot != "main" || targets[1].Slot != "second" || !strings.HasSuffix(targets[1].Base, "/w/second") {
+		t.Fatalf("%+v %v", targets, err)
+	}
+	answers["/w/second/api/device/v1/state"] = `{"daemon":true,"version":"5.4.0","enrolled":true,"pending":true,"workspace":{"id":"two"}}`
+	if _, err := maintenanceTargets(context.Background(), data, service(t, answers), testKey); !errors.Is(err, ErrMaintenanceBlocked) {
+		t.Fatalf("secondary transition was ignored: %v", err)
+	}
+	delete(answers, "/w/second/api/device/v1/state")
+	if _, err := maintenanceTargets(context.Background(), data, service(t, answers), testKey); err == nil {
+		t.Fatal("unreadable secondary workspace was ignored")
+	}
+}
+
+func TestMaintenanceWorksWithOnlyASecondaryWorkspace(t *testing.T) {
+	data := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(data, "slots", "second", "workspace"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := maintenanceTargets(context.Background(), data, service(t, map[string]string{
+		"/w/second/api/device/v1/state": `{"daemon":true,"version":"5.4.0","enrolled":true,"workspace":{"id":"two"}}`,
+	}), testKey)
+	if err != nil || len(targets) != 1 || targets[0].Slot != "second" {
+		t.Fatalf("%+v %v", targets, err)
+	}
+}
+
+func TestAWorkspaceAddedDuringBackupPreventsReplacement(t *testing.T) {
+	data := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(data, "workspace"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	targets := []maintenanceTarget{{Slot: "main"}}
+	if err := checkMaintenanceTargets(data, targets); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(data, "slots", "second", "workspace"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMaintenanceTargets(data, targets); err == nil {
+		t.Fatal("new unbacked workspace accepted")
+	}
+}
+
+func TestMaintenanceRetainsDistinctBackupsEvenWhenNamesCollide(t *testing.T) {
+	source, retained := t.TempDir(), t.TempDir()
+	const name = "workspace-20261029T120000Z-p00000001.sqlite"
+	write := func(content string) {
+		t.Helper()
+		hash := sha256.Sum256([]byte(content))
+		record, _ := json.Marshal(map[string]any{"sha256": hex.EncodeToString(hash[:]), "size": len(content)})
+		if err := os.WriteFile(filepath.Join(source, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(source, name+".json"), record, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("first workspace backup")
+	first, err := retainMaintenanceBackup(source, retained, "main", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("second workspace backup")
+	second, err := retainMaintenanceBackup(source, retained, "second", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dir, want := range map[string]string{first: "first workspace backup", second: "second workspace backup"} {
+		got, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil || string(got) != want {
+			t.Fatalf("%s: %q %v", dir, got, err)
+		}
+		if err := checkBackupFile(dir, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

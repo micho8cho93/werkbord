@@ -532,10 +532,12 @@ func (l *Launcher) upgrade(ctx context.Context, cfg config.Config, inst Install)
 	return l.opt.Run(runCtx, l.childEnv(ctx, cfg), l.opt.Bundled, "install-release", inst.Path)
 }
 
-// shouldAdopt: the installed program is older than the one this app ships (shouldUpgrade) and so is the controller
-// that is running. A controller that already runs the app's version, or a newer one, is left alone.
+// shouldAdopt also checks the running controller: an already updated executable
+// does not prove the old process has restarted. Never replace a newer or source-built installation.
 func (l *Launcher) shouldAdopt(inst Install, running string) bool {
-	return l.shouldUpgrade(inst) && update.Release(running) && update.Compare(running, l.opt.Version) < 0
+	return !l.opt.NoInstall && l.opt.Bundled != "" && update.Release(l.opt.Version) &&
+		update.Release(inst.Version) && update.Compare(inst.Version, l.opt.Version) <= 0 &&
+		update.Release(running) && update.Compare(running, l.opt.Version) < 0
 }
 
 // adopt brings a controller that is running up to the program this app ships, by the same `install-release` the installer uses, and
@@ -589,10 +591,14 @@ func (l *Launcher) PendingProgramUpdate(ctx context.Context) (installed, bundled
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	inst := l.FindInstall(ctx)
-	if inst.Path == "" || !l.shouldUpgrade(inst) {
-		return inst.Version, l.opt.Version, false
+	if inst.Path != "" {
+		if cfg, err := l.Config(ctx); err == nil {
+			if running, up := l.Health(ctx, cfg.ControllerURL()); up && l.shouldAdopt(inst, running) {
+				return running, l.opt.Version, true
+			}
+		}
 	}
-	return inst.Version, l.opt.Version, true
+	return inst.Version, l.opt.Version, inst.Path != "" && l.shouldUpgrade(inst)
 }
 
 // AdoptBundled installs the program this app ships over the installed one (see adopt), when the person asks. The
@@ -605,10 +611,10 @@ func (l *Launcher) AdoptBundled(ctx context.Context) (string, error) {
 		return "", err
 	}
 	inst := l.FindInstall(ctx)
-	if inst.Path == "" || !l.shouldUpgrade(inst) {
+	running, wasRunning := l.Health(ctx, cfg.ControllerURL())
+	if inst.Path == "" || !(l.shouldUpgrade(inst) || wasRunning && l.shouldAdopt(inst, running)) {
 		return "", errors.New("the program installed on this computer is not older than the one in this app")
 	}
-	_, wasRunning := l.Health(ctx, cfg.ControllerURL())
 	out, err := l.upgrade(ctx, cfg, inst)
 	l.install = l.FindInstall(ctx)
 	l.checker = nil

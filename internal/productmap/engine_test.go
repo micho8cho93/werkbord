@@ -29,7 +29,9 @@ func (f *fakeAnalysis) ID() string { return "codex" }
 func (f *fakeAnalysis) Detect(context.Context) provider.Info {
 	return provider.Info{ID: "codex", Name: "Codex", Available: true}
 }
-func (f *fakeAnalysis) Models(context.Context) provider.Models { return provider.Models{} }
+func (f *fakeAnalysis) Models(context.Context) provider.Models {
+	return provider.Models{Models: []provider.Model{{ID: "fixture-model", Name: "Fixture model"}}}
+}
 func (f *fakeAnalysis) Run(ctx context.Context, t provider.Turn, emit func(provider.Event)) (provider.Result, error) {
 	f.mu.Lock()
 	f.calls++
@@ -257,5 +259,29 @@ func TestRestartMarksRunningJobsInterruptedWithoutDeletingMaps(t *testing.T) {
 	v, err := next.View(ctx, p, "")
 	if err != nil || v.Snapshot == nil || v.Jobs[0].State != "interrupted" {
 		t.Fatalf("restart: %+v %v", v, err)
+	}
+}
+
+func TestViewOffersOnlyResolvableBranchesAndProviderModels(t *testing.T) {
+	e, _, id, root := mapRig(t, &fakeAnalysis{})
+	gitTest(t, root, "branch", "feature/planning")
+	gitTest(t, root, "remote", "add", "origin", "https://example.invalid/repo")
+	gitTest(t, root, "update-ref", "refs/remotes/origin/release", "HEAD")
+	gitTest(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/release")
+	v, err := e.View(context.Background(), id, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(v.Branches, ","); got != "feature/planning,main,release" {
+		t.Fatalf("branches: %s", got)
+	}
+	if len(v.Models["codex"]) != 1 || v.Models["codex"][0].ID != "fixture-model" {
+		t.Fatalf("models: %#v", v.Models)
+	}
+	for _, branch := range v.Branches {
+		selected, err := e.View(context.Background(), id, branch)
+		if err != nil || selected.Commit == "" || selected.Branch != branch {
+			t.Fatalf("unresolvable offered branch %q: %#v %v", branch, selected, err)
+		}
 	}
 }

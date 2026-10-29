@@ -1051,3 +1051,47 @@ func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 		}
 	}
 }
+
+func TestCurrentExecutableStillAdoptsAnOlderRunningController(t *testing.T) {
+	w := newWorld(t)
+	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.1.0")
+	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.0.0")
+	first := w.ctrl
+	conn, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, nil)
+	if err != nil || conn.Version != "v1.1.0" || w.ctrl == first {
+		t.Fatalf("stale controller retained: %+v %v", conn, err)
+	}
+	if w.count(bundled+" install-release "+installed) != 1 {
+		t.Fatalf("calls: %v", w.mutations())
+	}
+}
+
+func TestOlderRunningControllerDoesNotDowngradeANewerExecutable(t *testing.T) {
+	w := newWorld(t)
+	w.program(filepath.Join(w.installDir(), "werkbord"), "v1.2.0")
+	w.startController("v1.0.0")
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	if _, err := w.launcher(Options{Version: "v1.1.0", Bundled: bundled}).Connect(bg, nil); err != nil || len(w.mutations()) != 0 {
+		t.Fatalf("newer executable disturbed: %v %v", err, w.mutations())
+	}
+}
+
+func TestCurrentExecutableCanFinishPendingControllerUpdateExplicitly(t *testing.T) {
+	w := newWorld(t)
+	installed := w.program(filepath.Join(w.installDir(), "werkbord"), "v1.1.0")
+	w.def = &daemon.Definition{Binary: installed, DataDir: w.cfg.DataDir}
+	bundled := w.program(filepath.Join(t.TempDir(), "werkbord"), "v1.1.0")
+	w.startController("v1.0.0")
+	l := w.launcher(Options{Version: "v1.1.0", Bundled: bundled})
+	if installed, bundled, ok := l.PendingProgramUpdate(bg); !ok || installed != "v1.0.0" || bundled != "v1.1.0" {
+		t.Fatalf("pending: %q %q %v", installed, bundled, ok)
+	}
+	if _, err := l.AdoptBundled(bg); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := l.PendingProgramUpdate(bg); ok {
+		t.Fatal("controller still pending")
+	}
+}
