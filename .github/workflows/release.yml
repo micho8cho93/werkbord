@@ -496,7 +496,7 @@ jobs:
 
           Free includes all Personal work and teams of up to two people. Teams of three or more need Premium for every member. Premium uses a per-person key checked offline; a one-time purchase is planned but is not yet on sale. Both plans use the same download.
 
-          This preview includes the unified sidebar, Home, Calendar, Reviews and Analytics, the single create/join flow, and reviewed project moves between Personal and Team. Moves copy text, save the destination atomically and archive the original with its history. Runs, files, credentials and agent output stay at the source. Salie's planned Team read-only policy and remaining Home polish are still pending.
+          This preview fixes outdated background services surviving app updates, so Team can update to the current interface with verified backups for every local workspace. It also fixes Team dark mode and project archiving, groups Reviews, improves settings layouts, makes timeline dates readable, keeps Git tabs aligned and paginates Runs. Product Map uses connected model and branch dropdowns, the project overview shows ready or active agents, and project move arrows and Product Map shortcuts have been removed from the sidebar. Analytics is unchanged.
 
           ### Desktop downloads
 
