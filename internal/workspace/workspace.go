@@ -293,8 +293,9 @@ type Scheduled struct {
 	// Zone is the time zone the schedule was written in, for display.
 	Zone string `json:"zone,omitempty"`
 	// State is a short word or two from the workspace: scheduled, waiting, claimed, blocked, missed, started.
-	State string `json:"state"`
-	Href  string `json:"href"`
+	State  string `json:"state"`
+	Reason string `json:"reason,omitempty"`
+	Href   string `json:"href"`
 }
 
 // Planned is a date range reported by its owning workspace. It grants no execution authority.
@@ -528,7 +529,7 @@ func (s Summary) Validate() error {
 		}
 	}
 	for _, c := range s.Schedule {
-		if !ValidID(c.ID) || !plain(c.Title, MaxText) || c.Title == "" || !plain(c.Project, MaxName) || c.At.IsZero() || !plain(c.Zone, 64) || !plain(c.State, 40) || !ValidHref(c.Href) {
+		if !ValidID(c.ID) || !plain(c.Title, MaxText) || c.Title == "" || !plain(c.Project, MaxName) || c.At.IsZero() || !plain(c.Zone, 64) || !plain(c.State, 40) || !plain(c.Reason, MaxText) || !ValidHref(c.Href) {
 			return fmt.Errorf("workspace: scheduled item %q is not valid", c.ID)
 		}
 	}
@@ -633,6 +634,7 @@ func (s Summary) Clean() (Summary, int) {
 	}
 	out.Schedule = make([]Scheduled, 0, len(s.Schedule))
 	for _, c := range s.Schedule {
+		c.Reason = clip(c.Reason, MaxText)
 		c.Title, c.Project, c.Zone, c.State = clip(c.Title, MaxText), clip(c.Project, MaxName), clip(c.Zone, 64), clip(c.State, 40)
 		if ValidID(c.ID) && c.Title != "" && !c.At.IsZero() && ValidHref(c.Href) && len(out.Schedule) < MaxSchedule {
 			out.Schedule = append(out.Schedule, c)

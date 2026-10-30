@@ -1,4 +1,4 @@
-import type { Orchestration, SchedulingDecision } from "./types";
+import type { Orchestration, SchedulingDecision, Task, Run } from "./types";
 
 export const schedulingLabels: Record<SchedulingDecision["state"], string> = {
   runnable: "Ready",
@@ -117,4 +117,11 @@ export function editableOrchestration(o: Orchestration): Orchestration {
     missedPolicy,
     graceSeconds,
   };
+}
+
+/** Match the controller dependency gate, including a newer failed retry. */
+export function dependencySatisfied(task: Task | undefined, run?: Run): boolean {
+  if (!task) return false;
+  if (run && ['starting', 'running', 'waiting_for_user', 'blocked', 'failed', 'stopped'].includes(run.state)) return false;
+  return task.state === 'done' || run?.state === 'completed';
 }

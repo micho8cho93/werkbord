@@ -108,7 +108,7 @@
       <button aria-pressed={source === 'work'} onclick={() => source = 'work'}>Work project</button>
     </div>
     {#if source === 'work'}
-      <p class="muted">A board and timeline for work without a Git repository, such as a launch or renovation.</p>
+      <p class="muted">A Work and Calendar for work without a Git repository, such as a launch or renovation.</p>
       <form onsubmit={createWork}>
         <label>
           <span>Name</span>

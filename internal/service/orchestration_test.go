@@ -104,6 +104,10 @@ func TestDependencyGatesAndCycles(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := arm(t, f, pid, "B", domain.Orchestration{Dependencies: []string{a.ID}})
+	c := arm(t, f, pid, "C", domain.Orchestration{Dependencies: []string{b.ID}})
+	if _, e := f.tasks.Update(ctx, a.ID, TaskPatch{Version: a.Version, Orchestration: &domain.Orchestration{Dependencies: []string{c.ID}}}); !errors.Is(e, domain.ErrInvalid) {
+		t.Fatalf("indirect cycle A → B → C → A: %v", e)
+	}
 	if d := decisionFor(t, s, pid, b.ID); d.State != "waiting_dependency" {
 		t.Fatal(d)
 	}
@@ -450,4 +454,109 @@ func TestControlCenterIncludesFailedScheduledSetup(t *testing.T) {
 	if len(overview.Failed) != 1 || overview.Failed[0].Run.ID != r.ID || overview.Projects[0].Failed != 1 {
 		t.Fatalf("%+v", overview)
 	}
+}
+
+// Editing a pending schedule invalidates its old dispatch snapshot without
+// changing planned dates or authorising a retry of a consumed occurrence.
+func TestReschedulingInvalidatesSnapshotAndPreservesPlan(t *testing.T) {
+	f, s, pid, now := schedulingFixture(t)
+	ctx := context.Background()
+	task := arm(t, f, pid, "reschedule", domain.Orchestration{ScheduledAt: &now})
+	plan := domain.Plan{Start: "2026-10-04", End: "2026-10-05"}
+	task, err := f.tasks.Update(ctx, task.ID, TaskPatch{Version: task.Version, Plan: &plan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := task.Orchestration.Key
+	future := now.Add(time.Hour)
+	o := task.Orchestration
+	o.ScheduledAt = &future
+	changed, err := f.tasks.Update(ctx, task.ID, TaskPatch{Version: task.Version, Orchestration: &o})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.Orchestration.Key == old {
+		t.Fatal("old dispatch snapshot remains valid")
+	}
+	if err := s.CheckStart(ctx, task.ID, old); !errors.Is(err, domain.ErrConflict) {
+		t.Fatal(err)
+	}
+	if err := s.RecordDispatchError(ctx, task.ID, old, "stale start failed", false); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := f.tasks.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Orchestration.Error != "" || stored.Plan != plan {
+		t.Fatalf("reschedule corrupted task: %+v", stored)
+	}
+	if d := decisionFor(t, s, pid, task.ID); d.State != "waiting_schedule" {
+		t.Fatal(d)
+	}
+	s.Now = func() time.Time { return future }
+	if err := s.CheckStart(ctx, task.ID, changed.Orchestration.Key); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDependencyFailureCannotBeHiddenByDone(t *testing.T) {
+	for _, state := range []domain.RunState{domain.RunFailed, domain.RunStopped, domain.RunRunning, domain.RunBlocked} {
+		t.Run(string(state), func(t *testing.T) {
+			a := domain.Task{ID: "a", Title: "A", State: domain.TaskDone}
+			b := domain.Task{ID: "b", Orchestration: domain.Orchestration{Dependencies: []string{"a"}}}
+			x := scheduleSnapshot{tasks: []domain.Task{a, b}, latest: map[string]domain.Run{"a": {State: state}}}
+			got, _ := dependencyDecision(b, x)
+			if got != "blocked" && got != "waiting_dependency" {
+				t.Fatalf("dependency %s allowed execution", state)
+			}
+		})
+	}
+}
+
+func TestAllProjectsWorkUsesSchedulerDependencyFacts(t *testing.T) {
+	f, s, pid, _ := schedulingFixture(t)
+	ctx := context.Background()
+	a := arm(t, f, pid, "A", domain.Orchestration{})
+	b := arm(t, f, pid, "B", domain.Orchestration{Dependencies: []string{a.ID}})
+	control := &ControlCenter{Deps: f.deps, Scheduler: s}
+	check := func(group, reason string) {
+		t.Helper()
+		summary, err := control.WorkspaceSummary(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range summary.Queue {
+			if row.ID == b.ID {
+				if row.Group != group || !strings.Contains(row.Detail, reason) {
+					t.Fatalf("queue: %+v", row)
+				}
+				return
+			}
+		}
+		t.Fatal("dependent missing from All Projects")
+	}
+	check("later", "A")
+	run, err := f.runs.Create(ctx, NewRun{TaskID: a.ID, AgentID: "fake", Prompt: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.MarkStarted(ctx, run.ID, Started{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.End(ctx, run.ID, Ended{State: domain.RunCompleted}); err != nil {
+		t.Fatal(err)
+	}
+	check("next", "backlog")
+	retry, err := f.runs.Create(ctx, NewRun{TaskID: a.ID, AgentID: "fake", Prompt: "retry"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.MarkStarted(ctx, retry.ID, Started{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.runs.End(ctx, retry.ID, Ended{State: domain.RunFailed, Reason: "tests failed"}); err != nil {
+		t.Fatal(err)
+	}
+	check("later", "tests failed")
 }

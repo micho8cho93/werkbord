@@ -41,6 +41,7 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 	future := now.Add(time.Hour)
 	a := e.arm(e.task("first"), domain.Orchestration{ScheduledAt: &future})
 	b := e.arm(e.task("second"), domain.Orchestration{Dependencies: []string{a.ID}})
+	c := e.arm(e.task("third"), domain.Orchestration{Dependencies: []string{b.ID}})
 	if err := e.mgr.ScheduleOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +67,16 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 		t.Fatalf("sessions=%d", len(e.adapter.Sessions()))
 	}
 	first := e.session()
+	// Scheduled times are lower bounds, not permission to overtake a slow predecessor.
+	now = now.Add(24 * time.Hour)
+	for i := 0; i < 3; i++ {
+		if err := e.mgr.ScheduleOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(e.adapter.Sessions()) != 1 {
+		t.Fatal("downstream started while A was still working")
+	}
 	first.Assistant(`<werkbord-handoff>{"summary":"Implemented first","tests":["go test ./... passed"],"decisions":["Keep API"],"nextAction":"Review first"}</werkbord-handoff>`)
 	first.TurnEnd()
 	eventually(t, "scheduled turn completes without browser", func() bool {
@@ -84,6 +95,17 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 	second := e.session()
 	second.TurnEnd()
 	eventually(t, "second completes", func() bool { rs, _ := e.runs.ListByTask(ctx, b.ID); return len(rs) == 1 && rs[0].State.Terminal() })
+	if err := e.mgr.ScheduleOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.adapter.Sessions()) != 3 {
+		t.Fatal("C did not start after B completed")
+	}
+	e.session().TurnEnd()
+	eventually(t, "third completes", func() bool {
+		rs, _ := e.runs.ListByTask(ctx, c.ID)
+		return len(rs) == 1 && rs[0].State == domain.RunCompleted
+	})
 	if err := e.mgr.Shutdown(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +119,7 @@ func TestScheduledExecutionRecoveryNoDuplicatesAndDependencies(t *testing.T) {
 	if err := e.mgr.ScheduleOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.adapter.Sessions()) != 2 {
+	if len(e.adapter.Sessions()) != 3 {
 		t.Fatal("duplicate execution after restart")
 	}
 }
@@ -391,5 +413,47 @@ func TestSchedulerBlocksRepositoryOperationAndStalePinnedTarget(t *testing.T) {
 	git(t, e.repo, "commit", "-qm", "target changed")
 	if err := e.mgr.opt.Scheduler.CheckStart(ctx, task.ID, task.Orchestration.Key); !errors.Is(err, domain.ErrConflict) || !strings.Contains(err.Error(), "stale target") {
 		t.Fatalf("pin: %v", err)
+	}
+}
+
+func TestScheduledChainFailureAndCancellationRequireManualRecovery(t *testing.T) {
+	for _, terminal := range []domain.RunState{domain.RunFailed, domain.RunStopped} {
+		t.Run(string(terminal), func(t *testing.T) {
+			e := newEnv(t)
+			now := time.Now().UTC()
+			e.orchestrate(&now)
+			a := e.arm(e.task("A"), domain.Orchestration{})
+			b := e.arm(e.task("B"), domain.Orchestration{Dependencies: []string{a.ID}})
+			c := e.arm(e.task("C"), domain.Orchestration{Dependencies: []string{b.ID}})
+			if err := e.mgr.ScheduleOnce(ctx); err != nil {
+				t.Fatal(err)
+			}
+			rs, err := e.runs.ListByTask(ctx, a.ID)
+			if err != nil || len(rs) != 1 {
+				t.Fatalf("runs: %v %v", rs, err)
+			}
+			if terminal == domain.RunFailed {
+				e.session().Exit(1, "tests failed")
+			} else {
+				if _, err := e.mgr.Stop(ctx, rs[0].ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			eventually(t, "predecessor ends", func() bool { return e.run(rs[0].ID).State == terminal })
+			for i := 0; i < 3; i++ {
+				if err := e.mgr.ScheduleOnce(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(e.adapter.Sessions()) != 1 {
+				t.Fatal("failed or cancelled chain executed downstream automatically")
+			}
+			for _, task := range []*domain.Task{b, c} {
+				runs, err := e.runs.ListByTask(ctx, task.ID)
+				if err != nil || len(runs) != 0 {
+					t.Fatalf("downstream runs: %v %v", runs, err)
+				}
+			}
+		})
 	}
 }

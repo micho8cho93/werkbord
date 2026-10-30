@@ -20,7 +20,7 @@
   // The task's words and how its runs are carried out. A change applies to runs started after
   // it; a run already working keeps what it started with.
 
-  let { task, scope, inherited, onclose, side = false }: { task: Task; scope: ProjectScope; inherited: Resolved; onclose: () => void; side?: boolean } = $props();
+  let { task, scope, inherited, onclose, side = false, onschedule }: { task: Task; scope: ProjectScope; inherited: Resolved; onclose: () => void; side?: boolean; onschedule?: () => void } = $props();
 
   // Edits start from the task as it was when the sheet opened: a change elsewhere does not overwrite typing.
   const start = untrack(() => ({
@@ -50,6 +50,7 @@
   const dirty = $derived(editKey(title, description, execution, labelIds, workMode, plan, dependencies, scheduled) !== initialKey);
   const project = $derived(app.project(task.projectId));
   // The task's latest run is a session like any other: the Calendar, Scheduling and the task page all open it in Agents by its key.
+  const decision = $derived(scope.decisions.find(d => d.taskId === task.id));
   const latest = $derived(scope.latestRun[task.id]);
   const canAgent = $derived(agentWorkable({ workMode }, project));
   let busy = $state(false);
@@ -123,6 +124,8 @@
       void save();
     }}
   >
+    {#if decision && canAgent}<p class="muted note">{decision.reason}</p>{/if}
+    {#if onschedule && canAgent}<button class="btn" type="button" disabled={busy || dirty} onclick={onschedule}>Schedule and dependencies</button>{#if dirty}<p class="muted note">Save or cancel your changes before opening schedule controls.</p>{/if}{/if}
     {#if latest}
       <p class="session-link" data-testid="task-session">Latest session: {runStatus(latest).label}.
         <button class="btn small" type="button" onclick={() => { const key = runKey(latest.id); onclose(); openAgents(key); }}>Open session</button></p>

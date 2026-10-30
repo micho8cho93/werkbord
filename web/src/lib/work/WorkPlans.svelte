@@ -22,7 +22,7 @@
   const visible = $derived(plans.filter(p => `${p.title} ${p.description}`.toLowerCase().includes(search.toLowerCase())));
   const revision = $derived(scope.tasks.map(t => `${t.id}:${t.version}`).join('|'));
   const completed = $derived(current?.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length ?? 0);
-  const blocked = $derived(current?.taskIds.filter(id => { const task = scope.tasks.find(t => t.id === id); return task && task.state !== 'done' && blockingTasks(task, scope.tasks).length; }).length ?? 0);
+  const blocked = $derived(current?.taskIds.filter(id => { const task = scope.tasks.find(t => t.id === id); return task && task.state !== 'done' && blockingTasks(task, scope.tasks, scope.latestRun).length; }).length ?? 0);
   const sessions = $derived(scope.history.filter(r => current?.taskIds.includes(r.taskId)));
   const listHref = $derived(projectHref(project.id, 'work') + '?section=plans');
   const tabs = [{ id: 'tasks', title: 'Tasks' }, { id: 'sessions', title: 'Sessions' }, { id: 'decisions', title: 'Decisions' }, { id: 'questions', title: 'Questions' }];

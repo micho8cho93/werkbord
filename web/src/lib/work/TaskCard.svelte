@@ -51,7 +51,7 @@
   const questions = $derived(run ? scope.pendingFor(run.id) : []);
   const runner = $derived(run?.runnerId ? app.runners.find((r) => r.id === run.runnerId) : undefined);
   const decision = $derived(scope.decisions.find((d) => d.taskId === task.id));
-  const dependencies = $derived(blockingTasks(task, scope.tasks));
+  const dependencies = $derived(blockingTasks(task, scope.tasks, scope.latestRun));
   const waitingFor = $derived(dependencies.map(t => t.title));
   const status: CardStatus = $derived(
     cardStatus(task, run, {

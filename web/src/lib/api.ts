@@ -352,7 +352,7 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   // Global: the projects, and the one view that looks across all of them.
   listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
   registerProject: (path: string, name: string) => request<Project>('POST', '/api/projects', { path, name }),
-  /** A board and timeline with no Git repository behind it. */
+  /** A Work and Calendar with no Git repository behind it. */
   createWorkProject: (name: string) => request<Project>('POST', '/api/projects', { kind: 'work', name }),
   controlCenter: () => request<Overview>('GET', '/api/control-center').then((o) => (o.runners ? { ...o, runners: normalizeRunners(o.runners) } : o)),
   waiting: () => request<{ items: WaitingItem[] }>('GET', '/api/integration/waiting'),

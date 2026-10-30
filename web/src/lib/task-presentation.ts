@@ -55,10 +55,10 @@ export function cardStatus(task: Task, run: Run | undefined, ctx: CardContext): 
     return { tone: 'ok', text: 'Session finished · ready to review', detail: ctx.branch ?? run.branch ?? '', live: false };
   }
   if (task.state === 'done') return { tone: 'ok', text: `Done · ${sinceShort(task.updatedAt, ctx.now)} ago`, detail: '', live: false };
-  if (ctx.waitingFor.length) return { tone: 'neutral', text: `Waits for ${ctx.waitingFor.join(', ')}`, detail: '', live: false };
   if (ctx.decision && task.orchestration?.enabled && !task.orchestration.runId) {
     return { tone: 'neutral', text: schedulingLabels[ctx.decision.state], detail: oneLine(schedulingReason(ctx.decision), 140), live: false };
   }
+  if (ctx.waitingFor.length) return { tone: 'neutral', text: `Waits for ${ctx.waitingFor.join(', ')}`, detail: ctx.decision ? oneLine(schedulingReason(ctx.decision), 140) : '', live: false };
   return { tone: 'neutral', text: 'Not started', detail: '', live: false };
 }
 

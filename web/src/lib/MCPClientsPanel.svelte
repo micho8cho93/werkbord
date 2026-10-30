@@ -212,7 +212,7 @@
                 <h5>Review task plan <small>Project {item.plan.projectId} · {plan?.tasks.length ?? 0} {(plan?.tasks.length ?? 0) === 1 ? 'task' : 'tasks'}</small></h5>
                 {#if item.validationError}<p class="error" role="alert">{item.validationError}</p>{/if}
                 {#if item.warnings?.length}
-                  <ul class="warnings" aria-label="Timeline warnings">
+                  <ul class="warnings" aria-label="Planning warnings">
                     {#each item.warnings as warning, warningIndex (`${warning.code}:${warning.itemId}:${warning.otherId}:${warningIndex}`)}
                       <li class:warning-error={warning.severity === 'error'}><strong>{warning.severity}</strong> · {warning.message}</li>
                     {/each}

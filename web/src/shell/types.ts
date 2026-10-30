@@ -96,6 +96,7 @@ export interface Scheduled {
   project: string;
   at: string;
   zone?: string;
+  reason?: string;
   state: string;
   href: string;
 }

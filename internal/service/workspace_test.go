@@ -22,7 +22,7 @@ func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 		Failed:    []AttentionRun{{Run: domain.Run{ID: "run_3", TaskID: "tsk_3", ProjectID: "prj_1", State: domain.RunFailed, Reason: "tests failed"}, ProjectName: "App", TaskTitle: "Refactor"}},
 		Review:    []AttentionReview{{Task: domain.Task{ID: "tsk_4", ProjectID: "prj_1", Title: "Docs"}, ProjectName: "App"}},
 		Orchestration: []AttentionSchedule{{Task: domain.Task{ID: "tsk_5", ProjectID: "prj_1", Title: "Nightly", Orchestration: domain.Orchestration{ScheduledAt: &at, Timezone: "Europe/Paris"}},
-			ProjectName: "App", Decision: domain.SchedulingDecision{State: "waiting"}}},
+			ProjectName: "App", Decision: domain.SchedulingDecision{State: "waiting", Reason: "Waiting for Build to complete successfully"}}},
 	}
 	sum := SummaryOf(ov, at)
 	raw, err := json.Marshal(sum)
@@ -56,7 +56,7 @@ func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 			t.Errorf("no %s attention in %+v", want, got.Attention)
 		}
 	}
-	if len(got.Schedule) != 1 || got.Schedule[0].Zone != "Europe/Paris" || got.Schedule[0].State != "waiting" {
+	if len(got.Schedule) != 1 || got.Schedule[0].Zone != "Europe/Paris" || got.Schedule[0].State != "waiting" || got.Schedule[0].Reason != "Waiting for Build to complete successfully" || got.Schedule[0].Href != "#/p/prj_1/task/tsk_5" {
 		t.Fatalf("schedule = %+v", got.Schedule)
 	}
 	if got.Work[0].Href != "#/p/prj_1/task/tsk_1" || got.Projects[0].Href != "#/p/prj_1/work" {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -53,6 +54,11 @@ func configureOrchestration(ctx context.Context, tx store.Tx, task *domain.Task,
 		o.Key, o.RunID, o.DispatchedAt, o.Missed, o.Error = old.Key, old.RunID, old.DispatchedAt, old.Missed, old.Error
 	}
 	o.Rearm = false
+	// An unclaimed schedule edit invalidates in-flight scheduler snapshots. Used,
+	// missed and failed occurrences still require explicit authorisation to rearm.
+	if old.RunID == "" && !old.Missed && old.Error == "" && old.Key != "" && !reflect.DeepEqual(old, o) {
+		o.Key = domain.NewID("schedule")
+	}
 	task.Orchestration = o
 	replaced := false
 	for i := range tasks {
@@ -189,11 +195,11 @@ func dependencyDecision(task domain.Task, x scheduleSnapshot) (string, string) {
 			}
 			continue
 		}
-		if dep.State == domain.TaskDone || ran && r.State == domain.RunCompleted {
-			continue
-		}
 		if ran && (r.State == domain.RunFailed || r.State == domain.RunStopped) {
 			return "blocked", "Dependency " + dep.Title + " is " + string(r.State) + ": " + r.Reason
+		}
+		if dep.State == domain.TaskDone || ran && r.State == domain.RunCompleted {
+			continue
 		}
 		if waiting == "" {
 			waiting = "Waiting for " + dep.Title + " to complete successfully"

@@ -13,7 +13,7 @@
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
     ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
-    ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' '), workspace: e.workspace.id, kind: 'scheduled' as const }; })
+    ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' ') + (p.reason ? ' · ' + p.reason : ''), workspace: e.workspace.id, kind: 'scheduled' as const }; })
   ]));
   const silent = $derived(overview ? overview.entries.filter(e => !e.summary && (e.error || e.workspace.state !== 'ready')) : []);
   let editing = $state<string>('');
@@ -68,6 +68,7 @@
     {#if busy && !draft}<p role="status">Loading task…</p>{/if}
     {#if draft}<form id="universal-task-edit" class="edit" onsubmit={e => { e.preventDefault(); void save(); }}>
       <p class="context">{row?.project}</p>
+      {#if row}<button class="btn" type="button" onclick={() => { if (row) void model.goTo(row.workspace, row.href); editing = ''; }}>Open task and execution controls</button>{/if}
       <label class="field">Title<input class="input" bind:value={draft.title} required maxlength="200" disabled={!draft.editable} /></label>
       <label class="field">Details<textarea class="input" rows="5" bind:value={draft.description} disabled={!draft.editable}></textarea></label>
       {#if row?.kind === 'scheduled'}

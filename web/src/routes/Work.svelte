@@ -54,7 +54,7 @@
     return true;
   }
 
-  const groups = $derived(WORK_GROUPS.map(group => ({ ...group, tasks: scope.activeTasks.filter(t => shown(t) && workGroup(t, scope.tasks, scope.latestRun[t.id], effectiveOf(t).priority, app.now) === group.id).sort((a,b) => a.position-b.position) })));
+  const groups = $derived(WORK_GROUPS.map(group => ({ ...group, tasks: scope.activeTasks.filter(t => shown(t) && workGroup(t, scope.tasks, scope.latestRun[t.id], effectiveOf(t).priority, app.now, scope.latestRun) === group.id).sort((a,b) => a.position-b.position) })));
   const done = $derived(scope.activeTasks.filter(t => t.state === 'done' && shown(t)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)));
   // ---- what can be merged from the board: the task's own branch, while it is not merged yet ----
   function branchOf(task: Task): GitBranch | undefined {

@@ -96,7 +96,19 @@ let browser, server, debugPage;
   const readScheduled=async()=> (await personal('GET',`/projects/${repository.id}/tasks`)).tasks.find(t=>t.id===scheduledTask.id);
   try { await wait(async()=> Date.parse((await readScheduled()).orchestration.scheduledAt)===Date.parse(scheduledTask.orchestration.scheduledAt)+3600000,'Individual hour drag reschedules agent'); } catch(error) { console.error('Scheduled before/after',scheduledTask.orchestration,(await readScheduled()).orchestration); throw error; }
   assert.deepEqual((await readScheduled()).plan,scheduledTask.plan,'rescheduling preserves planned dates');
-  const request=await team('PUT',`/projects/${tp.id}/tickets/${ticket.id}/schedule`,{version:0,at:add(today,1)+'T10:00:00Z',timezone:'UTC',missedPolicy:'run_late',graceSeconds:60,priority:1,order:0});
+  await team('POST',`/projects/${tp.id}/tickets/${ticket.id}/claim`,{});
+  await scheduledEvent.click();
+  await interaction.getByRole('dialog',{name:'Edit task'}).getByRole('button',{name:'Schedule and dependencies',exact:true}).click();
+  const schedulePanel=interaction.getByRole('dialog',{name:'Schedule and dependencies',exact:true});
+  await schedulePanel.getByRole('button',{name:'Save schedule and dependencies',exact:true}).waitFor();
+  await schedulePanel.getByText('Run order affects priority; dependencies make a task wait.').waitFor();
+  await schedulePanel.getByRole('button',{name:'Close',exact:true}).click();
+  await schedulePanel.waitFor({state:'detached'});
+  await interaction.screenshot({path:path.join(artifacts,'calendar-execution-desktop.png')});
+  await interaction.setViewportSize({width:390,height:844});
+  await interaction.screenshot({path:path.join(artifacts,'calendar-execution-mobile.png')});
+  await interaction.setViewportSize({width:1440,height:1000});
+  const request=await team('PUT' ,`/projects/${tp.id}/tickets/${ticket.id}/schedule`,{version:0,at:add(today,1)+'T10:00:00Z',timezone:'UTC',missedPolicy:'run_late',graceSeconds:60,priority:1,order:0});
   await interaction.goto(`${teamURL}/?tab=calendar&project=${tp.id}`);
   if ((new Date(today+'T12:00Z').getUTCDay()+6)%7===6) await interaction.getByRole('button',{name:'Next week',exact:true}).click();
   const teamEvent=interaction.locator(`[data-plan-item="${ticket.id}/schedule"]`);await teamEvent.waitFor();const sourceDay=await teamEvent.getAttribute('data-plan-start'),step=new Date(sourceDay+'T12:00Z').getUTCDay()===0?-1:1;
@@ -111,7 +123,7 @@ let browser, server, debugPage;
   const shellRoot=path.resolve(__dirname,'../desktop/frontend/dist/shell');
   server=http.createServer(async(req,res)=>{
     if(req.url==='/fixture-overview'){
-      const summary=await personal('GET','/workspace/v1/summary'),b=await team('GET',`/projects/${tp.id}/work`),schedules=await team('GET',`/projects/${tp.id}/schedules`);
+      const summary=await personal('GET','/workspace/v1/summary'),b=await team('GET',`/projects/${tp.id}/board`),schedules=await team('GET',`/projects/${tp.id}/schedules`);
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{schema:summary.schema,workspace:items[1],projects:[{id:tp.id,name:tp.name,href:`?tab=work&project=${tp.id}`}],work:[],attention:[],schedule:schedules.map(s=>({id:s.id,title:b.tickets.find(k=>k.id===s.ticketId)?.title,project:tp.name,at:s.at,state:s.state,href:`?tab=calendar&project=${tp.id}&ticket=${s.ticketId}`})),planned:b.tickets.filter(k=>k.plan?.start).map(k=>({id:k.id,title:k.title,project:tp.name,start:k.plan.start,end:k.plan.end||k.plan.start,href:`?tab=calendar&project=${tp.id}&ticket=${k.id}`})),at:new Date().toISOString()}}],at:new Date().toISOString()}));return;
     }
     const file=path.join(shellRoot,decodeURIComponent(req.url.split('?')[0]));if(!file.startsWith(shellRoot)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
@@ -126,15 +138,24 @@ let browser, server, debugPage;
     window.go={main:{App:{Workspaces:async()=>({items,selected:'personal',problems:[],team:{state:'ready'},teamInstaller:false,invitation:false}),OpenWorkspace:load,LoadWorkspace:load,Overview:async()=>fetch('/fixture-overview').then(r=>r.json()),RememberPlace:async()=>{},Relay:async()=>({version:'fixture',platform:'darwin'}),Info:async()=>({version:'fixture',platform:'darwin'})}}};window.runtime={EventsOn:()=>()=>{}};
   },{items,personalURL,teamURL,token,teamToken});
   await page.goto('http://127.0.0.1:'+server.address().port+'/shell/index.html');
-  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
-  const addTop=await side.getByRole('button',{name:'New personal project',exact:true}).boundingBox(),analyticTop=await side.getByRole('button',{name:'Analytics',exact:true}).boundingBox();assert(analyticTop.y<addTop.y,'Analytics is in the sidebar\'s own group, above the sections');
-  await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
+  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});
+  await side.getByLabel('Project context').selectOption('');
+  await side.getByRole('button',{name:'Calendar',exact:true}).click();
+  await page.getByRole('heading',{name:'Calendar',exact:true}).waitFor();
   for (const [workspace,id,getter] of [['personal',task.id,getTask]]) {
     const row=page.locator(`[data-plan-item="${workspace}/${id}/plan"]`).first();await row.waitFor();
     await row.click();const panel=page.getByRole('dialog',{name:'Edit task'});await panel.locator('input[maxlength="200"]').waitFor();await panel.locator('input[maxlength="200"]').fill('Universal '+workspace);await panel.getByRole('button',{name:'Save changes',exact:true}).click();
-    await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await page.getByRole('heading',{name:'Home',exact:true}).count(),1,'Universal stays visible');
+    await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await page.getByRole('heading',{name:'Calendar',exact:true}).count(),1,'All Projects Calendar stays visible');
   }
+  await page.locator('nav[aria-label="Werkbord"] [data-page=calendar]').click();
+  const scheduledRow=page.locator(`[data-plan-item="personal/${scheduledTask.id}/schedule"]`).first();
+  await scheduledRow.waitFor(); await scheduledRow.click();
+  const executionPanel=page.getByRole('dialog',{name:'Edit task'});
+  await executionPanel.getByLabel(/Agent start time/).waitFor();
+  await executionPanel.getByRole('button',{name:'Open task and execution controls',exact:true}).waitFor();
+  await executionPanel.getByRole('button',{name:'Close',exact:true}).last().click();
+  console.log('PASS All Projects scheduled task opens through the authenticated planning bridge');
   await page.screenshot({path:path.join(artifacts,'universal-planning-desktop.png')});await page.setViewportSize({width:900,height:800});await page.screenshot({path:path.join(artifacts,'universal-planning-window.png')});
   await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.screenshot({path:path.join(artifacts,'universal-planning-dark.png')});
-  assert.deepEqual(errors,[],'Universal page errors');console.log('PASS Universal Individual edits through real APIs without navigation; sidebar order');
+  assert.deepEqual(errors,[],'Universal page errors');console.log('PASS All Projects edits through real APIs without navigation');
 })().catch(async e=>{console.error(e); if(debugPage && !debugPage.isClosed()) { console.error('Alerts',await debugPage.locator('[role=alert]').allTextContents()); console.error('Rows',await debugPage.locator('[data-plan-item]').evaluateAll(items=>items.map(el=>({id:el.dataset.planItem,start:el.dataset.planStart,end:el.dataset.planEnd,busy:el.getAttribute('aria-busy'),left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right})))); await debugPage.screenshot({path:path.join(artifacts,'planning-failure.png')}); } process.exitCode=1;}).finally(async()=>{await browser?.close();await new Promise(resolve=>server?server.close(resolve):resolve());});

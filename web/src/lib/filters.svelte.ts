@@ -1,5 +1,5 @@
-// The label and work-mode filter of each project, shared by its Work and its Timeline: narrow the
-// board to "Design" work and the timeline shows the same. Kept for this page only; a filter is a way
+// The label and work-mode filter of each project, shared by its Work and its Calendar: narrow the
+// board to "Design" work and Calendar shows the same. Kept for this page only; a filter is a way
 // of looking, not something the controller stores.
 
 import { SvelteMap } from 'svelte/reactivity';

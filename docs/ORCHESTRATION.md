@@ -1,17 +1,18 @@
 # V1: Calendar, scheduling, dependencies and handoffs
 
 All execution remains on this controller. Calendar is a view of the same tasks
-as Board, scoped to a project. It has day/week views, an upcoming queue, hourly
+as Work, scoped to a project or visible across accessible workspaces through All Projects. It has day/week views, an upcoming queue, hourly
 drag targets, and a schedule form that also works on a phone. Open a task to
 reschedule or inspect its execution policy, dependencies, not-before time,
 execution order, priority and deadline. Unschedule turns automatic execution off
-and removes its exact scheduled time; the task stays on the Board.
+and removes its exact scheduled time; the task stays on Work.
+
+Planned whole-day dates remain independent of scheduled starts. A delayed predecessor never moves those dates or fabricates a new execution estimate: the Calendar keeps the requested start and explains what it is waiting for. Open its contextual task panel for **Schedule and dependencies**, or open its latest session to retry or cancel through the existing authorised controls. All Projects includes the same scheduler reasons and links back to task execution controls. Old Timeline links redirect to Calendar; there is no presentation toggle.
 
 ## One-shot execution and recovery
 
-Enable **Run automatically from the controller** to arm one attempt. An exact
-time is optional: without one, this is a queue entry. Saving scheduling settings
-explicitly rearms the attempt; edits to task text or execution options do not.
+Enable **Run automatically from Werkbord** to arm one attempt. An exact
+time is optional: without one, this is a queue entry. Editing a pending schedule invalidates stale dispatch snapshots. Used, missed or failed attempts require **Schedule another run** to authorise a retry; ordinary edits never rearm them.
 The SQLite task row stores `orchestration`, including the schedule's unique key,
 UTC timestamps, IANA timezone, dependency IDs and the dispatch result. Inputs
 must carry an RFC3339 offset. The UI converts wall times with the chosen timezone;
@@ -52,8 +53,8 @@ blocked. Approvals always go to the user. The schedule never invents an answer.
 Dependencies must be distinct other tasks in the same project. The service
 checks the complete proposed graph in the write transaction and rejects direct
 and indirect cycles. Completion means a latest completed run or a task explicitly
-marked Done, with no active run. A failed, stopped or blocked dependency blocks
-its dependents with a named reason. A new active run means its earlier success
+marked Done, with no active, failed or stopped latest run. A failed, stopped or blocked dependency blocks
+its dependents with a named reason. A new active, failed or cancelled run means its earlier success
 no longer satisfies completion. Dependencies do not transfer or merge changes:
 separate tasks use their own worktrees. If downstream work needs upstream code,
 review and integrate it in Git first; use another run under the same task when

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"time"
 	"werkbord/internal/domain"
 	"werkbord/internal/integration"
@@ -61,6 +62,11 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 			}
 			_, err = m.Start(ctx, StartInput{TaskID: t.ID, ScheduleKey: o.Key})
 			if err != nil {
+				// A changed schedule or newly occupied gate is retried from a fresh
+				// snapshot. It is not a permanent launch failure.
+				if errors.Is(err, domain.ErrConflict) {
+					continue
+				}
 				// Pre-launch failures are durable and require an explicit rearm; no retry storm.
 				if e := m.opt.Scheduler.RecordDispatchError(ctx, t.ID, o.Key, err.Error(), false); e != nil {
 					return e

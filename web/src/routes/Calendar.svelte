@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { blockingTasks } from '../lib/work-queue';
+  import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { addDays, clockAt, lanes, minuteOf, rangeTitle, visibleDays } from '../lib/calendar';
@@ -23,6 +25,7 @@
 
   let surface = $state<HTMLElement>();
   let editing = $state<Task | null>(null);
+  let scheduling = $state<Task | null>(null);
   $effect(() => surface && listenDates(surface, drop => {
     const task = scope.activeTasks.find(t => t.id === drop.id.replace(/\/schedule$/, ''));
     if (!task) return;
@@ -72,7 +75,7 @@
       ),
   );
   const waiting = $derived(
-    scope.activeTasks.filter((t) => t.state !== 'done' && (t.orchestration?.dependencies ?? []).some((id) => scope.tasks.find((d) => d.id === id && d.state !== 'review' && d.state !== 'done'))),
+    scope.activeTasks.filter((t) => t.state !== 'done' && blockingTasks(t, scope.tasks, scope.latestRun).length > 0),
   );
   /** Whether the days on show hold nothing to run: the grid alone does not say so. */
   const emptyView = $derived(days.every((d) => !scope.activeTasks.some((t) => scheduledIn(t).startsWith(d))));
@@ -99,6 +102,10 @@
 
   async function schedule(task: Task, day: string, time: string) {
     if (busy) return;
+    if (task.orchestration?.runId || active(task)) {
+      app.notify('This occurrence has already started. Open Schedule and dependencies to authorise another run.');
+      return;
+    }
     busy = true;
     try {
       const scheduledAt = instantFromWall(`${day}T${time}`, zone);
@@ -228,7 +235,7 @@
   </div>
 
   <div class="body">
-    <div class="main">
+    <div class="main" class:week-view={view === 'week'}>
       <div class="head" style:--days={days.length}>
         <div></div>
         {#each days as d (d)}
@@ -242,7 +249,7 @@
       {#if emptyView}
         <p class="empty-view" role="status">
           Nothing is scheduled to run {view === 'day' ? 'on this day' : 'this week'}.
-          {unscheduled.length ? '' : 'Add a task on the Work and it can be scheduled here.'}
+          {unscheduled.length ? '' : 'Add a task in Work and it can be scheduled here.'}
         </p>
       {/if}
       <div class="grid-scroll" bind:this={grid}>
@@ -289,7 +296,7 @@
                   title="{t.title} · {decision ? `${schedulingLabels[decision.state]}: ${schedulingReason(decision)}` : ''}"
                 >
                   <b>{t.title}</b>
-                  <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : decision ? schedulingLabels[decision.state].toLowerCase() : 'scheduled'}</span>
+                  <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : decision ? schedulingLabels[decision.state].toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : 'scheduled'}</span>
                   {#if t.orchestration?.enabled && !t.orchestration.runId}
                     <button
                       class="x"
@@ -357,9 +364,10 @@
             {#each waiting as t (t.id)}
               <li>
                 <a href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}>{t.title}</a>
-                <p class="mm">
-                  after {(t.orchestration?.dependencies ?? []).map((id) => scope.tasks.find((d) => d.id === id)?.title ?? 'a removed task').join(', ')}
-                </p>
+                <p class="mm">Waits for successful completion:</p>
+                {#each blockingTasks(t, scope.tasks, scope.latestRun) as dep (dep.id)}
+                  <button class="dependency-link" onclick={() => editing = scope.tasks.find(d => d.id === dep.id) ?? null}>{dep.title}</button>
+                {/each}
               </li>
             {/each}
           </ul>
@@ -379,13 +387,15 @@
   </div>
 </div>
 
-{#if editing}<EditTaskSheet side task={editing} {scope} inherited={resolveFor({}, project.execution, app.globalExecution)} onclose={() => editing = null} />{/if}
+{#if editing}<EditTaskSheet side task={editing} {scope} inherited={resolveFor({}, project.execution, app.globalExecution)} onschedule={() => { scheduling = editing; editing = null; }} onclose={() => editing = null} />{/if}
+
+{#if scheduling}<ScheduleSheet task={scope.tasks.find(t => t.id === scheduling?.id) ?? scheduling} {scope} onclose={() => scheduling = null} />{/if}
 
 <style>
   .planned { display: grid; grid-template-columns: 52px repeat(var(--days), minmax(0, 1fr)); border-bottom: 1px solid var(--border); font-size: 12px; }
   .planned > div { padding: 6px; border-left: 1px solid var(--border); }
   .planned-label { color: var(--text-2); padding: 6px 2px; font-size: 12px; }
-  .planned .planned-task { display: block; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); padding: 6px; font: inherit; font-size: 12px; text-align: left; margin-bottom: 4px; }
+  .planned .planned-task { display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; text-decoration: none; color: var(--text); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); padding: 6px; font: inherit; font-size: 12px; text-align: left; margin-bottom: 4px; }
   .cal {
     height: 100%;
     min-height: 0;
@@ -762,6 +772,8 @@
     text-decoration: underline;
   }
 
+  .dependency-link { font: inherit; font-size: 12px; color: var(--text-2); text-align: left; background: none; border: 0; padding: 2px 0; text-decoration: underline; }
+
   .why {
     font-size: 12px;
     color: var(--text-2);
@@ -828,7 +840,11 @@
 
     .main {
       padding: 0 16px;
+      overflow-x: auto;
     }
+    .main.week-view > .head,
+    .main.week-view > .planned,
+    .main.week-view > .grid-scroll { min-width: 640px; }
 
     .grid-scroll {
       max-height: 60dvh;

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"werkbord/internal/domain"
@@ -44,6 +43,15 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 			if err != nil {
 				return err
 			}
+			latest, err := tx.Runs().ListLatestByProject(ctx, p.ProjectID)
+			if err != nil {
+				return err
+			}
+			dependencies := scheduleSnapshot{tasks: tasks, latest: map[string]domain.Run{}}
+			for _, run := range latest {
+				dependencies.latest[run.TaskID] = run
+			}
+
 			plans, err := tx.WorkPlans().List(ctx, p.ProjectID)
 			if err != nil {
 				return err
@@ -66,25 +74,11 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 				priority := domain.ResolveExecution(domain.Level{Config: global}, domain.Level{Config: project.Execution}, domain.Level{Config: t.Execution}).Priority
 				group := "next"
 				detail := string(t.State)
-				blocked := []string{}
-				for _, id := range t.Orchestration.Dependencies {
-					found := false
-					for _, dep := range tasks {
-						if dep.ID == id {
-							found = true
-							if dep.State != domain.TaskDone {
-								blocked = append(blocked, dep.Title)
-							}
-						}
-					}
-					if !found {
-						blocked = append(blocked, "Unavailable task")
-					}
-				}
-				if len(blocked) > 0 {
+				if state, reason := dependencyDecision(t, dependencies); state != "" {
 					group = "later"
-					detail = "Blocked by " + strings.Join(blocked, ", ")
+					detail = reason
 				}
+
 				start := t.Orchestration.ScheduledAt
 				if start == nil {
 					start = t.Orchestration.NotBefore
@@ -261,7 +255,7 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 			continue
 		}
 		out.Schedule = append(out.Schedule, workspace.Scheduled{ID: a.Task.ID, Title: a.Task.Title, Project: a.ProjectName, At: at.UTC(),
-			Zone: a.Task.Orchestration.Timezone, State: a.Decision.State, Href: "#/p/" + a.Task.ProjectID + "/calendar"})
+			Zone: a.Task.Orchestration.Timezone, State: a.Decision.State, Reason: a.Decision.Reason, Href: taskHref(a.Task.ProjectID, a.Task.ID)})
 	}
 	sort.SliceStable(out.Schedule, func(i, j int) bool { return out.Schedule[i].At.Before(out.Schedule[j].At) })
 	sort.SliceStable(out.Attention, func(i, j int) bool {
