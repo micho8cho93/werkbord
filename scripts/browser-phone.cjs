@@ -387,8 +387,9 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
         const page = await ctx.newPage();
         page.on('pageerror', (e) => errors.push(e.message));
-        await page.goto(base + '/#token=' + token);
-        await page.getByRole('link', { name: 'Workspace' }).first().waitFor();
+        // Load the phone-only address as the initial route. A sidebar link can render before
+        // startup finishes settling the token-only address, so it is not a navigation-ready signal.
+        await ctx.addInitScript(value => localStorage.setItem('werkbord.token', value), token);
         await page.goto(base + '/#/deck');
         await page.waitForFunction(() => location.hash === '#/control');
         assert.equal(await page.locator('[data-phone-nav]').count(), 0, 'no phone bar on a wide window');
