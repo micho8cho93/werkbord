@@ -125,6 +125,11 @@ func (e *env) startShell(task *domain.Task) (*domain.Run, *shellSession) {
 	s := sh.last
 	sh.mu.Unlock()
 	eventually(e.t, "the agent to report its child", func() bool { return s.childPID() > 0 })
+	// Launch queues the session reference separately from the child's output. Tests
+	// that shut down or reopen the database need that recovery state persisted first.
+	eventually(e.t, "the agent's session reference to be saved", func() bool {
+		return e.run(r.ID).SessionRef == "shell-session"
+	})
 	return r, s
 }
 
