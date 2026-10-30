@@ -54,7 +54,7 @@ const state = {
   ov: null,       // the workspace overview: the projects, and the counts the navigation shows
   data: null,     // the open project: its board and what the open tab shows
   handoff: null,  // a handoff the member just opened
-  showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
+  showArchived: false, newTicketOpen: false, workSection: 'queue', workPlanId: '', workQuery: '', workPlanTab: 'tasks', repoSection: 'attention', wsSegment: 'all',
   advancedSettings: false, archiveProjectId: '',
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
   calendarAnchor: null,
@@ -84,6 +84,8 @@ function remember() {
   const q = new URLSearchParams(); q.set("tab", state.tab);
   if (state.projectId) q.set("project", state.projectId);
   if (state.ticketId) q.set("ticket", state.ticketId);
+  if (state.tab === 'work' && state.workSection === 'plans') q.set('section','plans');
+  if (state.tab === 'work' && state.workPlanId) q.set('plan',state.workPlanId);
   if (state.tab === 'settings' && state.settingsPart) q.set("part", state.settingsPart);
   history.pushState(null, "", location.pathname + "?" + q.toString());
   reportPlace();
@@ -135,6 +137,9 @@ function icon(name) {
     activity: [['path',{d:'M19.07 4.93A10 10 0 0 0 6.99 3.34'}],['path',{d:'M4 6h.01'}],['path',{d:'M2.29 9.62A10 10 0 1 0 21.31 8.35'}],['path',{d:'M16.24 7.76A6 6 0 1 0 8.23 16.67'}],['path',{d:'M12 18h.01'}],['path',{d:'M17.99 11.66A6 6 0 0 1 15.77 16.67'}],['circle',{cx:'12',cy:'12',r:'2'}],['path',{d:'m13.41 10.59 5.66-5.66'}]],
     analytics: [['path',{d:'M3 3v16a2 2 0 0 0 2 2h16'}],['path',{d:'M18 17V9'}],['path',{d:'M13 17V5'}],['path',{d:'M8 17v-3'}]],
     members: [['path',{d:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'}],['path',{d:'M16 3.128a4 4 0 0 1 0 7.744'}],['path',{d:'M22 21v-2a4 4 0 0 0-3-3.87'}],['circle',{cx:'9',cy:'7',r:'4'}]],
+    check: [['path',{d:'m20 6-11 11-5-5'}]],
+    left: [['path',{d:'m15 18-6-6 6-6'}]],
+    right: [['path',{d:'m9 18 6-6-6-6'}]],
     search: [['path',{d:'m21 21-4.34-4.34'}],['circle',{cx:'11',cy:'11',r:'8'}]],
     sun: [['circle',{cx:'12',cy:'12',r:'4'}],['path',{d:'M12 2v2'}],['path',{d:'M12 20v2'}],['path',{d:'m4.93 4.93 1.41 1.41'}],['path',{d:'m17.66 17.66 1.41 1.41'}],['path',{d:'M2 12h2'}],['path',{d:'M20 12h2'}],['path',{d:'m6.34 17.66-1.41 1.41'}],['path',{d:'m19.07 4.93-1.41 1.41'}]],
     moon: [['path',{d:'M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401'}]],
@@ -469,7 +474,7 @@ function askForSettings(tab, part) {
   window.parent.postMessage({ type: 'werkbord.frame', event: 'settings', place }, '*');
 }
 function go(tab, part) { if (FRAMED && !HOSTED && ADMIN_TABS.some(([id]) => id === tab)) return askForSettings(tab, part); focusMain = true; if (tab === 'settings') state.settingsPart = SETTINGS_PARTS.has(part) ? part : state.settingsPart; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
-function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'work'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
+function openProject(id, tab) { state.workPlanId = ''; state.workSection = 'queue'; state.workQuery = ''; focusMain = true; state.projectId = id; state.tab = tab || 'work'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
 function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && state.tab === 'calendar'; state.projectId = projectId; if (!keepCalendar) state.tab = 'work'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
@@ -908,7 +913,6 @@ async function loadProject() {
   const id = state.projectId;
   const board = await api('GET', '/projects/' + id + '/board');
   const d = { id, board, tab: state.tab };
-  if (state.tab === 'work') d.plansView = await initiativesView(id).catch(e => h('p', { class: 'error', role: 'alert' }, 'Plans unavailable: ' + e.message));
   if (state.ticketId) {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
     d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress').catch(() => []);
@@ -932,6 +936,7 @@ async function loadProject() {
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
   }
   state.data = d;
+  if (state.tab === 'work') d.plansView = await initiativesView(id).catch(e => h('p', { class: 'error', role: 'alert' }, 'Plans unavailable: ' + e.message));
   return d;
 }
 
@@ -1315,16 +1320,22 @@ function labelChip(l) {
   return chip;
 }
 
+function openWorkPlan(id) { state.workPlanId=id;state.workSection='plans';state.workPlanTab='tasks';state.ticketId=null;remember();return render(); }
 function workTab(d) {
  const b=d.board;
- const toolbar=h('div',{class:'actions work-tools'},choiceGroup('Whose tasks',[['all','All tasks'],['own','My tasks']],w=>(w==='own')===!!state.ownTickets,w=>{state.ownTickets=w==='own';render();},'actions',false),
- h('button',{class:'plain','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;render();}},state.showArchived?'Back to Work':'Archive ('+(b.archived||[]).length+')'));
+ const detail=!!state.workPlanId;
+ const filter=()=>{for(const el of view.querySelectorAll('.work-result')) el.hidden=!el.dataset.search.includes(state.workQuery.toLowerCase());for(const group of view.querySelectorAll('.work-group')){const count=group.querySelectorAll('.work-result:not([hidden])').length;group.querySelector('.group-count').textContent=String(count);group.querySelector('.work-empty').hidden=count>0;}};
+ const search=h('input',{type:'search','aria-label':'Search work',placeholder:state.workSection==='plans'?'Search plans…':'Search tasks…',value:state.workQuery,oninput:e=>{state.workQuery=e.target.value;filter();}});
+ const toolbar=h('header',{class:'work-heading'},h('div',{},h('h1',{},'Work'),h('p',{class:'muted'},'Your tasks, plans and agent activity.')),h('label',{class:'work-search'},icon('search'),search));
+ const tabs=h('nav',{class:'work-tabs','aria-label':'Work sections'},[['queue','Queue'],['plans','Plans']].map(([id,label])=>h('button',{'aria-current':state.workSection===id?'page':null,onclick:()=>{state.workSection=id;state.workPlanId='';state.ticketId=null;state.workQuery='';remember();render();}},label)),h('button',{class:'work-archive','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;state.workSection='queue';state.workPlanId='';remember();render();}},state.showArchived?'Back to queue':'Archive ('+(b.archived||[]).length+')'));
  const group=k=>{const own=k.assigneeId===state.me.member.id?ownAgentRun(d,k):null;return WerkbordWork.group({done:k.status==='done',active:k.status==='in_progress',attention:k.status==='review'||['blocked','failed','needs_input'].includes(own?.run),blocked:(k.dependencies||[]).some(id=>b.tickets.find(t=>t.id===id)?.status!=='done'),start:k.plan?.start});};
- const rows=k=>{const blocked=(k.dependencies||[]).filter(id=>b.tickets.find(t=>t.id===id)?.status!=='done');return h('div',{},card(d,k),blocked.length?h('p',{class:'work-blocked'},'Blocked by ',blocked.map(id=>{const dep=b.tickets.find(t=>t.id===id);return dep?h('button',{class:'link',onclick:()=>openTicket(d.id,id)},dep.title):'Unavailable task';})): '');};
- const groups=[['now','Now','Active work and immediate priorities'],['next','Next','Ready to pick up'],['later','Later','Planned or waiting on dependencies']].map(([id,title,detail])=>{const items=b.tickets.filter(k=>matchesFilter(k)&&group(k)===id);return h('section',{class:'work-group','aria-label':title},h('header',{},h('h2',{},title),h('span',{class:'badge'},String(items.length)),h('span',{class:'muted small'},detail)),items.length?items.map(rows):h('p',{class:'muted small'},'No tasks here.'));});
+ const rows=k=>h('li',{class:'work-result','data-search':(k.title+' '+k.description+' '+k.key).toLowerCase()},card(d,k));
+ const groups=[['now','Now'],['next','Next'],['later','Later']].map(([id,title])=>{const items=b.tickets.filter(k=>matchesFilter(k)&&group(k)===id);return h('section',{class:'work-group','aria-label':title},h('header',{},h('h2',{},title),h('span',{class:'group-count'},String(items.length))),h('ul',{class:'work-task-list'},items.map(rows)),h('p',{class:'muted small work-empty',hidden:items.length>0},'No tasks here.'));});
  const done=b.tickets.filter(k=>matchesFilter(k)&&k.status==='done');
+ const ownership=h('div',{class:'work-filter'},choiceGroup('Whose tasks',[['all','All tasks'],['own','My tasks']],w=>(w==='own')===!!state.ownTickets,w=>{state.ownTickets=w==='own';render();},'actions',false));
  let open=null;if(state.ticketId){const k=[...b.tickets,...(b.archived||[])].find(k=>k.id===state.ticketId);if(k)open=ticketPanel(d,d.ticket||k);else state.ticketId=null;}
- return h('div',{class:'work-view'},toolbar,h('div',{class:'work-layout'},h('div',{class:'work-queue','aria-label':'Work queue'},state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),done.map(rows)):'']),h('aside',{'aria-label':'Structured plans'},d.plansView||'')),open||'');
+ const view=h('div',{class:'work-view'},detail?'':[toolbar,tabs],state.workSection==='plans'?d.plansView||'':h('div',{class:'work-queue','aria-label':'Work queue'},ownership,state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),h('ul',{class:'work-task-list'},done.map(rows))):'']),open||'');
+ filter();return view;
 }
 function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
@@ -1377,25 +1388,19 @@ function card(d, k) {
     : k.status === 'available' && k.assigneeId ? 'Claimed · ready to start' : statusName(k.status);
   const canStartAgent = mine && state.desktop && agentWork && k.status === 'in_progress' && !running && run !== 'blocked' && !k.archivedAt;
   const open = () => openTicket(d.id, k.id);
-  return h('article', { class: 'card work-card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), 'data-task-id': k.id, 'data-work-state': k.status, 'aria-busy': pendingTickets.has(k.id) },
-    h('div', { class: 'muted small' }, k.key),
-    h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
-    pendingTickets.has(k.id) || status !== statusName(k.status) ? h('p', { class: 'work-status' }, status) : '',
-    progress?.execution.runId ? h('p', { class: 'work-detail' }, (progress.stale ? 'Last reported ' : 'Reported ') + ago(progress.reportedAt)) : '',
-    k.description ? h('p', { class: 'work-detail' }, k.description.length > 180 ? k.description.slice(0, 177) + '…' : k.description) : '',
-    k.branch ? h('p', { class: 'work-detail' }, k.branch) : '',
-    k.plan && (k.plan.start || k.plan.end) ? h('p', { class: 'work-detail' }, 'Planned ' + (k.plan.start || k.plan.end) + (k.plan.end && k.plan.end !== k.plan.start ? ' – ' + k.plan.end : '')) : '',
-    k.assigneeId ? h('div', { class: 'owner' }, initial(mine ? state.me.member.name : personName(d, k.assigneeId)), mine ? 'You' : personName(d, k.assigneeId),
-      k.status === 'in_progress' && agentWork ? presence(active) : '') : '',
-    k.assigneeId && k.claimedAt ? h('p', { class: 'work-detail' }, 'Claimed ' + ago(k.claimedAt)) : '',
-    flags.length ? h('div', { class: 'flags' }, flags) : '',
-    k.status === 'review' ? h('button', { class: 'plain open small', onclick: open }, 'Review work') : '',
-    canStartAgent ? h('button', { class: 'primary small', 'data-start-agent': k.id, onclick: () => startAgent(k) }, run === 'completed' || run === 'failed' || run === 'canceled' ? 'Start agent again' : 'Start agent') : '',
-    ['available', 'in_progress'].includes(k.status) && mine ? h('button', { class: 'plain open small', onclick: open }, 'Open work') : '',
-    (k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim'))
-      ? h('button', { class: 'primary small', onclick: () => act(() => api('POST', projectPath(k) + '/claim')) }, 'Claim') : '',
-    k.status === 'done' && !k.archivedAt && canArchiveTicket(k)
-      ? h('button', { class: 'plain open small', onclick: () => act(() => api('POST', projectPath(k) + '/archive', { version: k.version, archived: true })) }, 'Archive') : '');
+  const blocked=(k.dependencies||[]).filter(id=>d.board.tickets.find(t=>t.id===id)?.status!=='done');
+  return h('article',{class:'card work-card'+(mine?' mine':'')+(k.id===state.ticketId?' open':''),'data-task-id':k.id,'data-work-state':k.status,'aria-busy':pendingTickets.has(k.id)},
+    h('span',{class:'work-task-marker'+(active?' active':'')+(k.status==='done'?' complete':''),'aria-label':status},k.status==='done'?icon('check'):''),
+    h('div',{class:'work-task-content'},h('button',{class:'link title',onclick:()=>{state.ticketId=k.id===state.ticketId?null:k.id;state.handoff=null;remember();render();}},k.title),
+      h('div',{class:'muted small work-meta'},k.key+' · '+status,k.assigneeId?' · '+(mine?'You':personName(d,k.assigneeId)):'',k.plan?.start?' · '+k.plan.start:'',k.status==='in_progress'&&agentWork&&!mine?presence(active):''),
+      progress?.stale?h('p',{class:'work-detail'},'Last reported '+ago(progress.reportedAt)):'',
+      blocked.length?h('p',{class:'work-blocked'},'Blocked by ',blocked.map(id=>{const dep=d.board.tickets.find(t=>t.id===id);return dep?h('button',{class:'link',onclick:()=>openTicket(d.id,id)},dep.title):'Unavailable task';})): '',
+      flags.length?h('div',{class:'flags'},flags):''),
+    h('div',{class:'work-row-actions'},k.status==='review'?h('button',{class:'plain open small',onclick:open},'Review work'):'',
+      canStartAgent?h('button',{class:'primary small','data-start-agent':k.id,onclick:()=>startAgent(k)},['completed','failed','canceled'].includes(run)?'Start agent again':'Start agent'):'',
+      ['available','in_progress'].includes(k.status)&&mine?h('button',{class:'plain open small',onclick:open},'Open work'):'',
+      k.status==='available'&&!k.assigneeId&&d.board.member&&pcan('tickets.claim')?h('button',{class:'plain small',onclick:()=>act(()=>api('POST',projectPath(k)+'/claim'))},'Claim'):'',
+      k.status==='done'&&!k.archivedAt&&canArchiveTicket(k)?h('button',{class:'plain open small',onclick:()=>act(()=>api('POST',projectPath(k)+'/archive',{version:k.version,archived:true}))},'Archive'):''));
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
@@ -1858,6 +1863,8 @@ function readLocation() {
  state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
  state.projectId = q.get('project') || null;
  state.ticketId = q.get('ticket') || null;
+ state.workPlanId = q.get('plan') || '';
+ state.workSection = state.workPlanId || q.get('section') === 'plans' || q.get('new') === 'plan' ? 'plans' : 'queue';
  state.focusComment = state.ticketId && /^[A-Za-z0-9_-]{1,64}$/.test(q.get('comment') || '') ? q.get('comment') : '';
 }
 readLocation();
@@ -2189,13 +2196,14 @@ async function initiativesView(projectId) {
   const identity = state.me.workspace.id + ':' + state.me.member.id;
   if (initiativeEditorIdentity !== identity) { initiativeEditor = h('div'); initiativeEditorIdentity = identity; }
   const editor = initiativeEditor;
+  const view=h('section',{class:'structured-plans','aria-label':'Structured plans'});
   if (editor.dataset.initiative && !rows.some(v => v.initiative.id === editor.dataset.initiative)) editor.replaceChildren();
   const edit = async (original) => {
     const i = original || { title: '', objective: '', status: 'active', projectIds: projectId ? [projectId] : [], tickets: [], dependencies: [], memories: [], version: 0 };
     const title = h('input', { name: 'initiative-title', value: i.title, required: true, maxlength: 200 });
     const decisions = h('textarea', { name: 'plan-decisions', 'aria-label': 'Decisions', maxlength: 20000 }, i.decisions || '');
     const questions = h('textarea', { name: 'plan-questions', 'aria-label': 'Open questions', maxlength: 20000 }, i.questions || '');
-    const objective = h('textarea', { name: 'initiative-objective', required: true, maxlength: 20000 }, i.objective);
+    const objective = h('textarea', { name: 'initiative-objective', 'aria-label':'Description', required: true, maxlength: 20000 }, i.objective);
     const status = h('select', { name: 'initiative-status', 'aria-label': 'Status' }, ['planned', 'active', 'paused', 'completed', 'archived'].map(s => h('option', { value: s, selected: s === i.status }, s)));
     const people = await api('GET', '/members');
     const owner = h('select', { name: 'initiative-owner', 'aria-label': 'Owner' }, people.map(m => h('option', { value: m.id, selected: m.id === (i.ownerId || state.me.member.id) }, m.name)));
@@ -2229,30 +2237,37 @@ async function initiativesView(projectId) {
     }
     showDependencies(); showOrder();
     editor.dataset.initiative = i.id || '';
-    editor.replaceChildren(h('form', { class: 'panel stack', onsubmit: e => { e.preventDefault(); act(async () => {
+    view.dataset.editing='true';
+    editor.replaceChildren(h('form', { class: 'panel stack plan-editor', 'aria-label':'Plan editor', onsubmit: e => { e.preventDefault(); act(async () => {
       const body = { title: title.value, decisions: decisions.value, questions: questions.value, objective: objective.value, status: status.value, ownerId: owner.value, projectIds: [...projects], tickets: [...tickets.values()], dependencies, memories: [...memories.values()], version: i.version };
-      await api(original ? 'PUT' : 'POST', '/initiatives' + (original ? '/' + i.id : ''), body);
+      const saved = await api(original ? 'PUT' : 'POST', '/initiatives' + (original ? '/' + i.id : ''), body);
+      state.workPlanId=saved.id;state.workSection='plans';remember();
       editor.replaceChildren();
       state.info = 'Plan saved.';
     }); } }, h('h2', {}, original ? 'Edit plan' : 'New plan'), field('Title', title), field('Description', objective), field('Decisions', decisions), field('Open questions', questions), field('Status', status), field('Owner', owner), h('h3', {}, 'Link existing projects and tickets'), choices, h('h3', {}, 'Task order'), order, h('h3', {}, 'Shared context and decisions'), memoryChoices,
     h('h3', {}, 'Dependencies'), h('p', { class: 'muted' }, 'Link both tickets above before adding a dependency.'), from, to,
     h('button', { type: 'button', class: 'plain add', onclick: () => { const before = tickets.get(from.value), after = tickets.get(to.value); if (before && after) { dependencies.push({ before, after }); showDependencies(); } } }, 'Add dependency'), dependencyList,
-    h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save plan'), h('button', { class: 'plain', type: 'button', onclick: () => editor.replaceChildren() }, 'Cancel'))));
+    h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save plan'), h('button', { class: 'plain', type: 'button', onclick: () => {editor.replaceChildren();delete view.dataset.editing;} }, 'Cancel'))));
     title.focus();
   };
   if (projectId && new URLSearchParams(location.search).get('new') === 'plan') {const url=new URL(location.href);url.searchParams.delete('new');history.replaceState(null,'',url);await edit();}
-  return h('div', { class: 'stack' }, h('div', { class: 'section-head' }, h('p', { class: 'muted' }, 'Plans group existing tasks. Progress follows their current state.'), h('button', { class: 'primary', onclick: () => edit().catch(e => { state.error = e.message; render(); }) }, 'New plan')), editor,
-    rows.length ? rows.map(v => h('details', { class: 'work-plan', open: new URLSearchParams(location.search).get('plan') === v.initiative.id }, h('summary', {}, v.initiative.title + ' · ' + v.done + '/' + v.tickets.length + ' complete'), h('p', {}, v.initiative.objective), v.initiative.decisions ? h('div', {}, h('h3', {}, 'Decisions'), h('p', {}, v.initiative.decisions)) : '', v.initiative.questions ? h('div', {}, h('h3', {}, 'Open questions'), h('p', {}, v.initiative.questions)) : '', h('p', { class: 'muted small' }, 'Owner · ' + (ownerNames.get(v.initiative.ownerId) || 'Former member')),
-      h('div', { class: 'actions' }, v.projects.map(p => h('button', { class: 'link', onclick: () => openProject(p.id) }, p.name))),
-      h('p', {}, v.done + ' of ' + v.tickets.length + ' tickets done · ' + plural(v.openPRs, 'reported open PR')),
-      h('ol', { class: 'plan-tasks' }, v.tickets.map(k => h('li', {}, h('button', { class: 'link', onclick: () => openTicket(k.projectId, k.id) }, k.key + ' · ' + k.title), h('span', { class: 'muted small' }, statusName(k.status)), k.pullRequest ? extLink(k.pullRequest.url, 'PR · ' + k.pullRequest.state) : ''))),
-      h('details', {}, h('summary', {}, 'Dependencies and context'), h('h3', {}, 'Blockers'), v.blockers.length ? h('ul', {}, v.blockers.map(b => h('li', {}, b))) : h('p', { class: 'muted' }, 'No blockers identified in current reports.'),
-      h('h3', {}, 'Next actions'), h('ul', {}, v.nextActions.map(a => h('li', {}, a))),
-      v.memories.length ? h('div', {}, h('h3', {}, 'Shared context and decisions'), v.memories.map(m => h('p', {}, m.content.summary + ' · ' + (m.freshness?.status || 'uncertain')))) : ''),
-      h('details', {}, h('summary', {}, 'Activity and changes'), v.activity.map(a => h('p', {}, a.kind + ' · ' + a.ticketKey + ' · ', when(a.createdAt))), v.initiative.history.map(a => h('p', {}, 'Initiative ' + a.kind + ' · ', when(a.at)))),
-      h('p', { class: 'muted small' }, 'Updated ', when(v.initiative.updatedAt)),
-      FRAMED && projectId ? h('button', {class:'plain small',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:v.initiative.id},'*')}, 'Edit with Salie') : '',
-      v.initiative.ownerId === state.me.member.id || can('projects.manage') ? h('button', { class: 'plain', onclick: () => edit(v.initiative).catch(e => { state.error = e.message; render(); }) }, 'Edit plan') : '')) : h('p', { class: 'muted' }, 'No plans yet. Create a plan to group related tasks.'));
+  const selected=rows.find(v=>v.initiative.id===state.workPlanId);
+  const back=()=>{editor.replaceChildren();state.workPlanId='';state.workSection='queue';remember();render();};
+  const list=h('div',{class:'plan-body'},h('div',{class:'plans-heading'},h('div',{},h('h2',{},'Plans'),h('p',{class:'muted small'},'Related tasks, one shared objective.')),h('button',{class:'primary small',onclick:()=>edit().catch(e=>{state.error=e.message;render();})},'New plan')),
+    h('ul',{class:'plan-list'},rows.length?rows.map(v=>h('li',{class:'work-result','data-search':(v.initiative.title+' '+v.initiative.objective).toLowerCase()},h('button',{class:'plan-link',onclick:()=>openWorkPlan(v.initiative.id)},h('span',{class:'plan-symbol'},icon('plans')),h('span',{class:'plan-link-text'},h('strong',{},v.initiative.title),h('span',{class:'muted small'},v.initiative.objective)),h('span',{class:'plan-count'},v.done+' / '+v.tickets.length),icon('right')))):h('li',{class:'muted small'},'No plans yet. Create a plan to group related tasks.')));
+  let body=list;
+  if(selected){
+    const v=selected,i=v.initiative;
+    const owned=v.tickets.filter(k=>k.assigneeId===state.me.member.id).map(k=>({k,...ownAgentRun(state.data||{},k)})).filter(r=>r.progress?.execution.runId);
+    const taskRows=h('ol',{class:'plan-tasks'},v.tickets.map(k=>h('li',{},h('span',{class:'plan-task-marker'+(k.status==='done'?' complete':'')},k.status==='done'?icon('check'):''),h('div',{},h('button',{class:'link plan-task-title',onclick:()=>openTicket(k.projectId,k.id)},k.title),h('p',{class:'muted small'},statusName(k.status)),(k.dependencies||[]).length?h('p',{class:'work-blocked'},'Depends on '+k.dependencies.map(id=>v.tickets.find(t=>t.id===id)?.title||id).join(', ')):'',k.pullRequest?extLink(k.pullRequest.url,'PR · '+k.pullRequest.state):''))));
+    const content=state.workPlanTab==='sessions'?h('div',{},h('p',{class:'muted small section-note'},'Recent session reports for tasks you own.'),owned.length?owned.map(r=>h('div',{class:'row'},h('div',{class:'grow'},h('strong',{},r.k.title),h('p',{class:'muted small'},(r.progress.stale?'Last reported · ':'')+(AGENT_STATE[r.run]||r.run))),h('button',{class:'plain small',onclick:()=>openTicket(r.k.projectId,r.k.id)},'Open task session'))):h('p',{class:'muted section-note'},'Open a task to inspect its reported session.'))
+      :state.workPlanTab==='decisions'?h('div',{class:'plan-prose'},h('h2',{},'Decisions'),h('p',{class:'prose'},i.decisions||'No decisions recorded yet.'),v.memories.length?h('div',{},h('h3',{},'Shared context'),v.memories.map(m=>h('p',{},m.content.summary))):'')
+      :state.workPlanTab==='questions'?h('div',{class:'plan-prose'},h('h2',{},'Open questions'),h('p',{class:'prose'},i.questions||'No open questions recorded.')):taskRows;
+    body=h('div',{class:'plan-body'},h('button',{class:'plain small plan-back',onclick:back},icon('left'),'Back to Work'),h('div',{class:'plan-detail-layout'},h('div',{class:'plan-main'},h('div',{class:'plan-title'},h('h1',{},i.title),h('span',{class:'plan-standing'+(v.blockers.length?' attention':'')},v.done===v.tickets.length&&v.done>0?'Complete':v.blockers.length?'Needs attention':v.done?'In progress':'Ready')),h('p',{class:'muted plan-description'},i.objective),h('div',{class:'plan-progress'},h('progress',{max:v.tickets.length||1,value:v.done,'aria-label':'Plan progress'}),h('span',{class:'muted small'},v.done+' of '+v.tickets.length+' tasks complete')),h('nav',{class:'plan-tabs','aria-label':'Plan sections'},[['tasks','Tasks'],['sessions','Sessions'],['decisions','Decisions'],['questions','Questions']].map(([id,label])=>h('button',{'aria-current':state.workPlanTab===id?'page':null,onclick:()=>{state.workPlanTab=id;render();}},label))),content),
+      h('aside',{class:'plan-info','aria-label':'Plan information'},h('h2',{},'Plan info'),h('dl',{},h('dt',{},'Project'),h('dd',{},v.projects.map(p=>p.name).join(', ')),h('dt',{},'Created'),h('dd',{},new Date(i.createdAt).toLocaleDateString()),h('dt',{},'Owner'),h('dd',{},ownerNames.get(i.ownerId)||'Former member'),h('dt',{},'Tasks'),h('dd',{},v.tickets.length+' total · '+v.done+' complete')),h('h2',{},'Actions'),i.ownerId===state.me.member.id||can('projects.manage')?h('button',{class:'plain',onclick:()=>edit(i).catch(e=>{state.error=e.message;render();})},'Edit plan'):'',FRAMED&&projectId?h('button',{class:'plain',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:i.id},'*')},'Edit with Salie'):'',h('button',{class:'plain',onclick:()=>openProject(projectId||v.projects[0].id,'calendar')},'View in Calendar'),h('details',{},h('summary',{},'Dependencies and context'),v.blockers.map(b=>h('p',{class:'small'},b)),h('ul',{},v.nextActions.map(a=>h('li',{class:'small'},a)))),h('details',{},h('summary',{},'Activity and changes'),v.activity.map(a=>h('p',{class:'small'},a.kind+' · '+a.ticketKey+' · ',when(a.createdAt))),i.history.map(a=>h('p',{class:'small'},a.kind+' · ',when(a.at)))))));
+  }
+  if(editor.childElementCount)view.dataset.editing='true';
+  view.append(editor,body);return view;
 }
 
 

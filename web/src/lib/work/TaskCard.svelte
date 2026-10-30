@@ -136,6 +136,8 @@
   class:selected
   aria-busy={pending}
 >
+  <span class="task-marker" class:finished={task.state === 'done'} aria-label={task.state === 'done' ? 'Complete' : status.text}>{#if task.state === 'done'}<Icon name="check" size={12} />{/if}</span>
+  <div class="task-content">
   <a class="title" {href}>{task.title}</a>
   {#if pending || stale || task.state !== 'backlog' || (waitingFor.length === 0 && status.text !== 'Not started')}
     <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
@@ -145,6 +147,9 @@
   {#if !agentWork && task.description}<p class="work-detail one">{task.description}</p>{/if}
   {#if status.detail}<p class="detail">{status.detail}</p>{/if}
 
+    {#if hasMeta}<p class="meta">{#if showAgent}<span>{agent}</span>{/if}{#if plan}<span>Planned {spanTitle(plan, new Date(app.now).getFullYear())}</span>{/if}{#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}</p>{/if}
+  </div>
+  <div class="row-actions">
   {#if question}
     <div class="acts">
       {#each choices as c (c)}
@@ -172,14 +177,7 @@
     </div>
   {/if}
 
-  <!-- The agent chip says something only when an agent was chosen or has run: "any agent" is every card's default. -->
-  {#if hasMeta || demand}
-    <div class="foot">
-      <p class="meta">
-        {#if showAgent}<span>{agent}</span>{/if}
-        {#if plan}<span>Planned {spanTitle(plan, new Date(app.now).getFullYear())}</span>{/if}
-        {#if effective.priority !== 'normal'}<span class="prio" data-p={effective.priority}>{priorityLabel(effective.priority)}</span>{/if}
-      </p>
+  {#if demand}<div class="foot">
       {#if demand === 'start'}
         <button class="btn small quiet demand" disabled={pending} onclick={() => onstart(task)} aria-label="{run ? 'Run an agent again on' : 'Start an agent on'} “{task.title}”"><Icon name="play" size={12} />{run ? 'Run again' : 'Start agent'}</button>
       {:else if demand === 'again'}
@@ -192,205 +190,10 @@
 {#if run}
   <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id); }}>Open Session</button></div>
 {/if}
+  </div>
 </li>
 
 <style>
- .dependency { font-size:12px; color:var(--block-text); margin:0; } .dependency a { color:inherit; }
-  .task {
-    --work-border: var(--border);
-    --work-surface: var(--surface);
-    --work-muted: var(--text-2);
-    position: relative;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
-    border-radius: var(--radius);
-    cursor: default;
-    transition:
-      border-color 0.15s,
-      opacity 0.15s;
-  }
-
-  .task:active {
-    cursor: default;
-  }
-
-  .task:hover {
-    border-color: color-mix(in srgb, var(--text-2) 45%, var(--border));
-  }
-
-  /* A state is a thin edge, not a ring or a coloured border: running is cobalt, waiting on you is amber. */
-  .live::before,
-  .task[data-tone='ask']::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 10px;
-    bottom: 10px;
-    width: 1px;
-    border-radius: 0 3px 3px 0;
-    background: var(--accent);
-  }
-
-  .task[data-tone='ask']::before {
-    background: var(--amber);
-  }
-
-  .selected,
-  .selected:hover {
-    border-color: var(--text);
-  }
-
-  .settled {
-    opacity: 0.7;
-  }
-
-  .title {
-    padding-right: 18px;
-    font-weight: 500;
-    font-size: 14px;
-    line-height: 1.35;
-    color: var(--text);
-    text-decoration: none;
-    overflow-wrap: anywhere;
-  }
-
-  /* The whole card opens the task; its buttons sit above that. */
-  .title::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius);
-  }
-
-  .title:focus-visible {
-    outline: none;
-  }
-
-  .title:focus-visible::after {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-
-  .st {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--text-2);
-    min-width: 0;
-  }
-
-  .st .dot {
-    width: 7px;
-    height: 7px;
-  }
-
-  .st .dot.hollow[data-tone='neutral'] {
-    opacity: 0.45;
-  }
-
-  .st .dot[data-tone='work'] {
-    animation: pulse 2.4s ease-in-out infinite;
-  }
-
-  .st .dot[data-tone='idle'] {
-    background: transparent;
-    box-shadow: inset 0 0 0 2px var(--accent);
-  }
-
-  .detail,
-  .work-detail {
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--text-2);
-    overflow-wrap: anywhere;
-  }
-
-  .detail {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .work-detail.one {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .acts {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 2px;
-  }
-
-  .foot {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 0;
-  }
-
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    min-width: 0;
-    font-size: 12px;
-    color: var(--text-2);
-  }
-
-  .meta span + span::before {
-    content: '·';
-    margin: 0 6px;
-  }
-
-  .prio[data-p='high'] {
-    color: var(--danger-text);
-  }
-
-  /* What can be done but need not be: a quiet text control at the end of the footer. */
-  .demand {
-    margin-left: auto;
-    margin-right: -6px;
-    padding: 0 8px;
-  }
-
-  /* The answer is the point of the card: a thumb must not miss it. */
-  @media (max-width: 899px), (pointer: coarse) {
-    .acts :global(.btn),
-    .demand {
-      min-height: 44px;
-    }
-  }
-
-  @media (pointer: coarse) {
-    .task {
-      padding: 14px;
-      cursor: default;
-    }
-
-    .title {
-      font-size: 16px;
-    }
-
-    .st {
-      font-size: 14px;
-    }
-
-  }
+ .task{--work-border:var(--border);--work-surface:var(--surface);--work-muted:var(--text-2);display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 8px;position:relative;cursor:default;}.task:hover,.task.selected{background:color-mix(in srgb,var(--accent) 3%,var(--surface));}.task-marker{width:14px;height:14px;border:1px solid var(--text-2);border-radius:50%;display:grid;place-items:center;color:var(--surface);}.task-marker.finished{background:var(--ok);border-color:var(--ok);}.live .task-marker{border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--surface);background:var(--accent);}.task[data-tone=ask] .task-marker{border-color:var(--warn);background:var(--warn);}.task-content{min-width:0;}.title{font-weight:500;font-size:14px;line-height:1.5;color:var(--text);text-decoration:none;overflow-wrap:anywhere;}.title:hover{text-decoration:underline;}.title::after{content:'';position:absolute;inset:0;}.title:focus-visible{outline:none;}.title:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px;}.st,.detail,.work-detail,.meta,.dependency{font-size:12px;line-height:1.5;color:var(--text-2);margin:4px 0 0;overflow-wrap:anywhere;}.st{display:flex;align-items:center;gap:6px;}.st .dot{width:6px;height:6px;}.dependency{color:var(--block-text);position:relative;z-index:1;}.dependency a{color:inherit;}.detail,.work-detail{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}.meta{display:flex;gap:0;flex-wrap:wrap;}.meta span+span::before{content:'·';margin:0 6px;}.prio[data-p=high]{color:var(--danger-text);}.row-actions{position:relative;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:350px;}.acts,.foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}.row-actions :global(.btn){font-size:12px;}.settled .task-content{color:var(--text-2);}
+ @media(max-width:800px){.task{grid-template-columns:15px minmax(0,1fr);padding:14px 0;align-items:start;}.task-marker{margin-top:4px;}.row-actions{grid-column:2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
 </style>

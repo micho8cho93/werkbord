@@ -38,6 +38,8 @@ The CSP forbids inline scripts and remote resources.
 
 Name: Werkbord (wordmark `werkbord`, lowercase). Tagline: "Werk local, ship global." Visual identity: the
 identity sheet "Quiet technical · v1" (see DESIGN.md), and the app replicas on the landing site.
+The user’s supplied design sheets establish a Buffer-inspired simplicity direction: compact lists, calm hierarchy and focused
+plan details. Apply it first to Work while retaining Werkbord’s product identity and existing theme choices.
 
 ## Product Principles
 

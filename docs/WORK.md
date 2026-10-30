@@ -25,7 +25,9 @@ its existing initiative records and permission checks, including cross-project r
 The Team service remains a coordinator and starts no agent. No plan owns a run, copies task status or dispatches work.
 
 A plan has a title, description, ordered tasks, decisions and open questions. Its progress follows referenced task states;
-the task details provide dependencies and existing execution sessions. Users can edit and reorder task references in Work.
+the task details provide dependencies and existing execution sessions. Users can edit and reorder task references in Work. Queue and Plans share compact navigation; opening a plan shows
+a dedicated detail page with tasks, sessions, decisions and questions, plus plan information and actions. Task details
+opened from a plan return to that plan when closed.
 Creating tasks and launching standalone CLI sessions remain independent actions.
 
 Salie's `list_work_plans` and `save_work_plan` operations use the existing task read/update permissions and confirmation

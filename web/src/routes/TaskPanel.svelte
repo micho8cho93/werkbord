@@ -39,7 +39,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const effective = $derived(resolveFor(task?.execution, project.execution, app.globalExecution));
   /** What it would get if the task itself set nothing. */
   const below = $derived(resolveFor({}, project.execution, app.globalExecution));
-  const boardHref = $derived(projectHref(project.id, 'work'));
+  const boardHref = $derived(projectHref(project.id, 'work') + (new URLSearchParams(router.query).get('plan') ? '?plan=' + encodeURIComponent(new URLSearchParams(router.query).get('plan')!) : ''));
 
   function close() {
     location.hash = boardHref;

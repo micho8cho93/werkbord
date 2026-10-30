@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import Icon from '../lib/Icon.svelte';
-  import { projectHref } from '../lib/router.svelte';
+  import { projectHref, router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import type { Project } from '../lib/types';
   import TaskPanel from './TaskPanel.svelte';
@@ -10,7 +10,7 @@
   // or the rest of the app, and says so with a way out.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
-  const boardHref = $derived(projectHref(project.id, 'work'));
+  const boardHref = $derived(projectHref(project.id, 'work') + (new URLSearchParams(router.query).get('plan') ? '?plan=' + encodeURIComponent(new URLSearchParams(router.query).get('plan')!) : ''));
 
   let failedHeading = $state<HTMLElement>();
   $effect(() => {

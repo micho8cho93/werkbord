@@ -494,7 +494,18 @@ never use lanes or drag gestures to change lifecycle state. Derive the grouping 
 dates and unfinished dependencies. Completed work stays in a disclosure. Name and link blocking tasks inside each row.
 Keep existing task details, review and Git confirmations, assignment and CLI session controls.
 
-Plans sit beside the queue on wide screens and follow it on narrow screens. Opening a plan shows its description,
-ordered task references, current progress, decisions, open questions and links to tasks and their sessions. Plan editing
+Queue and Plans share a compact section navigation. Opening a plan replaces the queue with a dedicated detail page: its description,
+current progress and ordered task references lead, with plan information and actions in a narrow sidebar. Sessions, decisions and
+questions are sections inside the plan. On narrow screens the information follows the main content. Plan editing
 uses explicit Up/Down controls. Salie prepares plan changes through the existing confirmation path. The window's Work
 uses the selected project context; All Projects aggregates only currently accessible workspace projections.
+
+### Approved Work design references
+
+The user supplied [Photo 1](docs/design/references/work-direction-01.jpg),
+[Photo 2](docs/design/references/work-direction-02.jpg) and
+[Photo 3](docs/design/references/work-direction-03.jpg), naming Buffer’s simplicity as the direction for Werkbord.
+Photos 2 and 3 lead Work: a light surface, compact task rows, quiet metadata, restrained controls and dedicated plan details.
+Keep the established theme tokens and product behaviour. The source sheets are composition references, not authority to
+add their example accounts, metrics, login systems or a different assistant name. Work and plan details are the first scope;
+other destinations can follow this direction in subsequent work.
