@@ -209,10 +209,8 @@ metadata; it does not inspect or change a member's repository, execute agents or
 ## The assistant surface (4.11)
 
 A full-window conversation, opened from the Assistant button at the top of the standalone Individual rail or through the
-phone's existing Assistant navigation. In the desktop shell, Salie's original two-sparkle mark sits on a raised 52px circular
-floating button, initially at the bottom centre. Drag it with a pointer, or use Alt + arrows while it has focus (16px steps;
-Shift makes them 48px); Alt + Home resets it. Its position is stored relative to the available viewport and clamped inside a
-12px margin when the window changes size. Standalone Individual and phone navigation retain their existing controls.
+phone's existing Assistant navigation. In the desktop shell, Salie is one permanent destination in the sidebar, with its
+two-sparkle mark; there is no floating button. Standalone Individual and phone navigation retain their existing controls.
 The conversation is the quietest screen in the product: paper, one column of at most 46rem, no history list, no chrome beyond
 a heading (the provider chooser, New, Close) and the box.
 
@@ -221,8 +219,8 @@ a heading (the provider chooser, New, Close) and the box.
   while the background moves from `--surface` to `--bg` (paper): `#FFFFFF → #F5F5F2`, `#141415 → #0B0B0C`. The content
   arrives from 540ms in, in a short sequence from the heading to the composer. Closing runs it backwards, 30% faster, into the button.
   It can be turned round in either direction half way. In the desktop app a dedicated transparent frame covers the entire viewport,
-  including the sidebar, while the workspace beneath keeps its state. Its reveal and collapse use the floating button's
-  current origin. Under *reduce motion* it
+  including the sidebar, while the workspace beneath keeps its state. Its reveal and collapse use the sidebar button's
+  position. Under *reduce motion* it
   is simply there or gone: the movement is a Web Animation, so the page checks the setting itself and the global CSS rule that
   switches off transitions is not what it relies on.
 - **Reading.** A reply is plain text on paper, 15px/1.55, no bubble; what you said is a tray (`--surface-2`) at the right. Progress is

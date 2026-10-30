@@ -106,6 +106,7 @@ async function cleanup() {
     run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-salie-terminals.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-agent-sessions.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone-fit.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-deck.cjs'], testEnv);

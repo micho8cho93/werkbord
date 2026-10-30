@@ -240,9 +240,11 @@ test-onboarding-browser: build web-shell
 
 ## test-assistant-browser: the assistant's screen in a real browser (animation, streaming, confirmations, recovery, files, dictation,
 ## accessibility, a phone) and from the desktop window's sidebar, with the real engine and API and a scripted provider in place of
-## Claude Code and Codex (no account, no network)
+## Claude Code and Codex (no account, no network). browser-shell-agents.cjs is the window's side of the unified agent sessions
+## (docs/AGENT_SESSIONS.md): Salie starts an agent, Agents opens the same session, back to Salie, and a task opens it too.
 test-assistant-browser: build web-shell
 	node scripts/browser-assistant.cjs
+	node scripts/browser-shell-agents.cjs
 	node scripts/browser-shell-assistant.cjs
 
 ## test-recommendations-browser: suggested next steps (docs/RECOMMENDATIONS.md) in the Git overview, on the phone's Control Deck and in the

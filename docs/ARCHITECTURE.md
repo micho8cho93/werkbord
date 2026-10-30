@@ -997,7 +997,7 @@ Team backend imports. Team continues serving its existing console, including
 and every `WERKBORD_*` variable.
 
 The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
-(the sidebar button; the floating button is the other way in, and the person chooses either or both); **Home**, which gathers what
+(the sidebar destination, the one way in); **Home**, which gathers what
 needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**,
 **Reviews** and **Analytics**; then **a section for Personal and one for each team the person belongs to**, each listing what
 belongs to that workspace alone (its projects, and for Personal New personal project), and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, Settings and the
@@ -1026,8 +1026,8 @@ so a Team opened later starts in the same theme. Outside the desktop app (Person
 Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
 there too.
 
-**Salie** has two entry points: the sidebar button and the floating button, with a user preference for either or both.
-Both open the same dedicated Personal assistant frame (`?surface=assistant`), above the window. Existing workspace frames stay
+**Salie** has one entry point: its permanent sidebar destination (there is no floating button and no placement preference).
+It opens the dedicated Personal assistant frame (`?surface=assistant`), above the window. Existing workspace frames stay
 mounted underneath. Closing Salie hides its frame; it does not interrupt a reply or discard a pending proposal. The shell
 accepts bounded state reports for its badges and exact bridge requests from that assistant frame. It checks the frame's window
 and origin; ordinary Team frames cannot call the assistant bridge. Conversations and attachments remain on the controller's origin.

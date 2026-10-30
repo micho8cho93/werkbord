@@ -182,17 +182,8 @@ let browser, shellServer;
  await shellPage.keyboard.press('Meta+k'); await shellPage.getByTestId('palette').waitFor();
  await shellPage.screenshot({path:path.join(artifacts,'universal-palette-desktop.png')});
  await shellPage.keyboard.press('Escape');
- await side.getByRole('button',{name:'Settings',exact:true}).click();
- const placement=shellPage.getByRole('group',{name:'Where Salie appears',exact:true});
- assert.equal(await placement.count(),1,'one Salie placement control for the whole app, not one per area');
- await placement.getByRole('button',{name:'Both',exact:true}).click();
- await shellPage.getByTestId('sidebar-salie').waitFor(); await shellPage.getByTestId('salie-button').waitFor();
- await placement.getByRole('button',{name:'Floating',exact:true}).click();
- await shellPage.reload();
- await shellPage.getByTestId('salie-button').waitFor(); assert.equal(await shellPage.getByTestId('sidebar-salie').count(),0);
- await shellPage.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
- await shellPage.getByTestId('salie-button').waitFor(); assert.equal(await shellPage.getByTestId('sidebar-salie').count(),0,'the same choice applies in projects');
- console.log('PASS library previews/expansion, Universal sidebar order, unclipped hover and one persisted Salie placement for the whole app');
+ assert.equal(await shellPage.getByRole('group',{name:'Where Salie appears',exact:true}).count(),0,'Salie has one place, the sidebar; there is nothing to place');
+ console.log('PASS library previews/expansion, Universal sidebar order and unclipped hover; Salie only in the sidebar');
 
  // New-user setup offers the same preference without prompting existing users.
  await personal('POST','/onboarding/reset',{});
@@ -203,13 +194,9 @@ let browser, shellServer;
  const onboarding=shellPage.frameLocator('iframe[data-workspace=personal]');
  await onboarding.getByRole('heading',{name:'Welcome to Werkbord',exact:true}).waitFor().catch(async error=>{await shellPage.screenshot({path:path.join(artifacts,'onboarding-failure.png')}); console.log('Onboarding frame:',(await onboarding.locator('body').innerText()).slice(0,4000));throw error;});
  if(await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).isVisible()) await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).click();
- const onboardingPlacement=onboarding.getByRole('group',{name:'Where Salie appears',exact:true});
- await onboardingPlacement.getByRole('button',{name:'Sidebar',exact:true}).click();
- await shellPage.getByTestId('sidebar-salie').waitFor();
- assert.equal(await shellPage.getByTestId('salie-button').count(),0,'onboarding changes the shell placement immediately');
- assert.equal(await onboardingPlacement.getByRole('button',{name:'Sidebar',exact:true}).getAttribute('aria-pressed'),'true');
+ assert.equal(await onboarding.getByRole('group',{name:'Where Salie appears',exact:true}).count(),0,'setup does not ask where Salie goes');
  await shellPage.screenshot({path:path.join(artifacts,'salie-onboarding-desktop.png')});
- console.log('PASS onboarding reads and updates the same saved Salie placement as Settings');
+ console.log('PASS onboarding no longer asks where Salie should appear');
 
  assert.deepEqual(errors,[]);
  console.log('PASS Universal peer selector, scoped sidebar and aggregated Calendar');

@@ -11,8 +11,11 @@ A project identity is `{ workspace, project }`; storage and option keys encode t
 The selection is remembered per browser/window origin and survives destination changes, settings and app reloads.
 Opening project details synchronises the shell selection from the owning frame's existing route.
 
-Work and Calendar consume a filtered view of the existing summaries. Agents presents only execution activity already
-reported in those summaries; absence of a report does not establish an agent's availability. Analytics continues to call
+Work and Calendar consume a filtered view of the existing summaries. Agents shows the person's own coding-agent sessions
+(runs and terminals, one entry per execution, by session key: see [AGENT_SESSIONS.md](AGENT_SESSIONS.md)) in a page of their own
+Werkbord, with the execution activity already reported in those summaries in a strip above it; absence of a report does not
+establish an agent's availability. When the person's own Werkbord cannot be shown, Agents is that reported activity alone.
+Salie is one permanent sidebar destination: there is no floating button and no placement choice. Analytics continues to call
 each workspace's existing report adapter, passing the selected project only to its owning workspace. It clears prior
 figures on context changes and ignores obsolete responses. Salie displays the same context and receives it as the default
 for subsequent turns. This conversational hint is not a tool restriction or an access grant; every existing backend

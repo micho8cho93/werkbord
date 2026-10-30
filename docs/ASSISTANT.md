@@ -30,8 +30,10 @@ It can: list projects, tickets, schedules and blockers; show what an agent is wa
 a ticket; change a ticket's title, description, column, work mode, labels or planned dates; and answer an agent's
 question.
 
-It cannot, by construction, not by instruction: start, stop or configure a run, change Git or a repository, change a
-setting, archive or delete core board/project/Team data, or give an agent permission to run a command. (`recommend_next_actions` reads a bounded
+It cannot, by construction, not by instruction: stop, finish or configure a run, change Git or a repository, change a
+setting, archive or delete core board/project/Team data, or give an agent permission to run a command. The one thing it can
+do about a run is **propose starting an agent on a task** (`start_agent_run`), which only you can confirm and which opens as a
+session in Agents ([AGENT_SESSIONS.md](AGENT_SESSIONS.md)). (`recommend_next_actions` reads a bounded
 projection of repository state to work out suggestions: branch names and counts, never a path or a diff, and no operation
 changes anything.) There is no operation for any of it
 (`TestTheAssistantOffersNoRouteToRunsGitOrSettings`).
@@ -53,6 +55,7 @@ changes anything.) There is no operation for any of it
 | `create_ticket` | adds a ticket to a project's Backlog | `tickets:create` | **proposes** |
 | `update_ticket` | changes a ticket | `tickets:update` | **proposes** |
 | `answer_question` | gives an agent the answer it asked for | `questions:answer` | **proposes** |
+| `start_agent_run` | starts a coding agent on one task, through the runner's own start; the card then links to the session in Agents. The owner's assistant only: never offered to an MCP client. A task with a live session is refused with that session's key | `runs:start` | **proposes** |
 | Connected MCP tools | calls a reviewed tool on a user-configured connection | `connections:use` plus the connection's assistant grant | **proposes by default**; explicit `allow` can run without another approval |
 
 "Ticket" is the board's card, which the rest of Werkbord calls a task. In the desktop app, project lookup and confirmed ticket
@@ -156,8 +159,10 @@ The assistant belongs to the Individual controller, on your computer, and runs *
   before sending or confirming.
 - Imported Team tasks still use the Individual integration as before. Creating a connected ticket changes only its own workspace;
   it does not create a local task or start an agent.
-- Execution stays with your runner. The assistant never starts a run. Answering a question goes through the runner the
-  run is on (`Runner.Answer`), exactly as answering in the app does.
+- Execution stays with your runner. The assistant starts a run only as a proposal you confirm (`start_agent_run`), through the
+  runner's own start, so the one-active-run-per-task rule, the execution policy and the worktree rules apply as for the Run
+  button; the run records which conversation asked (`Run.Origin`). It cannot stop or finish one. Answering a question goes through
+  the runner the run is on (`Runner.Answer`), exactly as answering in the app does.
 
 ## Providers
 
@@ -335,7 +340,7 @@ keeps none ([What is kept](#what-is-kept-and-what-is-not)).
   used at any time. A model your plan cannot use ends the turn with *That model is not available to your account* and offers *Choose
   another model* and *Try again*. Moving to the other provider starts a fresh conversation with it, and the screen says so. Files you
   had agreed to share with the first are taken back, because the agreement was for that provider.
-- **New tab** (*+*) opens a compact menu with **New Salie Conversation** and **Manage Coding Agents**.
+- **New tab** (*+*) opens a compact menu with **New Salie Conversation**, a link to the coding-agent sessions in **Agents**, and **Manage Coding Agents**.
   Each conversation has an independent provider, model, reasoning, selection objective, draft, stream cursor and confirmations.
   Switch tabs with a click or the arrow keys. Double-click a tab, or choose **Rename current tab** from the menu, to name it.
   Closing a tab hides it without stopping its turn or dropping confirmations. The menu lists closed tabs for reopening.
@@ -708,10 +713,10 @@ Open Session on a running task attaches a tab to its exact project and run ID. R
 
 Instructions, answers, finish and stop use the existing project-scoped controller APIs and runner ownership. Ended runs retain their history but cannot receive live input. Approval questions use the same human-operated QuestionCard as task views; Salie cannot approve coding-agent permissions.
 
-One attention queue combines pending run questions across projects with confirmation proposals across Salie tabs, including hidden tabs. Requests retain their source identities, session stores and authority. The queue preserves its unanswered head through new arrivals and reconnects, deduplicates replay, and removes resolved, expired or withdrawn requests. The floating button shows the combined count and a quiet Needs attention bubble; its compact card renders one request at a time. Closing the card keeps requests pending. Routine output does not open it.
+One attention queue combines pending run questions across projects with confirmation proposals across Salie tabs, including hidden tabs. Requests retain their source identities, session stores and authority. The queue preserves its unanswered head through new arrivals and reconnects, deduplicates replay, and removes resolved, expired or withdrawn requests. The sidebar's Salie destination shows the combined count; there is no floating button and no compact card. A request waits in its own conversation (a proposal) or in its session in Agents (a run's question) until you answer it. Routine output does not open anything.
 
-The desktop shell keeps the assistant frame alive independently of its full-window surface. Only the authenticated Individual workspace frame may request a run tab, using bounded opaque project/run IDs. The compact card remains inside that same authenticated assistant frame: answers and proposal contents are not relayed through the shell.
+The desktop shell keeps the assistant frame alive independently of its full-window surface. Only the authenticated Individual workspace frame, and Salie's own frame, may ask the shell to open a session in Agents, and only by a validated session key (`run:<id>` or `terminal:<id>`); Agents may ask the shell to go back to Salie, naming at most an opaque conversation ID. Answers and proposal contents are never relayed through the shell.
 
 ## Native terminal tabs (Phase 3)
 
-Salie can open persistent native Claude Code and Codex terminals directly from New tab, independent of task execution and restricted assistant conversations. See [Native terminal sessions](NATIVE_TERMINALS.md) for execution boundaries, reconnection, PTY support, authentication and limits.
+Native Claude Code and Codex terminals are opened and managed in **Agents**, no longer from Salie's New tab on a computer: Salie links to sessions and does not host a second terminal. They are independent of task execution and restricted assistant conversations, and a terminal can be standalone or for a task. See [Agent sessions](AGENT_SESSIONS.md) and [Native terminal sessions](NATIVE_TERMINALS.md) for execution boundaries, reconnection, PTY support, authentication and limits.

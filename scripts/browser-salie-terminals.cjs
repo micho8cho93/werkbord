@@ -48,8 +48,17 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(token => { localStorage.setItem('werkbord.token', token); localStorage.setItem('werkbord.theme', 'light'); }, token);
   const page = await context.newPage(); lastPage = page; const errors = []; page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000);
-  await page.goto(web + '/#/control'); await page.getByTestId('assistant-button').first().click();
-  async function launch(agent) { await page.getByRole('button', { name: 'New tab', exact: true }).click(); await page.getByRole('dialog', { name: 'New tab', exact: true }).getByRole('button', { name: agent, exact: true }).click(); await page.getByRole('button', { name: 'Open terminal', exact: true }).click(); await page.locator('.terminal-session .identity').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready')); }
+  // Terminals are opened and managed in Agents (docs/AGENT_SESSIONS.md); Salie no longer launches them on a computer.
+  await api('POST', '/api/onboarding/tours/seen', { surface: 'desktop' });
+  await page.goto(web + '/#/sessions');
+  async function launch(agent) {
+    await page.getByRole('button', { name: 'New terminal', exact: true }).click();
+    await page.locator('form.launch select').nth(0).selectOption({ label: agent });
+    const was = await page.evaluate(() => location.hash);
+    await page.getByRole('button', { name: 'Open terminal', exact: true }).click();
+    await page.waitForFunction(h => location.hash !== h && decodeURIComponent(location.hash).startsWith('#/sessions/terminal:'), was);
+    await page.locator('.terminal-session .identity').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready'));
+  }
   await launch('claude-code'); await page.locator('.xterm-helper-textarea').pressSequentially('alpha'); await page.keyboard.press('Enter');
   await launch('codex'); await page.locator('.xterm-helper-textarea').pressSequentially('beta'); await page.keyboard.press('Enter');
   let sessions = await api('GET', '/api/terminals'); assert.equal(sessions.filter(s => s.state === 'running').length, 2);
@@ -67,11 +76,13 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   }
 
   await page.screenshot({ path: path.join(artifacts, 'desktop.png') });
-  await page.getByRole('button', { name: /Close codex .* tab/ }).click();
+  // Leaving Agents only detaches the page: both processes keep running, and each is listed once when the page returns.
+  await page.goto(web + '/#/control');
   sessions = await api('GET', '/api/terminals'); assert.equal(sessions.filter(s => s.state === 'running').length, 2);
-  await page.getByRole('button', { name: 'New tab', exact: true }).click(); await page.getByRole('dialog', { name: 'New tab', exact: true }).getByRole('button', { name: /codex · Terminal fixture · running/ }).click();
+  await page.goto(web + '/#/sessions');
+  await page.waitForFunction(() => document.querySelectorAll('[data-session^="terminal:"]').length === 2);
+  await page.locator('[data-session^="terminal:"]').filter({ hasText: /codex/ }).click();
   await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
-  await page.keyboard.press('Escape'); assert.equal(await page.getByTestId('assistant').count(), 1);
   await page.setViewportSize({ width: 390, height: 844 }); await delay(250); await page.screenshot({ path: path.join(artifacts, 'narrow.png') });
   await page.getByRole('button', { name: 'Terminate', exact: true }).click();
   await page.getByRole('status').filter({ hasText: /^Process ended$/ }).waitFor();

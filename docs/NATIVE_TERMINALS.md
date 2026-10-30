@@ -1,12 +1,14 @@
-# Salie native terminal sessions (Phases 3–4)
+# Native terminal sessions (Phases 3–4)
 
-Salie's New tab menu can open Claude Code and Codex directly, without a task or a Salie conversation. Enable **Direct CLI** in Settings → Agents; detection must report the CLI installed and available. A verified sign-in, or an explicit owner sign-in declaration when detection is unknown, is required. A known signed-out agent is always refused. ACP support alone never grants terminal support.
+Native terminals are opened in **Agents** (*New terminal*; on a phone they remain inside Salie's session picker, see below). They were
+first opened from Salie's New tab; Salie now links to sessions and Agents holds them ([AGENT_SESSIONS.md](AGENT_SESSIONS.md)). Every
+statement below about the process, the PTY, authorisation and limits is unchanged. A terminal may be for a task or standalone. Claude Code and Codex start directly, without a Salie conversation. Enable **Direct CLI** in Settings → Agents; detection must report the CLI installed and available. A verified sign-in, or an explicit owner sign-in declaration when detection is unknown, is required. A known signed-out agent is always refused. ACP support alone never grants terminal support.
 
 Select an active registered local repository, then Open terminal. Both CLIs launch their native interactive UI with **no arguments**, in that repository. Their own permission prompts, credentials and configuration apply. The working directory is **not a filesystem sandbox**: an agent can access the operating system according to the local user's permissions. This flow does not alter task execution, assistant provider restrictions, worktrees or task policies.
 
 ## Ownership and reconnection
 
-`internal/terminal` is an Individual execution service owned by the controller. Its PTYs and child processes do not depend on browser requests. Closing a tab, hiding Salie or disconnecting the browser detaches only the frontend. Reopen closed tabs to attach again. On a new browser session Salie discovers existing service sessions and offers them under Reopen closed tabs, even when its browser tab index has been lost. Terminate explicitly kills the owned process group.
+`internal/terminal` is an Individual execution service owned by the controller. Its PTYs and child processes do not depend on browser requests. Closing a tab, hiding Salie or disconnecting the browser detaches only the frontend. Reopen closed tabs to attach again. On a new browser session Agents lists the existing service sessions, even when the browser has lost everything; an enrolled phone's Salie still discovers the ones granted to it and offers them under Reopen closed tabs. Terminate explicitly kills the owned process group.
 
 A controller shutdown stops its terminals. A controller or execution-device restart marks previously running records **interrupted** and safely reaps an old process only when its PID, start identity and process group still match. It never relaunches an agent or resubmits instructions. Completed/stopped metadata remains discoverable; terminal output is memory-only and is not restored after a restart.
 
@@ -25,7 +27,9 @@ Reviewed native entry points: [`claude`](https://docs.anthropic.com/en/docs/clau
 All endpoints sit behind the existing host, origin and owner authentication middleware. Native terminals are unavailable when controller authentication has been explicitly disabled; the default authenticated configuration enables them. They require either a local owner connection or an enrolled phone with an explicit session grant, and a terminal service enabled on that listener. An owner token on the private-network listener cannot attach. Session IDs are random 192-bit identifiers. Every operation verifies both project and session ID; another project's path cannot attach, resize, stop or inject input into a session. An owner credential authorises the owner's sessions; there is no multi-user terminal API.
 
 - `GET /api/terminals`: metadata only, with no PID, executable, environment or credentials.
-- `POST /api/projects/{pid}/terminals`: only `agentId`, `device`, `cols`, `rows`.
+- `POST /api/projects/{pid}/terminals`: only `agentId`, `device`, `cols`, `rows` and an optional `taskId` of that project (checked before any process starts; it only records which task the terminal is for).
+- `PUT /api/projects/{pid}/terminals/{id}/task`: `taskId` associates, or an empty one removes the association. The local owner's alone; a phone's grant does not cover it. Metadata only: it sends nothing to the agent.
+- `GET /api/agent-sessions`: terminals and task runs listed together under one key each. See [AGENT_SESSIONS.md](AGENT_SESSIONS.md).
 - `GET /api/projects/{pid}/terminals/{id}/output?after=N`: authenticated bounded HTTP long polling, compatible with the existing fetch-based streaming model. Returns base64 PTY bytes, a byte cursor and current session metadata. Polls wait at most 20 seconds, return at most 64 KiB, and are cancelled when the frontend detaches.
 - `POST .../{id}/input`: `data`, up to 16 KiB UTF-8, and `client`/`sequence` receipts plus the `rendered` byte cursor (required for phones); an eight-entry per-session queue bounds outstanding input. Input is delivered in order. A failed request is never automatically retried.
 - `POST .../{id}/resize`: only `cols` (2–500) and `rows` (2–300).

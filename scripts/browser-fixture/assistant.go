@@ -41,7 +41,10 @@ func newFixtureAssistant(mode string, dir string, db store.Store, deps service.D
 			panic(err)
 		}
 	}
-	backend := appops.NewBackend(appops.Services{Knowledge: knowledge, Recommender: recommender, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Control: &service.ControlCenter{Deps: deps}, Answer: mgr.Answer})
+	backend := appops.NewBackend(appops.Services{Knowledge: knowledge, Recommender: recommender, Projects: projects, Tasks: tasks, Labels: &service.Labels{Deps: deps}, Runs: runs, Control: &service.ControlCenter{Deps: deps}, Answer: mgr.Answer,
+		Start: func(ctx context.Context, in appops.StartRun) (*domain.Run, error) {
+			return mgr.Start(ctx, runner.StartInput{TaskID: in.TaskID, AgentID: in.AgentID, Instructions: in.Instructions, Origin: in.Origin})
+		}})
 	confirmTTL := time.Duration(0)
 	if millis, err := strconv.Atoi(os.Getenv("WERKBORD_BROWSER_ASSISTANT_TTL_MS")); err == nil && millis > 0 {
 		confirmTTL = time.Duration(millis) * time.Millisecond
@@ -257,6 +260,13 @@ func (s *scripted) Run(ctx context.Context, t provider.Turn, emit func(provider.
 		}
 		encoded, _ := json.Marshal(args)
 		return say("Preparing the task.\n```werkbord-call\n" + fmt.Sprintf(`{"id":"plan-1","name":"create_ticket","arguments":%s}`, encoded) + "\n```\n")
+	case strings.Contains(low, "start the agent on") && !afterResults:
+		// "start the agent on <project id> <task id>": a proposal to start the fixture agent on that task.
+		ids := regexp.MustCompile(`(prj|tsk)_[a-z0-9]+`).FindAllString(p, -1)
+		if len(ids) < 2 {
+			return say("Tell me the project and the task.")
+		}
+		return say("Preparing to start the agent.\n", "```werkbord-call\n"+fmt.Sprintf(`{"id":"run-1","name":"start_agent_run","arguments":{"projectId":%q,"ticketId":%q,"agentId":"fixture"}}`, ids[0], ids[1])+"\n```\n")
 	case strings.Contains(low, "ticket") && !afterResults:
 		projectID := firstProject(p)
 		return say("Preparing that.\n", "```werkbord-call\n"+fmt.Sprintf(`{"id":"c1","name":"create_ticket","arguments":{"projectId":%q,"title":"From the assistant"}}`, projectID)+"\n```\n")

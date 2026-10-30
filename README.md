@@ -108,10 +108,11 @@ for work that is not code. Team has the same, with labels shared by the workspac
 admins. See [docs/PLANNING.md](docs/PLANNING.md).
 
 **Salie.** A conversation with your own Claude Code, Codex, Gemini CLI or OpenCode, signed in as you already are, about your board: open
-**Salie** from the sidebar or the floating button (both open the same conversation) and a full-window conversation opens out of the button. It can
-look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, or an answer to
-an agent's question. Nothing happens until you confirm it on the screen, every operation is audited, and it has no operation that
-runs, stops or configures anything. You choose the provider, model and thinking level, and can change them mid-conversation. You can
+**Salie** from the sidebar and a full-window conversation opens out of its button. It can
+look up tickets, schedules, blockers and what agents are waiting on, and *propose* a new ticket, a change to one, an answer to
+an agent's question, or starting an agent on a task, which then opens as a session in **Agents** (one identity wherever it is
+opened; [docs/AGENT_SESSIONS.md](docs/AGENT_SESSIONS.md)). Nothing happens until you confirm it on the screen, every operation is
+audited, and it has no operation that stops, finishes or configures a run, or touches Git or a setting. You choose the provider, model and thinking level, and can change them mid-conversation. You can
 show it a text file (asked first, kept in memory for at most half an hour, shown once) and dictate with your browser's own speech
 recognition (told first where the audio may go; not Claude or ChatGPT voice). Closing it stops nothing: a reply keeps streaming and
 a waiting change keeps waiting. It uses your existing provider sign-in, with conversation state kept locally. See [docs/ASSISTANT.md](docs/ASSISTANT.md).
