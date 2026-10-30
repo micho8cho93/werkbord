@@ -167,9 +167,12 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 
 ### The window's workspace navigation
 
-Home shows Personal and Team places, recorded catch-up, attention and Calendar. The sidebar lists Home, Calendar,
-Reviews and Analytics, then Personal and each Team with its projects. Devices & Hosting and Settings remain at the foot.
-Salie uses the existing sidebar/floating placement preference and the same conversation surface.
+The desktop shell keeps Work, Calendar, Agents, Analytics and Salie in one fixed sidebar, with Settings separately at
+the foot. A native dropdown above the destinations groups Personal projects and Team projects by ownership, with
+All Projects as the aggregate context. At narrow widths the sidebar becomes an icon rail; the current project context
+stays visible above the content. Workspace management is in Settings → Appearance, and Jump to retains project and
+workspace detail destinations. These controls use the existing paper surfaces, Geist type, hairline borders and focus
+colour. See [Unified desktop navigation](docs/UNIFIED_NAVIGATION.md) for context behaviour and verification.
 Generated workspaces, their creation actions and Data Library are removed. Calendar has no Timeline presentation.
 
 ### Team console

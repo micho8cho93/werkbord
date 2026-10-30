@@ -4,12 +4,13 @@
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
 import { ask } from './native';
+import { contextKey, parseContext, projectOptions, projectInHref, scopedOverview, type ProjectIdentity } from './project-context';
 import { surfaceUrl } from './frames';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { App, Overview, Target, WorkspaceView } from './types';
 import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
 
-export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help';
+export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'agents';
 
 /** Where the assistant grows out of: the button that opened it, in the window's coordinates. */
 export interface Anchor {
@@ -17,27 +18,6 @@ export interface Anchor {
   y: number;
   width: number;
   height: number;
-}
-
-const COLLAPSED_KEY = 'werkbord.shell.sidebar';
-const SECTIONS_KEY = 'werkbord.shell.sections';
-
-/** The sections of the sidebar the person folded (a section is a workspace's id): remembered on this computer. */
-function readFolded(): string[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 64) : [];
-  } catch {
-    return [];
-  }
-}
-
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === 'collapsed';
-  } catch {
-    return false;
-  }
 }
 
 export interface OpenFrame {
@@ -59,6 +39,23 @@ export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
   page = $state<Page>('inbox');
+  selectedProject = $state<ProjectIdentity | null>((() => {
+    try { return parseContext(localStorage.getItem('werkbord.shell.project') ?? ''); } catch { return null; }
+  })());
+  get projects() { return projectOptions(this.view?.items ?? [], this.overview); }
+  get contextOverview(): Overview | null { return scopedOverview(this.overview, this.view?.items ?? [], this.selectedProject); }
+  get contextLabel(): string {
+    if (!this.selectedProject) return 'All Projects';
+    const p = this.projects.find(p => contextKey(p) === contextKey(this.selectedProject));
+    return p ? `${p.name} · ${p.owner}` : 'Project unavailable';
+  }
+  selectProject(selected: ProjectIdentity | null): void {
+    this.selectedProject = selected;
+    try { localStorage.setItem('werkbord.shell.project', contextKey(selected)); } catch { /* Selection still works. */ }
+    // Detail screens are contextual Work; switching projects returns to the shared Work surface.
+    if (this.page === 'workspace') this.go('inbox');
+  }
+
   /**
    * A page of the window's own (Home, Calendar, Devices & Hosting) is on show rather than a workspace's page. It
    * is not a mode the person chooses: there is one sidebar, and this only says which kind of place they are in.
@@ -82,9 +79,6 @@ export class Model {
   paletteOpen = $state(false);
   /** Where each open workspace says it is, as a place inside it: what the sidebar marks as current. */
   places = $state<Record<string, string>>({});
-  sidebarCollapsed = $state(readCollapsed());
-  /** The sidebar sections the person folded. */
-  folded = $state<string[]>(readFolded());
   addOpen = $state(false);
   loaded = $state(false);
   setupRequired = $state(false);
@@ -126,16 +120,6 @@ export class Model {
     this.paletteOpen = !this.paletteOpen;
   }
 
-  /** Folds or unfolds a sidebar section. */
-  toggleSection(id: string): void {
-    this.folded = this.folded.includes(id) ? this.folded.filter((x) => x !== id) : [...this.folded, id];
-    try {
-      localStorage.setItem(SECTIONS_KEY, JSON.stringify(this.folded));
-    } catch {
-      // Remembering is a convenience; the section still folds.
-    }
-  }
-
   /** Which part of Werkbord Settings is for: the whole of it, Personal, or the team on show. */
   get scope(): Scope {
     return scopeOf(this.universal, this.current, this.view?.items.find((i) => i.id === this.current)?.kind);
@@ -162,6 +146,16 @@ export class Model {
   /** Records where a workspace's page says it is. */
   setPlace(id: string, place: string): void {
     if (this.frames[id]) this.places[id] = place;
+    if (this.page === 'workspace' && this.current === id) {
+      const kind = this.view?.items.find(i => i.id === id)?.kind;
+      const project = kind && projectInHref(kind, place);
+      if (project && this.projects.some(p => p.workspace === id && p.project === project)) this.selectProjectFromRoute(id, project);
+    }
+  }
+
+  private selectProjectFromRoute(workspace: string, project: string): void {
+    this.selectedProject = { workspace, project };
+    try { localStorage.setItem('werkbord.shell.project', contextKey(this.selectedProject)); } catch { /* Optional persistence. */ }
   }
 
   /**
@@ -264,16 +258,7 @@ export class Model {
     return this.open(id, place);
   }
 
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    try {
-      localStorage.setItem(COLLAPSED_KEY, this.sidebarCollapsed ? 'collapsed' : 'expanded');
-    } catch {
-      // Remembering is a convenience; the sidebar still works.
-    }
-  }
-
-  /** Starts every window on Home; workspace places remain available when explicitly opened. */
+  /** Starts every window on Work; workspace places remain available when explicitly opened. */
   async start(): Promise<void> {
     await this.refresh();
     this.page = 'inbox';
@@ -306,6 +291,7 @@ export class Model {
       const previous = this.view;
       this.view = view;
       this.settleSetup(view);
+      if (this.selectedProject && !view.items.some(i => i.id === this.selectedProject?.workspace && !['setup', 'leaving'].includes(i.state))) this.selectProject(null);
       for (const id of Object.keys(this.frames)) {
         const item = view.items.find(i => i.id === id);
         const old = previous?.items.find(i => i.id === id);
@@ -332,9 +318,17 @@ export class Model {
       const overview = await ask((a) => a.Overview());
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
       this.overview = { ...overview, entries: this.accessibleEntries(overview) };
+      const selected = this.selectedProject;
+      const source = selected && this.overview.entries.find(e => e.workspace.id === selected.workspace);
+      if (selected && source?.summary && !source.error && this.view?.items.find(i => i.id === selected.workspace)?.state === 'ready' && !source.summary.projects.some(p => p.id === selected.project)) {
+        this.selectProject(null);
+        this.notice = 'The selected project is no longer accessible. Showing All Projects.';
+      }
       return true;
     } catch {
-      // The overview is what is beside the work; a failure to read it is shown by its pages, not as an error here.
+      // Keep project labels for recovery, but never present old records as a current authorised aggregate.
+      const previous = this.overview ?? { at: '', entries: (this.view?.items ?? []).map(workspace => ({ workspace })) };
+      this.overview = { ...previous, entries: previous.entries.map(e => ({ ...e, error: 'Workspace summaries could not be refreshed. Reconnect to try again.' })) };
       return false;
     }
   }
@@ -345,6 +339,9 @@ export class Model {
 
   /** Opens a workspace on the Workspace page, and optionally somewhere inside it. */
   async open(id: string, place?: string): Promise<void> {
+    const kind = this.view?.items.find(i => i.id === id)?.kind;
+    const project = kind && place && projectInHref(kind, place);
+    if (project && this.projects.some(p => p.workspace === id && p.project === project)) this.selectProjectFromRoute(id, project);
     this.universal = false;
     if (id !== this.current) this.leaveAssistant();
     this.error = '';
@@ -468,10 +465,10 @@ export class Model {
   go(p: Page): void {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
-    if (['calendar', 'inbox', 'reviews', 'analytics'].includes(p)) this.universal = true;
+    if (['calendar', 'inbox', 'reviews', 'analytics', 'agents'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;
-    if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'workspaces') void this.refreshOverview();
+    if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'agents' || p === 'workspaces') void this.refreshOverview();
   }
 
   /** The new-team dialog's work, once it has started: kept here so that closing the dialog does not lose it. */

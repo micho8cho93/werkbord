@@ -16,7 +16,7 @@
     // Refresh before explanation; never send cached Team content after permission changes.
     if (!await model.refreshOverview()) { explanationError = 'Recent activity could not be refreshed. Retry before sharing it with Salie.'; return; }
     explanationError = '';
-    const current = model.overview && previous ? recap(model.overview, previous, through) : null;
+    const current = model.contextOverview && previous ? recap(model.contextOverview, previous, through) : null;
     const evidence = current?.items.slice(0, 30).map(i => `- ${i.change.kind === 'completed' ? 'Completed' : 'Merged pull request'}: ${i.change.title} (${i.name}, ${new Date(i.change.at).toLocaleString()}). Source: ${i.change.href}`) ?? [];
     const coverage = [current?.incomplete ? 'Some history is outside the available coverage.' : '', current?.unavailable.length ? `Unavailable workspaces: ${current.unavailable.join(', ')}.` : '', (current?.items.length ?? 0) > evidence.length ? `Showing the first ${evidence.length} of ${current?.items.length} recorded events.` : ''].filter(Boolean).join(' ');
     await model.explainCatchUp(`Catch me up on the work recorded since ${new Date(previous!.at).toLocaleString()}. Explain what these facts establish and link to the source records. Say where the evidence is incomplete.\n${coverage}\n\n${evidence.join('\n') || 'No completion or pull-request merge events were recorded in this interval.'}`);
@@ -41,7 +41,8 @@
   .catchup { border-block: 1px solid var(--border); padding-block: 12px; flex: none; }
   .heading, .facts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
   h2, p { margin: 0; } h2 { font-size: 14px; } p { font-size: 13px; margin-top: 6px; }
-  .facts { margin-top: 8px; } .muted { color: var(--text-2); font-size: 13px; }
+  .facts { margin-top: 8px; }
+  .facts .btn { max-width: 100%; white-space: normal; text-align: left; } .muted { color: var(--text-2); font-size: 13px; }
   ul { margin: 8px 0 0; padding: 0; list-style: none; max-height: 160px; overflow: auto; }
   li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 </style>

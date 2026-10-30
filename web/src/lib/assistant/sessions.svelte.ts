@@ -1,5 +1,6 @@
 // One surface, many independent instances of the existing conversation client. Transcript caches
 // remain in sessionStorage; only provider handles/settings live on the controller.
+import { assistantProjectContext } from './project-context.svelte';
 import { terminalApi, type TerminalSession } from './terminal';
 import { app } from '../state.svelte';
 import { RunSession, liveRun } from './run-session.svelte';
@@ -162,6 +163,7 @@ export class AssistantSessions {
       for (const tab of this.tabs) { tab.store.now = Date.now(); tab.store.expireFiles(); }
     }, 15_000);
     const unlisten = onAssistantRequest(req => {
+      if (req.projectContext !== undefined) assistantProjectContext.current = req.projectContext;
       if (req.action === 'close') { this.compact = false; this.hide(); }
       else if (req.action === 'compact') this.compact = !this.compact;
       else if (req.run) this.openRun(req.run.projectId, req.run.runId);

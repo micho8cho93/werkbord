@@ -14,11 +14,11 @@
   let where = $state('all');
   let kind = $state<'all' | ReviewKind>('all');
 
-  const all = $derived(model.overview ? reviewRows(model.overview, where) : []);
+  const all = $derived(model.contextOverview ? reviewRows(model.contextOverview, where) : []);
   const rows = $derived(kind === 'all' ? all : all.filter((r) => r.kind === kind));
   const countOf = (k: 'all' | ReviewKind): number => (k === 'all' ? all.length : all.filter((r) => r.kind === k).length);
   const kinds = $derived(kindIds.map((id) => ({ id, label: id === 'all' ? 'All' : KIND_LABEL[id], count: countOf(id) })));
-  const silent = $derived((model.overview?.entries ?? []).filter((e) => (where === 'all' || e.workspace.id === where) && (e.error || !e.summary)));
+  const silent = $derived((model.contextOverview?.entries ?? []).filter((e) => (where === 'all' || e.workspace.id === where) && (e.error || !e.summary)));
 </script>
 
 <PageFrame id="reviews-h" title="Reviews" lede="Work waiting on a review, across Personal and your teams.">
@@ -32,7 +32,7 @@
     <Notice><WorkspaceTag workspace={e.workspace} /> Current status unavailable{e.error ? `: ${e.error}` : ''}. Its reviews are left out.</Notice>
   {/each}
 
-  {#if !model.overview}
+  {#if !model.contextOverview}
     <p class="empty" role="status">Looking…</p>
   {:else if rows.length === 0}
     <p class="empty" data-testid="reviews-empty">{kind === 'all' ? 'Nothing is waiting on a review.' : `Nothing in “${KIND_LABEL[kind]}”.`}</p>

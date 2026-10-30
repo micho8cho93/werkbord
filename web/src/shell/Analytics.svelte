@@ -9,11 +9,10 @@
   import Ring from '../lib/charts/Ring.svelte';
   import StatTile from '../lib/charts/StatTile.svelte';
   import { analyticsDuration, measuredCost, measuredNumber, percent } from '../lib/analytics';
-  import { activityOf, mergeActivity, projectsWithin, RANGES, reads, runsAvailable, runsOf, wheres } from './analytics';
+  import { activityOf, mergeActivity, RANGES, runsAvailable, runsOf } from './analytics';
   import FilterBar from './FilterBar.svelte';
   import Notice from './Notice.svelte';
   import PageFrame from './PageFrame.svelte';
-  import WherePicker from './WherePicker.svelte';
   import Segmented from '../lib/Segmented.svelte';
   import { model } from './model.svelte';
   import { ask } from './native';
@@ -25,22 +24,14 @@
   const views = ['Work', 'Runs and usage'] as const;
   type View = (typeof views)[number];
   let view = $state<View>('Work');
-  let where = $state('all');
-  let projectKey = $state('');
+  const where = $derived(model.selectedProject?.workspace ?? 'all');
+  const projectKey = $derived(model.selectedProject?.project ?? '');
   let days = $state<number>(30);
   let series = $state('both');
-
   const items = $derived(model.view?.items);
-  const places = $derived(wheres(items));
-  const projects = $derived(projectsWithin(where, items, model.overview));
-  const project = $derived(projects.find((p) => `${p.workspace}|${p.id}` === projectKey));
-  const targets = $derived(reads(where, project, items));
-  const nameOf = (id: string): string => (id === 'personal' ? 'Personal' : (items?.find((i) => i.id === id)?.name ?? id));
-
-  // A project that is no longer there (removed) is dropped, not kept as a ghost filter; the place is dropped by the picker.
-  $effect(() => {
-    if (projectKey && !project) projectKey = '';
-  });
+  const targets = $derived((items ?? []).filter(i => i.state === 'ready' && (!model.selectedProject || i.id === model.selectedProject.workspace))
+    .map(i => ({ workspace: i.id, project: model.selectedProject?.project ?? '' })));
+  const nameOf = (id: string): string => items?.find(i => i.id === id)?.name ?? id;
 
   let parts = $state<{ workspace: string; raw: unknown }[]>([]);
   let failed = $state<{ workspace: string; message: string }[]>([]);
@@ -69,7 +60,9 @@
   }
 
   $effect(() => {
-    void [where, projectKey, days, places.length];
+    void [where, projectKey, days, targets.map(t => t.workspace).join()];
+    parts = []; failed = []; loaded = false;
+    ++requestId;
     const timer = setTimeout(() => void load(), 120);
     return () => clearTimeout(timer);
   });
@@ -86,9 +79,7 @@
   const hasThroughput = $derived(!!activity?.days.some((d) => d.created || d.completed));
   const doneShare = $derived(activity && activity.created > 0 ? activity.completed / activity.created : null);
   const heat = $derived(activity?.days.map((d) => ({ date: d.date, value: d.created + d.completed })) ?? []);
-  const describe = $derived(
-    project ? `${project.name} · ${nameOf(project.workspace)}` : where === 'all' ? 'Personal and all teams' : where === 'personal' ? 'Personal only' : nameOf(where),
-  );
+  const describe = $derived(model.contextLabel);
   const outcomes: [string, string, string][] = [['completed', 'Normal exit', 'var(--ok)'], ['failed', 'Failed', 'var(--danger)'], ['stopped', 'Stopped', 'var(--accent)'], ['blocked', 'Blocked', 'var(--accent)'], ['waiting_for_user', 'Waiting', 'var(--warn)'], ['running', 'Running', 'var(--accent)']];
   const outcomeSlices = $derived(runs ? outcomes.map(([state, label, tone]) => ({ label, value: (runs.totals.outcomes as Record<string, number | undefined>)[state] ?? 0, tone })) : []);
   const usage = $derived(runs ? [
@@ -98,15 +89,8 @@
   ] : []);
 </script>
 
-<PageFrame id="analytics-h" title="Analytics" lede="How work is going, across Personal and your teams. Choose where to look and for how long.">
+<PageFrame id="analytics-h" title="Analytics" lede="How work is going in the selected project context.">
   <FilterBar busy={loading}>
-    <WherePicker bind:where label="Analytics place" testid="analytics-where" />
-    <label class="pick"><span>Project</span>
-      <select bind:value={projectKey} aria-label="Analytics project" data-testid="analytics-project">
-        <option value="">All projects</option>
-        {#each projects as p (p.workspace + p.id)}<option value={`${p.workspace}|${p.id}`}>{where === 'all' ? `${p.name} · ${nameOf(p.workspace)}` : p.name}</option>{/each}
-      </select>
-    </label>
     <label class="pick"><span>Period</span>
       <select bind:value={days} aria-label="Analytics period" data-testid="analytics-days">
         {#each RANGES as d (d)}<option value={d}>Last {d} days</option>{/each}

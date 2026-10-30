@@ -83,6 +83,7 @@
       send({
         type: 'werkbord.assistant',
         action: request.action,
+        projectContext: model.selectedProject ? { workspace: model.selectedProject.workspace, project: model.selectedProject.project, label: model.contextLabel } : null,
         ...(request.run ? { run: request.run } : {}),
         ...(request.catchUpPrompt === undefined ? {} : {catchUpPrompt: request.catchUpPrompt}),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },

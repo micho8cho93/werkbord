@@ -107,7 +107,7 @@ export interface Destination {
   /** Where it is, in words: "Acme · project", "Personal". */
   hint: string;
   go:
-    | { page: 'inbox' | 'calendar' | 'reviews' | 'analytics' | 'workspaces' | 'settings' }
+    | { page: 'inbox' | 'calendar' | 'agents' | 'reviews' | 'analytics' | 'workspaces' | 'settings' }
     | { workspace: string; place: string }
     | { addTeam: true };
 }
@@ -115,8 +115,9 @@ export interface Destination {
 /** Every place the palette can go to: the window's own pages, and for each workspace its home, projects and places. */
 export function destinations(items: readonly Item[] | undefined, overview: Overview | null): Destination[] {
   const out: Destination[] = [
-    { id: 'page:inbox', title: 'Home', hint: 'Everything that needs your attention', go: { page: 'inbox' } },
+    { id: 'page:inbox', title: 'Work', hint: 'Everything that needs your attention', go: { page: 'inbox' } },
     { id: 'page:calendar', title: 'Calendar', hint: 'Across Personal and your teams', go: { page: 'calendar' } },
+    { id: 'page:agents', title: 'Agents', hint: 'Activity in the selected project context', go: { page: 'agents' } },
     { id: 'page:reviews', title: 'Reviews', hint: 'Work waiting on a review', go: { page: 'reviews' } },
     { id: 'page:analytics', title: 'Analytics', hint: 'How work is going, by place and period', go: { page: 'analytics' } },
   ];

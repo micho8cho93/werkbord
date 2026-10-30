@@ -2,33 +2,24 @@
   import Calendar from './Calendar.svelte';
   import CatchUp from './CatchUp.svelte';
   import Inbox from './Inbox.svelte';
-  import { attentionGroups, standing, tallyByKind } from './aggregate';
+  import { attentionGroups, tallyByKind } from './aggregate';
   import { model } from './model.svelte';
-  import type { Item, Overview } from './types';
+  import type { Overview } from './types';
 
-  // Home is everything that spans the whole of Werkbord on one page. At the top, how much waits in Personal and in your teams;
-  // then Personal and each team; then what needs you beside the calendar. The panels scroll inside themselves, so the page
-  // itself uses the whole window and does not scroll on a screen that is large enough.
+  // Work preserves the existing attention and calendar panels within the shared project context.
   let { overview }: { overview: Overview | null } = $props();
 
   const groups = $derived(overview ? attentionGroups(overview) : []);
   const tally = $derived(tallyByKind(groups));
   const waiting = $derived(tally.reduce((n, t) => n + t.actions, 0));
-  const places = $derived((model.view?.items ?? []).filter((i) => i.state !== 'setup' && i.state !== 'leaving'));
-  const entry = (i: Item) => overview?.entries.find((e) => e.workspace.id === i.id);
-  const needs = (i: Item) => (entry(i)?.summary?.attention ?? []).filter((a) => a.severity !== 'info').length;
-  const detail = (i: Item): string => {
-    const e = entry(i);
-    if (!e) return i.state === 'ready' ? 'Working' : i.detail || i.state;
-    return standing(e);
-  };
+  const project = $derived(model.selectedProject && model.contextOverview?.entries.find(e => e.workspace.id === model.selectedProject?.workspace)?.summary?.projects.find(p => p.id === model.selectedProject?.project));
 </script>
 
 <section class="hub" aria-labelledby="hub-h">
   <header class="top">
     <div class="title">
-      <h1 id="hub-h">Home</h1>
-      <p class="lede">{!overview ? 'Loading Personal and your teams…' : waiting ? `${waiting} ${waiting === 1 ? 'item needs' : 'items need'} attention across Personal and your teams.` : 'Nothing needs your attention across Personal and your teams.'}</p>
+      <h1 id="hub-h">Work</h1>
+      <p class="lede">{!overview ? 'Loading Personal and your teams…' : waiting ? `${waiting} ${waiting === 1 ? 'item needs' : 'items need'} attention in this project context.` : 'Nothing needs your attention in this project context.'}</p>
     </div>
     {#if overview}
       <ul class="tally" aria-label="Waiting by kind of workspace">
@@ -44,21 +35,9 @@
     {/if}
   </header>
 
-  <CatchUp {overview} {waiting} />
+  {#if !model.selectedProject || overview?.entries.some(e => e.summary?.changes)}<CatchUp {overview} {waiting} />{/if}
 
-  <div class="places-heading"><h2>Places</h2></div>
-  <ul class="shelf" aria-label="Places to go">
-    {#each places as i (i.id)}
-      <li>
-        <button class="tile" type="button" data-kind={i.kind} onclick={() => model.open(i.id)} data-testid="hub-workspace-{i.id}">
-          <span class="swatch" aria-hidden="true"></span>
-          <span class="tx"><strong>{i.kind === 'personal' ? 'Personal' : i.name}</strong><small>{detail(i)}</small></span>
-          {#if needs(i)}<span class="num" aria-label="{needs(i)} waiting for you">{needs(i)}</span>{/if}
-        </button>
-      </li>
-    {/each}
-  </ul>
-
+  {#if project && model.selectedProject}<div><button class="btn" type="button" onclick={() => model.goTo(model.selectedProject!.workspace, project!.href)}>Open project</button></div>{/if}
 
   <div class="deck">
     <section class="panel needs" aria-labelledby="hub-needs-h">
@@ -99,36 +78,6 @@
   .n { font-family: var(--mono); font-size: 14px; font-weight: 600; }
   .cap { color: var(--text-2); margin-right: 6px; }
 
-  .places-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
-  .places-heading h2 { margin: 0; }
-  .shelf { max-height: min(28vh, 240px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 10px; margin: -6px; padding: 6px; list-style: none; flex: none; }
-  .tile {
-    --kind: var(--accent);
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 58px;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--card-sh);
-    color: var(--text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.14s, background 0.14s;
-  }
-  .tile[data-kind='team'] { --kind: var(--block); }
-  .tile:hover { border-color: color-mix(in srgb, var(--text-2) 50%, var(--border)); background: var(--surface-2); }
-  .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .tx { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-  .tx strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
-  .tx small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: 12px; }
-  .num { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--amber); color: #0a0a0a; font-family: var(--mono); font-size: 12px; line-height: 20px; text-align: center; }
-
   .deck { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(340px, 4fr) minmax(0, 7fr); gap: 14px; }
   .panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--card-sh); overflow: hidden; }
   .panel > h2 { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 13px; }
@@ -137,7 +86,6 @@
 
   @media (max-width: 1000px) {
     .hub { height: auto; overflow: visible; }
-    .shelf { max-height: none; overflow: visible; }
     .deck { grid-template-columns: 1fr; }
     .panel { min-height: 420px; }
     .plan .body { overflow: auto; }

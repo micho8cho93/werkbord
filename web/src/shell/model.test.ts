@@ -228,17 +228,17 @@ describe('one sidebar, no switcher', () => {
     expect(model.frames.personal.epoch).toBe(2);
   });
 
-  it('folds a section and remembers it, and unfolds it again', () => {
+  it('remembers a composite project selection and the virtual All Projects choice', () => {
     const kept = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v), removeItem: (k: string) => void kept.delete(k) });
     try {
       const model = new Model();
-      model.toggleSection('team:main');
-      expect(model.folded).toEqual(['team:main']);
-      expect(JSON.parse(kept.get('werkbord.shell.sections') ?? '[]')).toEqual(['team:main']);
-      expect(new Model().folded).toEqual(['team:main']);
-      model.toggleSection('team:main');
-      expect(model.folded).toEqual([]);
+      const selection = { workspace: 'team:main', project: 'p' };
+      model.selectProject(selection);
+      expect(JSON.parse(kept.get('werkbord.shell.project')!)).toEqual(['team:main', 'p']);
+      expect(new Model().selectedProject).toEqual(selection);
+      model.selectProject(null);
+      expect(new Model().selectedProject).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -407,4 +407,56 @@ it('opens and closes the go-to palette', () => {
   expect(model.paletteOpen).toBe(true);
   model.closePalette();
   expect(model.paletteOpen).toBe(false);
+});
+
+describe('unified project selection', () => {
+  it('persists selection across destinations, settings and an assistant opening', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    native.app.Overview = async () => ({ at: '', entries: [] });
+    native.app.LoadWorkspace = async () => ({ id: 'personal', kind: 'personal', url: 'http://localhost/', origin: 'http://localhost' });
+    model.selectProject({ workspace: team.id, project: 'same-id' });
+    for (const destination of ['inbox', 'calendar', 'agents', 'analytics'] as const) {
+      model.go(destination);
+      expect(model.selectedProject).toEqual({ workspace: team.id, project: 'same-id' });
+    }
+    model.openSettings('general/appearance');
+    expect(model.selectedProject?.workspace).toBe(team.id);
+    await model.toggleAssistant({ x: 0, y: 0, width: 0, height: 0 });
+    expect(model.selectedProject?.project).toBe('same-id');
+    model.setAssistant({ open: true, waiting: 0, running: false });
+  });
+  it('keeps an offline selection but clears it when workspace membership disappears', async () => {
+    const model = new Model();
+    model.selectedProject = { workspace: team.id, project: 'p' };
+    native.app.Workspaces = async () => view([individual, { ...team, state: 'offline' }]);
+    await model.refresh();
+    expect(model.selectedProject?.project).toBe('p');
+    native.app.Workspaces = async () => view([individual]);
+    await model.refresh();
+    expect(model.selectedProject).toBeNull();
+  });
+  it('drops a project removed by a fresh permission-filtered summary', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    model.selectedProject = { workspace: team.id, project: 'revoked' };
+    native.app.Overview = async () => ({ at: '', entries: [{ workspace: team, summary: { schema: '', workspace: team, projects: [], work: [], attention: [], schedule: [], at: '' } }] });
+    await model.refreshOverview();
+    expect(model.selectedProject).toBeNull();
+    expect(model.notice).toContain('no longer accessible');
+  });
+});
+
+it('marks aggregate reads unavailable when the summary bridge fails', async () => {
+  const model = new Model();
+  model.view = view([individual]);
+  model.overview = { at: '', entries: [{ workspace: individual, summary: { schema: '', workspace: individual, projects: [], work: [], attention: [], schedule: [], at: '' } }] };
+  native.app.Overview = async () => { throw new Error('disconnected'); };
+  expect(await model.refreshOverview()).toBe(false);
+  expect(model.contextOverview?.entries[0].summary).toBeUndefined();
+  expect(model.contextOverview?.entries[0].error).toContain('could not be refreshed');
+  const firstLoad = new Model();
+  firstLoad.view = view([individual]);
+  await firstLoad.refreshOverview();
+  expect(firstLoad.contextOverview?.entries[0].error).toContain('could not be refreshed');
 });

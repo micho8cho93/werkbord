@@ -309,3 +309,8 @@ cmd/werkbord-team/licensing/ui/node_modules: cmd/werkbord-team/licensing/ui/pack
 
 test-premium-console: cmd/werkbord-team/licensing/ui/node_modules
 	cd cmd/werkbord-team/licensing/ui && $(NPM) test && $(NPM) run build:hosted
+
+.PHONY: test-project-context-browser
+## Unified project context and navigation against isolated presentation fixtures.
+test-project-context-browser: web-shell
+	node scripts/browser-project-context.cjs

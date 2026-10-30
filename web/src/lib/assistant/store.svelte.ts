@@ -6,6 +6,7 @@
 // server keeps no transcript by design (docs/ASSISTANT.md). After a reload the screen comes back as it was, the reply that was
 // streaming goes on streaming, and what was waiting for the person is still waiting.
 
+import { assistantProjectContext, projectContextPrompt } from './project-context.svelte';
 import { tick } from 'svelte';
 import { ApiError } from '../api';
 import { onAssistantRequest, reportAssistant } from '../embed';
@@ -500,7 +501,7 @@ export class AssistantStore {
       const before = this.draft;
       if (!opts.again) this.draft = '';
       try {
-        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean), openUISystemPrompt);
+        const { turnId } = await assistantApi.send(id, text, files.map((f) => f.id!).filter(Boolean), openUISystemPrompt + projectContextPrompt(assistantProjectContext.current));
 
         if (!this.transcript.items.some((i) => i.kind === 'reply' && i.turnId === turnId)) {
           this.transcript.items.push({ kind: 'reply', id: turnId, turnId, text: '', attempt: 0, attemptStart: 0, steps: [], notices: [], status: 'working' });

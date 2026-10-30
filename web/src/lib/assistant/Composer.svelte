@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
+  import { assistantProjectContext } from './project-context.svelte';
   import Icon from '../Icon.svelte';
   import { desktop } from '../desktop.svelte';
   import { chooseFiles } from './nativefiles';
@@ -235,6 +236,7 @@
 
 <svelte:window onkeydowncapture={escape} />
 
+{#if assistantProjectContext.current !== undefined}<p class="project-context" aria-label="Salie project context">{assistantProjectContext.current?.label ?? 'All Projects'}</p>{/if}
 <form class="composer" onsubmit={submit} ondragover={(e) => { if (assistant.canAttach) { e.preventDefault(); dragging = true; } }} ondragleave={() => (dragging = false)} ondrop={dropped} class:dragging>
   {#if assistant.problem}
     <p class="problem" role="alert">{assistant.problem}</p>
@@ -341,6 +343,7 @@
 </form>
 
 <style>
+  .project-context { margin: 0; padding: 8px 16px; color: var(--text-2); font-size: 13px; }
   .composer {
     display: flex;
     flex-direction: column;

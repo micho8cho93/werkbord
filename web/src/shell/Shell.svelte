@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Icon from '../lib/Icon.svelte';
   import Sidebar from './Sidebar.svelte';
   import Palette from './Palette.svelte';
   import FrameHost from './FrameHost.svelte';
@@ -8,8 +7,8 @@
   import Calendar from './Calendar.svelte';
   import Analytics from './Analytics.svelte';
   import Reviews from './Reviews.svelte';
-  import FloatingSalie from './FloatingSalie.svelte';
-  import { salie } from './salie.svelte';
+  import Agents from './Agents.svelte';
+  import ContextStatus from './ContextStatus.svelte';
   import Hub from './Hub.svelte';
   import { catchUpSession } from './catchup-session.svelte';
   $effect(() => { catchUpSession.ingest(model.overview); });
@@ -23,9 +22,8 @@
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
-  // The window: one sidebar (Home and Calendar, then Personal and each team with their projects) beside the workspace's own
-  // pages, which carry no navigation of their own here.
-  const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help'];
+  // One project context and destination list surround the original workspace-owned detail screens.
+  const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help', 'agents'];
   let mainEl: HTMLElement | undefined;
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
@@ -67,7 +65,7 @@
 <!-- While the assistant is over the window, what is under it is not reachable by keyboard or screen reader either. -->
 <div class="shell" inert={model.assistantShown}>
   <Sidebar />
-  {#if !model.remotePersonal && salie.placements[model.universal ? 'universal' : 'workspace'] !== 'sidebar'}<FloatingSalie />{/if}
+
   <div class="content">
     {#if model.error}
       <div class="message error" role="alert">{model.error}<button class="btn" type="button" onclick={() => (model.error = '')}>Dismiss</button></div>
@@ -82,9 +80,7 @@
     <main id="shell-main" tabindex="-1" bind:this={mainEl} class:with-nav={model.page === 'settings'}>
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
-        {#if model.universal && ['workspaces', 'calendar', 'reviews', 'analytics'].includes(model.page)}
-          <div class="crumb"><button class="btn small quiet" type="button" onclick={() => model.go('inbox')} data-testid="back-to-universal"><Icon name="left" size={14} />Home</button></div>
-        {/if}
+        <ContextStatus />
         <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
         {#if model.page === 'workspace' && problem}
           <div class="page-area"><WorkspaceProblem /></div>
@@ -94,10 +90,11 @@
           <div class="page-area">{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
         {:else if model.page !== 'workspace' && !hostedWorkspace}
           <div class="page-area">
-            {#if model.page === 'calendar'}<Calendar overview={model.overview} />
+            {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
+            {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />
             {:else if model.page === 'analytics'}<Analytics />
-            {:else if model.page === 'inbox'}<Hub overview={model.overview} />
+            {:else if model.page === 'inbox'}<Hub overview={model.contextOverview} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>
         {/if}
@@ -171,7 +168,6 @@
     display: flex;
     flex-direction: column;
   }
-  .crumb { flex: none; padding: 10px clamp(16px, 2.5vw, 40px) 0; }
   .page-area {
     flex: 1;
     min-height: 0;

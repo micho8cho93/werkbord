@@ -3,8 +3,6 @@
   import { look, STYLES, theme } from '../lib/theme.svelte';
   import { alerts } from './alerts.svelte';
   import { model } from './model.svelte';
-  import SaliePlacement from '../lib/SaliePlacement.svelte';
-  import { salie } from './salie.svelte';
 
   // The settings that are about this window and this person, not about any one workspace: how it looks and what it tells you
   // while you are in another app. They are the same wherever Settings is opened from.
@@ -22,6 +20,10 @@
 
 <div class="wrap">
   {#if section === 'appearance'}
+    <section class="pn" aria-label="Workspace settings">
+      <div class="head"><h3>Projects and workspaces</h3><p class="muted">Manage this computer, connected workspaces and project setup.</p></div>
+      <div><button class="btn" type="button" onclick={() => model.go('workspaces')}>Devices &amp; Hosting</button> <button class="btn" type="button" onclick={() => model.addOpen = true}>New team or join…</button> <button class="btn" type="button" onclick={() => model.goTo('personal', '#/projects')}>Manage personal projects</button></div>
+    </section>
     <section class="pn" aria-labelledby="theme-h">
       <div class="head">
         <h3 id="theme-h">Theme</h3>
@@ -44,13 +46,7 @@
         {/each}
       </div>
     </section>
-    <section class="pn" aria-labelledby="salie-placement-h">
-      <div class="head">
-        <h3 id="salie-placement-h">Salie button</h3>
-        <p class="muted">Choose where to open Salie. The floating button can be dragged to a convenient spot.</p>
-      </div>
-      <SaliePlacement value={salie.placements} onchange={value => salie.set(value)} />
-    </section>
+
   {:else}
     <section class="pn" aria-labelledby="alerts-h">
       <div class="head">
