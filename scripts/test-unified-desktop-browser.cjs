@@ -211,6 +211,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  for (const label of ['Appearance', 'Alerts', 'Labels', 'This computer', 'Phones', 'MCP clients', 'Team memory', 'Backups']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
  assert.equal(await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).isVisible(), false, 'optional host configuration is under Advanced');
  await sections.locator('details.advanced summary').click();
+ // A background registry refresh must preserve a disclosure the person opened.
+ await page.waitForResponse(response => response.url().endsWith('/fixture/call') && response.request().postDataJSON()?.Method === 'Workspaces');
+ await page.waitForTimeout(100);
+ assert.notEqual(await sections.locator('details.advanced').getAttribute('open'), null, 'refresh keeps Advanced expanded before a section is selected');
  await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).waitFor();
  await sections.getByRole('button', { name: 'Workspace Hosts', exact: true }).click();
  await page.frameLocator('iframe[data-hosted="team:main"]').getByRole('heading', { name: 'Choose Workspace Hosts', exact: true }).waitFor();

@@ -7,6 +7,7 @@
   const groups = $derived(model.settingsGroups);
   const shown = $derived(model.settingsShown);
   const many = $derived(new Set(groups.map((g) => g.owner).filter(Boolean)).size > 1);
+  let expanded = $state<Record<string, boolean>>({});
 </script>
 
 {#snippet sectionButtons(g: Group)}
@@ -30,7 +31,7 @@
   {#each groups as g, i (g.label + (g.owner ?? ''))}
     {#if many && g.owner && g.owner !== groups[i - 1]?.owner}<p class="owner" data-owner={g.owner}>{g.owner}</p>{/if}
     {#if g.advanced}
-      <details class="group advanced" open={g.sections.some((s) => s.id === shown.id)}>
+      <details class="group advanced" open={expanded[g.label + (g.owner ?? '')] || g.sections.some((s) => s.id === shown.id)} ontoggle={(event) => { expanded[g.label + (g.owner ?? '')] = event.currentTarget.open; }}>
         <summary>{g.label}</summary>
         {@render sectionButtons(g)}
       </details>
