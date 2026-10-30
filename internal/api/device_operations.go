@@ -176,12 +176,18 @@ func (s *Server) deviceTerminal(w http.ResponseWriter, r *http.Request) bool {
 			Cols      int    `json:"cols"`
 			Rows      int    `json:"rows"`
 			RequestID string `json:"requestId"`
+			TaskID    string `json:"taskId"`
 		}
 		if err := decode(w, r, &in); err != nil {
 			s.fail(w, r, err)
 			return true
 		}
+		// Checked before anything is queued or started, so a mistake leaves no terminal behind.
+		if in.TaskID != "" && !s.taskInProject(w, r, request.ProjectID, in.TaskID) {
+			return true
+		}
 		request.Kind = "terminal.create"
+		request.TaskID = in.TaskID
 		request.AgentID = in.AgentID
 		request.RunnerID = in.Device
 		request.Cols = in.Cols

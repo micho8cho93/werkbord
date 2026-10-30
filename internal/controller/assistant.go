@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -53,6 +54,10 @@ func newApplicationOperations(db store.Store, log *slog.Logger, svc assistantSer
 	if svc.runner != nil {
 		// Answering a question reaches the agent through the runner it is on, as it does from the app.
 		services.Answer = svc.runner.Answer
+		// Starting an agent is the runner's own start, as the app's Run button calls it; the origin only records provenance.
+		services.Start = func(ctx context.Context, in appops.StartRun) (*domain.Run, error) {
+			return svc.runner.Start(ctx, runner.StartInput{TaskID: in.TaskID, AgentID: in.AgentID, Instructions: in.Instructions, Origin: in.Origin})
+		}
 	}
 	return appops.New(appops.Config{Backend: appops.NewBackend(services), Store: db, Log: log,
 		Injected: connectionOperations(svc.connections)})

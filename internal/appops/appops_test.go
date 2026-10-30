@@ -40,6 +40,7 @@ type fx struct {
 	clock   atomic.Int64 // unix milliseconds
 	mu      sync.Mutex
 	answers []string // what reached an agent
+	started []domain.Run
 }
 
 // flakyStore lets a test make the audit unwritable.
@@ -82,6 +83,20 @@ func newFx(t *testing.T) *fx {
 			f.answers = append(f.answers, q.Answer)
 			f.mu.Unlock()
 			return f.runs.ConfirmDelivery(ctx, id)
+		},
+		// The runner's own start creates the run through the same service; the fixture has no agent process to launch.
+		Start: func(ctx context.Context, in StartRun) (*domain.Run, error) {
+			agent := in.AgentID
+			if agent == "" {
+				agent = "claude-code"
+			}
+			run, err := f.runs.Create(ctx, service.NewRun{TaskID: in.TaskID, AgentID: agent, Prompt: "work on the task " + in.Instructions, Origin: in.Origin})
+			if err == nil {
+				f.mu.Lock()
+				f.started = append(f.started, *run)
+				f.mu.Unlock()
+			}
+			return run, err
 		}})
 	f.svc = New(Config{Backend: backend, Store: f.st, Now: f.now, ConfirmTTL: 10 * time.Minute})
 	return f
@@ -221,7 +236,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 		return out
 	}
 	all := names(full)
-	if len(all) != 19 {
+	if len(all) != 20 {
 		t.Fatalf("the full catalog has %d operations: %v", len(all), all)
 	}
 	for _, s := range f.svc.Catalog(full) {
@@ -243,7 +258,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	}
 	// The set is exactly this. Adding an operation, above all one that starts or stops a run, touches Git, a setting or
 	// a repository, or deletes, has to change this list, where a reviewer will see it.
-	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,list_work_plans,recommend_next_actions,retrieve_memory,save_work_plan,update_ticket"
+	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,list_work_plans,recommend_next_actions,retrieve_memory,save_work_plan,start_agent_run,update_ticket"
 	if got := strings.Join(all, ","); got != want {
 		t.Errorf("the operations are\n%s\nwant\n%s", got, want)
 	}

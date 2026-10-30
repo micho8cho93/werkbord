@@ -89,6 +89,7 @@ func (s *Server) terminalRoutes(m *http.ServeMux) {
 	m.HandleFunc("PUT /api/projects/{pid}/terminals/{id}/phone", s.handleTerminalGrant)
 	m.HandleFunc("GET /api/terminals", s.handleTerminalList)
 	m.HandleFunc("POST /api/projects/{pid}/terminals", s.handleTerminalCreate)
+	m.HandleFunc("PUT /api/projects/{pid}/terminals/{id}/task", s.handleTerminalTask)
 	m.HandleFunc("GET /api/projects/{pid}/terminals/{id}/output", s.handleTerminalOutput)
 	m.HandleFunc("POST /api/projects/{pid}/terminals/{id}/input", s.handleTerminalInput)
 	m.HandleFunc("POST /api/projects/{pid}/terminals/{id}/resize", s.handleTerminalResize)
@@ -125,9 +126,15 @@ func (s *Server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 		Device  string `json:"device"`
 		Cols    int    `json:"cols"`
 		Rows    int    `json:"rows"`
+		// TaskID optionally associates the new terminal with a task of the project; without it the terminal is standalone.
+		TaskID string `json:"taskId"`
 	}
 	if err := decode(w, r, &in); err != nil {
 		s.fail(w, r, err)
+		return
+	}
+	// The task is checked before any process starts, so a mistake cannot leave a running terminal behind.
+	if in.TaskID != "" && !s.taskInProject(w, r, r.PathValue("pid"), in.TaskID) {
 		return
 	}
 	out, err := s.opt.Terminals.Create(r.Context(), r.PathValue("pid"), in.AgentID, in.Device, in.Cols, in.Rows)
@@ -135,7 +142,55 @@ func (s *Server) handleTerminalCreate(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if in.TaskID != "" {
+		if err := s.opt.Terminals.Associate(out.ProjectID, out.ID, in.TaskID); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		out.TaskID = in.TaskID
+	}
 	writeJSON(w, 201, out)
+}
+
+// taskInProject reports whether the task belongs to the project, answering the refusal itself when it does not.
+func (s *Server) taskInProject(w http.ResponseWriter, r *http.Request, projectID, taskID string) bool {
+	if s.opt.Tasks == nil {
+		s.fail(w, r, domain.ErrForbidden)
+		return false
+	}
+	if _, err := s.opt.Tasks.GetIn(r.Context(), projectID, taskID); err != nil {
+		s.fail(w, r, err)
+		return false
+	}
+	return true
+}
+
+// handleTerminalTask associates a terminal with a task, or removes the association when taskId is empty. It is the
+// local owner's alone: a phone's grant covers using one session, not deciding what work it belongs to. It covers the
+// terminals this controller owns; one on another execution device is not found here.
+func (s *Server) handleTerminalTask(w http.ResponseWriter, r *http.Request) {
+	if _, phone := r.Context().Value(phoneKey{}).(phoneaccess.Entry); phone {
+		writeError(w, 403, "forbidden", forbiddenForPhone)
+		return
+	}
+	if !s.terminalReady(w, r) {
+		return
+	}
+	var in struct {
+		TaskID string `json:"taskId"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if in.TaskID != "" && !s.taskInProject(w, r, r.PathValue("pid"), in.TaskID) {
+		return
+	}
+	if err := s.opt.Terminals.Associate(r.PathValue("pid"), r.PathValue("id"), in.TaskID); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"saved": true})
 }
 func (s *Server) handleTerminalOutput(w http.ResponseWriter, r *http.Request) {
 	if s.deviceTerminal(w, r) {

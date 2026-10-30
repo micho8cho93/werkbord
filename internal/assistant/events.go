@@ -59,6 +59,8 @@ type Event struct {
 	ActionID string             `json:"actionId,omitempty"`
 	Outcome  string             `json:"outcome,omitempty"`
 	Ticket   *appops.TicketView `json:"ticket,omitempty"`
+	// Session points at the agent session a confirmed start_agent_run started. The conversation keeps only this reference.
+	Session *appops.SessionView `json:"session,omitempty"`
 	// Error is set on EventFailed.
 	Error *ErrorInfo `json:"error,omitempty"`
 	// Usage is set on EventCompleted when the provider said.

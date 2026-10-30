@@ -586,6 +586,26 @@ func (m *Manager) Grant(project, id, phone string, enabled bool) error {
 	return nil
 }
 
+// Associate links a terminal to a task of its project, or unlinks it when taskID is empty. The caller has already checked
+// that the task belongs to the project; the terminal service owns no task data. The association is metadata only: it
+// starts, stops and sends nothing, and an unassociated terminal stays a standalone session.
+func (m *Manager) Associate(project, id, taskID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s, err := m.get(project, id)
+	if err != nil {
+		return err
+	}
+	before := s.TaskID
+	s.TaskID = taskID
+	if err := m.persist(); err != nil {
+		s.TaskID = before
+		return err
+	}
+	m.notify(s)
+	return nil
+}
+
 type inputReceipt struct {
 	Sequence uint64
 	Hash     [32]byte

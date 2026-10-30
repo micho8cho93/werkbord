@@ -17,8 +17,11 @@
 //   - Every call is audited before its result is returned, and a mutation's intent is audited before it is carried out.
 //     If the audit cannot be written, the call is refused.
 //
-// Nothing here starts, stops or configures a run, touches Git or a repository, or changes a setting: those are the
-// person's. Connected boards are reached through a generic desktop metadata transport; this package knows no Team code.
+// The one thing here that starts an agent is start_agent_run, and it is the conversational assistant's alone (never an MCP
+// client's): it is a confirmed proposal like any change, bound to the exact task and agent the person was shown, and it
+// goes through the runner's own start, so every rule of starting a run by hand (one active run per task, the execution
+// policy, the worktree) applies unchanged. Nothing here stops or configures a run, touches Git or a repository, or
+// changes a setting: those are the person's. Connected boards are reached through a generic desktop metadata transport; this package knows no Team code.
 package appops
 
 import (
@@ -47,8 +50,9 @@ const (
 // Permission is what a principal needs to call an operation.
 type Permission string
 
-// The permissions. There is deliberately none for starting or stopping a run, for settings, Git, repositories,
-// runners, or for deleting anything.
+// The permissions. There is deliberately none for stopping a run, for settings, Git, repositories, runners, or for
+// deleting anything. The only run permission that changes anything is PermRunsStart, which only the owner's assistant
+// holds.
 const (
 	PermMemoryRead      Permission = "memory:read"
 	PermProjectsRead    Permission = "projects:read"
@@ -62,12 +66,15 @@ const (
 	PermQuestionsAnswer Permission = "questions:answer"
 	PermConnectionsUse  Permission = "connections:use"
 	PermTaskPlan        Permission = "tasks:propose_plan"
+	// PermRunsStart lets the owner's assistant propose starting an agent on a task, for the person to confirm. An MCP
+	// client cannot hold it: the operation is assistant-only and is not in an MCP catalog.
+	PermRunsStart Permission = "runs:start"
 )
 
 // AllPermissions is every permission there is.
 var AllPermissions = []Permission{
 	PermMemoryRead, PermProjectsRead, PermTicketsRead, PermAnalyticsRead, PermTicketsCreate, PermTicketsUpdate, PermScheduleRead,
-	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan,
+	PermRunsRead, PermQuestionsRead, PermQuestionsAnswer, PermConnectionsUse, PermTaskPlan, PermRunsStart,
 }
 
 // Principal is who is calling: one assistant session, or later one MCP client.
@@ -133,9 +140,11 @@ type plan struct {
 
 type operation struct {
 	Spec
-	MCPOnly     bool
-	validate    func(map[string]any) error
-	auditDetail func(map[string]any) string
+	MCPOnly bool
+	// AssistantOnly keeps the operation out of every catalog but the owner's conversational assistant.
+	AssistantOnly bool
+	validate      func(map[string]any) error
+	auditDetail   func(map[string]any) string
 	// preauthorized permits an injected mutation to run immediately only when its owner explicitly granted allow.
 	preauthorized bool
 	// plan is set for mutations; run for every operation. run is only reached for a mutation through Resolve.
@@ -312,6 +321,9 @@ func (s *Service) operationsFor(p Principal) map[string]*operation {
 	out := make(map[string]*operation, len(s.ops))
 	for name, op := range s.ops {
 		if op.MCPOnly && p.Via != "mcp" {
+			continue
+		}
+		if op.AssistantOnly && p.Via != "assistant" {
 			continue
 		}
 		out[name] = op

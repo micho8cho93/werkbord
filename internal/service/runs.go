@@ -50,11 +50,13 @@ type NewRun struct {
 	Policy domain.ExecutionPolicy
 	// Model and Reasoning are what the agent is started with; empty means the
 	// agent's own default.
-	Model        string
-	Reasoning    string
-	ParentRunID  string
-	Purpose      string
-	ScheduleKey  string
+	Model       string
+	Reasoning   string
+	ParentRunID string
+	Purpose     string
+	ScheduleKey string
+	// Origin is provenance only: what asked for the run (domain.SalieOrigin), "" for one started by hand.
+	Origin       string
 	EnforceGates bool
 	Manual       bool
 	RunnerID     string
@@ -82,7 +84,7 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 	r := &domain.Run{
 		ID: domain.NewID(domain.PrefixRun), TaskID: in.TaskID, AgentID: in.AgentID, State: domain.RunStarting,
 		WorktreeID: in.WorktreeID, Prompt: in.Prompt, Policy: in.Policy.Normalized(), Model: in.Model, Reasoning: in.Reasoning,
-		ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey,
+		ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, Origin: in.Origin,
 		RunnerID: in.RunnerID, Remote: in.Remote, Usage: domain.Usage{CostKind: "usage_only"},
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}

@@ -181,6 +181,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/integration/waiting/link", s.handleLinkWaiting)
 	mux.HandleFunc("GET /api/integration/v1/projects/{pid}/tasks/{id}/status", s.handleIntegrationStatus)
 	mux.HandleFunc("GET /api/integration/v1/projects/{pid}/tasks/{id}/events", s.handleIntegrationEvents)
+	mux.HandleFunc("GET /api/agent-sessions", s.handleAgentSessions)
 	mux.HandleFunc("GET /api/agents", s.handleListAgents)
 	mux.HandleFunc("GET /api/agents/{id}/options", s.handleAgentOptions)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)

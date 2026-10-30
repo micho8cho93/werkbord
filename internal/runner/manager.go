@@ -134,9 +134,11 @@ type StartInput struct {
 	authorizationPolicy map[string]string
 	TaskID              string
 	ScheduleKey         string
-	ParentRunID         string
-	Purpose             string
-	SelectedContext     string
+	// Origin records what asked for the run (domain.SalieOrigin). It is provenance only and changes nothing about how the run is started.
+	Origin          string
+	ParentRunID     string
+	Purpose         string
+	SelectedContext string
 	// AgentID, Model and Reasoning choose for this run only; empty means use what
 	// the task, its project and the global defaults say (domain.ResolveExecution).
 	// Model and Reasoning belong to an agent, so naming either means naming AgentID.
@@ -388,7 +390,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	// 3. Create the run.
 	run, err := m.opt.Runs.Create(ctx, service.NewRun{
 		TaskID: task.ID, AgentID: agentID, Prompt: prompt, WorktreeID: ws.wt.ID, Policy: policy,
-		Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: runnerID, Claim: claim,
+		Model: resolved.Model, Reasoning: resolved.Reasoning, ParentRunID: in.ParentRunID, Purpose: in.Purpose, ScheduleKey: in.ScheduleKey, Origin: in.Origin, EnforceGates: m.opt.Scheduler != nil, Manual: manual, RunnerID: runnerID, Claim: claim,
 	})
 	if err != nil {
 		discard()

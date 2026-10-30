@@ -154,7 +154,9 @@ func TestNoProviderIsEverToldToSkipItsSafetyChecks(t *testing.T) {
 }
 
 // TestTheAssistantOffersNoRouteToRunsGitOrSettings reads the operation catalog's source: the permissions that exist are the
-// ones reviewed, and none of them is about running, stopping or configuring anything.
+// ones reviewed. Exactly one is about running anything: runs:start, which lets the owner's conversational assistant
+// propose starting an agent on a task for the person to confirm (decided with the unified agent sessions: Salie launches
+// a session and links to it). Nothing stops, finishes or configures a run, touches Git or a setting, or archives.
 func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 	watchSources(t)
 	b, err := os.ReadFile(filepath.Join(moduleRoot(t), "internal", "appops", "appops.go"))
@@ -169,7 +171,7 @@ func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 		}
 	}
 	sort.Strings(perms)
-	want := "analytics:read,connections:use,memory:read,projects:read,questions:answer,questions:read,runs:read,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
+	want := "analytics:read,connections:use,memory:read,projects:read,questions:answer,questions:read,runs:read,runs:start,schedule:read,tasks:propose_plan,tickets:create,tickets:read,tickets:update"
 	if got := strings.Join(perms, ","); got != want {
 		t.Fatalf("the assistant's permissions are %s, reviewed as %s. Adding one is a decision about what a model may do; update this test and docs/ASSISTANT.md in the same change, and say why.", got, want)
 	}
@@ -180,10 +182,33 @@ func TestTheAssistantOffersNoRouteToRunsGitOrSettings(t *testing.T) {
 				if strings.HasPrefix(strings.TrimSpace(line), "//") {
 					continue
 				}
+				// The one reviewed way in: Backend.StartRun hands the proposal's task to the runner's own start.
+				if f == "backend.go" && w == ".Start(" && strings.Contains(line, "b.s.Start(ctx, in)") {
+					continue
+				}
 				if strings.Contains(line, w) {
-					t.Errorf("appops/%s uses %q: the assistant has no operation that runs, stops, configures or archives anything", f, w)
+					t.Errorf("appops/%s uses %q: the assistant has no operation that stops, finishes, configures or archives anything, and the one start goes through Backend.StartRun", f, w)
 				}
 			}
 		}
+	}
+	// The one operation that starts an agent is a confirmed proposal, the owner's assistant's alone, and never an MCP client's.
+	ops, _ := os.ReadFile(filepath.Join(moduleRoot(t), "internal", "appops", "operations.go"))
+	src := string(ops)
+	i := strings.Index(src, `Name: "start_agent_run"`)
+	if i < 0 {
+		t.Fatal("start_agent_run is no longer declared in operations.go")
+	}
+	declaration := src[i:]
+	if j := strings.Index(declaration, "plan: planStartRun"); j > 0 {
+		declaration = declaration[:j]
+	}
+	for _, need := range []string{"Kind: KindMutation", "Permission: PermRunsStart", "RequiresConfirmation: true", "AssistantOnly: true"} {
+		if !strings.Contains(declaration, need) {
+			t.Errorf("start_agent_run no longer declares %q: starting an agent must stay a confirmed proposal of the owner's assistant", need)
+		}
+	}
+	if strings.Contains(declaration, "MCPOnly") {
+		t.Error("start_agent_run must never be offered to an MCP client")
 	}
 }

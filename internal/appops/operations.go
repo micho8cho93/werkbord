@@ -18,7 +18,9 @@ import (
 // ticket-shaped for compatibility.
 
 const (
-	idMax    = 80
+	idMax = 80
+	// instrMax bounds the extra instructions of a start_agent_run.
+	instrMax = 4000
 	titleMax = 200
 	// descMax is the longest description an operation accepts; the board accepts more, but a model has no business
 	// writing a quarter of a megabyte.
@@ -172,6 +174,17 @@ func operations() []*operation {
 			MCPOnly: true, plan: planTaskPlan, run: runTaskPlan,
 		},
 		{
+			Spec: Spec{Name: "start_agent_run", Title: "Start an agent on a task", Kind: KindMutation, Permission: PermRunsStart, RequiresConfirmation: true,
+				Description: "Propose starting a coding agent on one task. The person confirms first; the agent then runs as a session they can open in Agents, with its own conversation, questions and stop control. A task has at most one active session: if it already has one, open that instead (get_run_status gives its id). Name an agent only if the person asked for one; otherwise the task's, the project's and the global defaults choose.",
+				Input: Object(map[string]*Schema{
+					"projectId":    projectID,
+					"ticketId":     Str("The task's id (from list_tickets).", idMax),
+					"agentId":      Str("Optional: the coding agent to use, such as claude-code or codex. Leave out to use the defaults.", idMax),
+					"instructions": Str("Optional: extra instructions added to the task's own text in the agent's first message.", instrMax),
+				}, "projectId", "ticketId")},
+			AssistantOnly: true, plan: planStartRun, run: runStartRun,
+		},
+		{
 			Spec: Spec{Name: "answer_question", Title: "Answer an agent's question", Kind: KindMutation, Permission: PermQuestionsAnswer, RequiresConfirmation: true,
 				Description: "Save an answer to a question an agent is waiting on. The runner delivers it to the agent; a saved answer is not confirmed as received until delivery is recorded. The person must confirm first. A request for permission to run something cannot be answered this way.",
 				Input: Object(map[string]*Schema{
@@ -189,6 +202,9 @@ type Changed struct {
 	Message  string        `json:"message"`
 	Ticket   *TicketView   `json:"ticket,omitempty"`
 	Question *QuestionView `json:"question,omitempty"`
+	// Session is the agent session a started run is, by the one identity every screen opens it with. The conversation
+	// keeps only this reference: the session itself lives with the runner and is opened in Agents.
+	Session *SessionView `json:"session,omitempty"`
 }
 
 // Outcome is the short account kept with the action.
@@ -803,6 +819,63 @@ func runUpdateTicket(ctx context.Context, e *env, a map[string]any) (any, error)
 	}
 	v := ticketView(*t, listDescriptionChars)
 	return &Changed{Message: fmt.Sprintf("Changed task %s (%q); it is now in the %s column", t.ID, clip(t.Title, 80), t.State), Ticket: &v}, nil
+}
+
+func planStartRun(ctx context.Context, e *env, a map[string]any) (*plan, error) {
+	pid, tid := str(a, "projectId"), str(a, "ticketId")
+	t, err := e.b.Ticket(ctx, pid, tid)
+	if err != nil {
+		return nil, err
+	}
+	if t.State == domain.TaskDone {
+		return nil, fmt.Errorf("%w: %q is in Done; move it back before running an agent on it", domain.ErrInvalid, t.Title)
+	}
+	p, err := e.b.Project(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	if why := domain.AgentRefusal(p.Project, *t); why != "" {
+		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, why)
+	}
+	// One execution has one identity: a task with a live session is pointed at, never given a second one.
+	runs, err := e.b.TicketRuns(ctx, tid)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range runs {
+		if r.State.Active() {
+			return nil, fmt.Errorf("%w: task %q already has an active session (%s, %s); open it in Agents instead of starting another", domain.ErrConflict, clip(t.Title, 80), domain.RunRef(r.ID), r.State)
+		}
+	}
+	agent := str(a, "agentId")
+	who := "an agent"
+	if agent != "" {
+		who = agent
+	}
+	args := map[string]any{"projectId": pid, "ticketId": tid}
+	if agent != "" {
+		args["agentId"] = agent
+	}
+	extra := strings.TrimSpace(str(a, "instructions"))
+	if extra != "" {
+		args["instructions"] = extra
+	}
+	summary := fmt.Sprintf("Start %s on task %q (project %s). It runs in its own worktree with the task's execution settings, and you can open the session in Agents.", who, clip(t.Title, 80), pid)
+	if extra != "" {
+		summary += fmt.Sprintf(" Extra instructions: %q", clip(oneLine(extra), 300))
+	}
+	return &plan{Args: args, Summary: summary}, nil
+}
+
+func runStartRun(ctx context.Context, e *env, a map[string]any) (any, error) {
+	// Looked at again at the moment of starting, not trusted from when it was proposed: the runner refuses a second
+	// active run for the task, which is also what stops a repeated confirmation from starting two agents.
+	run, err := e.b.StartRun(ctx, StartRun{TaskID: str(a, "ticketId"), AgentID: str(a, "agentId"), Instructions: str(a, "instructions"), Origin: domain.SalieOrigin(e.p.SessionID)})
+	if err != nil {
+		return nil, err
+	}
+	v := sessionView(*run)
+	return &Changed{Message: fmt.Sprintf("Started %s on task %s. Session %s is open in Agents.", run.AgentID, run.TaskID, v.Key), Session: &v}, nil
 }
 
 func planAnswer(ctx context.Context, e *env, a map[string]any) (*plan, error) {

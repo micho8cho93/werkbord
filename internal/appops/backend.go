@@ -9,8 +9,9 @@ import (
 )
 
 // Backend is everything the operations may use, and nothing else. It is the existing domain services, not a store:
-// there is no method here that reads or writes a table, runs Git, or starts, stops or configures a run. An operation
-// that needs more has to say so here, where it can be seen and reviewed.
+// there is no method here that reads or writes a table, runs Git, or stops or configures a run. The one that starts a run
+// is StartRun, used only by the assistant's confirmed start_agent_run. An operation that needs more has to say so here,
+// where it can be seen and reviewed.
 type Backend interface {
 	Projects(ctx context.Context) ([]service.ProjectDetail, error)
 	Project(ctx context.Context, projectID string) (*service.ProjectDetail, error)
@@ -30,6 +31,18 @@ type Backend interface {
 	// AnswerQuestion records the answer and hands it to the agent through the runner the run is on, the same way
 	// answering in the app does.
 	AnswerQuestion(ctx context.Context, questionID, answer string) (*domain.Question, error)
+	// StartRun starts an agent on a task through the runner, exactly as the app's own Run button does. Origin is
+	// recorded on the run as provenance. A task that already has an active run is refused (domain.ErrConflict).
+	StartRun(ctx context.Context, in StartRun) (*domain.Run, error)
+}
+
+// StartRun says which task to run an agent on. Everything else (model, reasoning, policy, runner) comes from the task's
+// own execution settings, as it would for a run started by hand.
+type StartRun struct {
+	TaskID       string
+	AgentID      string
+	Instructions string
+	Origin       string
 }
 
 // TaskPlanBackend is the Individual batch-plan service boundary, available
@@ -52,6 +65,8 @@ type Services struct {
 	Analytics   *service.Analytics
 	// Answer delivers an answer to the agent that asked: the runner manager's Answer, which is also what the app calls.
 	Answer func(ctx context.Context, questionID, answer string) (*domain.Question, error)
+	// Start is the runner manager's start, adapted: what the app's Run button calls.
+	Start func(ctx context.Context, in StartRun) (*domain.Run, error)
 }
 
 // NewBackend is the Backend over the controller's domain services.
@@ -126,6 +141,13 @@ func (b servicesBackend) AnswerQuestion(ctx context.Context, questionID, answer 
 		return nil, errorf(CodeUnavailable, "agent execution is not enabled, so a question cannot be answered")
 	}
 	return b.s.Answer(ctx, questionID, answer)
+}
+
+func (b servicesBackend) StartRun(ctx context.Context, in StartRun) (*domain.Run, error) {
+	if b.s.Start == nil {
+		return nil, errorf(CodeUnavailable, "agent execution is not enabled, so an agent cannot be started")
+	}
+	return b.s.Start(ctx, in)
 }
 
 func (b servicesBackend) PreviewMCPTaskPlan(ctx context.Context, plan mcpplan.Plan) (mcpplan.Preview, error) {

@@ -527,3 +527,55 @@ func TestOversizedStateKeepsNewestRecords(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskAssociationIsMetadataThatSurvivesARestartWithoutRelaunching(t *testing.T) {
+	m, p := fixture(t)
+	standalone := create(t, m, p, "codex")
+	linked := create(t, m, p, "claude-code")
+	if standalone.TaskID != "" {
+		t.Fatalf("a new terminal is standalone: %+v", standalone)
+	}
+	if e := m.Associate(p, linked.ID, "tsk_1"); e != nil {
+		t.Fatal(e)
+	}
+	if e := m.Associate("another-project", linked.ID, "tsk_2"); !errors.Is(e, domain.ErrNotFound) {
+		t.Fatalf("another project's path reached the terminal: %v", e)
+	}
+	if e := m.Associate(p, "missing", "tsk_1"); !errors.Is(e, domain.ErrNotFound) {
+		t.Fatal(e)
+	}
+	b, e := os.ReadFile(m.opt.StatePath)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m.Close()
+	if e = os.WriteFile(m.opt.StatePath, b, 0600); e != nil {
+		t.Fatal(e)
+	}
+	next, e := New(m.opt)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer next.Close()
+	seen := map[string]Metadata{}
+	for _, s := range next.List() {
+		if _, dup := seen[s.ID]; dup {
+			t.Fatalf("session %s listed twice after the restart", s.ID)
+		}
+		seen[s.ID] = s
+	}
+	if len(seen) != 2 || seen[linked.ID].TaskID != "tsk_1" || seen[standalone.ID].TaskID != "" {
+		t.Fatalf("after the restart: %+v", seen)
+	}
+	if seen[linked.ID].State != "interrupted" {
+		t.Fatalf("a restart never relaunches an agent: %+v", seen[linked.ID])
+	}
+	if e = next.Associate(p, linked.ID, ""); e != nil {
+		t.Fatal(e)
+	}
+	for _, s := range next.List() {
+		if s.ID == linked.ID && s.TaskID != "" {
+			t.Fatal("the association was not removed")
+		}
+	}
+}

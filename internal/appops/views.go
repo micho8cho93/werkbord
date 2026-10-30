@@ -157,3 +157,19 @@ func clipFlag(s string, max int) (string, bool) {
 	c := clip(s, max)
 	return c, c != s
 }
+
+// SessionView points at an agent session. It is the whole of what a conversation keeps about one it launched: the
+// session's own record lives with its owner and is opened by Key.
+type SessionView struct {
+	Key       string `json:"key"`
+	Kind      string `json:"kind"`
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	TaskID    string `json:"taskId"`
+	AgentID   string `json:"agentId"`
+	State     string `json:"state"`
+}
+
+func sessionView(r domain.Run) SessionView {
+	return SessionView{Key: domain.RunRef(r.ID).String(), Kind: string(domain.SessionRun), ID: r.ID, ProjectID: r.ProjectID, TaskID: r.TaskID, AgentID: r.AgentID, State: string(r.State)}
+}

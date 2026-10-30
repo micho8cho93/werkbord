@@ -94,22 +94,26 @@ type Run struct {
 	// PendingRequests is derived from the owned runner journal; it is not stored as run state.
 	PendingRequests []string `json:"pendingRequests,omitempty"`
 
-	RunnerID    string   `json:"runnerId,omitempty"`
-	Remote      bool     `json:"remote"`
-	Branch      string   `json:"branch,omitempty"`
-	BaseCommit  string   `json:"baseCommit,omitempty"`
-	Uncommitted *bool    `json:"uncommitted,omitempty"`
-	HeadCommit  string   `json:"headCommit,omitempty"`
-	Usage       Usage    `json:"usage"`
-	ID          string   `json:"id"`
-	Attempt     int      `json:"attempt"`
-	ParentRunID string   `json:"parentRunId,omitempty"`
-	Purpose     string   `json:"purpose,omitempty"`
-	ScheduleKey string   `json:"scheduleKey,omitempty"`
-	Handoff     *Handoff `json:"handoff,omitempty"`
-	TaskID      string   `json:"taskId"`
-	ProjectID   string   `json:"projectId"`
-	AgentID     string   `json:"agentId"`
+	RunnerID    string `json:"runnerId,omitempty"`
+	Remote      bool   `json:"remote"`
+	Branch      string `json:"branch,omitempty"`
+	BaseCommit  string `json:"baseCommit,omitempty"`
+	Uncommitted *bool  `json:"uncommitted,omitempty"`
+	HeadCommit  string `json:"headCommit,omitempty"`
+	Usage       Usage  `json:"usage"`
+	ID          string `json:"id"`
+	Attempt     int    `json:"attempt"`
+	ParentRunID string `json:"parentRunId,omitempty"`
+	Purpose     string `json:"purpose,omitempty"`
+	ScheduleKey string `json:"scheduleKey,omitempty"`
+	// Origin says what asked for the run when it was not started by hand from the task: "salie:<conversation id>"
+	// for a run an assistant conversation launched (SalieOrigin). It is provenance only, set once when the run is
+	// created, and grants nothing.
+	Origin    string   `json:"origin,omitempty"`
+	Handoff   *Handoff `json:"handoff,omitempty"`
+	TaskID    string   `json:"taskId"`
+	ProjectID string   `json:"projectId"`
+	AgentID   string   `json:"agentId"`
 	// Model and Reasoning are what the agent was started with. Empty means the
 	// agent's own default: nothing was passed.
 	Model      string      `json:"model,omitempty"`

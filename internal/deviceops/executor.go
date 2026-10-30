@@ -314,6 +314,12 @@ func (e *Executor) terminal(ctx context.Context, op devicewire.Operation) (devic
 			return devicewire.Result{}, err
 		}
 		meta, err := m.Create(ctx, r.ProjectID, r.AgentID, e.RunnerID, r.Cols, r.Rows)
+		if err == nil && r.TaskID != "" {
+			// The association is metadata the terminal service keeps; the process is already running either way.
+			if err = m.Associate(r.ProjectID, meta.ID, r.TaskID); err == nil {
+				meta.TaskID = r.TaskID
+			}
+		}
 		return devicewire.Result{Terminal: &meta}, err
 	}
 	if err := m.Access(ctx, r.ProjectID, r.SessionID, ""); err != nil {

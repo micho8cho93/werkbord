@@ -14,7 +14,7 @@ import (
 type runRepo struct{ q queryer }
 
 const runCols = `id, task_id, project_id, agent_id, state, worktree_id, session_ref, reason, prompt, waiting,
-	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at, policy, blocker, model, reasoning, parent_run_id, purpose, schedule_key, handoff, attempt, distribution`
+	activity, activity_at, exit_code, pid, process_id, version, created_at, updated_at, ended_at, policy, blocker, model, reasoning, parent_run_id, purpose, schedule_key, handoff, attempt, distribution, origin`
 
 // activeStates are the run states that still hold a session and a worktree.
 // The database's indexes and triggers use the same list.
@@ -28,7 +28,7 @@ func scanRun(s interface{ Scan(...any) error }) (*domain.Run, error) {
 	var policy, blocker, handoff, distribution string
 	if err := s.Scan(&r.ID, &r.TaskID, &r.ProjectID, &r.AgentID, &r.State, &worktree, &r.SessionRef, &r.Reason,
 		&r.Prompt, &r.Waiting, &r.Activity, &activityAt, &exitCode, &r.PID, &r.ProcessID,
-		&r.Version, &created, &updated, &ended, &policy, &blocker, &r.Model, &r.Reasoning, &r.ParentRunID, &r.Purpose, &r.ScheduleKey, &handoff, &r.Attempt, &distribution); err != nil {
+		&r.Version, &created, &updated, &ended, &policy, &blocker, &r.Model, &r.Reasoning, &r.ParentRunID, &r.Purpose, &r.ScheduleKey, &handoff, &r.Attempt, &distribution, &r.Origin); err != nil {
 		return nil, err
 	}
 	var err error
@@ -102,10 +102,10 @@ func (q runRepo) Create(ctx context.Context, r *domain.Run) error {
 		return err
 	}
 	_, err = q.q.ExecContext(ctx,
-		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO runs (`+runCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.ID, r.TaskID, r.ProjectID, r.AgentID, r.State, nullString(r.WorktreeID), r.SessionRef, r.Reason,
 		r.Prompt, r.Waiting, r.Activity, nullMS(r.ActivityAt), nullInt(r.ExitCode), r.PID, r.ProcessID,
-		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt), policy, blocker, r.Model, r.Reasoning, r.ParentRunID, r.Purpose, r.ScheduleKey, mustJSON(r.Handoff), r.Attempt, encodeDistribution(r))
+		r.Version, ms(r.CreatedAt), ms(r.UpdatedAt), nullMS(r.EndedAt), policy, blocker, r.Model, r.Reasoning, r.ParentRunID, r.Purpose, r.ScheduleKey, mustJSON(r.Handoff), r.Attempt, encodeDistribution(r), r.Origin)
 	if isFKViolation(err) {
 		return fmt.Errorf("run %s references a missing task, project or worktree: %w", r.ID, domain.ErrNotFound)
 	}

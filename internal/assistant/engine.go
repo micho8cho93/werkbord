@@ -727,6 +727,7 @@ func (e *Engine) Resolve(ctx context.Context, sessionID, actionID string, approv
 			if ch, ok := res.Data.(*appops.Changed); ok {
 				ev.Outcome = ch.Message
 				ev.Ticket = ch.Ticket
+				ev.Session = ch.Session
 			}
 			ev.Text = "confirmed"
 		} else {

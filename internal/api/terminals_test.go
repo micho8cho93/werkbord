@@ -120,7 +120,9 @@ func TestTerminalOwnerAuthorizationAndClosedCommandSurface(t *testing.T) {
 		t.Fatal("private process configuration exposed")
 	}
 	path := base + "/" + session.ID
-	routes := []struct{ method, path, body string }{{"GET", "/api/terminals", ""}, {"POST", base, `{}`}, {"GET", path + "/output?after=0", ""}, {"POST", path + "/input", `{"data":"hi\n"}`}, {"POST", path + "/resize", `{"cols":90,"rows":25}`}, {"POST", path + "/stop", `{}`}}
+	routes := []struct{ method, path, body string }{{"GET", "/api/terminals", ""}, {"POST", base, `{}`}, {"GET", path + "/output?after=0", ""}, {"POST", path + "/input", `{"data":"hi\n"}`}, {"POST", path + "/resize", `{"cols":90,"rows":25}`}, {"POST", path + "/stop", `{}`},
+		// Which task a terminal belongs to, and the list of every session, are the local owner's alone: a program or a phone is refused.
+		{"PUT", path + "/task", `{"taskId":""}`}, {"GET", "/api/agent-sessions", ""}}
 	for _, route := range routes {
 		for _, token := range []string{"", "wrong", programToken, phoneToken} {
 			status, b := call(t, route.method, ts.URL+route.path, token, route.body)

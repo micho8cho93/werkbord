@@ -13,14 +13,17 @@ const MaxPending = 64
 const MaxResultBytes = 128 << 10
 
 type Terminal struct {
-	ID         string    `json:"id"`
-	ProjectID  string    `json:"projectId"`
-	AgentID    string    `json:"agentId"`
-	Device     string    `json:"device"`
-	Repository string    `json:"repository"`
-	State      string    `json:"state"`
-	Phones     []string  `json:"phones,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID         string `json:"id"`
+	ProjectID  string `json:"projectId"`
+	AgentID    string `json:"agentId"`
+	Device     string `json:"device"`
+	Repository string `json:"repository"`
+	// TaskID associates the terminal with a task of its project. It is optional and changes nothing about the
+	// process: an unassociated terminal is a standalone session.
+	TaskID    string    `json:"taskId,omitempty"`
+	State     string    `json:"state"`
+	Phones    []string  `json:"phones,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 type Output struct {
 	Metadata Terminal `json:"session"`
@@ -42,13 +45,15 @@ type Request struct {
 	Message   string   `json:"message,omitempty"`
 	SessionID string   `json:"sessionId,omitempty"`
 	AgentID   string   `json:"agentId,omitempty"`
-	Cols      int      `json:"cols,omitempty"`
-	Rows      int      `json:"rows,omitempty"`
-	After     uint64   `json:"after,omitempty"`
-	Data      string   `json:"data,omitempty"`
-	Client    string   `json:"client,omitempty"`
-	Sequence  uint64   `json:"sequence,omitempty"`
-	Rendered  uint64   `json:"rendered,omitempty"`
+	// TaskID, on terminal.create, associates the new terminal with a task of the project (metadata only).
+	TaskID   string `json:"taskId,omitempty"`
+	Cols     int    `json:"cols,omitempty"`
+	Rows     int    `json:"rows,omitempty"`
+	After    uint64 `json:"after,omitempty"`
+	Data     string `json:"data,omitempty"`
+	Client   string `json:"client,omitempty"`
+	Sequence uint64 `json:"sequence,omitempty"`
+	Rendered uint64 `json:"rendered,omitempty"`
 }
 type Operation struct {
 	ID        string    `json:"id"`
