@@ -7,6 +7,7 @@
   import { app } from '../lib/state.svelte';
   import type { RunState } from '../lib/types';
 
+  import AnalyticsUsageDetails from '../lib/AnalyticsUsageDetails.svelte';
   import AnalyticsBars from '../lib/AnalyticsBars.svelte';
   import AnalyticsDaily from '../lib/AnalyticsDaily.svelte';
   import Donut from '../lib/charts/Donut.svelte';
@@ -222,6 +223,7 @@
         <p class="muted">Session ends, agent reports, board decisions and merge verification are separate signals.</p>
       </details>
     {/if}
+    {#if view === 'Usage' && !scope.runner}<AnalyticsUsageDetails {rows} days={report.days} scope={chartScope} showModels={false} />{/if}
     {#if view === 'Execution' || view === 'Usage'}
     <details class="disclosure breakdown" aria-labelledby="breakdown-title"><summary id="breakdown-title">Breakdown</summary>
       {#if rows.length}<!-- svelte-ignore a11y_no_noninteractive_tabindex (The breakdown needs a keyboard-focusable horizontal scroll region.) -->

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import AnalyticsUsageDetails from '../lib/AnalyticsUsageDetails.svelte';
   import AnalyticsBars from '../lib/AnalyticsBars.svelte';
   import AnalyticsDaily from '../lib/AnalyticsDaily.svelte';
   import Donut from '../lib/charts/Donut.svelte';
@@ -85,6 +86,8 @@
   const usage = $derived(runs ? [
     { label: 'Input tokens', value: runs.totals.inputTokens, detail: `${runs.totals.inputRuns}/${runs.totals.attempts} runs reported input` },
     { label: 'Output tokens', value: runs.totals.outputTokens, detail: `${runs.totals.outputRuns}/${runs.totals.attempts} runs reported output` },
+    { label: 'Cached tokens', value: runs.totals.cachedTokens, detail: `${runs.totals.cachedRuns}/${runs.totals.attempts} runs reported cached tokens` },
+    { label: 'Estimated cost', value: runs.totals.estimatedCostUsd, formatted: measuredCost(runs.totals.estimatedCostUsd), detail: `${runs.totals.estimatedCostRuns}/${runs.totals.attempts} runs have estimates` },
     { label: 'Reported API cost', value: runs.totals.actualCostUsd, formatted: measuredCost(runs.totals.actualCostUsd), detail: `${runs.totals.actualCostRuns}/${runs.totals.attempts} runs reported cost`, tone: 'var(--warn)' },
   ] : []);
 </script>
@@ -153,7 +156,7 @@
         <StatTile label="Reported API cost" value={measuredCost(runs.totals.actualCostUsd)} tone="var(--warn)" />
       </dl>
       <p class="muted">Runs started in this period. A run that finished normally does not mean the task is done.</p>
-      <details class="disclosure"><summary>Reporting details</summary><p class="muted">These figures come from Personal only, whatever place is chosen, and show what agents reported. Missing reports stay unknown. {runs.totals.partialRuns} partial reports across {runs.totals.attempts} runs.</p></details>
+      <details class="disclosure"><summary>Reporting details</summary><p class="muted">Execution figures come from Personal for the selected project context. Team coordination does not report agent usage. Missing reports stay unknown. {runs.totals.partialRuns} partial reports across {runs.totals.attempts} runs.</p></details>
       <div class="board">
         <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>
           {#if runs.totals.attempts}<Donut slices={outcomeSlices} centre={String(runs.totals.attempts)} caption={runs.totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs in this period.</p>{/if}
@@ -170,6 +173,7 @@
           <dl class="facts"><div><dt>Accepted</dt><dd>{runs.accepted}</dd></div><div><dt>Rejected</dt><dd>{runs.rejected}</dd></div><div><dt>Controller-verified merges</dt><dd>{runs.verifiedMerges}</dd></div><div><dt>Currently blocked / stopped</dt><dd>{runs.blocked} / {runs.stopped}</dd></div></dl>
         </Panel>
       </div>
+      <AnalyticsUsageDetails rows={runs.rows} days={runs.days} scope={chartScope} />
     {/if}
   {/if}
 </PageFrame>

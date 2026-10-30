@@ -62,6 +62,17 @@ let browser;
   await providerLoaded;
   await page.getByLabel('Usage measure').selectOption('cost');
   await page.getByRole('heading', { name: 'Reported and estimated API cost' }).waitFor();
+  await page.getByRole('heading', { name: 'Usage trends', exact: true }).waitFor();
+  const trend = page.getByRole('region', {name: 'Usage by run start day'});
+  await trend.focus();
+  assert(await trend.evaluate(el => el === document.activeElement), 'daily usage must be keyboard scrollable');
+  await trend.evaluate(el => el.blur());
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({width, height: 1000});
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'usage trends fit the viewport');
+    await page.screenshot({path: path.join(artifacts, `analytics-usage-${width}.png`), fullPage: true});
+  }
+
   await page.getByRole('tab', { name: 'Activity', exact: true }).click();
   assert.equal(await page.getByLabel('Analytics time range').inputValue(), '7', 'Activity remembers its time range');
   assert.equal(await page.getByLabel('Analytics agent provider').count(), 0, 'Activity has only task-relevant filters');

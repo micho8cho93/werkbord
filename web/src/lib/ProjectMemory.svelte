@@ -21,20 +21,21 @@
   let sourceId = $state('');
   let sources = $state<MemoryEvidence[]>([]);
   let deleteId = $state('');
+  let clearing = $state(false);
   let generation = 0;
 
   $effect(() => {
     const id = projectId;
     untrack(() => {
       query = ''; status = ''; records = []; showEditor = false;
-      sourceId = ''; deleteId = ''; message = ''; error = '';
+      sourceId = ''; deleteId = ''; clearing = false; message = ''; error = '';
       void load(id);
     });
     return () => { generation++; };
   });
   async function load(id = projectId) {
     const ticket = ++generation;
-    loading = true; error = ''; conflict = false;
+    loading = true; error = ''; conflict = false; clearing = false;
     try {
       const page = await api.memories(id, query, status);
       if (ticket === generation && projectId === id) { records = page.records; bounded = page.bounded; }
@@ -55,6 +56,17 @@
       if (id === projectId) { message = success; showEditor = false; deleteId = ''; sourceId = ''; await load(id); }
     } catch (e) { if (id === projectId) { error = e instanceof Error ? e.message : String(e); conflict = e instanceof ApiError && e.status === 409; } }
     finally { busy = false; }
+  }
+  async function clearMatches() {
+    const selected = [...records];
+    clearing = false;
+    await mutate(async () => {
+      for (const memory of selected) await api.deleteMemory(memory);
+    }, `${selected.length} memories deleted.`);
+    // A partial failure can leave some records deleted; always reload before another change.
+    const failure = error;
+    await load();
+    if (failure) error = `${failure} Some listed memories may already have been deleted. The list has been refreshed; review it before retrying.`;
   }
   async function inspect(memory: Memory) {
     if (sourceId === memory.id) { sourceId = ''; return; }
@@ -81,6 +93,10 @@
   </form>
   {#if error}<p class="error" role="alert">{error}{conflict ? ' Refresh the list before retrying a change.' : ''}</p>{/if}
   {#if message}<p role="status">{message}</p>{/if}
+  {#if records.length && !loading}
+    <button class="btn quiet" disabled={busy} onclick={() => clearing = true}>Clear listed memories…</button>
+  {/if}
+  {#if clearing}<div class="confirm"><p>Delete these {records.length} listed memories and their saved source excerpts? Other matches beyond this page, run history and shared Team notes remain. Withdraw shared notes in Settings → Personal memory.</p><div class="actions"><button class="btn danger" disabled={busy || loading} onclick={() => void clearMatches()}>Delete listed memories</button><button class="btn" disabled={busy} onclick={() => clearing = false}>Keep memories</button></div></div>{/if}
   {#if showEditor}
     <form class="editor" onsubmit={(event) => { event.preventDefault(); save(); }}>
       <h4>{editing ? 'Correct and confirm memory' : 'Save a memory'}</h4>

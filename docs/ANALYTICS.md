@@ -1,7 +1,8 @@
 # Operational analytics
 
-Individual's **Analytics** project tab (on phone: **More → Analytics**) describes task throughput and agent execution.
-Choose a project or all projects, the last 7/30/90 days, and an agent provider, then **Apply / refresh**.
+**Analytics** remains a primary sidebar destination and one of the Control Deck’s six default actions.
+Choose a project or **All Projects** using the window’s project context, then the last 7/30/90 days.
+The browser view also filters execution evidence by agent provider and runner.
 Team has a separate **Analytics** section describing coordination for projects the signed-in member may read.
 Neither view ranks people or measures customers, marketing, attendance or productivity of employees.
 
@@ -14,6 +15,17 @@ Both views open with created/completed counts, average and median duration, and 
 completion evidence and breakdown are disclosures in Individual; coordination details and work categories are disclosures
 in Team. Qualifiers stay with the figures: partial history, unknown values, reported versus estimated costs, and recorded
 versus verified outcomes.
+
+## Usage trends and coverage
+
+The existing analytics report includes daily usage totals for runs grouped by their **start day in UTC**.
+These are the latest cumulative measurements for each start-day cohort, not evidence of daily spend.
+The browser and desktop reuse the same trend component; the browser hides this trend when a runner filter
+is selected because the daily report is scoped by project/provider, not runner. The detailed execution breakdown
+continues to respect that runner filter. Missing measurements remain unknown, while measured zero remains zero.
+Provider-reported API cost and estimated API equivalents remain separate, with reporting counts for each.
+The desktop’s model breakdown combines matching provider/configured-model rows across the selected project context;
+a configured model does not prove which model the provider resolved. Team contributes coordination metrics only.
 
 ## Individual metric definitions
 

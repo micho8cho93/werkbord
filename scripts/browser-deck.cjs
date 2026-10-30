@@ -70,6 +70,7 @@ async function request(token, method, route, body) {
         assert.equal(await dialog().getByRole('combobox', {name:'Repository target',exact:true}).inputValue(), 'ask');
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('selected');
         await dialog().getByRole('checkbox', { name: project.name, exact: true }).check();
+        await dialog().getByText('Execution and output settings', { exact: true }).click();
         await dialog().getByRole('combobox', { name: 'Model selection', exact: true }).selectOption('manual');
         await dialog().getByRole('combobox', { name: 'Agent', exact: true }).selectOption('fixture');
         await dialog().getByRole('button', { name: 'Save configuration', exact: true }).click();
@@ -173,6 +174,7 @@ async function request(token, method, route, body) {
         // A one-off picker changes this invocation without changing the saved target.
         await focusSocket(7); await page.keyboard.press('Shift+F10');
         await dialog().getByRole('combobox', { name: 'Repository target', exact: true }).selectOption('ask');
+        await dialog().getByText('Execution and output settings', { exact: true }).click();
         await dialog().getByRole('combobox', { name: 'Output', exact: true }).selectOption('report');
         await dialog().getByRole('button', { name: 'Run Once With Different Settings', exact: true }).click();
         await dialog().getByRole('heading', { name: 'Run Find Bugs' }).waitFor();

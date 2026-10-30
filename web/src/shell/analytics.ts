@@ -6,7 +6,7 @@
 // moved to Done, how long they took, by day and by category), so those merge. Only Personal reports what its own agents did (runs,
 // tokens, cost): a team records coordination only, by design, so that part is Personal's alone.
 
-import { executionTotals, type AnalyticsExecution } from '../lib/analytics';
+import { executionTotals, type AnalyticsReport, type AnalyticsExecution } from '../lib/analytics';
 import { listed, sectionItems } from './nav';
 import type { Item, Kind, Overview } from './types';
 
@@ -101,6 +101,8 @@ export function runsOf(raw: unknown) {
   const totals = executionTotals(rows);
   return {
     totals,
+    rows,
+    days: (Array.isArray(r.days) ? r.days : []) as AnalyticsReport['days'],
     providers: [...rows.reduce((m, row) => m.set(row.provider, (m.get(row.provider) ?? 0) + row.attempts), new Map<string, number>())].map(([name, attempts]) => ({ name, attempts })).sort((a, b) => b.attempts - a.attempts),
     accepted: num(r.accepted),
     rejected: num(r.rejected),

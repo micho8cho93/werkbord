@@ -59,8 +59,14 @@ func TestAnalyticsAggregation(t *testing.T) {
 	if out.InputTokens == nil || *out.InputTokens != 100 || out.OutputTokens == nil || *out.OutputTokens != 0 || out.CachedTokens != nil || out.InputRuns != 1 || out.ActualCostUSD == nil || *out.ActualCostUSD != 2 || out.EstimatedCostUSD != nil {
 		t.Fatalf("usage: %+v", out.AnalyticsMeasurements)
 	}
+	if out.Days[0].Attempts != 2 || out.Days[0].InputTokens == nil || *out.Days[0].InputTokens != 100 || out.Days[0].ActualCostUSD == nil || *out.Days[0].ActualCostUSD != 2 {
+		t.Fatalf("usage belongs to the run start day: %+v", out.Days[0])
+	}
+	if out.Days[1].InputTokens != nil || out.Days[1].ActualCostUSD != nil || out.Days[1].Attempts != 0 {
+		t.Fatalf("unreported days must remain unknown: %+v", out.Days[1])
+	}
 	filtered := aggregateAnalytics(data, nil, AnalyticsFilter{ProjectID: "p", Provider: "codex"}, start, end)
-	if filtered.Created != 1 || filtered.Completed != 1 || filtered.Attempts != 1 || filtered.Retries != 0 || filtered.LimitEvents != 1 {
+	if filtered.Days[0].Attempts != 1 || filtered.Created != 1 || filtered.Completed != 1 || filtered.Attempts != 1 || filtered.Retries != 0 || filtered.LimitEvents != 1 {
 		t.Fatalf("provider: %+v", filtered)
 	}
 	if len(out.Executions) != 2 {
@@ -148,5 +154,28 @@ func TestAnalyticsReadOnlyProjectionAndScope(t *testing.T) {
 	}
 	if _, e = (&Analytics{Deps: f.deps}).Report(ctx, AnalyticsFilter{ProjectID: "missing", Days: 7}); e == nil {
 		t.Fatal("missing project accepted")
+	}
+}
+
+func TestAnalyticsUsageTrendUsesStartDayAndSeparatesEstimates(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	zero, tokens := int64(0), int64(42)
+	actual, estimate := 1.25, 2.50
+	// A run's latest usage can arrive later. It remains in its start-day cohort.
+	data := store.AnalyticsData{Runs: []domain.Run{
+		{ID: "actual", ProjectID: "p", TaskID: "a", AgentID: "codex", CreatedAt: start.Add(time.Hour), Usage: domain.Usage{InputTokens: &zero, CostUSD: &actual, CostKind: "actual_api", Source: "provider"}},
+		{ID: "estimate", ProjectID: "p", TaskID: "b", AgentID: "codex", CreatedAt: start.Add(25 * time.Hour), Usage: domain.Usage{InputTokens: &tokens, CostUSD: &estimate, CostKind: "estimated_api_equivalent", Source: "provider", Partial: true}},
+		{ID: "unknown", ProjectID: "other", TaskID: "c", AgentID: "claude-code", CreatedAt: start.Add(25 * time.Hour)},
+	}}
+	out := aggregateAnalytics(data, nil, AnalyticsFilter{ProjectID: "p"}, start, start.Add(72*time.Hour))
+	first, second, empty := out.Days[0], out.Days[1], out.Days[2]
+	if first.InputTokens == nil || *first.InputTokens != 0 || first.ActualCostUSD == nil || *first.ActualCostUSD != actual || first.EstimatedCostUSD != nil {
+		t.Fatalf("actual and measured zero: %+v", first)
+	}
+	if second.Attempts != 1 || second.InputTokens == nil || *second.InputTokens != tokens || second.EstimatedCostUSD == nil || *second.EstimatedCostUSD != estimate || second.ActualCostUSD != nil || second.PartialRuns != 1 {
+		t.Fatalf("estimated, partial and project scoped: %+v", second)
+	}
+	if empty.Attempts != 0 || empty.InputTokens != nil || empty.EstimatedCostUSD != nil || empty.ActualCostUSD != nil {
+		t.Fatalf("unavailable remains unavailable: %+v", empty)
 	}
 }

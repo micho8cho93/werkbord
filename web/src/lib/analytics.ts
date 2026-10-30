@@ -18,7 +18,7 @@ export interface AnalyticsReport extends Measurements {
   blocked: number; stopped: number; agentReportedCompletion: number | null; normalSessionCompletions: number; verifiedCompletion: number | null;
   verifiedMerges: number; accepted: number; rejected: number; attempts: number; retries: number;
   limitEvents: number; outcomes: Partial<Record<RunState, number>>;
-  days: { date: string; created: number; completed: number }[];
+  days: ({ date: string; created: number; completed: number; attempts?: number } & Partial<Measurements>)[];
   executions: AnalyticsExecution[];
   categories: { labelId: string; name: string; created: number; completed: number }[];
   truncated: boolean; retentionRemoved: boolean; missingTaskHistory: number;

@@ -245,3 +245,12 @@ Find Bugs, Security Audit and Dependency Check buttons start with draft output. 
 per-session grants, real PTY input/control bytes, desktop/phone UI closure, session switching, network loss/recovery,
 uncertain-input blocking, task sessions, Salie conversations, termination and revocation. It checks 320px and 430px portrait
 and 844px landscape in both themes. Physical phone keyboards remain a manual validation step.
+
+## Retained workflow configuration
+
+The workflow configuration sheet keeps repository targets visible and groups runner, model, output and approval
+options under **Execution and output settings**. First-use guidance opens those options; returning users can
+run with inherited defaults or expand them. Saving configuration never starts a run. The nine-position deck,
+its six default navigation actions, three initial programmable positions and existing saved-layout customisation
+remain compatible. Execution and scheduled starts continue through the controller’s existing task/run services;
+there is no mobile execution or scheduling engine.

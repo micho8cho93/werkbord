@@ -122,6 +122,7 @@ async function cleanup() {
     run('git', ['-C', analyticsRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty', '-m', 'Analytics fixture'], {}, true);
     testEnv.WERKBORD_BROWSER_REPO = analyticsRepo;
     run(process.execPath, ['scripts/browser-analytics.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-memory-settings.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-bridge.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv);
     console.log('PASS disposable Individual + Team browser/integration suite');

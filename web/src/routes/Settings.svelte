@@ -2,6 +2,7 @@
   import ClientsPanel from '../lib/ClientsPanel.svelte';
   import ProjectHistory from '../lib/ProjectHistory.svelte';
   import MemorySharing from '../lib/MemorySharing.svelte';
+  import ProjectMemory from '../lib/ProjectMemory.svelte';
   import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
@@ -33,6 +34,8 @@
   // and asks this page for one section at a time: there is no list or heading of its own here. Opened in a browser or on a phone
   // it is the whole of Settings, as it always was.
   const framed = embedded();
+  let memoryProject = $state('');
+  const localMemoryProject = $derived(app.projects.find(p => p.id === memoryProject)?.id ?? app.projects[0]?.id ?? '');
   let mcpDirection = $state<'service' | 'client'>('service');
 
   const GROUPS = [
@@ -183,6 +186,15 @@
     {:else if section === 'github'}
       <GitHubCard />
     {:else if section === 'memory'}
+      <section class="pn">
+        <h2 class="band">Local project memory</h2>
+        <p>Inspect, correct or delete remembered information on this computer. Team memory is managed separately in that Team’s Settings, subject to its project permissions.</p>
+        <label class="memory-project">Project <select class="input" aria-label="Memory project" value={localMemoryProject} onchange={event => memoryProject = event.currentTarget.value}>
+          {#each app.projects as project (project.id)}<option value={project.id}>{project.name}</option>{/each}
+        </select></label>
+        {#if !localMemoryProject}<p class="muted">Add a project to start remembering decisions and preferences.</p>{/if}
+      </section>
+      {#if localMemoryProject}{#key localMemoryProject}<ProjectMemory projectId={localMemoryProject} />{/key}{/if}
       <MemorySharing />
     {:else if section === 'mcp'}
       <div class="mcp-direction" role="group" aria-label="MCP connection direction">
@@ -299,6 +311,8 @@
 </div>
 
 <style>
+  .memory-project { display: grid; gap: 6px; margin-top: 12px; max-width: 360px; }
+  .memory-project select { min-height: 44px; width: 100%; }
   .mcp-direction { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
   .mcp-direction button { white-space: normal; min-height: 44px; }
   .mcp-direction [aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }

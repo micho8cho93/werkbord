@@ -695,3 +695,14 @@ rechecks its own project grants before presenting them. Links suggest checking
 compatibility or coordinating changes, never prove breakage and never authorise
 Git actions. Relationships remain private unless a person separately reviews a
 sanitised cross-repository Team memory proposal through the existing sharing API.
+
+## Settings access
+
+**Settings → Personal memory** includes the existing local project memory editor as well as sharing controls.
+Choose a project to inspect sources, correct or delete records. **Clear listed memories** confirms deletion of
+only the currently displayed search/status results (at most 100), including their saved source excerpts.
+It leaves other matches, run/Git history and separately published Team notes intact. A partial failure refreshes
+the list before retrying; each deletion retains the existing owner/scope/version checks.
+Withdraw shared notes through the sharing controls. Team memory stays in that Team’s Settings under its existing
+project visibility, approval and administration permissions. Project Settings retains its link to the same editor;
+there is no primary Memory navigation destination or second memory store.

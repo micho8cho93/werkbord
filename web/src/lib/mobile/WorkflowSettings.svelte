@@ -50,8 +50,10 @@
     </select></label>
     {#if target === 'current'}<p class="muted">Current: {app.project(app.lastProjectId)?.name ?? 'Choose a project before running'}</p>{/if}
     {#if target === 'selected'}<fieldset><legend>Repositories</legend>{#each repositories as p (p.id)}<label class="check"><input type="checkbox" bind:group={projectIds} value={p.id} disabled={busy} />{p.name}</label>{/each}</fieldset>{/if}
-    {#if !onboarding}<label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>{/if}
+
     {#if !repositories.length}<p class="muted">Add a Git repository on your computer first, then return here.</p>{#if onboarding && onpreview}<button class="btn" type="button" onclick={onpreview}>Continue with interactive preview</button>{/if}{/if}
+    <details open={onboarding}><summary>Execution and output settings</summary>
+    {#if !onboarding}<label>Runner <select class="select" bind:value={runner} disabled={busy}><option value="">Project / controller default</option><option value="automatic">Automatic</option>{#each app.runners.filter(r => !r.disabled) as r (r.id)}<option value={r.id}>{r.name}{r.online ? '' : ' (offline)'}</option>{/each}</select></label>{/if}
     <label>Model selection <select class="select" bind:value={mode} disabled={busy}><option value="">Use inherited defaults</option>{#each SELECTION_MODES as option (option.value)}<option value={option.value}>{option.label}</option>{/each}</select></label>
     {#if mode==='manual'}
     <label>Agent <select class="select" bind:value={agent} disabled={busy} onchange={() => { model = ''; reasoning = ''; custom = false; }}>
@@ -71,6 +73,7 @@
     {#if !onboarding}<label>Output <select class="select" bind:value={output} disabled={busy}><option value="report">Report</option><option value="drafts">Draft tasks in Backlog</option>{#if slot.button === 'improve-tests' || slot.button === 'refactor-codebase'}<option value="changes">Propose, then implement approved changes</option>{/if}</select></label>
     <label>Approval <select class="select" bind:value={approval} disabled={busy}><option value="changes">Before changes and sensitive actions</option><option value="always">Before investigation as well</option></select></label>
     <label>Maximum repositories (0 = no additional limit) <input class="input" type="number" min="0" max="100" step="1" bind:value={maxRepositories} disabled={busy} /></label>{/if}
+    </details>
     {#if problem}<p class="error" role="alert">{problem}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <p class="muted">{onboarding ? 'Find Bugs saves verified findings as Backlog drafts for you to review. Full settings are available after onboarding. ' : ''}Save these defaults, then tap the workflow on your deck to run it. Hold it or press Shift+F10 to change them.</p>
@@ -83,6 +86,9 @@
 </Sheet>
 <style>
   form { display: grid; gap: 14px; }
+  details { display: grid; gap: 14px; }
+  details > :global(*) { margin-top: 14px; }
+  summary { cursor: pointer; min-height: 44px; align-content: center; }
   label { display: grid; gap: 6px; }
   p { margin: 0; }
   fieldset { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }

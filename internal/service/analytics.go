@@ -21,6 +21,8 @@ type AnalyticsFilter struct {
 	Days      int
 }
 type AnalyticsDay struct {
+	AnalyticsMeasurements
+	Attempts  int    `json:"attempts"`
 	Date      string `json:"date"`
 	Created   int    `json:"created"`
 	Completed int    `json:"completed"`
@@ -249,6 +251,10 @@ func aggregateAnalytics(data store.AnalyticsData, labels []domain.Label, f Analy
 			out.Retries++
 			g.Retries++
 		}
+		// Usage is grouped by the run's start day, not the day it was spent.
+		day := &out.Days[dateIndex[r.CreatedAt.UTC().Format("2006-01-02")]]
+		day.Attempts++
+		addMeasurements(&day.AnalyticsMeasurements, r.Usage)
 		addMeasurements(&out.AnalyticsMeasurements, r.Usage)
 		addMeasurements(&g.AnalyticsMeasurements, r.Usage)
 	}
