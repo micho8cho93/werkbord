@@ -55,6 +55,7 @@ export interface ConfirmItem {
   state: ConfirmState;
   outcome?: string;
   ticket?: { id: string; projectId: string; title: string; state: string };
+  session?: { key: string; kind: 'run' | 'terminal'; id: string; projectId: string; taskId: string; agentId: string; state: string };
 }
 
 export interface NoticeItem {
@@ -173,6 +174,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       c.state = word === 'confirmed' ? 'confirmed' : word === 'declined' ? 'declined' : word === 'expired' ? 'expired' : 'failed';
       if (e.outcome) c.outcome = e.outcome;
       if (e.ticket) c.ticket = e.ticket;
+      if (e.session) c.session = e.session;
       break;
     }
     case 'notice': {

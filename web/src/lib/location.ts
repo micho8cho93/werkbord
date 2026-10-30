@@ -6,6 +6,7 @@
 //   global          #/control          what needs you, in every project
 //                   #/projects         every registered repository, and registering one
 //                   #/help             bundled task guidance and keyboard shortcuts
+//                   #/sessions[/<key>] Agents: every coding-agent session, and one of them open (key is run:<id> or terminal:<id>)
 //   in a project    #/p/<id>/work     (also: overview, calendar, git, runs, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
@@ -14,7 +15,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | PhoneView;
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | 'sessions' | PhoneView;
 /**
  * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
  * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
@@ -28,6 +29,7 @@ export type View = GlobalView | ProjectSection | 'task';
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Workspace', short: 'Workspace' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
+  { id: 'sessions', label: 'Agents', short: 'Agents' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
   { id: 'help', label: 'Help', short: 'Help' },
@@ -114,6 +116,8 @@ export function parse(hash: string): Location {
   const parts = full.split(/[?&]/)[0].split('/');
   const [first = '', second = '', third = '', fourth = ''] = parts;
 
+  // Agents names the session it has open in the address (a session key: run:<id> or terminal:<id>), so a reload or a link lands on it.
+  if (first === 'sessions') return second && decode(second) ? { view: 'sessions', projectId: '', taskId: '', sub: decode(second) } : { view: 'sessions', projectId: '', taskId: '' };
   if (isGlobal(first)) return { view: first, projectId: '', taskId: '' };
 
   if (first === 'p' && decode(second)) {
@@ -150,6 +154,11 @@ export function globalHref(view: GlobalView): string {
   return `#/${view}`;
 }
 
+/** Agents, with the session of this key open (see agent-sessions.ts for what a key looks like), or the list alone. */
+export function sessionsHref(key = ''): string {
+  return key ? `#/sessions/${enc(key)}` : '#/sessions';
+}
+
 export function projectHref(projectId: string, section: ProjectSection = 'work'): string {
   return `#/p/${enc(projectId)}/${section}`;
 }
@@ -161,6 +170,7 @@ export function taskHref(projectId: string, taskId: string, runId = ''): string 
 
 /** The address of a location. A project page whose project is not known yet has none to give. */
 export function hrefOf(loc: Location): string {
+  if (loc.view === 'sessions') return sessionsHref(loc.sub);
   if (loc.view === 'task') return taskHref(loc.projectId, loc.taskId, loc.runId);
   if (isGlobal(loc.view)) return globalHref(loc.view);
   if (loc.view === 'git' && loc.sub) return `${projectHref(loc.projectId, 'git')}/${loc.sub}`;

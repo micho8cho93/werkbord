@@ -21,7 +21,6 @@
       void model.prepareAssistant().catch(() => {}).finally(() => { preparing = false; });
     }
   });
-  const compact = $derived(!model.assistantShown && model.assistant.compact === true && model.assistant.waiting > 0);
   let loaded = $state(false);
 
   const refs = (): FrameRef[] => (model.assistantFrame ? [{ id: 'personal', surface: true, origin: model.assistantFrame.origin, window: el?.contentWindow ?? null }] : []);
@@ -56,6 +55,8 @@
         const connectedTeam = model.view?.items.some((item) => item.id === target && item.kind === 'team' && item.state === 'ready');
         if (connectedTeam) void model.open(target, place);
       },
+      // A card in a conversation leads to the session it started: the window shows it in Agents, and Salie folds away without stopping.
+      agentSession: key => { void model.openAgents(key); },
       assistant: (_id, state) => model.setAssistant(state),
     });
   }
@@ -84,7 +85,7 @@
         type: 'werkbord.assistant',
         action: request.action,
         projectContext: model.selectedProject ? { workspace: model.selectedProject.workspace, project: model.selectedProject.project, label: model.contextLabel } : null,
-        ...(request.run ? { run: request.run } : {}),
+        ...(request.conversation ? { conversation: request.conversation } : {}),
         ...(request.catchUpPrompt === undefined ? {} : {catchUpPrompt: request.catchUpPrompt}),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },
       });
@@ -98,16 +99,13 @@
   <iframe
     bind:this={el}
     class="assistant-frame"
-    class:shown={model.assistantShown || compact}
-    class:compact
-    style:left={compact ? `${Math.max(12, Math.min(window.innerWidth - 384, (model.assistantFloatingButton?.getBoundingClientRect().left ?? window.innerWidth - 400) - 150))}px` : undefined}
-    style:top={compact ? `${Math.max(12, Math.min(window.innerHeight - 520, (model.assistantFloatingButton?.getBoundingClientRect().top ?? window.innerHeight) - 510))}px` : undefined}
+    class:shown={model.assistantShown}
     title="Salie"
     src={model.assistantFrame.url}
     referrerpolicy="no-referrer"
     sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-downloads"
     allow="microphone"
-    aria-hidden={!model.assistantShown && !compact}
+    aria-hidden={!model.assistantShown}
     data-testid="assistant-frame"
     onload={() => {
       loaded = true;
@@ -129,7 +127,6 @@
     visibility: hidden;
     pointer-events: none;
   }
-  .assistant-frame.compact { inset: auto; width: min(380px, calc(100vw - 24px)); height: min(500px, calc(100dvh - 90px)); border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .assistant-frame.shown {
     visibility: visible;
     pointer-events: auto;

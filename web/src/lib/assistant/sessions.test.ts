@@ -132,8 +132,9 @@ describe('Salie session manager', () => {
   });
 });
 
-it('deduplicates attached run tabs, restores them and never creates a provider session for them', async () => {
-  const { api } = await import('../api');
+it('on a phone, deduplicates attached run tabs, restores them and never creates a provider session for them', async () => {
+  const { api, setToken } = await import('../api');
+  setToken('wbp_phone');
   const { app } = await import('../state.svelte');
   vi.spyOn(api, 'getRun').mockResolvedValue({id:'run-one',projectId:'project-one',state:'running',version:1} as Awaited<ReturnType<typeof api.getRun>>);
   vi.spyOn(api, 'runEvents').mockResolvedValue({events:[],hasMore:false});
@@ -154,26 +155,49 @@ it('deduplicates attached run tabs, restores them and never creates a provider s
   vi.restoreAllMocks();
 });
 
-describe('native terminal tabs', () => {
-  it('creates without a task or conversation and preserves the process session across closing and reopening', async () => {
-    const { terminalApi } = await import('./terminal');
-    const session = { id: 'terminal-a', projectId: 'repo-a', agentId: 'codex', device: 'local', repository: 'Repo', state: 'running' as const, createdAt: '2026-10-25T00:00:00Z' };
-    const create = vi.spyOn(terminalApi, 'create').mockResolvedValue(session);
-    vi.spyOn(terminalApi, 'list').mockResolvedValue([]);
-    const stop = vi.spyOn(terminalApi, 'stop');
+describe('coding-agent sessions and Salie', () => {
+  it('on a computer, opens a run in Agents by its key and never adds a second Salie tab for it', async () => {
+    const open = vi.fn();
+    vi.doMock('../agent-nav', () => ({ openAgents: open, backToSalie: vi.fn() }));
     const m = await manager();
-    await m.newTerminal('repo-a', 'codex', 'local');
-    const id = m.activeId;
-    expect(create).toHaveBeenCalledWith('repo-a', 'codex', 'local');
-    expect(m.activeTab.terminal?.id).toBe('terminal-a');
-    expect(m.activeTab.store.session).toBeNull();
-    m.show(); m.opened(); m.hide(); m.closed(); m.closeTab(id); m.reopen(id);
-    expect(m.activeTab.terminal?.id).toBe('terminal-a');
-    expect(stop).not.toHaveBeenCalled();
-    expect(m.running).toBe(true);
+    const tabs = m.tabs.length;
+    m.openRun('project-one', 'run-one');
+    m.openRun('project-one', 'run-one');
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenCalledWith('run:run-one');
+    expect(m.tabs).toHaveLength(tabs);
+    expect(m.tabs.some(t => t.run || t.terminal)).toBe(false);
+  });
+  it('on a computer, does not list or restore terminals and runs: Agents shows the one view of them', async () => {
+    const { terminalApi } = await import('./terminal');
+    const list = vi.spyOn(terminalApi, 'list').mockResolvedValue([{ id: 'terminal-existing', projectId: 'repo-a', agentId: 'claude-code', device: 'local', repository: 'Repo', state: 'running' as const, createdAt: '2026-10-25T00:00:00Z' }]);
+    storage.setItem('werkbord.assistant.tabs.v1', JSON.stringify({ v: 1, activeId: 'a', tabs: [
+      { id: 'a', title: '', closed: false }, { id: 'b', title: '', closed: true, run: { projectId: 'p', runId: 'r' } },
+      { id: 'c', title: '', closed: true, terminal: { id: 'terminal-old', projectId: 'p', agentId: 'codex', device: 'x', repository: 'R', state: 'running', createdAt: '2026-10-25T00:00:00Z' } },
+    ] }));
+    const m = await manager();
+    expect(list).not.toHaveBeenCalled();
+    expect(m.tabs.filter(t => t.run || t.terminal)).toHaveLength(0);
     vi.restoreAllMocks();
   });
-  it('discovers sessions after losing browser storage without relaunching them', async () => {
+  it('opens the conversation that started a session, and only a conversation this window has', async () => {
+    const m = await manager();
+    await m.active.prepare();
+    await m.active.send('Start the work');
+    const first = m.activeId;
+    const id = m.active.session!.id;
+    m.newTab();
+    expect(m.activeId).not.toBe(first);
+    m.openConversation(id);
+    expect(m.activeId).toBe(first);
+    expect(m.mounted).toBe(true);
+    const before = m.activeId;
+    m.openConversation('ast_unknown');
+    expect(m.activeId).toBe(before);
+  });
+  it('on a phone, discovers terminals it was granted after losing browser storage without relaunching them', async () => {
+    const { setToken } = await import('../api');
+    setToken('wbp_phone');
     const { terminalApi } = await import('./terminal');
     const session = { id: 'terminal-existing', projectId: 'repo-a', agentId: 'claude-code', device: 'local', repository: 'Repo', state: 'interrupted' as const, createdAt: '2026-10-25T00:00:00Z' };
     vi.spyOn(terminalApi, 'list').mockResolvedValue([session]);
@@ -189,6 +213,8 @@ describe('native terminal tabs', () => {
 });
 
 it('opens Work plan prompts in a conversation while preserving the associated CLI session', async () => {
+  const { setToken } = await import('../api');
+  setToken('wbp_phone');
   const m = await manager();
   m.openRun('project-one', 'run-one');
   const runTab = m.activeId;

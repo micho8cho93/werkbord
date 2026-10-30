@@ -5,6 +5,8 @@
   import type { ConfirmItem } from './transcript';
   import { clock, operationFailureTitle, operationTitle } from './words';
   import { taskHref } from '../router.svelte';
+  import { openAgents } from '../agent-nav';
+  import { isSessionKey } from '../agent-sessions';
   import { acknowledge, surface } from '../motion';
 
   // A change the assistant prepared. Nothing has happened: the words below were written by Werkbord from the exact arguments
@@ -42,13 +44,17 @@
   {#if item.state === 'waiting' || item.state === 'working'}
     <div class="acts">
       <button class="btn primary" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'approve')}>
-        {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : 'Saving…') : 'Confirm'}
+        {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : item.operation === 'start_agent_run' ? 'Starting…' : 'Saving…') : item.operation === 'start_agent_run' ? 'Confirm and start' : 'Confirm'}
       </button>
       <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Decline</button>
     </div>
     {#if item.state === 'waiting'}<p class="fine">Nothing changes until you confirm.{Number.isFinite(until) ? ` Open until ${clock(until)}.` : ''}</p>{:else}<p class="fine">{item.operation === 'create_ticket' ? 'Adding the approved task to Backlog…' : 'Saving the approved change…'}</p>{/if}
   {:else if item.state === 'confirmed'}
     <p class="result ok"><Icon name="check" size={14} /> {item.operation === 'create_ticket' ? 'Added to Backlog.' : 'Done.'}{item.ticket ? ` ${item.ticket.title}` : item.outcome ? ` ${item.outcome}` : ''}</p>
+    {#if item.session && isSessionKey(item.session.key)}
+      <!-- The conversation holds only the reference; the session itself is opened in Agents, where it can be read and continued. -->
+      <button class="task-link" type="button" onclick={() => openAgents(item.session!.key)} data-testid="open-in-agents">Open in Agents</button>
+    {/if}
     {#if item.ticket}
       {#if connected}<button class="task-link" type="button" onclick={openConnectedTask}>Open task</button>
       {:else}<a class="task-link" href={taskHref(item.ticket.projectId, item.ticket.id)}>Open task</a>{/if}

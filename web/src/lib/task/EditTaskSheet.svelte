@@ -11,6 +11,9 @@
   import Sheet from '../Sheet.svelte';
   import type { ProjectScope } from '../scope.svelte';
   import { app } from '../state.svelte';
+  import { openAgents } from '../agent-nav';
+  import { runKey } from '../agent-sessions';
+  import { runStatus } from '../format';
   import { validatePlanDraft } from '../planning';
   import type { ExecutionConfig, Plan, PlanIssue, Task, WorkMode } from '../types';
 
@@ -46,6 +49,8 @@
   let scheduled = $state(initialScheduled);
   const dirty = $derived(editKey(title, description, execution, labelIds, workMode, plan, dependencies, scheduled) !== initialKey);
   const project = $derived(app.project(task.projectId));
+  // The task's latest run is a session like any other: the Calendar, Scheduling and the task page all open it in Agents by its key.
+  const latest = $derived(scope.latestRun[task.id]);
   const canAgent = $derived(agentWorkable({ workMode }, project));
   let busy = $state(false);
   let error = $state('');
@@ -118,6 +123,10 @@
       void save();
     }}
   >
+    {#if latest}
+      <p class="session-link" data-testid="task-session">Latest session: {runStatus(latest).label}.
+        <button class="btn small" type="button" onclick={() => { const key = runKey(latest.id); onclose(); openAgents(key); }}>Open session</button></p>
+    {/if}
     <label class="field">
       <span>Title</span>
       <input class="input" maxlength="200" bind:value={title} required data-autofocus />
@@ -168,4 +177,5 @@
   .note {
     font-size: 12px;
   }
+.session-link { margin: 0; font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>

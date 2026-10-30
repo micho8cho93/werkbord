@@ -3,7 +3,6 @@
 // window of a frame the shell itself made, from the origin the app said that frame would be at; and it can only ask the app to
 // do something (the app then decides, by the kind of workspace the frame is) or say where in itself the person is.
 
-import { isSaliePlacements, type SaliePlacements } from '../lib/salie-placement';
 
 export interface FrameRef {
   /** The workspace the frame shows: the app's identity for it, never anything the page says. */
@@ -17,6 +16,9 @@ export interface FrameRef {
   window: Window | null;
 }
 
+/** What a session key looks like (agent-sessions.ts): the kind of record that owns it, and that record's own ID. */
+const SESSION_KEY = /^(run|terminal):[A-Za-z0-9_-]{1,96}$/;
+
 export interface MessageLike {
   source: unknown;
   origin: string;
@@ -25,9 +27,11 @@ export interface MessageLike {
 
 export interface Deps {
   workSalie?(workspace: string, project: string, plan: string): void;
-  runSession?(projectId: string, runId: string): void;
+  /** A page of the person's own Werkbord, or Salie, asks to open a coding-agent session in Agents. The key is a validated session key. */
+  agentSession?(key?: string): void;
+  /** Agents asks to go back to Salie, to the conversation that started the session when it names one. */
+  openSalie?(conversation?: string): void;
   onboarding?(required: boolean, paused: boolean): void;
-  saliePlacement?(value?: SaliePlacements): SaliePlacements;
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
   ready(id: string): void;
@@ -35,7 +39,7 @@ export interface Deps {
   /** A frame asks to show the person's own Werkbord at a place inside it. */
   open(id: string, target: string, place: string): void;
   /** Individual's assistant says whether it is open and whether something there needs the person. */
-  assistant(id: string, state: { open: boolean; waiting: number; running: boolean; compact?: boolean }): void;
+  assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
   /** A page says the person chose a theme there. */
   theme(id: string, choice: 'light' | 'dark' | ''): void;
   /** A page says the person chose a style there (Paper, Graphite or Classic). */
@@ -121,16 +125,13 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
   if (m.type === 'werkbord.frame') {
     // The assistant's frame is not a workspace's page: it has no place to remember, and may open only a place in the person's own
     // Werkbord or a validated Team ticket route.
-    if (frame.surface && m.event !== 'assistant' && m.event !== 'open') return;
-    if (m.event === 'salie_placement' && frame.id === 'personal' && !frame.hosted && !frame.surface && d.saliePlacement) {
-      if (m.action !== 'get' && m.action !== 'set') return;
-      if (m.action === 'set' && !isSaliePlacements(m.value)) return;
-      const value = d.saliePlacement(m.action === 'set' ? m.value as SaliePlacements : undefined);
-      d.reply(frame, { type: 'werkbord.salie-placement', value });
-    }
-    else if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    if (frame.surface && m.event !== 'assistant' && m.event !== 'open' && m.event !== 'agent_session') return;
+    if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
     else if (m.event === 'work_salie' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && (m.planId === undefined || typeof m.planId === 'string' && /^[\w-]{1,120}$/.test(m.planId))) d.workSalie?.(frame.id, m.projectId, typeof m.planId === 'string' ? m.planId : '');
-    else if (m.event === 'run_session' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && typeof m.runId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && /^[\w-]{1,120}$/.test(m.runId)) d.runSession?.(m.projectId, m.runId);
+    // A session is opened by its key and nothing else: the key is what the controller derives from the owning record's ID, and the
+    // shell shows the person's own Werkbord at it. Only Individual's pages and Salie may ask; a Team page has no session to open.
+    else if (m.event === 'agent_session' && frame.id === 'personal' && !frame.hosted && (m.key === undefined || SESSION_KEY.test(String(m.key)))) d.agentSession?.(m.key as string | undefined);
+    else if (m.event === 'salie' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.conversation === undefined || typeof m.conversation === 'string' && /^[\w-]{1,80}$/.test(m.conversation))) d.openSalie?.(typeof m.conversation === 'string' ? m.conversation : undefined);
     else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
       const problem = await d.reauth?.(frame.id, m.manual === true);
       if (problem) d.reply(frame, { type: 'werkbord.reauth', ok: false, message: problem });
@@ -158,7 +159,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // Only the assistant's own frame, which is the person's own Werkbord, says how the assistant stands. A count and two flags are
     // all that cross: never a word of the conversation.
     else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isSafeInteger(m.waiting) && (m.waiting as number) >= 0) {
-      d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running, ...(m.compact === true ? { compact: true } : {}) });
+      d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running });
     }
   }
 }

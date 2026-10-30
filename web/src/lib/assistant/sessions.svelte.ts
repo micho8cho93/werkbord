@@ -5,12 +5,15 @@ import { terminalApi, type TerminalSession } from './terminal';
 import { app } from '../state.svelte';
 import { RunSession, liveRun } from './run-session.svelte';
 import { InteractionQueue, type Interaction } from './interactions';
-import { embedded, surface } from '../embed';
 import { onAssistantRequest, reportAssistant } from '../embed';
 import { AssistantStore, type Phase } from './store.svelte';
 import { FALLBACK_ORIGIN, type Origin } from './transition';
 import type { Choice } from './choice';
 import { SessionStreams } from './session-streams';
+import { isPhone } from '../phones/capability';
+import { phone } from '../mobile/phone.svelte';
+import { openAgents } from '../agent-nav';
+import { runKey } from '../agent-sessions';
 
 const INDEX = 'werkbord.assistant.tabs.v1';
 const LEGACY = 'werkbord.assistant.v1';
@@ -24,7 +27,6 @@ export class AssistantSessions {
   phase = $state<Phase>('closed');
   origin = $state<Origin>(FALLBACK_ORIGIN);
   trigger: HTMLElement | null = null;
-  compact = $state(false);
   private queue = new InteractionQueue();
   private pending = $derived.by(() => {
     const requests: Interaction[] = app.questions.map(question => ({ key: `question:${question.projectId}:${question.id}`, kind: 'question', question }));
@@ -36,14 +38,18 @@ export class AssistantSessions {
   });
   get interactions(): Interaction[] { return this.pending; }
   get activeTab(): SalieTab { return this.tabs.find(t => t.id === this.activeId)!; }
+  /**
+   * Agents is where a session is opened on a computer: Salie links to it and the Work pages link to it, by the session's key. Only
+   * the phone, which has Salie and the Control Deck and no Agents, opens the run in a Salie tab of its own.
+   */
   openRun(projectId: string, runId: string): void {
-    if (embedded() && !surface) {
-      window.parent.postMessage({ type: 'werkbord.frame', event: 'run_session', projectId, runId }, '*');
+    if (!isPhone() && !phone.on) {
+      openAgents(runKey(runId));
       return;
     }
     let tab = this.tabs.find(t => t.run?.projectId === projectId && t.run.runId === runId);
     if (!tab) { tab = this.add(); tab.run = new RunSession(projectId, runId); }
-    tab.closed = false; tab.run!.attach(); this.activeId = tab.id; this.compact = false; this.show(); this.save();
+    tab.closed = false; tab.run!.attach(); this.activeId = tab.id; this.show(); this.save();
   }
   private streams = new SessionStreams();
   private started = false;
@@ -68,12 +74,9 @@ export class AssistantSessions {
     this.activeId = id;
     return this.tabs.at(-1)!;
   }
-  async newTerminal(projectId: string, agentId: string, device: string): Promise<void> {
-    const session = await terminalApi.create(projectId, agentId, device);
-    const tab = this.add(); tab.terminal = session; this.save();
-  }
+  /** Terminals are made and managed in Agents. Only the phone, which has no Agents, lists the ones its owner shared with it here. */
   async discoverTerminals(): Promise<void> {
-    if (app.remote) return;
+    if (app.remote || !isPhone()) return;
     try {
       const sessions = await terminalApi.list();
       for (const session of sessions) {
@@ -90,6 +93,12 @@ export class AssistantSessions {
     tab.store.init(true);
     if (!tab.run && !tab.terminal) void tab.store.prepare();
     this.save();
+  }
+  /** Opens Salie on the conversation with this ID if this window has it (a session names the conversation that started it). */
+  openConversation(conversationId: string, origin?: Origin): void {
+    const tab = this.tabs.find(t => !t.run && !t.terminal && t.store.session?.id === conversationId);
+    if (tab) { tab.closed = false; this.select(tab.id); }
+    this.show(origin, null);
   }
   select(id: string): void {
     const tab = this.tabs.find(t => t.id === id && !t.closed);
@@ -138,8 +147,10 @@ export class AssistantSessions {
         for (const t of saved.tabs) {
           if (!t || typeof t.id !== 'string' || !/^[\w-]{1,80}$/.test(t.id) || this.tabs.some(x => x.id === t.id)) continue;
           const tab = this.add(t.id, typeof t.title === 'string' ? t.title.slice(0, 100) : '', t.closed === true);
-          if (t.run && typeof t.run.projectId === 'string' && typeof t.run.runId === 'string') tab.run = new RunSession(t.run.projectId, t.run.runId);
-          if (t.terminal && typeof t.terminal.id === 'string' && typeof t.terminal.projectId === 'string') tab.terminal = t.terminal;
+          // A session belongs to Agents on a computer; a tab saved before that is a conversation tab again, not a second view of it.
+          const sessions = isPhone() || phone.on;
+          if (sessions && t.run && typeof t.run.projectId === 'string' && typeof t.run.runId === 'string') tab.run = new RunSession(t.run.projectId, t.run.runId);
+          if (sessions && t.terminal && typeof t.terminal.id === 'string' && typeof t.terminal.projectId === 'string') tab.terminal = t.terminal;
           if (typeof t.draft === 'string') tab.store.draft = t.draft.slice(0, 120_000);
           if (validChoice(t.choice)) tab.store.choice = t.choice;
         }
@@ -167,9 +178,8 @@ export class AssistantSessions {
     }, 15_000);
     const unlisten = onAssistantRequest(req => {
       if (req.projectContext !== undefined) assistantProjectContext.current = req.projectContext;
-      if (req.action === 'close') { this.compact = false; this.hide(); }
-      else if (req.action === 'compact') this.compact = !this.compact;
-      else if (req.run) this.openRun(req.run.projectId, req.run.runId);
+      if (req.action === 'close') this.hide();
+      else if (req.conversation) this.openConversation(req.conversation, req.origin);
       else {
         if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; }
         if (req.action === 'toggle') this.toggle(req.origin, null);
@@ -177,7 +187,7 @@ export class AssistantSessions {
       }
     });
     const stopEffects = $effect.root(() => {
-      $effect(() => { reportAssistant({ open: this.mounted, waiting: this.waiting, running: this.running, compact: this.compact }); });
+      $effect(() => { reportAssistant({ open: this.mounted, waiting: this.waiting, running: this.running }); });
       $effect(() => { this.saveIndex(); });
     });
     this.dispose = () => {
@@ -201,7 +211,6 @@ export class AssistantSessions {
   show(origin?: Origin, trigger?: HTMLElement | null): void {
     if (origin) this.origin = origin;
     if (trigger !== undefined) this.trigger = trigger;
-    this.compact = false;
     void this.discoverTerminals();
     this.mounted = true;
     this.phase = 'opening';

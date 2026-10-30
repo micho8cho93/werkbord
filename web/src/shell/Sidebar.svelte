@@ -45,7 +45,6 @@
       </button>
     {/each}
     <button bind:this={salieButton} class="nav" type="button" aria-haspopup="dialog" aria-expanded={model.assistantShown} disabled={model.remotePersonal || model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
-      model.assistantButton = salieButton;
       const rect = salieButton?.getBoundingClientRect();
       if (rect) void model.toggleAssistant(rect);
     }} data-testid="sidebar-salie">

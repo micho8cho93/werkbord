@@ -8,7 +8,6 @@
   import { model } from './model.svelte';
   import { alerts } from './alerts.svelte';
   import { look, theme } from '../lib/theme.svelte';
-  import { salie } from './salie.svelte';
   import ShareProductMap from './ShareProductMap.svelte';
   let mapShare = $state<{ workspace: string; project: string; name: string } | null>(null);
 
@@ -51,7 +50,6 @@
   function onMessage(e: MessageEvent): void {
     void handle(refs(), e, {
       onboarding: (required, paused) => { model.setupRequired = required; model.setupPaused = paused; },
-      saliePlacement: value => { if (value) salie.set(value); return { ...salie.placements }; },
       relay: (id, method, args) => ask((a) => a.Relay(id, method, args)),
       remember: (id, place) => {
         model.setPlace(id, place);
@@ -76,7 +74,8 @@
         const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;
         void model.explainCatchUp(plan ? `Help me edit Work plan ${plan} in project ${pid}. Read list_work_plans and the associated tasks first.` : `Help me organise work in project ${pid}. Read its tasks and plans first.`);
       },
-      runSession: (projectId, runId) => { void model.openRunSession(projectId, runId); },
+      agentSession: key => { void model.openAgents(key); },
+      openSalie: conversation => { void model.openSalie(conversation); },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),
       style: (_id, choice) => look.set(choice),
@@ -89,12 +88,6 @@
       },
     });
   }
-
-  // Onboarding and Settings edit the same per-device placement preference.
-  $effect(() => {
-    const value = { ...salie.placements };
-    if (model.frames.personal?.ready) sendTo('personal', false, { type: 'werkbord.salie-placement', value });
-  });
 
   // Changing the theme in Settings changes it in every workspace that is open, and so does going back to Device: a workspace that
   // was told Dark follows the device again. The window also owns the initial Device choice.
@@ -130,7 +123,7 @@
     <iframe
       bind:this={elements[key]}
       class="frame"
-      hidden={model.shownWorkspace !== id || (model.page === 'workspace') === hosted}
+      hidden={model.shownWorkspace !== id || (model.page === 'workspace' || model.agentsInFrame) === hosted}
       title={(model.view?.items.find((i) => i.id === id)?.name ?? 'Workspace') + (hosted ? ' settings' : '')}
       src={hosted ? hostedUrl(f.target.url) : f.target.url}
       referrerpolicy="no-referrer"

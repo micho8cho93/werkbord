@@ -6,6 +6,7 @@
 import { ask } from './native';
 import { contextKey, parseContext, projectOptions, projectInHref, scopedOverview, type ProjectIdentity } from './project-context';
 import { surfaceUrl } from './frames';
+import { agentsPlace, isAgentsPlace } from './nav';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { App, Overview, Target, WorkspaceView } from './types';
 import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
@@ -84,17 +85,14 @@ export class Model {
   setupRequired = $state(false);
   setupPaused = $state(false);
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
-  assistant = $state<{open: boolean; waiting: number; running: boolean; compact?: boolean}>({ open: false, waiting: 0, running: false });
+  assistant = $state<{open: boolean; waiting: number; running: boolean}>({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle' | 'compact'; run?: {projectId: string; runId: string}; rect: Anchor; catchUpPrompt?: string } | null>(null);
-  /** The launcher used most recently; preference changes can remove either launcher. */
-  private lastAssistantButton: HTMLElement | undefined;
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; conversation?: string; rect: Anchor; catchUpPrompt?: string } | null>(null);
+  /** The sidebar's Salie destination: the one place Salie opens from, and where focus returns when it closes. */
   assistantSidebarButton: HTMLElement | undefined;
-  assistantFloatingButton: HTMLElement | undefined;
   get assistantButton(): HTMLElement | undefined {
-    return [this.lastAssistantButton, this.assistantFloatingButton, this.assistantSidebarButton].find(button => button && button.isConnected !== false);
+    return this.assistantSidebarButton?.isConnected === false ? undefined : this.assistantSidebarButton;
   }
-  set assistantButton(button: HTMLElement | undefined) { this.lastAssistantButton = button; }
   /**
    * The assistant's own frame: a page of Individual that is nothing but the assistant, as large as the window. It is made the first
    * time the assistant is opened and then kept, so that closing it stops nothing. It is not a workspace, and it is not in `frames`.
@@ -138,6 +136,7 @@ export class Model {
   /** The workspace whose page is on screen now, in whichever frame shows it; undefined for the shell's own pages. */
   get shownWorkspace(): string | undefined {
     if (this.page === 'workspace') return this.current;
+    if (this.agentsInFrame) return 'personal';
     if (this.page === 'help') return 'personal';
     if (this.page === 'settings') return frameOf(this.settingsShown);
     return undefined;
@@ -146,6 +145,11 @@ export class Model {
   /** Records where a workspace's page says it is. */
   setPlace(id: string, place: string): void {
     if (this.frames[id]) this.places[id] = place;
+    // The Individual page leaves Agents (a session's task, say): the window is then on Work, and the sidebar says so.
+    if (id === 'personal' && !this.frames.personal?.pending) {
+      if (this.page === 'agents' && !isAgentsPlace(place)) { this.current = 'personal'; this.universal = false; this.page = 'workspace'; }
+      else if (this.page === 'workspace' && this.current === 'personal' && isAgentsPlace(place)) { this.universal = true; this.page = 'agents'; }
+    }
     if (this.page === 'workspace' && this.current === id) {
       const kind = this.view?.items.find(i => i.id === id)?.kind;
       const project = kind && projectInHref(kind, place);
@@ -169,18 +173,45 @@ export class Model {
     const target = await ask(a => a.LoadWorkspace('personal'));
     this.assistantFrame = { url: surfaceUrl(target.url), origin: target.origin };
   }
-  async openRunSession(projectId: string, runId: string): Promise<void> {
-    if (this.remotePersonal) { await this.open('personal', `#/p/${encodeURIComponent(projectId)}/runs`); return; }
-    try { await this.prepareAssistant(); }
-    catch (e) { this.error = (e as Error).message; return; }
-    this.assistantShown = true;
-    this.assistantOpening = true;
-    clearTimeout(this.assistantWatch);
-    this.assistantWatch = setTimeout(() => {
-      this.assistantOpening = false;
-      if (!this.assistant.open) this.assistantShown = false;
-    }, 5000);
-    this.assistantAsk = { action: 'open', run: { projectId, runId }, rect: { x: 24, y: 24, width: 0, height: 0 } };
+  /** Whether the person's own Werkbord is there to show Agents in. */
+  get personalReady(): boolean {
+    return this.view?.items.find(i => i.id === 'personal')?.state === 'ready';
+  }
+  /**
+   * Agents: every coding-agent session, and the one that is open. It is a page of the person's own Werkbord shown in its frame
+   * (the one terminal and session views live there), so opening it, or opening a session in it, stops and starts nothing. A
+   * session is named by its key (agent-sessions.ts). With no key Agents comes back to where it was, a session still open.
+   */
+  async openAgents(key?: string): Promise<void> {
+    if (!this.personalReady) {
+      // Without the person's own Werkbord there are no sessions to open: the page lists what workspaces report.
+      this.leaveAssistant();
+      this.universal = true;
+      this.page = 'agents';
+      void this.refreshOverview();
+      return;
+    }
+    this.leaveAssistant();
+    // The window is on Agents at once; its frame follows as soon as the person's own Werkbord has been asked for it.
+    this.universal = true;
+    this.page = 'agents';
+    const kept = this.places.personal;
+    await this.open('personal', key ? agentsPlace(key) : kept && isAgentsPlace(kept) ? kept : agentsPlace());
+    this.universal = true;
+    this.page = 'agents';
+    void this.refreshOverview();
+  }
+  /** Agents is showing the personal frame rather than the page that lists what workspaces report. */
+  get agentsInFrame(): boolean {
+    return this.page === 'agents' && this.personalReady;
+  }
+  /** Opens Salie, on the conversation that started a session when one did. Nothing running is touched either way. */
+  async openSalie(conversation?: string): Promise<void> {
+    const r = this.assistantButton?.getBoundingClientRect();
+    const rect = r ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 24, y: 24, width: 0, height: 0 };
+    if (!this.assistantShown) await this.toggleAssistant(rect);
+    if (conversation && this.assistantAsk?.action === 'open') this.assistantAsk = { ...this.assistantAsk, conversation };
+    else if (conversation && this.assistantShown) this.assistantAsk = { action: 'open', conversation, rect };
   }
   async toggleAssistant(rect: Anchor): Promise<void> {
     if (this.remotePersonal) return;
@@ -216,7 +247,7 @@ export class Model {
   }
 
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
-  setAssistant(s: { open: boolean; waiting: number; running: boolean; compact?: boolean }): void {
+  setAssistant(s: { open: boolean; waiting: number; running: boolean }): void {
     const was = this.assistant.open;
     this.assistant = s;
     if (s.open) {
@@ -465,6 +496,7 @@ export class Model {
   go(p: Page): void {
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
+    if (p === 'agents' && this.personalReady) return void this.openAgents();
     if (['calendar', 'inbox', 'reviews', 'analytics', 'agents'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;

@@ -96,7 +96,7 @@ describe('the assistant’s frame', () => {
     const model = new Model();
     native.app.LoadWorkspace = async () => personalTarget;
     const focus = vi.fn();
-    model.assistantButton = { focus } as unknown as HTMLElement;
+    model.assistantSidebarButton = { focus } as unknown as HTMLElement;
     await model.toggleAssistant(button);
     // The frame says it is closed when it starts, before the opening that was asked for begins: it stays on screen for that.
     model.setAssistant({ open: false, waiting: 0, running: false });
@@ -415,6 +415,8 @@ describe('unified project selection', () => {
     model.view = view([individual, team]);
     native.app.Overview = async () => ({ at: '', entries: [] });
     native.app.LoadWorkspace = async () => ({ id: 'personal', kind: 'personal', url: 'http://localhost/', origin: 'http://localhost' });
+    native.app.OpenWorkspace = async () => ({ id: 'personal', kind: 'personal', url: 'http://localhost/', origin: 'http://localhost' });
+    native.app.Workspaces = async () => view([individual, team]);
     model.selectProject({ workspace: team.id, project: 'same-id' });
     for (const destination of ['inbox', 'calendar', 'agents', 'analytics'] as const) {
       model.go(destination);
@@ -459,4 +461,61 @@ it('marks aggregate reads unavailable when the summary bridge fails', async () =
   firstLoad.view = view([individual]);
   await firstLoad.refreshOverview();
   expect(firstLoad.contextOverview?.entries[0].error).toContain('could not be refreshed');
+});
+
+describe('Agents', () => {
+  const target = { id: 'personal', kind: 'personal' as const, url: 'http://localhost/', origin: 'http://localhost' };
+  const ready = async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    native.app.Overview = async () => ({ at: '', entries: [] });
+    native.app.Workspaces = async () => view([individual, team]);
+    native.app.OpenWorkspace = async () => target;
+    return model;
+  };
+  it('shows the person’s own sessions in their frame, at the session asked for', async () => {
+    const model = await ready();
+    await model.openAgents('run:run_a');
+    expect(model.page).toBe('agents');
+    expect(model.agentsInFrame).toBe(true);
+    expect(model.shownWorkspace).toBe('personal');
+    expect(model.places.personal).toBe('#/sessions/run%3Arun_a');
+    expect(model.frames.personal.pending).toBe('#/sessions/run%3Arun_a');
+  });
+  it('comes back to the session that was open, and to the list when none was', async () => {
+    const model = await ready();
+    await model.openAgents();
+    expect(model.places.personal).toBe('#/sessions');
+    await model.openAgents('terminal:t1');
+    model.go('inbox');
+    model.go('agents');
+    await vi.waitFor(() => expect(model.page).toBe('agents'));
+    expect(model.places.personal).toBe('#/sessions/terminal%3At1');
+  });
+  it('is Work again when the Individual page leaves Agents, and Agents again when it returns', async () => {
+    const model = await ready();
+    await model.openAgents('run:run_a');
+    model.frames.personal.pending = undefined;
+    model.setPlace('personal', '#/p/prj_a/task/tsk_1');
+    expect(model.page).toBe('workspace');
+    model.setPlace('personal', '#/sessions/run%3Arun_a');
+    expect(model.page).toBe('agents');
+  });
+  it('opening Salie, or leaving for Salie, closes nothing that is running', async () => {
+    const model = await ready();
+    native.app.LoadWorkspace = async () => target;
+    await model.openAgents('run:run_a');
+    await model.openSalie('ast_k3j9x2m4q7p1a8z5');
+    expect(model.assistantShown).toBe(true);
+    expect(model.assistantAsk).toMatchObject({ action: 'open', conversation: 'ast_k3j9x2m4q7p1a8z5' });
+    expect(model.frames.personal).toBeDefined();
+  });
+  it('falls back to what workspaces report when the person’s own Werkbord cannot be shown', async () => {
+    const model = new Model();
+    model.view = view([{ ...individual, state: 'unavailable' }, team]);
+    native.app.Overview = async () => ({ at: '', entries: [] });
+    await model.openAgents('run:run_a');
+    expect(model.page).toBe('agents');
+    expect(model.agentsInFrame).toBe(false);
+  });
 });

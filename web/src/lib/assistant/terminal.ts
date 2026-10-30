@@ -1,14 +1,14 @@
 import { request, getToken } from '../api';
 
 export interface TerminalSession {
-  phones?: string[]; id: string; projectId: string; agentId: string; device: string; repository: string;
+  phones?: string[]; taskId?: string; id: string; projectId: string; agentId: string; device: string; repository: string;
   state: 'running' | 'exited' | 'stopped' | 'interrupted'; createdAt: string;
 }
 export interface TerminalOutput { session: TerminalSession; data: string | null; next: number; reset: boolean; replay?: boolean }
 export const terminalPath = (session: TerminalSession) => `/api/projects/${encodeURIComponent(session.projectId)}/terminals/${encodeURIComponent(session.id)}`;
 export const terminalApi = {
   list: () => request<TerminalSession[]>('GET', '/api/terminals'),
-  create: (projectId: string, agentId: string, device: string) => request<TerminalSession>('POST', `/api/projects/${encodeURIComponent(projectId)}/terminals`, { agentId, device, cols: 100, rows: 30 }),
+  create: (projectId: string, agentId: string, device: string, taskId?: string) => request<TerminalSession>('POST', `/api/projects/${encodeURIComponent(projectId)}/terminals`, { agentId, device, cols: 100, rows: 30, ...(taskId ? { taskId } : {}) }),
   grant: (session: TerminalSession, phoneId: string, enabled: boolean) => request('PUT', `${terminalPath(session)}/phone`, { phoneId, enabled }),
   input: (session: TerminalSession, data: string, client: string, sequence: number, rendered: number) => request('POST', `${terminalPath(session)}/input`, { data, client, sequence, rendered }),
   resize: (session: TerminalSession, cols: number, rows: number) => request('POST', `${terminalPath(session)}/resize`, { cols, rows }),

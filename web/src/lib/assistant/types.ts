@@ -138,6 +138,8 @@ export interface AssistantEvent {
   actionId?: string;
   outcome?: string;
   ticket?: { id: string; projectId: string; title: string; state: string };
+  /** The agent session a confirmed start_agent_run started, by the key every screen opens it with. */
+  session?: { key: string; kind: 'run' | 'terminal'; id: string; projectId: string; taskId: string; agentId: string; state: string };
   error?: ErrorInfo;
   usage?: { inputTokens?: number; outputTokens?: number };
   state?: SessionView['state'];

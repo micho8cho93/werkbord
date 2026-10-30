@@ -93,7 +93,7 @@ describe('links', () => {
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
     expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
-    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'analytics', 'settings', 'help']);
+    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'sessions', 'analytics', 'settings', 'help']);
   });
 
   it('keeps any listed section when switching projects', () => {

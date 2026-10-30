@@ -28,10 +28,8 @@
   {/if}
 </button>
 {/if}
-{#if waiting && !assistant.isOpen}<button class="btn small bubble" onclick={() => assistant.compact = !assistant.compact}>Needs attention · {waiting}</button>{/if}
 
 <style>
-  .bubble { color: var(--warn-text); }
   .ab {
     position: relative;
     display: flex;

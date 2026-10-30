@@ -12,23 +12,6 @@ const hosted: FrameRef = { id: 'personal', hosted: true, origin: 'http://127.0.0
 const say = (source: Window, origin: string, data: Record<string, unknown>) => ({ source, origin, data: { type: 'werkbord.frame', ...data } });
 
 describe('what a frame may say about the window', () => {
-  it('lets only the main Individual frame read or change validated Salie placement preferences', async () => {
-    const value = { universal: 'both', workspace: 'sidebar' } as const;
-    const placement = vi.fn().mockReturnValue(value);
-    const d = { ...deps(), saliePlacement: placement };
-    const request = { event: 'salie_placement', action: 'set', value };
-    for (const frame of [frames[1], hosted, surface]) await handle([frame], say(frame.window!, frame.origin, request), d);
-    await handle(frames, say(individual, 'https://other.example', request), d);
-    for (const bad of [null, {}, { universal: 'none', workspace: 'sidebar' }, { universal: 'both', workspace: 1 }]) {
-      await handle(frames, say(individual, frames[0].origin, { ...request, value: bad }), d);
-    }
-    expect(placement).not.toHaveBeenCalled();
-    await handle(frames, say(individual, frames[0].origin, { event: 'salie_placement', action: 'get' }), d);
-    expect(placement).toHaveBeenLastCalledWith(undefined);
-    await handle(frames, say(individual, frames[0].origin, request), d);
-    expect(placement).toHaveBeenLastCalledWith(value);
-    expect(d.reply).toHaveBeenLastCalledWith(frames[0], { type: 'werkbord.salie-placement', value });
-  });
   it('opens map sharing only from an authenticated main Team frame with a bounded project ID', async () => {
     const productMap = vi.fn();
     const d = { ...deps(), productMap };
@@ -228,19 +211,39 @@ it('accepts setup status only from the ordinary Individual workspace with valida
   expect(onboarding).not.toHaveBeenCalled();
 });
 
-it('opens an attached session only from the authenticated Individual workspace frame', async () => {
-  const d = {...deps(), runSession: vi.fn()};
-  const request = {event:'run_session',projectId:'prj_a',runId:'run_a'};
+it('opens a coding-agent session in Agents only by a validated session key, from Individual or Salie and no other frame', async () => {
+  const d = {...deps(), agentSession: vi.fn()};
+  const request = {event:'agent_session',key:'run:run_a'};
+  for (const frame of [frames[1],hosted]) await handle([frame],say(frame.window!,frame.origin,request),d);
+  await handle(frames,say(individual,'https://other.example',request),d);
+  for (const bad of [null,'','run','run:','task:tsk_1','run:../x','run:a/b','terminal:a b','run:'+'a'.repeat(97),{}]) await handle(frames,say(individual,frames[0].origin,{...request,key:bad}),d);
+  expect(d.agentSession).not.toHaveBeenCalled();
+  await handle(frames,say(individual,frames[0].origin,request),d);
+  expect(d.agentSession).toHaveBeenLastCalledWith('run:run_a');
+  // Salie's own frame may ask too: a card in a conversation leads to the session it started.
+  await handle([surface],say(assistantWindow,surface.origin,{event:'agent_session',key:'terminal:abc-123'}),d);
+  expect(d.agentSession).toHaveBeenLastCalledWith('terminal:abc-123');
+  // Agents without a key is the list.
+  await handle(frames,say(individual,frames[0].origin,{event:'agent_session'}),d);
+  expect(d.agentSession).toHaveBeenLastCalledWith(undefined);
+  expect(d.agentSession).toHaveBeenCalledTimes(3);
+});
+
+it('lets only the main Individual frame go back to Salie, naming at most a conversation ID', async () => {
+  const d = {...deps(), openSalie: vi.fn()};
+  const request = {event:'salie',conversation:'ast_k3j9x2m4q7p1a8z5'};
   for (const frame of [frames[1],hosted,surface]) await handle([frame],say(frame.window!,frame.origin,request),d);
   await handle(frames,say(individual,'https://other.example',request),d);
-  for (const bad of [null,'','../x','a/b','a'.repeat(121)]) await handle(frames,say(individual,frames[0].origin,{...request,runId:bad}),d);
-  expect(d.runSession).not.toHaveBeenCalled();
+  for (const bad of ['','a b','../x','a'.repeat(81),5,{}]) await handle(frames,say(individual,frames[0].origin,{...request,conversation:bad}),d);
+  expect(d.openSalie).not.toHaveBeenCalled();
   await handle(frames,say(individual,frames[0].origin,request),d);
-  expect(d.runSession).toHaveBeenCalledExactlyOnceWith('prj_a','run_a');
+  expect(d.openSalie).toHaveBeenLastCalledWith('ast_k3j9x2m4q7p1a8z5');
+  await handle(frames,say(individual,frames[0].origin,{event:'salie'}),d);
+  expect(d.openSalie).toHaveBeenLastCalledWith(undefined);
 });
 
 it('preserves the actual combined pending count above 99', async () => {
   const d = deps();
-  await handle([surface],say(assistantWindow,surface.origin,{event:'assistant',open:false,waiting:123,running:false,compact:true}),d);
-  expect(d.assistant).toHaveBeenCalledExactlyOnceWith('personal',{open:false,waiting:123,running:false,compact:true});
+  await handle([surface],say(assistantWindow,surface.origin,{event:'assistant',open:false,waiting:123,running:false}),d);
+  expect(d.assistant).toHaveBeenCalledExactlyOnceWith('personal',{open:false,waiting:123,running:false});
 });

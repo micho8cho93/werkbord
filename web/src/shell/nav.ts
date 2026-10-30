@@ -154,3 +154,8 @@ export function matching(all: readonly Destination[], query: string): Destinatio
     .filter((x): x is { d: Destination; rank: number; order: number } => x !== null);
   return scored.sort((a, b) => a.rank - b.rank || a.order - b.order).map((x) => x.d);
 }
+
+/** The Individual page that holds Agents, with the session of this key open (agent-sessions.ts), or the list alone. */
+export const agentsPlace = (key = ''): string => (key ? `#/sessions/${encodeURIComponent(key)}` : '#/sessions');
+/** Whether a place inside the person's own Werkbord is Agents. */
+export const isAgentsPlace = (place: string): boolean => /^#\/sessions(?:[/?]|$)/.test(place);

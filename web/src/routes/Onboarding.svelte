@@ -15,17 +15,8 @@
   import { localReadiness, setupCurrent, setupResolved } from '../lib/setup/readiness';
   import { app } from '../lib/state.svelte';
   import type { GitHubStatusInfo } from '../lib/types';
-  import { embedded } from '../lib/embed';
-  import SaliePlacement from '../lib/SaliePlacement.svelte';
   import Settling from '../lib/Settling.svelte';
-  import { defaultSaliePlacements, isSaliePlacements, type SaliePlacements } from '../lib/salie-placement';
 
-  const framed = embedded();
-  let saliePlacements = $state(defaultSaliePlacements());
-  let saliePlacementReady = $state(false);
-  function setSaliePlacements(value: SaliePlacements) {
-    window.parent.postMessage({ type: 'werkbord.frame', event: 'salie_placement', action: 'set', value }, '*');
-  }
 
   let github = $state<GitHubStatusInfo | null>(null);
   let finishing = $state(false);
@@ -194,20 +185,13 @@
   });
 
   onMount(() => {
-    const placementMessage = (event: MessageEvent) => {
-      if (!framed || event.source !== window.parent || event.data?.type !== 'werkbord.salie-placement' || !isSaliePlacements(event.data.value)) return;
-      saliePlacements = event.data.value;
-      saliePlacementReady = true;
-    };
-    window.addEventListener('message', placementMessage);
-    if (framed) window.parent.postMessage({ type: 'werkbord.frame', event: 'salie_placement', action: 'get' }, '*');
     app.onboardingPaused = false;
     void recheck();
     const timer = setInterval(() => { if (document.visibilityState === 'visible') void recheck(true); }, 5000);
     api.github().then((g) => (github = g), () => {}).finally(() => (githubChecked = true));
     api.phones().then((p) => (phonePaired = p.length > 0), () => {}).finally(() => (phonesChecked = true));
     const patience = setTimeout(() => (waitedLongEnough = true), 8000);
-    return () => { clearInterval(timer); clearTimeout(patience); window.removeEventListener('message', placementMessage); };
+    return () => { clearInterval(timer); clearTimeout(patience); };
   });
 
   async function finish() {
@@ -295,12 +279,6 @@
     <section aria-label="Setup summary">
       <ul class="summary-list">{#each steps.filter(s => s.id !== 'review') as s (s.id)}<li><strong>{s.label}</strong><span>{s.done ? 'Verified' : stepStates[s.id] === 'skipped' ? 'Left for later' : 'Needs attention'}</span></li>{/each}</ul>
     </section>
-    {#if framed && saliePlacementReady}
-      <SetupCard title="Where would you like Salie?" status="done" summary="Choose how to open Salie">
-        <p class="muted">Use the sidebar, a movable floating button, or both. You can change this later in Settings → Appearance.</p>
-        <SaliePlacement value={saliePlacements} onchange={setSaliePlacements} />
-      </SetupCard>
-    {/if}
   {:else if !settled}
     <!-- Shown as the loading screen above. -->
   {:else if current === 'computer'}

@@ -81,14 +81,16 @@
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
         <ContextStatus />
-        <FrameHost shown={(model.page === 'workspace' && !problem) || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
+        <!-- Agents: what workspaces report sits above the person's own sessions, which are a page of their own Werkbord. -->
+        {#if model.agentsInFrame}<Agents strip />{/if}
+        <FrameHost shown={(model.page === 'workspace' && !problem) || model.agentsInFrame || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
         {#if model.page === 'workspace' && problem}
           <div class="page-area"><WorkspaceProblem /></div>
         {:else if hostedGone}
           <div class="page-area"><WorkspaceProblem /></div>
         {:else if native && 'native' in native}
           <div class="page-area">{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
-        {:else if model.page !== 'workspace' && !hostedWorkspace}
+        {:else if model.page !== 'workspace' && !model.agentsInFrame && !hostedWorkspace}
           <div class="page-area">
             {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
             {:else if model.page === 'agents'}<Agents />

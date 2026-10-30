@@ -5,36 +5,14 @@
  import { isPhone } from '../phones/capability';
   import Icon from '../Icon.svelte';
   import { embedded, openSettingsInShell } from '../embed';
-  import { modeLabel, selectionApi, type CatalogAgent } from '../selection';
-  import { connectedAgents, nativeCLILaunchers } from './connected-agents';
+  import { modeLabel } from '../selection';
+  import { openAgents } from '../agent-nav';
   import { assistant, type SalieTab } from './sessions.svelte';
 
   let menu = $state(false);
-  let connected = $state<CatalogAgent[]>([]);
-  let refresh = 0;
-  async function toggleMenu() {
+  function toggleMenu() {
     menu = !menu;
-    const version = ++refresh;
-    connected = [];
-    if (!menu) return;
-    await assistant.discoverTerminals();
-    if (isPhone()) return;
-    try {
-      const [catalog, settings] = await Promise.all([selectionApi.catalog(), selectionApi.settings()]);
-      if (version === refresh && menu) connected = connectedAgents(catalog, settings.agents).filter(a => nativeCLILaunchers.has(a.id));
-    } catch { /* Fail closed. Settings remains reachable when detection is unavailable. */ }
-  }
-  let launching = $state<CatalogAgent | null>(null);
-  let projectId = $state('');
-  let launchError = $state('');
-  let launchBusy = $state(false);
-  const repositories = $derived(app.projects.filter(p => p.repoPath && !p.archivedAt && !p.deletedAt));
-  async function launch() {
-    if (!launching || !projectId || launchBusy) return;
-    launchBusy = true; launchError = '';
-    try { await assistant.newTerminal(projectId, launching.id, launching.interactive!.device); launching = null; }
-    catch (e) { launchError = e instanceof Error ? e.message : String(e); }
-    finally { launchBusy = false; }
+    if (menu) void assistant.discoverTerminals();
   }
   let editing = $state('');
   let name = $state('');
@@ -91,12 +69,7 @@
       <div class="menu" role="dialog" aria-label="New tab">
         <span class="group">Salie</span>
         <button onclick={()=>{assistant.newTab();menu=false;}}>New Salie Conversation</button>
-        {#if connected.length}
-          <span class="group">Coding Agents</span>
-          {#each connected as agent (agent.id)}
-            <button onclick={()=>{launching=agent;projectId=repositories[0]?.id ?? '';launchError='';menu=false;}}>{agent.name}</button>
-          {/each}
-        {/if}
+        {#if !isPhone()}<button onclick={()=>{menu=false;assistant.hide();openAgents();}}>Coding agent sessions in Agents →</button>{/if}
         {#if !isPhone()}<a href="#/settings?agents" onclick={manage}>Manage Coding Agents →</a>{/if}
         <div class="separator"></div>
         <button onclick={()=>{rename(assistant.openTabs.find(t=>t.id===assistant.activeId)!);menu=false;}}>Rename current tab</button>
@@ -110,20 +83,6 @@
     {/if}
   </div>
 </div>
-{#if launching}
-  <form class="launch" onsubmit={e => { e.preventDefault(); void launch(); }}>
-    <label>{launching.name} · Repository
-      <select class="select" bind:value={projectId} disabled={launchBusy}>
-        {#each repositories as project (project.id)}<option value={project.id}>{project.name}</option>{/each}
-      </select>
-    </label>
-    <span>Runs on this device with your CLI permissions.</span>
-    <button class="btn primary small" disabled={launchBusy || !projectId} type="submit">{launchBusy ? 'Opening…' : 'Open terminal'}</button>
-    <button class="btn quiet small" disabled={launchBusy} type="button" onclick={() => launching=null}>Cancel</button>
-    {#if !repositories.length}<p>Add a local repository in Projects to open a terminal.</p>{/if}
-    {#if launchError}<p role="alert">{launchError}</p>{/if}
-  </form>
-{/if}
 {#if editing}
   <form class="rename" onsubmit={e=>{e.preventDefault();finish();}}>
     <label>Conversation title <input class="input" maxlength="100" bind:value={name} /></label>
@@ -132,7 +91,6 @@
 {/if}
 <style>
   .mobile-selector{display:none}
-  .launch{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px}.launch label{display:flex;align-items:center;gap:8px}.launch span{color:var(--text-2)}.launch p{width:100%;margin:0}
   .tabs-bar{display:flex;align-items:stretch;gap:4px;padding:0 12px;border-bottom:1px solid var(--border);flex:none;min-width:0}
   .tabs{display:flex;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin}
   .tab{display:flex;flex:0 1 190px;min-width:132px;border-bottom:2px solid transparent;align-items:center}
