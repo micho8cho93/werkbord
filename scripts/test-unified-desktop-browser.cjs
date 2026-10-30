@@ -1,3 +1,4 @@
+const { openWorkspace, openDestination } = require('./test-support/shell-navigation.cjs');
 // The built Svelte shell + its real Go registry/relay + real Individual and Team services.
 // Native window transport/dialogs and private-overlay TCP are the only substitutions.
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), cp = require('node:child_process'), net = require('node:net'), assert = require('node:assert/strict');
@@ -47,26 +48,22 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await team('PUT', `/projects/${project.id}/tickets/${scheduled.id}/schedule`, { at: new Date(Date.now() + 3600000).toISOString(), timezone: 'Europe/Madrid', missedPolicy: 'run_late', graceSeconds: 60, priority: 1 });
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
  await context.addInitScript(() => { if (window.parent !== window) return; window.runtime = { EventsOn: (event, cb) => { if (event === 'shell:go') window.__shellGo = cb; return () => {}; } }; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
- const page = await context.newPage(); testPage = page; page.setDefaultTimeout(90000); const errors = []; page.on('pageerror', e => errors.push(e.message));
+ const page = await context.newPage(); testPage = page; page.setDefaultTimeout(30000); const errors = []; page.on('pageerror', e => errors.push(e.message));
  // There is one sidebar: Home and Calendar, then a section for Personal and one for each team. A workspace opens from its header.
  let current = 'personal';
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
- const switchUniversal = async () => { await side.locator('[data-page=inbox]').click(); };
- const switchTo = async (id) => { await side.locator('[data-open="' + id + '"]').click(); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
+ const switchUniversal = async () => { await page.getByTestId('project-context').selectOption(''); await side.locator('[data-page=inbox]').click(); };
+ const switchTo = async (id) => { await openWorkspace(page, id); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  // Chooses one button of a group in the window's Settings, Appearance, and goes back to where the person was.
  const chooseInAppearance = async (group, button) => {
    const size = page.viewportSize();
    await page.setViewportSize({ width: 1440, height: 1000 });
-   const universal = (await side.locator('[data-page=inbox][aria-current=page]').count()) > 0;
-   const active = side.locator('[aria-current=page]').first();
-   const place = await active.count() ? await active.getAttribute('data-page') : null, project = await active.count() ? await active.getAttribute('data-project') : null;
-   const workspace = await active.count() ? await active.getAttribute('data-open') : null;
+   const workspace = await page.locator('iframe[data-workspace]:visible').first().getAttribute('data-workspace').catch(() => null);
+   const place = await side.locator('[data-page][aria-current=page]').first().getAttribute('data-page').catch(() => 'inbox');
    await side.locator('[data-page=settings]').click();
    await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
    await page.getByRole('group', { name: group }).getByRole('button', { name: button, exact: true }).click();
-   if (universal) await switchUniversal();
-   else if (project) await side.locator('[data-project="' + project + '"]').click();
-   else if (workspace) await side.locator('[data-open="' + workspace + '"]').click();
+   if (workspace) await openWorkspace(page, workspace);
    else if (place && place !== 'settings') await side.locator('[data-page="' + place + '"]').click();
    if (size) await page.setViewportSize(size);
  };
@@ -80,52 +77,40 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    assert.equal(await window.locator('iframe[data-workspace^="team:"]').count(), 0, 'startup does not restore a Team workspace');
  };
 
- await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+ await page.goto(origin + '/shell/shell/index.html'); await page.getByRole('heading', { name: 'Work', exact: true }).waitFor();
  await assertUniversalStartup(page);
  const shellSkip = page.getByRole('link', { name: 'Skip to main content', exact: true }); await page.keyboard.press('Tab'); assert.equal(await shellSkip.evaluate(el => el === document.activeElement), true, 'shell skip link is first in the page focus order');
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
  await switchTo('personal');
- await side.locator('[data-section="personal"] [data-project]').filter({hasText:'Customer portal'}).click();
- for (const section of ['Overview', 'Board', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
+ const personalKey = await page.getByTestId('project-context').locator('option').filter({hasText:'Customer portal'}).first().getAttribute('value');
+ const personalProjectId = JSON.parse(personalKey)[1];
+ await openDestination(page, 'project:personal:' + personalProjectId);
+ for (const section of ['Overview', 'Work', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
- await side.locator('[data-project][aria-current=page]').waitFor(); // the sidebar marks the project Individual is showing
- for (const entry of ['Home', 'Calendar', 'Personal', 'Customer portal', 'Settings', 'Devices & Hosting']) await side.getByRole('button', { name: entry }).first().waitFor();
+ assert.equal(await page.getByTestId('project-context').inputValue(), personalKey);
+ for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Salie', 'Settings']) await side.getByRole('button', { name: entry }).first().waitFor();
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
  console.log('PASS Individual: one sidebar for the window, project sections in its header, no status indicator');
  // Home carries the cross-workspace pages (Needs you, Calendar); the sidebar is the same one everywhere.
  await switchUniversal();
- await page.getByRole('heading', {name:'Home',exact:true}).waitFor();
+ await page.getByRole('heading', {name:'Work',exact:true}).waitFor();
  assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 2, 'Home and Calendar are in the sidebar');
  assert.equal(await side.locator('[data-page=personal-library]').count(), 0, 'the retired Data Library has no navigation');
  console.log('PASS Home: Needs you and Calendar live on the hub, beside the one sidebar');
  await switchTo('personal');
- // At intermediate widths the icon rail has a keyboard- and pointer-discoverable way to reveal names.
- await page.setViewportSize({ width: 1024, height: 768 });
- const railToggle = side.getByTestId('sidebar-label-toggle');
- await railToggle.waitFor();
- await page.waitForFunction(() => matchMedia('(max-width: 1107px)').matches && document.querySelector('[data-testid="sidebar-label-toggle"]')?.getAttribute('aria-label') === 'Show sidebar labels');
- assert.equal(await railToggle.getAttribute('aria-label'), 'Show sidebar labels');
- assert.equal(await railToggle.getAttribute('aria-expanded'), 'false');
- await railToggle.focus(); await page.keyboard.press('Enter');
- await page.getByRole('button', { name: 'Hide sidebar labels', exact: true }).waitFor();
- assert.equal(await railToggle.getAttribute('aria-expanded'), 'true', 'keyboard activation reveals the section labels');
- const longProjectLink = side.locator('[data-project]').filter({ hasText: longProjectName });
- await longProjectLink.waitFor();
- assert.equal(await longProjectLink.getAttribute('title'), longProjectName, 'a long project name remains available in the expanded rail');
- assert.equal(await side.evaluate(el => el.scrollWidth <= el.clientWidth), true, 'the expanded shell rail does not overflow horizontally');
- const shellReview = path.join(root, '.impeccable/review/workstream-4/shell'); fs.mkdirSync(shellReview, { recursive: true });
- for (const themeName of ['light', 'dark']) {
-   await page.evaluate(value => document.documentElement.dataset.theme = value, themeName);
-   await page.screenshot({ path: path.join(shellReview, `rail-expanded-1024-${themeName}.png`) });
+ await page.getByTestId('project-context').selectOption(personalKey);
+ // The same named destinations stay visible at intermediate widths; narrow windows retain accessible icon labels.
+ for (const width of [1024, 390]) {
+   await page.setViewportSize({width, height: 844});
+   for (const title of ['Work','Calendar','Agents','Analytics','Salie']) await side.getByRole('button',{name:title,exact:true}).waitFor();
+   assert.equal(await side.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+   assert.equal(await page.getByTestId('project-context').inputValue(), personalKey);
  }
- await railToggle.click();
- await page.getByRole('button', { name: 'Show sidebar labels', exact: true }).waitFor();
- assert.equal(await railToggle.getAttribute('aria-expanded'), 'false', 'pointer activation collapses the labeled rail');
- console.log('PASS shell rail expands its accessible labels and long project name by keyboard or pointer at 1024px');
  await page.setViewportSize({ width: 1440, height: 1000 });
+ await switchUniversal();
  // Every section's places stay in the sidebar, and the window's own pages remain routable.
  const many = await api(origin, '', 'POST', '/fixture/call', { Method: 'Workspaces', Args: [] });
  await page.route('**/fixture/call', async route => { try {
@@ -139,15 +124,15 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    }
    return await route.continue();
  } catch (e) { if (!/already handled|closed/i.test(String(e))) throw e; } });
- await wait(async () => (await side.locator('[data-open="personal"]').innerText()).includes('1'), 'Workspace retains its count');
+ await page.getByRole('navigation', { name: 'Work sections' }).waitFor();
  assert.equal(await side.locator('[data-page=inbox], [data-page=calendar]').count(), 2, 'Home and Calendar are in the sidebar from every place');
  for (const destination of ['calendar', 'inbox']) {
    await page.evaluate(destination => window.__shellGo(destination), destination);
-   await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Home', exact: true }).waitFor();
+   await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Work', exact: true }).waitFor();
  }
  await page.unrouteAll({ behavior: 'ignoreErrors' });
- await side.locator('[data-open="team:main"]').waitFor();
- await side.locator('[data-open="personal"]').click();
+ await page.getByTestId('project-context').locator('optgroup[label="Team projects"]').waitFor({state:'attached'});
+ await openWorkspace(page, 'personal');
  await page.locator('iframe[data-workspace="personal"]').waitFor({ state: 'visible' });
  // The theme is chosen in Settings and reaches the workspace that is open.
  assert.equal(await side.getByRole('button', { name: /(light|dark) theme/i }).count(), 0);
@@ -156,14 +141,14 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await wait(async () => (await themeOf('personal')) === chosen, 'theme reaches Individual');
  await switchTo('team:main'); const firstFrame = page.frameLocator('iframe[data-workspace="team:main"]');
  // The window no longer lists a person's tickets across workspaces: a ticket is opened from its project in the Team's own sidebar.
- const openTeamTicket = async () => { await switchTo('team:main'); await side.locator('[data-project="' + project.id + '"]').click(); await firstFrame.getByRole('button', { name: ticket.title, exact: true }).first().click(); };
+ const openTeamTicket = async () => { await switchTo('team:main'); await openDestination(page, 'project:team:main:' + project.id); await firstFrame.getByRole('button', { name: ticket.title, exact: true }).first().click(); };
  await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
  assert.equal(await firstFrame.locator('aside.rail').count(), 0, 'Team shows no rail of its own in the window');
- for (const entry of ['Home', 'Calendar', 'Reviews', 'Analytics', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
+ for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
  // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
- await side.locator('[data-section="team:main"] [data-project="' + project.id + '"]').click();
+ await openDestination(page, 'project:team:main:' + project.id);
  await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
- await side.locator('[data-project][aria-current=page]').waitFor();
+ assert.equal(await page.getByTestId('project-context').inputValue(), JSON.stringify(['team:main', project.id]));
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  // People is a tab of the team, not an entry of the sidebar: the team's entry stays marked while the person is in it.
  assert.equal(await side.locator('[data-section="team:main"] [data-page=ws-members]').count(), 0, 'the sidebar does not list People');
@@ -253,7 +238,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const invoice = await team('POST', `/projects/${billing.id}/tickets`, { title: 'Retry failed invoices', status: 'available' }); await team('POST', `/projects/${billing.id}/tickets/${invoice.id}/claim`, {});
  await wait(async () => (await api(individualURL, 'disposable-browser-credential', 'GET', '/api/integration/waiting')).items.length === 1, 'ticket waiting for its repository');
  await page.frameLocator('iframe[data-workspace=personal]').getByRole('link', { name: 'Close panel', exact: true }).click();
- await side.locator('[data-open="personal"]').click();
+ await openWorkspace(page, 'personal');
  await page.frameLocator('iframe[data-workspace=personal]').getByTestId('waiting-repository').filter({ hasText: invoice.key }).waitFor();
  const billingRepo = path.join(temp, 'billing'); fs.mkdirSync(billingRepo); run('git', ['-C', billingRepo, 'init', '-b', 'main']); run('git', ['-C', billingRepo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', 'commit', '--allow-empty', '-m', 'Initial fixture']); run('git', ['-C', billingRepo, 'remote', 'add', 'origin', 'git@github.com:acme/billing.git']);
  await assert.rejects(api(individualURL, 'disposable-browser-credential', 'POST', '/api/integration/waiting/link', { path: repo, repository: 'https://github.com/acme/billing' }), /not a clone/);
@@ -283,7 +268,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const importedTask = (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/tasks`)).tasks.find(t => t.id === active.taskId);
  assert(importedTask, 'the execution belongs to an imported local task');
  await switchUniversal();
- await switchUniversal(); await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
+ await switchUniversal(); await page.getByRole('heading',{name:'Work',exact:true}).waitFor();
+ await page.locator('#work-attention > summary').click();
  const idleAction = page.getByRole('button', { name: 'Review turn: ' + importedTask.title + ' is waiting for your next message', exact: true });
  await idleAction.waitFor();
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/input`, { text: 'ask' });
@@ -294,7 +280,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await idleAction.count(), 0, 'an unanswered question replaces idle attention');
  const capture = async name => {
    for (const theme of ['light', 'dark']) {
-     if (await page.locator('html').getAttribute('data-theme') !== theme) await setTheme(theme);
+     if (await page.locator('html').getAttribute('data-theme') !== theme) await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
      for (const [size, width, height] of [['desktop', 1440, 900], ['mobile', 375, 812]]) {
        await page.setViewportSize({ width, height });
        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' has no horizontal overflow');
@@ -320,9 +306,10 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    own.error = 'Fixture offline'; own.summary.at = '2026-01-01T00:00:00Z';
    return route.fulfill({ json: stale });
  });
- await wait(async () => !(await inline.getByRole('button', {name:'Yes',exact:true}).isEnabled({timeout:2000}).catch(() => true)), 'stale disables choices');
- assert(await inline.getByText(/Last reported:/).isVisible(), 'stale answer names last report');
+ await wait(async () => await inline.count() === 0, 'offline work is excluded from the current projection');
+ assert((await page.locator('[aria-label="Current project"]').innerText()).includes('excluded'));
  await page.unrouteAll({ behavior: 'ignoreErrors' });
+ if (await answer.isVisible()) await answer.click();
  await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled({timeout:2000}).catch(() => false), 'reconnected answer enabled');
  await inline.getByRole('button', { name: 'No', exact: true }).click();
  await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
@@ -330,7 +317,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await capture('workspaces');
  console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive Workspaces attention');
  await page.setViewportSize({ width: 480, height: 844 });
- await page.getByRole('heading',{name:'Home',exact:true}).waitFor();
+ await side.locator('[data-page=calendar]').click();
+ await page.getByRole('heading',{name:'Calendar',exact:true}).waitFor();
  const calendarEvent = page.getByRole('button', { name: /Review the customer portal navigation/ }).first(); await calendarEvent.waitFor();
  await page.screenshot({ path: path.join(artifacts, 'calendar-mobile.png'), fullPage: true }); assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  const eventWidth = await calendarEvent.evaluate(e => e.getBoundingClientRect().width); assert(eventWidth > 100, 'Calendar keeps a readable event target');
@@ -358,7 +346,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    // Persistence is acknowledged before the sheet's exit transition removes its DOM.
    // Require both the saved title above and actual editor removal, without assuming they share a frame.
    await editor.waitFor({ state: 'detached' });
-   assert(await page.getByRole('heading',{name:'Home',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
+   assert(await page.getByRole('heading',{name:'Calendar',exact:true}).isVisible()); assert.equal(await editor.count(),0,'editor closes after acknowledged save');
  }
  // Scheduled events retain their time of day and still carry a shared request, distinct from planned dates.
  const beforeSchedule=(await team('GET',`/projects/${project.id}/schedules`)).find(s=>s.ticketId===scheduled.id);
@@ -372,7 +360,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  console.log('PASS Universal Individual and Team calendar moves, contextual editor persistence and shared schedule rescheduling through real workspace services');
  await page.screenshot({path:path.join(artifacts,'universal-planning-desktop.png')});
  await switchTo('team:main');
- await page.locator('[data-page=workspaces]').click();
+ await openDestination(page, 'page:workspaces');
  await page.screenshot({ path: path.join(artifacts, 'workspaces-desktop.png'), fullPage: true });
  await page.setViewportSize({ width: 480, height: 844 });
  await page.screenshot({ path: path.join(artifacts, 'workspaces-mobile.png'), fullPage: true });
@@ -380,11 +368,11 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
- await page.reload(); await page.getByRole('heading', { name: 'Home', exact: true }).waitFor(); await openTeamTicket(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
+ await page.reload(); await page.getByRole('heading', { name: 'Work', exact: true }).waitFor(); await openTeamTicket(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');
- const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+ const reopened = await context.newPage(); await reopened.goto(origin + '/shell/shell/index.html'); await reopened.getByRole('heading', { name: 'Work', exact: true }).waitFor();
  await assertUniversalStartup(reopened);
- await reopened.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click(); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
+ await openWorkspace(reopened, 'team:main'); await reopened.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
  await api(individualURL, full, 'POST', `/api/projects/${localProject.id}/runs/${active.id}/stop`, {});
  // Leaving the second team removes only that membership and keeps Individual + first team.
  const state = await secondDev('GET', '/state'); const caps = await otherTeam('GET', '/devices'); const device = caps.find(d => d.id === state.deviceId); assert(!device.capabilities.includes('workspace_host'));

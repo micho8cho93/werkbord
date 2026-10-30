@@ -115,7 +115,7 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
             await why.locator('summary').click();
             const reasons = await why.innerText();
             assert.match(reasons, /what shaped it/i);
-            assert.match(reasons, /what it rests on/i);
+            assert.match(reasons, /Sources/i);
             assert.ok(reasons.includes(POLICY), 'the owner sees which saved policy applied');
             assert.match(reasons, /never becomes a rule/i);
             const box = await cards(page).first().boundingBox();
@@ -152,13 +152,13 @@ const git = (repo, ...args) => cp.execFileSync('git', ['-C', repo, '-c', 'user.n
             const phoneSet = await api(base, 'GET', `/api/projects/${pid}/recommendations`, undefined, phone.token);
             assert.equal(phoneSet.feedbackStoredIn, 'device');
             // Scrolled to the end, the last card is clear of the bottom bar.
-            await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await page.locator('.deck-body').evaluate(el => el.scrollTo(0, el.scrollHeight));
             await page.waitForTimeout(150);
             const last = await cards(page).last().boundingBox();
             const bar = await page.locator('[data-phone-nav]').first().boundingBox();
             assert.ok(!bar || last.y + last.height <= bar.y + 1, 'the last suggestion is not hidden behind the bottom bar');
             await page.screenshot({ path: path.join(artifacts, 'recommendations-deck-phone-end.png') });
-            await page.evaluate(() => window.scrollTo(0, 0));
+            await page.locator('.deck-body').evaluate(el => el.scrollTo(0, 0));
             // Tap targets and names.
             for (const b of await cards(page).first().getByRole('button').all()) {
                 const bb = await b.boundingBox();

@@ -316,3 +316,8 @@ test-premium-console: cmd/werkbord-team/licensing/ui/node_modules
 ## Unified project context and navigation against isolated presentation fixtures.
 test-project-context-browser: web-shell
 	node scripts/browser-project-context.cjs
+
+.PHONY: test-work-browser
+## test-work-browser: Work queues, plans and dependencies in Personal, Team and the shell, desktop and phone
+test-work-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-work.cjs node scripts/test-browser.cjs

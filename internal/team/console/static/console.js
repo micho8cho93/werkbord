@@ -1334,7 +1334,7 @@ function workTab(d) {
  const done=b.tickets.filter(k=>matchesFilter(k)&&k.status==='done');
  const ownership=h('div',{class:'work-filter'},choiceGroup('Whose tasks',[['all','All tasks'],['own','My tasks']],w=>(w==='own')===!!state.ownTickets,w=>{state.ownTickets=w==='own';render();},'actions',false));
  let open=null;if(state.ticketId){const k=[...b.tickets,...(b.archived||[])].find(k=>k.id===state.ticketId);if(k)open=ticketPanel(d,d.ticket||k);else state.ticketId=null;}
- const view=h('div',{class:'work-view'},detail?'':[toolbar,tabs],state.workSection==='plans'?d.plansView||'':h('div',{class:'work-queue','aria-label':'Work queue'},ownership,state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),h('ul',{class:'work-task-list'},done.map(rows))):'']),open||'');
+ const view=h('div',{class:'work-view'+(open?' with-ticket':'')},detail?'':[toolbar,tabs],state.workSection==='plans'?d.plansView||'':h('div',{class:'work-queue',role:'region','aria-label':'Work queue'},ownership,state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),h('ul',{class:'work-task-list'},done.map(rows))):'']),open||'');
  filter();return view;
 }
 function archiveTab(d) {

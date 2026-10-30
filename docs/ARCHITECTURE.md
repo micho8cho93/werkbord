@@ -1237,3 +1237,18 @@ runner failover. Team setup uses the app's own installer; release publication is
 - `make test-unified-installer`: mounts the development disk image and checks versions, signatures and that a development build is refused as a release.
 - `make test-desktop-sign`, `make test-desktop-update`: how the app is signed and how it updates itself, against fakes of Apple's tools and a real Sparkle.
 
+
+### Phase 8 presentation consolidation
+
+The desktop shell has one project context and five destinations (Work, Calendar, Agents, Analytics, Salie),
+with Settings separate. Its summary projections and workspace-local frames keep the trust boundaries described
+in [STRUCTURE.md](STRUCTURE.md). All Projects is a presentation selection, never a database project.
+Work chrome lives in `internal/uipresentation/static/work-layout.css`; the shell, Personal Svelte app and Team
+console consume the same layout rules without sharing product controllers. The command palette retains
+workspace-owned detail routes; obsolete sidebar active-key and shortcut adapters are removed. Catch-up uses
+the existing session cursor store inside All Projects → Work, with attention disclosed in place.
+
+Infrastructure publication stages outputs in private temporary directories and serialises writers per target
+before replacing the helper and provenance files. This prevents simultaneous validation and packaging jobs
+from deleting each other's staging file. Each source build still verifies the pinned commit and module graph.
+See [the Phase 8 audit](SIMPLIFICATION_PHASE8.md) for retained compatibility APIs and validation limits.

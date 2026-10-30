@@ -30,7 +30,7 @@
   {:else if result}
     <div class="facts">
       <button class="btn small quiet" onclick={() => expanded = !expanded} aria-expanded={expanded}>{merged} pull {merged === 1 ? 'request' : 'requests'} merged · {completed} {completed === 1 ? 'item' : 'items'} completed</button>
-      <button class="btn small quiet" onclick={() => { const heading = document.getElementById('hub-needs-h'); heading?.scrollIntoView({ block: 'nearest' }); heading?.focus(); }}>{waiting} {waiting === 1 ? 'item needs' : 'items need'} attention now</button>
+      <button class="btn small quiet" onclick={() => { const heading = document.getElementById('work-attention') as HTMLDetailsElement | null; if (heading) { heading.open = true; heading.scrollIntoView({ block: 'nearest' }); heading.querySelector('summary')?.focus(); } }}>{waiting} {waiting === 1 ? 'item needs' : 'items need'} attention now</button>
       {#if !model.remotePersonal}<button class="btn small" onclick={() => { void explain(); }}>Catch me up with Salie</button>{/if}
     </div>
     {#if result.incomplete || result.unavailable.length}<p class="muted">{result.incomplete ? 'Some history is outside the available coverage. ' : ''}{result.unavailable.length ? `Unavailable: ${result.unavailable.join(', ')}.` : ''}</p>{/if}

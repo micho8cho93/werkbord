@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { activeKey, entries, listed } from './nav';
+import { entries, listed } from './nav';
 import { isPlace } from './frames';
 
-describe('the sidebar entries', () => {
+describe('workspace detail routes', () => {
   it('only ever ask a workspace for a place inside itself', () => {
     for (const kind of ['personal', 'team'] as const) {
       for (const e of entries(kind)) expect(isPlace(e.place)).toBe(true);
@@ -14,33 +14,6 @@ describe('the sidebar entries', () => {
     const b = { id: 'b', name: 'B', href: '#/p/b/work' };
     expect(listed([b, a, { ...b, name: 'again' }]).map((p) => p.id)).toEqual(['b', 'a']);
     expect(listed(undefined)).toEqual([]);
-  });
-});
-
-describe('which entry the current place belongs to', () => {
-  it('follows Individual’s addresses', () => {
-    expect(activeKey('personal', '#/control')).toBe('home');
-    expect(activeKey('personal', '#/projects')).toBe('projects');
-    // Settings is the window's own screen, not an entry of a workspace.
-    expect(activeKey('personal', '#/settings?runners')).toBe('');
-    expect(activeKey('personal', '#/p/prj_1/git/branch?x=1')).toBe('project:prj_1');
-    expect(activeKey('personal', '#/p/prj_1/task/tsk_1')).toBe('project:prj_1');
-    expect(activeKey('personal', '#/p/my%20repo/work')).toBe('project:my repo');
-    expect(activeKey('personal', '#/')).toBe('');
-    expect(activeKey('personal', undefined)).toBe('');
-  });
-  it('follows Team’s queries', () => {
-    expect(activeKey('team', '?tab=workspace')).toBe('home');
-    expect(activeKey('team', '?tab=projects')).toBe('projects');
-    expect(activeKey('team', '?tab=reviews')).toBe('reviews');
-    expect(activeKey('team', '?tab=members')).toBe('members');
-    expect(activeKey('team', '?tab=analytics')).toBe('analytics');
-    for (const tab of ['settings', 'labels', 'devices', 'hosts', 'connectivity', 'backups']) expect(activeKey('team', `?tab=${tab}`)).toBe('');
-    for (const tab of ['work', 'timeline', 'repository', 'activity', 'project-settings', 'people']) expect(activeKey('team', `?tab=${tab}&project=tpj_1`)).toBe('project:tpj_1');
-    expect(activeKey('team', '?tab=board&project=tpj_1&ticket=t1')).toBe('project:tpj_1');
-    expect(activeKey('team', '?tab=board')).toBe('');
-    expect(activeKey('team', '?tab=mywork')).toBe('');
-    expect(activeKey('team', '#/control')).toBe('');
   });
 });
 

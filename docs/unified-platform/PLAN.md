@@ -26,7 +26,7 @@ below records the actual versions; early planned version numbers have been super
 | Cross-links | All four: a team ticket becomes my local task (kept); move a project personal ↔ team; Home shows everything; Personal is private by default. |
 | Naming | **Personal / Team.** "Individual" leaves the interface. "Workspace" stays an internal word. |
 | Strictness | **The host verifies the key.** A joiner presents their signed key at enrolment; the host refuses a 3rd member without valid proof from the host and the joiner. |
-| Salie | **Personal write, team read-only**, through the existing Team bridge. **Two entry points, both kept:** the Salie button in the sidebar and the floating Salie button (draggable, bottom centre by default, with its Needs-you count). Both open the same Salie. |
+| Salie | **Personal write, team read-only**, through the existing Team bridge. **One permanent destination:** Salie in the sidebar, with its waiting count. The floating button and placement preferences are removed. |
 | Builds and releases | **One build, one release, one product, always.** There is no Premium build, edition build, flavour or second download. Free and Premium differ only by whether a valid unlock key has been entered. Every change to the app ships through the one existing release process (one `VERSION`, one tag series, one DMG). |
 | Joining a team | **One flow, one confirm**: creating or joining ends with a single "Connect this computer to run my tickets with my own agent" choice. Every run still asks locally. |
 

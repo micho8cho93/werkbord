@@ -55,7 +55,7 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  await page.goto(m.first+'/?tab=hosts');await page.getByRole('heading',{name:'Choose Workspace Hosts',exact:true}).waitFor();
  assert(await page.locator('.advanced-settings').getAttribute('open')!==null,'a direct host link opens Advanced');
  const adminLabels=['This computer','MCP clients','Labels','Devices','Workspace Hosts','Connectivity','Backups'];
- const destinations = ['Workspace','Projects','Initiatives','Reviews','People','Analytics',...adminLabels];
+ const destinations = ['Workspace','Projects','Reviews','People','Analytics',...adminLabels];
  for(const label of destinations){
   const tabFor={ 'Workspace':'workspace', 'People':'members', 'This computer':'settings', 'MCP clients':'mcp', 'Workspace Hosts':'hosts' }[label] || label.toLowerCase().replaceAll(' ','');
   const nav=adminLabels.includes(label)?page.getByRole('navigation',{name:'Team administration',exact:true}):page.getByRole('navigation',{name:'Werkbord Team',exact:true});
@@ -204,10 +204,10 @@ async function shot(page,name,width=1440,height=1000){await page.setViewportSize
  assert.equal(await page.getByRole('button',{name:'Start work',exact:true}).count(),0);
  assert.equal(await page.getByRole('button',{name:'Claim this ticket',exact:true}).count(),0);
  await shot(page,'teammate-ticket');await shot(page,'teammate-ticket-mobile',390,844);await page.setViewportSize({width:1440,height:1000});
- await page.getByRole('button',{name:'My tickets (1)',exact:true}).click();
- await page.getByRole('region',{name:'Kanban board'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor({state:'detached'});
- await page.getByRole('button',{name:'All tickets',exact:true}).click();
- await page.getByRole('region',{name:'Kanban board'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor();
+ await page.getByRole('button',{name:'My tasks',exact:true}).click();
+ await page.getByRole('region',{name:'Work queue'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor({state:'detached'});
+ await page.getByRole('button',{name:'All tasks',exact:true}).click();
+ await page.getByRole('region',{name:'Work queue'}).getByRole('button',{name:privateTicket.title,exact:true}).waitFor();
  console.log('PASS teammate privacy, own-ticket filter and authenticated refusal of another member’s runner controls');
 
 

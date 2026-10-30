@@ -48,7 +48,7 @@ let browser;
 
   await page.goto(`${base}/#/analytics`);
   await page.getByRole('slider', { name: /^Daily activity chart/ }).waitFor();
-  await page.waitForFunction(() => window.motionCalls.some(c => c.tag === 'rect' && c.duration === 480));
+  await page.waitForFunction(() => window.motionCalls.some(c => c.tag === 'rect' && c.duration === 320));
   const chart = page.getByRole('slider', { name: /^Daily activity chart/ });
   await chart.focus(); await chart.press('End');
   assert.match(await chart.getAttribute('aria-valuetext'), /created, .*moved to Done/);
@@ -218,7 +218,7 @@ let browser;
   await page.screenshot({ path: path.join(artifacts, 'motion-push-desktop.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('.push-button')).backgroundColor === 'rgb(237, 237, 232)');
+  await page.waitForFunction(() => { const probe = document.createElement('span'); probe.style.background = 'var(--surface-2)'; document.body.append(probe); const expected = getComputedStyle(probe).backgroundColor; probe.remove(); return getComputedStyle(document.querySelector('.push-button')).backgroundColor === expected; });
   await page.screenshot({ path: path.join(artifacts, 'motion-push-phone-light.png') });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
   await page.setViewportSize({ width: 1440, height: 1000 });

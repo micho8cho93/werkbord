@@ -1,14 +1,6 @@
-// What the window's one sidebar lists: a section for Personal and one for each team, each with its projects, and which entry a
-// workspace's current place belongs to.
-// Where the person is has two levels. The sidebar lists the major parts (a workspace, and each project in it); inside a major part
-// its own pages carry one row of tabs for its sub-areas (a project's Board and Git, a team's Projects and People). A sub-area is
-// never a sidebar entry.
-// Pure: the sidebar is built from this, and the workspace's own pages carry no navigation of their own when they are shown
-// here. A place is what the workspace itself reports (a fragment for Personal, a query for a team); the shell never reads
-// anything else of it.
-
+// Workspace-owned detail routes remain available through the command palette.
+// Primary navigation and project context live in Sidebar.svelte and project-context.ts.
 import type { IconName } from '../lib/Icon.svelte';
-import { decode } from '../lib/location';
 import type { Item, Kind, Overview, Project } from './types';
 
 export type NavKey = '' | 'home' | 'projects' | 'reviews' | 'members' | 'analytics' | `project:${string}`;
@@ -21,7 +13,7 @@ export interface NavEntry {
   place: string;
 }
 
-/** The fixed entries of a workspace, in order. Its projects are listed under `projects`; Settings is the window's own screen. */
+/** Workspace detail shortcuts for the palette. Settings is the window’s own screen. */
 export function entries(kind: Kind): NavEntry[] {
   if (kind === 'personal') {
     return [
@@ -39,44 +31,13 @@ export function entries(kind: Kind): NavEntry[] {
   ];
 }
 
-const TEAM_PROJECT_TABS = new Set(['overview', 'work', 'calendar', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
-
-/** The entry a workspace's current place belongs to; '' when it is somewhere the sidebar does not list. */
-export function activeKey(kind: Kind, place: string | undefined): NavKey {
-  if (!place) return '';
-  if (kind === 'personal') {
-    const [first = '', second = ''] = place.replace(/^#\/?/, '').split(/[?&]/)[0].split('/');
-    if (first === 'control') return 'home';
-    if (first === 'projects') return 'projects';
-    if (first === 'analytics') return 'analytics';
-    if (first === 'p' && decode(second)) return `project:${decode(second)}`;
-    return '';
-  }
-  if (!place.startsWith('?')) return '';
-  const q = new URLSearchParams(place);
-  const tab = q.get('tab') === 'board' ? 'work' : q.get('tab') === 'timeline' ? 'calendar' : q.get('tab') ?? 'workspace';
-  if (tab === 'workspace') return 'home';
-  if (tab === 'projects') return 'projects';
-  if (tab === 'reviews' || tab === 'members' || tab === 'analytics') return tab;
-  const project = q.get('project');
-  return TEAM_PROJECT_TABS.has(tab) && project ? `project:${project}` : '';
-}
-
 /** The projects the sidebar lists: as the workspace reported them, without duplicates, in its order. */
 export function listed(projects: Project[] | undefined): Project[] {
   const seen = new Set<string>();
   return (projects ?? []).filter((p) => !seen.has(p.id) && !!seen.add(p.id));
 }
 
-/** The place inside a workspace that a shortcut to one of its own pages opens. */
-export function shellPlace(kind: Kind, target: 'home' | 'projects' | 'analytics'): string {
-  const fixed = entries(kind);
-  if (target === 'home') return fixed[0].place;
-  if (target === 'projects') return fixed[1].place;
-  return kind === 'personal' ? '#/analytics' : '?tab=analytics';
-}
-
-// ---- the sections of the sidebar ----
+// ---- accessible workspace metadata ----
 
 /** Personal is the person's own colour; each team gets one of these, the same one every time (it is chosen from the team's id). */
 const TEAM_COLOURS = ['#7B4FC0', '#0A7C86', '#A0457E', '#5F7F2A'] as const;
@@ -89,7 +50,7 @@ export function sectionColour(kind: Kind, id: string): string {
   return TEAM_COLOURS[h % TEAM_COLOURS.length];
 }
 
-/** The workspaces that have a section: not one that is only being set up or has been left. Personal first, then the teams as listed. */
+/** Accessible workspaces for palette and report filters, excluding setup and leaving entries. */
 export function sectionItems(items: readonly Item[] | undefined): Item[] {
   const shown = (items ?? []).filter((i) => i.state !== 'setup' && i.state !== 'leaving');
   return [...shown.filter((i) => i.kind === 'personal'), ...shown.filter((i) => i.kind === 'team')];

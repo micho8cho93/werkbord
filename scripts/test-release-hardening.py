@@ -27,6 +27,41 @@ audit = importlib.util.module_from_spec(audit_spec)
 audit_spec.loader.exec_module(audit)
 
 
+class InfrastructurePublicationTests(unittest.TestCase):
+    def test_concurrent_builds_publish_complete_matching_outputs(self):
+        spec = importlib.util.spec_from_file_location("infrastructure", ROOT / "scripts/build-infrastructure.py")
+        infrastructure = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(infrastructure)
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            dest = root / "cache"
+            dest.mkdir()
+            errors = []
+            barrier = threading.Barrier(8)
+            def writer(index):
+                try:
+                    source = root / str(index)
+                    source.mkdir()
+                    for name in ("nebula", "go.mod", "go.sum"):
+                        (source / name).write_text(str(index))
+                    barrier.wait(timeout=10)
+                    infrastructure.publish(dest, source / "nebula", source, {"build": index})
+                except Exception as error:
+                    errors.append(error)
+            writers = [threading.Thread(target=writer, args=(index,)) for index in range(8)]
+            for writer_thread in writers:
+                writer_thread.start()
+            for writer_thread in writers:
+                writer_thread.join(timeout=15)
+            self.assertFalse(any(writer_thread.is_alive() for writer_thread in writers))
+            self.assertEqual(errors, [])
+            winner = str(json.loads((dest / "nebula.build").read_text())["build"])
+            for name in ("nebula", "go.mod", "go.sum"):
+                self.assertEqual((dest / name).read_text(), winner)
+            self.assertEqual((dest / "nebula").stat().st_mode & 0o777, 0o755)
+            self.assertEqual(list(dest.glob(".publish-*")), [])
+
+
 class PreviewAdvisoryTests(unittest.TestCase):
     def setUp(self):
         self.review = json.loads((ROOT / "scripts/preview-build-advisories.json").read_text())

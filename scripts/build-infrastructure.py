@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fresh source build with pinned provenance. Cache records never authorize a build."""
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run(args, cwd, env=None):
     subprocess.run(args, cwd=cwd, env=env, check=True, stdout=sys.stderr)
+
+
+def publish(dest, binary, src, record):
+    # Concurrent packaging/check jobs share the cache. Stage privately, then publish
+    # the binary and its source provenance together under a per-target writer lock.
+    with tempfile.TemporaryDirectory(prefix=".publish-", dir=dest) as stage:
+        stage = Path(stage)
+        shutil.copyfile(binary, stage / "nebula")
+        (stage / "nebula").chmod(0o755)
+        for name in ("go.mod", "go.sum"):
+            shutil.copyfile(src / name, stage / name)
+        (stage / "nebula.build").write_text(json.dumps(record, sort_keys=True) + "\n")
+        with (dest / ".publish.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            for name in ("go.mod", "go.sum", "nebula", "nebula.build"):
+                (stage / name).replace(dest / name)
 
 
 def build(product, target_os, arch):
@@ -46,13 +63,7 @@ def build(product, target_os, arch):
         record = {"version": version, "commit": commit, "sha256": digest, "toolchain": "go1.27.3", "goos": target_os, "goarch": arch,
                   "goModSHA256": hashlib.sha256((src / "go.mod").read_bytes()).hexdigest(),
                   "goSumSHA256": hashlib.sha256((src / "go.sum").read_bytes()).hexdigest()}
-        for name in ("go.mod", "go.sum"):
-            (dest / name).write_bytes((src / name).read_bytes())
-        staged = dest / "nebula.new"
-        shutil.copyfile(binary, staged)
-        staged.chmod(0o755)
-        staged.replace(dest / "nebula")
-        (dest / "nebula.build").write_text(json.dumps(record, sort_keys=True) + "\n")
+        publish(dest, binary, src, record)
     print(dest.resolve())
 
 

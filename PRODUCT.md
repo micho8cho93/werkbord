@@ -38,8 +38,14 @@ The CSP forbids inline scripts and remote resources.
 
 Name: Werkbord (wordmark `werkbord`, lowercase). Tagline: "Werk local, ship global." Visual identity: the
 identity sheet "Quiet technical · v1" (see DESIGN.md), and the app replicas on the landing site.
-The user’s supplied design sheets establish a Buffer-inspired simplicity direction: compact lists, calm hierarchy and focused
-plan details. Apply it first to Work while retaining Werkbord’s product identity and existing theme choices.
+The desktop app uses one project dropdown: All Projects, Personal projects and Team projects.
+Work, Calendar, Agents, Analytics and Salie are its five primary destinations; Settings is separate.
+Buffer informs calm hierarchy, compact lists, contextual controls and efficient whitespace, while Werkbord keeps
+its pixel mark, bundled Geist, theme choices and cobalt/amber roles. Work contains Queue and Plans.
+Git, Product Map, run history, reviews, memory and workspace management remain contextual tools.
+Kanban, Timeline/Gantt, Generative Workspaces, Data Library and floating Salie placement are retired.
+The controller browser UI and Mobile Control Deck retain their service-specific navigation; the unified
+Personal/Team project selector belongs to the desktop shell, without merging the execution and coordination services.
 
 ## Product Principles
 

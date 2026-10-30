@@ -44,7 +44,7 @@
         <Icon name={d.icon} /><span>{d.label}</span>
       </button>
     {/each}
-    <button bind:this={salieButton} class="nav" type="button" aria-haspopup="dialog" aria-expanded={model.assistantShown} disabled={model.remotePersonal || model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
+    <button bind:this={salieButton} class="nav" type="button" aria-haspopup="dialog" aria-expanded={model.assistantShown} aria-label={model.assistant.waiting ? `Salie · ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'request is' : 'requests are'} waiting for you` : 'Salie'} title={model.remotePersonal ? 'Salie requires the local controller' : 'Salie'} disabled={model.remotePersonal || model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
       const rect = salieButton?.getBoundingClientRect();
       if (rect) void model.toggleAssistant(rect);
     }} data-testid="sidebar-salie">
@@ -58,26 +58,28 @@
 </nav>
 
 <style>
-  .side { width: 216px; flex: none; height: 100%; display: flex; flex-direction: column; gap: 24px; padding: 24px 12px 16px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; }
+  .side { width: 224px; flex: none; height: 100%; display: flex; flex-direction: column; gap: 28px; padding: 24px 14px 16px; background: var(--bg); border-right: 1px solid var(--border); overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px; border: 0; background: transparent; color: var(--text); cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 16px; }
   .project-picker { display: block; min-width: 0; position: relative; }
   .picker-icon { display: none; }
-  select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; text-overflow: ellipsis; }
+  select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; text-overflow: ellipsis; }
   .destinations { display: flex; flex-direction: column; gap: 6px; }
-  .nav { display: flex; align-items: center; gap: 12px; min-height: 40px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
-  .nav:hover, .nav[aria-current='page'] { background: var(--surface-2); color: var(--text); }
+  .nav { display: flex; align-items: center; gap: 12px; min-height: 44px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+  .nav:hover { background: var(--surface-2); color: var(--text); }
+  .nav[aria-current='page'] { background: var(--surface); color: var(--text); }
   .nav[aria-current='page'] { font-weight: 600; }
   .nav:disabled { cursor: default; color: var(--text-2); }
   button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
-  .count { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .count { margin-left: auto; min-width: 22px; padding: 2px 6px; border-radius: 4px; background: var(--surface-2); color: var(--warn-text); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
   .working { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   @media (max-width: 640px) {
     .side { width: 64px; padding: 16px 8px; gap: 20px; }
     .brand { justify-content: center; padding-inline: 0; }
-    .brand > span, .nav > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-    .nav { justify-content: center; padding-inline: 8px; gap: 0; }
+    .brand > span, .nav > span:not(.count):not(.working) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .count, .working { margin-left: 0; }
+    .nav { flex-wrap: wrap; justify-content: center; padding-inline: 8px; gap: 0; }
     select { font-size: 16px; color: transparent; appearance: none; cursor: pointer; }
     option, optgroup { color: var(--text); }
     .picker-icon { display: flex; position: absolute; inset: 0; align-items: center; justify-content: center; pointer-events: none; color: var(--text); }

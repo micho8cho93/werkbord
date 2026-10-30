@@ -32,7 +32,7 @@ Connectivity Hosts, backups and local runners. Personal's tsnet support is separ
 [TEAM_INSTALL.md](TEAM_INSTALL.md), [PLANS.md](PLANS.md) and the [release gate](TEAM_SECURITY_GATE.md).
 
 > **Words in the interface.** The controller’s projects are **Personal**, and shared projects belong to a **Team**. Existing
-> source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. "Universal" is gone; its page is **Home**. The wire value `"personal"` keeps its name because other programs and stored data speak it.
+> source names such as `Individual` and wire `kind: personal` remain compatible: a project is Personal or a team's. The desktop shell starts in **Work** with **All Projects** selected; there is no Personal/Team navigation split. The wire value `"personal"` keeps its name because other programs and stored data speak it.
 >
 > **Naming.** Werkbord was called Dev Board. Nothing of the old name remains: the executable, the `WERKBORD_*` variables, the data
 > directory, the database file, the module path and the branch namespace are all `werkbord`.
@@ -111,6 +111,8 @@ The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/`
 console (`internal/team/console`). Both consume the framework-neutral components in `internal/uipresentation/static/`:
 shared tokens, segmented controls, section tabs, board geometry, motion, calendar planning gestures and date calculations.
 Personal imports them through its Svelte build; Team embeds and serves them under `ui/` without a Node build step.
+`work-layout.css` owns Work/plan tab controls, title spacing and search geometry across the shell and both products;
+it holds no routing, data, permission or execution behaviour.
 Status vocabulary and data/permission adapters stay in their product. Do not put Team screens in `web/`.
 
 `internal/relay` and its `e2e`, `access`, `client`, `tunnel` and `server` packages are shared protocol plumbing:

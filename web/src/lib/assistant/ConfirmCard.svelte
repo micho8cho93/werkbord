@@ -21,7 +21,7 @@
     const project = /^workspace:([^/]{1,40})\/([^/]{1,120})$/.exec(item.ticket.projectId);
     const ticket = /^workspace:([^/]{1,40})\/([^/]{1,120})$/.exec(item.ticket.id);
     if (!project || !ticket || project[1] !== ticket[1] || !project[1].startsWith('team:')) return null;
-    return { workspace: project[1], place: `?tab=board&project=${encodeURIComponent(project[2])}&ticket=${encodeURIComponent(ticket[2])}` };
+    return { workspace: project[1], place: `?tab=work&project=${encodeURIComponent(project[2])}&ticket=${encodeURIComponent(ticket[2])}` };
   }
   const connected = $derived(connectedDestination());
   function openConnectedTask() {

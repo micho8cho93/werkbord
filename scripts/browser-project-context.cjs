@@ -12,6 +12,7 @@ const href = (w, id) => w.kind === 'personal' ? `#/p/${id}/work` : `?tab=work&pr
 const summary = w => ({ schema: 'workspace-summary/v1', workspace: w, at: new Date().toISOString(),
   projects: projects.map(id => ({ id, name: `Project ${id}`, href: href(w, id) })),
   work: projects.map(id => ({ id: `task-${id}`, title: `${w.name} ${id}`, project: `Project ${id}`, status: 'doing', execution: 'running', href: href(w, id) })),
+  queue: projects.flatMap((id, i) => [{ id: `task-${id}`, title: `Review ${w.name} ${id}`, project: `Project ${id}`, group: i ? 'next' : 'now', detail: i ? 'Ready to start' : 'Agent working', href: href(w, id) }, { id: `plan-${id}`, title: `Ship ${id}`, project: `Project ${id}`, group: 'plan', detail: '1 of 3 tasks complete', href: href(w, id) + '&plan=plan-' + id }]),
   attention: projects.map(id => ({ id, kind: 'blocked', severity: 'warning', title: `${w.name} ${id} blocked`, href: href(w, id) })), schedule: [], planned: [] });
 const bridge = `window.go={main:{App:new Proxy({},{get:(_,method)=>async(...args)=>{const r=await fetch('/call',{method:'POST',body:JSON.stringify({method,args})});const d=await r.json();if(!r.ok)throw Error(d.error);return d}})}};`;
 const server = http.createServer(async (req, res) => {
@@ -99,6 +100,14 @@ const server = http.createServer(async (req, res) => {
     await page.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Plans', exact: false }).click();
+    await page.getByRole('heading', { name: 'Plans', exact: true }).waitFor();
+    assert.ok((await page.locator('main').innerText()).includes('Ship two'));
+    await page.getByRole('button', { name: 'Queue', exact: false }).click();
+    await picker.selectOption('');
+    await page.getByText('Since you were last here', { exact: true }).waitFor();
+    await page.getByRole('button', { name: /items need attention now/ }).click();
+    assert.equal(await page.locator('#work-attention').getAttribute('open'), '');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
     console.log('PASS scoped analytics, narrow shell and browser runtime');

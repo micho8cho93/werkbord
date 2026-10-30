@@ -211,8 +211,10 @@ In another terminal, register a repository (the CLI finds the token by itself):
 ./bin/werkbord project add ~/code/my-app
 ```
 
-Then open the board, tap a task and press *Start agent*. A project's page is
-`#/p/<project id>/board`; `#/control` is Needs you.
+Then open Work, choose a task and press *Start agent*. A project's page is
+`#/p/<project id>/work`; `#/control` opens the controller's workspace attention view.
+In the Mac app, choose All Projects or a Personal/Team project from the one dropdown, then
+Work, Calendar, Agents, Analytics or Salie. Settings is at the foot of the sidebar.
 
 Other commands: `werkbord project list`, `werkbord token`, `werkbord migrate`,
 `werkbord version`. Run
@@ -247,6 +249,24 @@ architecture tests that enforce their trust boundaries):
 ```bash
 make check
 ```
+
+Browser acceptance needs the bundled Playwright browsers (`cd web && npx playwright install chromium webkit`).
+Use disposable fixtures; no installed controller or Team data is needed:
+
+```bash
+make test-project-context-browser  # selector, scoping, offline and narrow navigation
+make test-work-browser             # Personal/Team queues, plans and dependencies
+make test-browser                  # controller, phones, Team, memory and Analytics
+make test-assistant-browser        # Salie, Agents and session continuity
+make test-planning-browser         # Calendar edits and scheduling, Chromium and WebKit
+make test-unified-desktop-browser  # real desktop bridge and isolated services
+make test-rqlite                   # clustered storage and failure recovery
+make test-unified-installer        # builds and mounts an ad-hoc development DMG
+```
+
+The infrastructure source builders need network access and the pinned Go toolchain. A development
+DMG validates packaging, not Developer ID/notarization or installation on a clean physical machine.
+See [Phase 8 validation and beta blockers](docs/SIMPLIFICATION_PHASE8.md).
 
 A release bumps the one `cmd/werkbord/VERSION` file and gets a unified tag
 (`werkbord-vX.Y.Z`, one version for the whole release); ordinary commits do neither: see [docs/VERSIONING.md](docs/VERSIONING.md).

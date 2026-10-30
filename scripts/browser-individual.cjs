@@ -328,11 +328,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.goto(base + `/#/p/${p.id}/work`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         assert.equal(await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).count(), 0);
+        await page.locator('.completed > summary').click();
         await page.locator('[data-task-id="' + finished.id + '"]').getByRole('button', { name: 'Archive', exact: true }).click();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
         await page.getByRole('button', { name: 'Restore', exact: true }).click();
         await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
+        await page.locator('.completed > summary').click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
         for (let i = 0; i < 30; i++) await api('POST', `/api/projects/${p.id}/tasks`, { title: `Work queue fixture ${i}` });
         await page.getByRole('link', { name: 'Work queue fixture 9', exact: true }).waitFor();

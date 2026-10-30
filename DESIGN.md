@@ -46,14 +46,14 @@ The table is **Classic's** palette (and the base every style builds on). Paper a
 Status: running = cobalt, needs you = amber (`--warn` `#B7791F` as a dot), blocked = purple `#7B4FC0`,
 ready/done = green `#2F8F55`, failed = red `#C2413B`. Use the `*-text` variants for status words on paper.
 
-Theme follows the OS unless the person picks one (sun/moon in the rail, stored per device as
+Theme follows the OS unless the person picks one in Settings (stored per device as
 `werkbord.theme`; `public/theme.js` applies it before first paint because the CSP forbids inline scripts).
 
 ### Styles
 
 A second choice beside light or dark: `data-style` on `<html>`, absent for Paper, `graphite` or `classic` otherwise. Chosen in
 Settings (Style), stored per device as `werkbord.style`, applied before first paint by the same `theme.js`. In the desktop window
-the sidebar's choice is the window's and is told to every workspace (`werkbord.style`, frame event `style`), as the theme is.
+the window's Settings choice is told to every workspace (`werkbord.style`, frame event `style`), as the theme is.
 
 - The `:root` tokens above are Classic's. Paper and Graphite add one flat layer on `:root:not([data-style='classic'])`: no gradient
   faces, shadow tokens are `0 0 0 0 transparent` (never `none`, they sit in comma lists), `--radius` 10px, `--radius-sm` 6px, solid
@@ -80,7 +80,8 @@ the sidebar's choice is the window's and is told to every workspace (`werkbord.s
 Geist for the interface (400/500/600), Geist Mono for machine text: paths, branches, IDs, counts, times,
 commands, keys, and (Classic only) the uppercase section labels (`.lab`, 12px, `letter-spacing: .14em`; in Paper and Graphite
 section labels are sentence case, 12px/500, in Geist). Both are bundled (`@fontsource-variable/*`), never loaded from a CDN.
-The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px. Page titles 20px/600; card titles 14px/500; body 13–14px.
+The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px. Shared desktop page and Work titles are 24px/600,
+with −.025em tracking; other existing page titles use 20px/600. Card titles are 14px/500; body 13–14px.
 The wordmark is `werkbord`, lowercase, Geist Mono 600, tracking −6%.
 
 **The legibility floor:** no text is smaller than 12px, and all text is at least 4.5:1 against what is behind it (3:1
@@ -136,7 +137,7 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 
 ## Layout
 
-- Standalone browser desktop (≥900px): a 220px rail (Needs attention, projects with live counts, runners, Analytics, Settings, theme)
+- Standalone browser desktop (≥900px): a 220px rail (Workspace, projects with live counts, runners, Analytics, Help and Settings)
   and a main column. Inside the Werkbord desktop app the window's one sidebar replaces this rail
   ([ARCHITECTURE.md §22](docs/ARCHITECTURE.md#the-window-and-its-workspaces)). Inside a project: header (path · branch, name, Jump to ⌘K, project
   settings, New task) and the section tabs. The window is the app: views fit the viewport and scroll inside
@@ -145,43 +146,58 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
   places, the deck and the Assistant ([docs/MOBILE.md](docs/MOBILE.md)). The deck is the one place the flat paper gives way to material,
   built from the same tokens; every other phone page is the desktop's page in a phone layout.
 - A task opens as a panel over its board (`#/p/<id>/task/<id>`); Esc closes it.
-- Project tabs in both Individual and Team: Overview · Board · Calendar · Git · Runs. Calendar shows both planned work dates and scheduled agent starts. Calendar opens on a week.
+- Core project tabs in Individual and Team include Overview · Work · Calendar · Git · Runs. Calendar shows both planned work dates and scheduled agent starts. Calendar opens on a week.
   Individual work projects keep the same five tabs: Git explains that there is no repository, and Runs explains that
   there is no execution history. Their Calendar shows planned work. Pages use `.split` (main + side column, each
   scrolling inside the window) and `.pn` panels with a `.ph` header; groups that want an action sit in an
   inset `.slot`. Filters are `.pick` (a raised button that is a select); few-way choices are `.seg`.
 - Settings show one section at a time beside a section list; each section has an address (`#/settings?runners`).
-- A narrow window of the desktop app (<900px; a phone in a browser has the Control Deck instead): sticky heading, the page scrolls, bottom tab bar (Needs attention · Board · Calendar · Git · Runs · More;
-  one equal column per tab, including for work projects), floating New task button,
-  horizontally scrolling Kanban columns and tables as two-line rows. Git and Settings use a compact, labeled native
-  section chooser. Its selected option states the current subsection;
-  choosing one keeps the existing hash address, direct links and browser Back behavior. The desktop section navigation
-  remains visible at wide widths. In the desktop shell's intermediate-width icon rail, an accessible expand control
-  reveals the section names and project list without changing workspace or project routes.
-  The installed app starts on the Control Deck (`start_url` `/#/deck`; on a wide window that address is settled to Needs attention).
-  In the desktop shell's narrow window the bottom bar above stays as it was; outside it the phone has the two-place bar and the
-  Control Deck described under Layout. The board opens on the first column holding something that needs you (a question,
-  a reply, blocked work, or work in Review). Buttons that answer from a card are at least 44px tall, and a task
-  panel's actions wrap onto their own row rather than clip. A loaded task detail has one visible close control,
-  with a 44px target on phones.
+- Narrow controller pages use stacked content and compact, labelled native section choosers in Git and Settings.
+  The selected option states the current subsection; choosing one keeps hash addresses, direct links and browser Back.
+  Tables become two-line rows and task-panel actions wrap. Answer actions and the loaded task detail's one close
+  control have 44px phone targets. These service-specific responsive controls are distinct from the desktop shell's
+  persistent sidebar below. The installed controller PWA starts on the Control Deck (`start_url` `/#/deck`).
 
 ### The window's workspace navigation
 
-The desktop shell keeps Work, Calendar, Agents, Analytics and Salie in one fixed sidebar, with Settings separately at
-the foot. A native dropdown above the destinations groups Personal projects and Team projects by ownership, with
-All Projects as the aggregate context. At narrow widths the sidebar becomes an icon rail; the current project context
-stays visible above the content. Workspace management is in Settings → Appearance, and Jump to retains project and
-workspace detail destinations. These controls use the existing paper surfaces, Geist type, hairline borders and focus
-colour. See [Unified desktop navigation](docs/UNIFIED_NAVIGATION.md) for context behaviour and verification.
+The desktop shell keeps Work, Calendar, Agents, Analytics and Salie in one 224px sidebar, with Settings separately at
+its foot. The sidebar uses the paper/background token, a hairline right edge and 44px destination targets; hover uses
+`--surface-2`, and the current destination uses `--surface` with stronger ink and weight. Focus uses `--accent`.
+A native project dropdown above the destinations offers All Projects, then Personal projects and Team projects grouped
+by ownership. Team options include their workspace name; offline and unavailable contexts remain explicit.
+Scope persists across destinations, and All Projects includes only accessible workspace projections.
+
+At 640px and below the sidebar becomes a 64px icon rail. Destination names remain in accessible labels, the project
+select keeps its native behaviour behind a folder icon, and the current project name remains visible in the context strip.
+The fixed strip sits above the scrolling page content, uses 13px secondary text and a hairline bottom edge, and wraps
+recovery notices when a project is unavailable or a workspace's work is excluded. Settings, Help and workspace management
+omit this strip. Narrow desktop screenshots demonstrate the shell layout; the controller phone Control Deck remains separate.
+
+Shared desktop page frames and Work use 28px top padding, responsive 18–40px horizontal padding and 32px bottom padding;
+below 900px this becomes 20px 16px 24px. A 24px heading and quiet supporting line lead into compact controls. Work uses
+one surface canvas, divider-separated task rows and Queue/Plans navigation with 44px targets, secondary counts and a thin
+accent underline for the selected section. Search gains a 44px input below 900px; at 640px and below it occupies its own
+full row with 16px text, followed by wrapping creation actions. Buttons use 44px targets for coarse pointers.
+
+Workspace management is in Settings → Appearance; theme and style choices are in Settings. Jump to retains project and
+workspace detail destinations. Git, reviews, run history and other repository tools remain contextual. The standalone
+controller and Team console retain their service-specific navigation: the shared Personal/Team selector belongs to the
+desktop shell. See [Unified desktop navigation](docs/UNIFIED_NAVIGATION.md) for context behaviour and verification.
 Generated workspaces, their creation actions and Data Library are removed. Calendar has no Timeline presentation.
+
+The [Phase 8 finish review](docs/SIMPLIFICATION_PHASE8.md) disposition is **SHIP** for this bounded unified desktop scope,
+with no blocking findings.
+Physical-device behaviour and contrast across every theme were not independently tested in this finish pass.
+The change extends the approved Buffer-inspired Work direction; it preserves Paper, Graphite, Classic, bundled Geist,
+the pixel mark and cobalt/amber roles, without a replacement visual world or generated raster assets.
 
 ### Team console
 
 Team uses the same paper, ink, Geist, icon strokes and action colours, with its own coordination sections:
 Workspace · Projects · Reviews · People · Analytics. Desktop has a 232px rail (248px above
 1800px), project shortcuts and Settings at the foot. Changing projects keeps the current project section. Inside the
-desktop app the window's sidebar replaces the rail. Location has two levels: the sidebar lists the major parts (Personal, each team, each project), and inside one its own pages carry
-one row of tabs for its sub-areas, never a sidebar entry. A project's Overview, Board, Calendar, Git, Runs and People are tabs above
+desktop app the window's shared sidebar replaces the rail; standalone Team keeps its own coordination navigation.
+Inside a workspace or project, one row of tabs carries its sub-areas. A project's Overview, Work, Calendar, Git, Runs and People are tabs above
 its content (People is who is on the project, with roles and invitations; Project settings keeps the rest); a team's Workspace,
 Projects, Initiatives and People, and Personal's Workspace and Projects, are the same row above its pages. Both rows are drawn by one function. Calendar shows planned dates and shared schedule requests;
 Calendar is its sole date presentation. Settings contains This computer, MCP clients, Labels, Devices, Workspace Hosts,
@@ -189,9 +205,9 @@ Connectivity, Backups and License, subject to the person's permissions;
 the existing `?tab=…` addresses still work. Host resilience lives under Settings → Workspace Hosts.
 
 The workspace's Needs attention view shows Working now beside Needs attention and Projects. Lists use spacing and dividers;
-cards are reserved for movable board tickets and focused ticket details. Team page titles are 24px,
-ticket titles 15px. The board fills the available width and height, with each column scrolling internally.
-The four Kanban columns stay side by side at every width, scrolling horizontally when they no longer fit. Below 900px, primary navigation
+cards are reserved for focused ticket details; Work uses compact rows. Team page titles are 24px,
+ticket titles 15px. Work uses vertical Now, Next and Later groups with Completed in a disclosure.
+Below 900px, standalone primary navigation
 becomes a sticky scrolling row with an always-visible Settings button; the document scrolls, and actionable
 attention appears before the working list. N opens a new ticket and Escape closes ticket details.
 
@@ -393,8 +409,8 @@ use current labels and explain that tickets may appear in multiple categories. T
 Project and period filters keep the console's explicit Apply / refresh snapshot behaviour. Both tab bars support arrows,
 Home and End, show selected state and retain visible labels at narrow widths.
 
-Every desktop window opens on the Universal hub with its sidebar collapsed. Stored workspace locations remain available
-when a person explicitly opens that workspace; they do not choose the startup surface.
+Every desktop window opens on Work. Sidebar width follows the viewport, using the 64px rail only at 640px and below.
+Stored workspace locations remain available when a person explicitly opens that workspace; they do not choose the startup surface.
 
 ### Configurable phone Control Deck (4.46)
 

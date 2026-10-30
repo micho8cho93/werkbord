@@ -1,3 +1,4 @@
+const { openDestination } = require('./test-support/shell-navigation.cjs');
 // Regression coverage for workspace density and shell-to-Team navigation, using disposable services only.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
@@ -79,7 +80,7 @@ let browser, server;
  },{items,summary,personal,team});
  await page.goto(process.env.PLANNING_SHELL_URL + '/shell/index.html');
  const side=page.getByRole('navigation',{name:'Werkbord',exact:true});
- await side.locator('[data-page=reviews]').click();
+ await openDestination(page, 'page:reviews');
  await page.getByTestId('review-item').first().waitFor();
  assert.equal(await page.locator('.review-group').count(),3);
  const groups=await page.locator('.review-group').evaluateAll(nodes=>nodes.map(el=>({x:el.getBoundingClientRect().x,y:el.getBoundingClientRect().y})));
@@ -90,7 +91,7 @@ let browser, server;
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
  await page.screenshot({path:path.join(artifacts,'reviews-density-mobile.png')});
  await page.setViewportSize({width:1440,height:900});
- await side.locator('[data-project="'+project.id+'"]').click();
+ await openDestination(page, 'project:team:main:' + project.id);
  const frame=page.frameLocator('iframe[data-workspace="team:main"]');
  await frame.getByRole('heading',{name:project.name,exact:true,level:1}).waitFor().catch(async error => { console.log('Frame diagnostics:', errors, await page.locator('body').innerText(), await frame.locator('body').innerText().catch(()=>'unavailable')); throw error; });
  await page.waitForFunction(()=>document.querySelector('iframe[data-workspace="team:main"]')?.contentWindow);

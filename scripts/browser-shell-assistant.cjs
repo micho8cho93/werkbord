@@ -12,6 +12,7 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const cp = require('node:child_process'), net = require('node:net');
 const { once } = require('node:events');
 const assert = require('node:assert/strict');
+const { openWorkspace } = require('./test-support/shell-navigation.cjs');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'desktop', 'frontend', 'dist');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-shell-assistant-'));
@@ -114,8 +115,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, ...opts });
         await ctx.addInitScript(() => {
             window.__speechStarts = 0;
-            // These flows drive the floating button. Workspaces default to Salie in the sidebar (covered by browser-workspace-ux).
-            try { localStorage.setItem('werkbord.shell.salie-placement', JSON.stringify({ universal: 'floating', workspace: 'floating' })); } catch {}
+
             window.SpeechRecognition = class {
                 start() {
                     window.__speechStarts++;
@@ -129,8 +129,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         page.setDefaultTimeout(15000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
-        await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
-        await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
+        await page.getByRole('heading', { name: 'Work', exact: true }).waitFor();
+        await openWorkspace(page, 'personal');
         await page.locator('iframe[data-workspace=personal]').waitFor();
         await page.frameLocator('iframe[data-workspace=personal]').locator('main').waitFor();
         return { ctx, page };
@@ -152,7 +152,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     try {
         const { ctx, page } = await open();
         const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
-        const button = page.getByTestId('salie-button');
+        const button = page.getByTestId('sidebar-salie');
         const surfaceEl = page.getByTestId('assistant-frame');
         const assistantFrame = page.frameLocator('[data-testid=assistant-frame]');
         await button.waitFor();
@@ -162,21 +162,11 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await surfaceEl.isVisible(), false, 'the prepared assistant remains hidden until opened');
         assert.equal(await surfaceEl.getAttribute('aria-hidden'), 'true');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-button.png') });
-        const home = await button.boundingBox();
-        assert.ok(Math.abs(home.x + home.width / 2 - 720) < 2, 'Salie starts centred');
-        assert.ok(home.y + home.height > 880, 'Salie starts at the bottom');
-        // Dragging across an iframe keeps capture and never opens the assistant.
-        await page.mouse.move(home.x + 26, home.y + 26); await page.mouse.down();
-        await page.mouse.move(1300, 240, { steps: 16 }); await page.mouse.up();
-        assert.equal(await surfaceEl.isVisible(), false, 'dragging does not open Salie');
-        const moved = await button.boundingBox();
-        assert.ok(Math.abs(moved.x + 26 - 1300) < 2);
-        await page.reload(); await button.waitFor();
-        assert.ok(Math.abs((await button.boundingBox()).x - moved.x) < 2, 'drag position survives reload');
-        ok('the floating Salie button starts at the bottom centre, drags and remembers its position');
+        assert.equal(await page.getByTestId('salie-button').count(), 0, 'no floating Salie control');
+        ok('Salie is a permanent, keyboard-accessible sidebar destination');
 
         // Go to a different workspace and leave something half-written there.
-        await page.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click();
+        await openWorkspace(page, 'team:main');
         const teamFrame = page.frameLocator('iframe[data-workspace="team:main"]');
         await teamFrame.locator('#draft').fill('a half-written note');
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
@@ -205,8 +195,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const surfaceBounds = await assistantFrame.getByTestId('assistant').boundingBox();
         assert.deepEqual({ x: surfaceBounds.x, y: surfaceBounds.y, w: surfaceBounds.width, h: surfaceBounds.height }, { x: 0, y: 0, w: 1440, h: 900 }, 'the assistant content covers the whole frame without a phone navigation gap');
         const circles = samples.filter(s => s.circle);
-        assert.ok(want.x > 1200, 'the button is at its dragged position (' + want.x + ')');
-        for (const c of circles) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, `grows from the floating button (${want.x},${want.y}), not (${c.circle.x},${c.circle.y})`);
+        assert.ok(want.x < 224, 'the reveal starts at the sidebar destination');
+        for (const c of circles) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, `grows from the sidebar destination (${want.x},${want.y}), not (${c.circle.x},${c.circle.y})`);
         for (let i = 1; i < circles.length; i++) assert.ok(circles[i].circle.r >= circles[i - 1].circle.r - 0.01);
         // It reaches the farthest corner, so the sidebar is under it too.
         const far = Math.hypot(Math.max(want.x, 1440 - want.x), Math.max(want.y, 900 - want.y));
@@ -222,7 +212,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await page.locator('.shell').getAttribute('inert'), '', 'what is under it cannot be reached while it is open');
         assert.equal(await page.locator('iframe[data-workspace="team:main"]').isVisible(), true, 'the workspace that was showing was not touched');
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-open.png') });
-        ok('opens out of the floating button, slowly, over the whole window, sidebar included, from another workspace');
+        ok('opens out of the sidebar destination, slowly, over the whole window, sidebar included, from another workspace');
 
         // Apple's service can end immediately when system Dictation is off. No restart loop and no lost typed draft.
         const message = assistantFrame.getByRole('textbox', { name: 'Message to Salie' });
@@ -245,42 +235,16 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         for (const c of shrink) assert.ok(Math.abs(c.circle.x - want.x) < 2 && Math.abs(c.circle.y - want.y) < 2, 'collapses toward the button');
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
         assert.equal(await teamFrame.locator('#draft').inputValue(), 'a half-written note', 'the workspace you came from lost nothing');
-        assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-page')), 'assistant', 'focus is back on the button');
+        assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-testid')), 'sidebar-salie', 'focus is back on the button');
         assert.equal(await button.getAttribute('aria-expanded'), 'false');
         assert.equal(await page.locator('.shell').getAttribute('inert'), null);
         // And the window under it can be used again.
         await page.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();
-        await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
-        await page.getByRole('region', { name: 'Week calendar' }).waitFor();
-        await page.locator('nav[aria-label="Werkbord"] [data-open="team:main"]').click();
+        await page.getByRole('heading', { name: 'Work', exact: true }).waitFor();
+        await page.getByRole('navigation', { name: 'Work sections' }).waitFor();
+        await openWorkspace(page, 'team:main');
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
         ok('closing collapses toward the button and leaves the window as it was');
-        // Repositioning changes both the reveal and collapse anchors, including at the default bottom centre.
-        for (const position of ['left', 'home']) {
-            await button.focus();
-            await button.press('Alt+Home');
-            if (position === 'left') {
-                const r = await button.boundingBox();
-                await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2); await page.mouse.down();
-                await page.mouse.move(90, 360, {steps: 12}); await page.mouse.up();
-            }
-            const r = await button.boundingBox();
-            const centre = {x: r.x + r.width / 2, y: r.y + r.height / 2};
-            const opening = sampleInFrame(indFrame, 1300);
-            await button.click();
-            const reveal = (await opening).filter(s => s.circle && s.phase === 'opening');
-            assert.ok(reveal.length > 15, position + ' reveal is animated');
-            for (const s of reveal) assert.ok(Math.abs(s.circle.x - centre.x) < 2 && Math.abs(s.circle.y - centre.y) < 2, position + ' reveal uses the moved button');
-            const closing = sampleInFrame(indFrame, 1000);
-            await assistantFrame.getByTestId('assistant-close').click();
-            const collapse = (await closing).filter(s => s.circle && s.phase === 'closing');
-            assert.ok(collapse.length > 10, position + ' collapse is animated');
-            for (const s of collapse) assert.ok(Math.abs(s.circle.x - centre.x) < 2 && Math.abs(s.circle.y - centre.y) < 2, position + ' collapse uses the moved button');
-            await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
-        }
-        ok('opening and closing track left, right and bottom-centre button positions');
-
-
         // Something waits for the person: the button says so, and no word of the conversation crossed.
         await button.click();
         await assistantFrame.getByTestId('assistant').waitFor();
@@ -289,18 +253,16 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await assistantFrame.locator('section.confirm').waitFor();
         await assistantFrame.getByTestId('assistant-close').click(); // closed from inside the page, with its own button
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');
-        await page.waitForFunction(() => /1 request is waiting for you/.test(document.querySelector('[data-page=assistant]')?.getAttribute('aria-label') || ''));
-        assert.equal(await button.locator('.num').innerText(), '1');
+        await page.waitForFunction(() => /1 request is waiting for you/.test(document.querySelector('[data-testid=sidebar-salie]')?.getAttribute('aria-label') || ''));
+        assert.equal(await button.locator('.count').innerText(), '1');
         const crossed = (await page.evaluate(() => window.__frameMessages)).filter(m => /assistant/.test(m));
         assert.ok(crossed.length > 0, 'the page did report');
         for (const m of crossed) assert.ok(!/add a ticket|Create the ticket|From the assistant/.test(m), 'no conversation crossed: ' + m);
-        assert.ok(crossed.every(m => /^\{"type":"werkbord.frame","event":"assistant","open":(true|false),"compact":(true|false),"waiting":\d+,"running":(true|false)\}$/.test(m)), 'only a count and three display flags cross: ' + crossed.at(-1));
+        assert.ok(crossed.every(m => /^\{"type":"werkbord.frame","event":"assistant","open":(true|false),"waiting":\d+,"running":(true|false)\}$/.test(m)), 'only a count and two display flags cross: ' + crossed.at(-1));
         await page.screenshot({ path: path.join(artifacts, 'shell-assistant-badge.png') });
-        ok('a change waiting for you shows on the floating button; only a count and three display flags ever cross to the shell');
+        ok('a change waiting for you shows on the sidebar destination; only a count and two display flags ever cross to the shell');
 
         await button.click();
-        await assistantFrame.getByRole('complementary', { name: 'Salie pending request' }).waitFor();
-        await assistantFrame.getByRole('button', { name: 'Open conversation', exact: true }).click();
         await assistantFrame.getByTestId('assistant').waitFor();
         await assistantFrame.locator('section.confirm[data-state="waiting"]').waitFor();
         ok('and is still waiting when it is opened again, from the same frame');
@@ -373,7 +335,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         }
 
         // The page of the Individual workspace has no assistant of its own in the window: there is exactly one conversation.
-        await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
+        await openWorkspace(page, 'personal');
         const personal = page.frameLocator('iframe[data-workspace=personal]');
         await personal.locator('main').waitFor();
         assert.equal(await personal.getByTestId('assistant-button').count(), 0);
@@ -385,12 +347,10 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Reduced motion applies here as well.
         {
             const { ctx, page } = await open({ reducedMotion: 'reduce' });
-            const button = page.getByTestId('salie-button');
+            const button = page.getByTestId('sidebar-salie');
             await button.focus();
-            await button.press('Alt+ArrowLeft');
-            await button.press('Alt+Home');
             await page.setViewportSize({width: 390, height: 700});
-            await page.waitForFunction(() => { const r = document.querySelector('[data-testid=salie-button]').getBoundingClientRect(); return r.right <= innerWidth && r.bottom <= innerHeight; });
+            await page.waitForFunction(() => { const r = document.querySelector('[data-testid=sidebar-salie]').getBoundingClientRect(); return r.right <= innerWidth && r.bottom <= innerHeight; });
             const r = await button.boundingBox();
             assert.ok(r.x >= 0 && r.y >= 0 && r.x + r.width <= 390 && r.y + r.height <= 700, 'resizing keeps Salie reachable');
             await button.click();
@@ -399,7 +359,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
             const s = await sampling;
             assert.ok(s.some(x => !x.gone));
             assert.ok(s.every(x => x.gone || (x.clip === 'none' && x.anims === 0)), 'no movement under reduced motion');
-            ok('reduced motion is respected from the floating button too');
+            ok('reduced motion is respected from the sidebar too');
             await ctx.close();
         }
 

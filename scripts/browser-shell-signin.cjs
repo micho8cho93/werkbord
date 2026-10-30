@@ -1,3 +1,4 @@
+const { openWorkspace } = require('./test-support/shell-navigation.cjs');
 // A window whose Personal page is refused its sign-in (a token that could not be read or had gone stale when the page was opened): the built
 // shell page, with a stand-in for the native app, in front of the real Individual page in a real frame.
 //
@@ -96,8 +97,8 @@ const BRIDGE = `if (window.parent === window && !window.go) window.go = { main: 
         page.setDefaultTimeout(20000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
-        await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
-        await page.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
+        await page.getByRole('heading', { name: 'Work', exact: true }).waitFor();
+        await openWorkspace(page, 'personal');
         await page.locator('iframe[data-workspace=personal]').waitFor();
         return page;
     }

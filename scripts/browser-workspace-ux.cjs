@@ -1,3 +1,4 @@
+const { openWorkspace } = require('./test-support/shell-navigation.cjs');
 // Workspace UX regressions against disposable real APIs; never accepts production origins.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
@@ -127,6 +128,7 @@ let browser, shellServer;
  let doneB=await personal('POST',`/projects/${work.id}/tasks`,{title:'Keep this completed task'});
  for(const task of [doneA,doneB]) await personal('PATCH',`/projects/${work.id}/tasks/${task.id}`,{version:task.version,state:'done'});
  await page.goto(`${individual}/#/p/${work.id}/work`);
+ await page.locator('.completed > summary').click();
  await page.locator(`[data-task-id="${doneA.id}"]`).getByRole('button',{name:'Archive',exact:true}).click();
  await wait(async()=>!!(await personal('GET',`/projects/${work.id}/tasks`)).tasks.find(task=>task.id===doneA.id).archivedAt,'Individual card archive');
  await page.locator(`[data-task-id="${doneB.id}"]`).waitFor();
@@ -134,6 +136,7 @@ let browser, shellServer;
  assert.equal((await personal('GET',`/projects/${work.id}/tasks`)).tasks.find(task=>task.id===doneA.id).description,'Keep this completion evidence');
  await coord('POST',`/projects/${tp.id}/tickets/${tk.id}/complete`,{});
  await page.goto(`${team}/?tab=work&project=${tp.id}`);
+ await page.locator('.work-queue details > summary').click();
  await page.locator(`[data-task-id="${tk.id}"]`).getByRole('button',{name:'Archive',exact:true}).click();
  await wait(async()=>!!(await coord('GET',`/projects/${tp.id}/tickets/${tk.id}`)).archivedAt,'Team card archive');
  assert.equal(await page.getByRole('button',{name:'Archive Done tickets',exact:true}).count(),0);
@@ -161,36 +164,33 @@ let browser, shellServer;
  },{items,summary,individual,team,teamToken});
  await shellPage.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  const side=shellPage.getByRole('navigation',{name:'Werkbord',exact:true});
- await shellPage.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
+ await openWorkspace(shellPage, 'personal');
  await side.getByRole('button',{name:'Analytics',exact:true}).waitFor();
  await shellPage.getByTestId('sidebar-salie').waitFor();
  assert.equal(await shellPage.getByTestId('salie-button').count(),0,'Personal defaults to sidebar Salie');
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  await shellPage.locator('nav[aria-label="Werkbord"] [data-page=inbox]').click();
- await shellPage.getByRole('heading',{name:'Home',exact:true}).waitFor();
+ await shellPage.getByRole('heading',{name:'Work',exact:true}).waitFor();
  await shellPage.getByTestId('sidebar-salie').waitFor();
  assert.equal(await shellPage.getByTestId('salie-button').count(),0,'Home takes the same default as projects: Salie in the sidebar');
  const bottom=side.locator('.bottom [data-page]');
- assert.deepEqual(await bottom.evaluateAll(nodes=>nodes.map(el=>el.dataset.page)),['add-team','workspaces','settings']);
- await shellPage.getByTestId('hub-workspace-personal').hover();
- const hoverFits=await shellPage.getByTestId('hub-workspace-personal').evaluate(el=>{const card=el.getBoundingClientRect(),shelf=el.closest('.shelf').getBoundingClientRect();return card.top-3>=shelf.top && card.bottom+3<=shelf.bottom;});
- assert(hoverFits,'hover lift and outline fit inside the shelf');
+ assert.deepEqual(await bottom.evaluateAll(nodes=>nodes.map(el=>el.dataset.page)),['settings']);
  assert.equal(await side.getByRole('button',{name:'My Work',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Projects',exact:true}).count(),0);
  assert.equal(await side.getByRole('button',{name:'Calendar',exact:true}).count(),1,'Calendar is in the one sidebar');
- try { await shellPage.getByRole('button').filter({hasText:'Plan the venue opening'}).waitFor(); } catch (error) { await shellPage.screenshot({path:path.join(artifacts,'universal-failure.png')}); console.log('Shell:', (await shellPage.locator('body').innerText()).slice(0,3000), 'errors:', errors); throw error; }
+ try { await shellPage.getByRole('navigation',{name:'Work sections'}).waitFor(); } catch (error) { await shellPage.screenshot({path:path.join(artifacts,'universal-failure.png')}); console.log('Shell:', (await shellPage.locator('body').innerText()).slice(0,3000), 'errors:', errors); throw error; }
  await shellPage.keyboard.press('Meta+k'); await shellPage.getByTestId('palette').waitFor();
  await shellPage.screenshot({path:path.join(artifacts,'universal-palette-desktop.png')});
  await shellPage.keyboard.press('Escape');
  assert.equal(await shellPage.getByRole('group',{name:'Where Salie appears',exact:true}).count(),0,'Salie has one place, the sidebar; there is nothing to place');
- console.log('PASS library previews/expansion, Universal sidebar order and unclipped hover; Salie only in the sidebar');
+ console.log('PASS project detail access, five destinations and separate Settings; Salie only in the sidebar');
 
  // New-user setup offers the same preference without prompting existing users.
  await personal('POST','/onboarding/reset',{});
  await personal('POST','/onboarding/variant',{variant:'local'});
  for(const step of ['github','ticket','assistant','publish','phone']) await personal('POST','/onboarding/step',{step,state:'skipped'});
  await shellPage.reload();
- await shellPage.locator('nav[aria-label="Werkbord"] [data-open="personal"]').click();
+ await openWorkspace(shellPage, 'personal');
  const onboarding=shellPage.frameLocator('iframe[data-workspace=personal]');
  await onboarding.getByRole('heading',{name:'Welcome to Werkbord',exact:true}).waitFor().catch(async error=>{await shellPage.screenshot({path:path.join(artifacts,'onboarding-failure.png')}); console.log('Onboarding frame:',(await onboarding.locator('body').innerText()).slice(0,4000));throw error;});
  if(await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).isVisible()) await onboarding.getByRole('button',{name:'Start guided setup',exact:true}).click();

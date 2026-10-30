@@ -1,6 +1,7 @@
 // Settings must expose the existing local memory editor without widening Team or phone access.
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || '../web/node_modules/playwright');
 const base = process.env.PERSONAL_BROWSER_URL;
 if (!base || new URL(base).hostname !== '127.0.0.1') throw Error('Use the disposable test-browser harness');
@@ -13,7 +14,7 @@ async function api(method, route, body) {
 (async () => {
   await api('POST', '/onboarding/complete', {});
   await api('POST', '/onboarding/tours/seen', {surface: 'settings'});
-  const project = (await api('GET', '/projects')).projects.find(p => p.repoPath === process.env.WERKBORD_BROWSER_REPO) ?? await api('POST', '/projects', {name: 'Memory fixture', path: process.env.WERKBORD_BROWSER_REPO});
+  const project = (await api('GET', '/projects')).projects.find(p => p.repoPath === fs.realpathSync(process.env.WERKBORD_BROWSER_REPO)) ?? await api('POST', '/projects', {name: 'Memory fixture', path: process.env.WERKBORD_BROWSER_REPO});
   const original = await api('GET', `/projects/${project.id}/memory`);
   await api('POST', `/projects/${project.id}/memory`, {summary: 'Phase seven inaccurate preference', kind: 'preference'});
   await api('POST', `/projects/${project.id}/memory`, {summary: 'Keep this unrelated decision', kind: 'decision'});
