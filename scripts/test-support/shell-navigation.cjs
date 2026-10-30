@@ -1,7 +1,8 @@
 // Workspace detail routes live in the command palette; the sidebar has five destinations.
 async function openDestination(page, destination) {
-    await page.getByTestId('brand').focus();
-    await page.keyboard.press('ControlOrMeta+k');
+    // Focus and send the shortcut as one element action. A workspace can focus
+    // its own page between separate focus() and keyboard.press() calls.
+    await page.getByTestId('brand').press('ControlOrMeta+k');
     const palette = page.getByTestId('palette');
     await palette.waitFor();
     await palette.locator(`[data-destination="${destination}"]`).click();
