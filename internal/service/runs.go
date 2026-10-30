@@ -127,7 +127,7 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 		}
 		if in.ScheduleKey != "" {
 			o := &task.Orchestration
-			if !o.Enabled || o.Key != in.ScheduleKey || o.RunID != "" || o.Missed || o.Error != "" {
+			if !o.Enabled || o.Key != in.ScheduleKey || o.RunID != "" || o.Missed || o.Error != "" && o.RetryAt == nil {
 				return fmt.Errorf("%w: schedule already claimed or changed", domain.ErrConflict)
 			}
 			x, e := scheduleRead(ctx, tx, task.ProjectID)
@@ -139,6 +139,8 @@ func (s *Runs) Create(ctx context.Context, in NewRun) (*domain.Run, error) {
 				return fmt.Errorf("%w: %s", domain.ErrConflict, d.Reason)
 			}
 			o.RunID = r.ID
+			o.RetryAt = nil
+			o.Error = ""
 			o.DispatchedAt = &now
 			task.UpdatedAt = now
 			if e := tx.Tasks().Update(ctx, task); e != nil {
@@ -231,9 +233,10 @@ func (s *Runs) MarkStarted(ctx context.Context, id string, in Started) (*domain.
 
 // Ended describes how a run ended.
 type Ended struct {
-	State    domain.RunState // completed, failed or stopped
-	Reason   string
-	ExitCode *int
+	ProviderFailure string
+	State           domain.RunState // completed, failed or stopped
+	Reason          string
+	ExitCode        *int
 	// commitEvidence is controller-observed Git evidence, never caller input.
 	commitEvidence bool
 }
@@ -320,6 +323,11 @@ func (s *Runs) localCommitEvidence(ctx context.Context, id string) bool {
 // the reason given: nobody can answer them any more.
 func (s *Runs) end(ctx context.Context, tx store.Tx, em *emitter, r *domain.Run, in Ended, why domain.CancelReason) error {
 	from := r.State
+	if in.ProviderFailure != "" && in.State == domain.RunFailed {
+		b := domain.ProviderBlocker(truncate(in.ProviderFailure, 1000))
+		b.RaisedAt = s.now()
+		r.Blocker = &b
+	}
 	if err := r.Transition(in.State, truncate(in.Reason, 1000), s.now()); err != nil {
 		return err
 	}
@@ -876,7 +884,7 @@ func (s *Runs) AppendOutput(ctx context.Context, runID string, items []OutputIte
 // Interrupt handles a run whose process is gone without having finished: the
 // controller is shutting down, or has just started and found the run left over.
 //
-// A run that was working has lost whatever it was doing and fails with reason.
+// A working run with a saved session is blocked for review; without one it fails.
 // A run that was waiting for the user or blocked, and has a session the agent
 // can resume, is kept: it waits for a message, which will start a new process that
 // continues the conversation. Its pending questions are cancelled, because the
@@ -900,7 +908,12 @@ func (s *Runs) interrupt(ctx context.Context, tx store.Tx, em *emitter, r *domai
 	if r.State.Terminal() {
 		return nil
 	}
-	resumable := (r.State == domain.RunWaitingForUser || r.State == domain.RunBlocked) && r.SessionRef != ""
+	resumable := (r.State == domain.RunRunning || r.State == domain.RunWaitingForUser || r.State == domain.RunBlocked) && r.SessionRef != ""
+	if r.State == domain.RunRunning && resumable {
+		if err := r.Block(domain.Blocker{Source: domain.BlockerReport, Summary: "Execution interrupted; review work before continuing", Detail: reason + "; previous actions may already have executed. Send a message to resume the recorded session."}, s.now()); err != nil {
+			return err
+		}
+	}
 	if !resumable {
 		return s.end(ctx, tx, em, r, Ended{State: domain.RunFailed, Reason: reason}, domain.CancelInterrupted)
 	}
@@ -923,9 +936,9 @@ func (s *Runs) interrupt(ctx context.Context, tx store.Tx, em *emitter, r *domai
 }
 
 // RecoverAfterRestart reconciles persisted runs with reality at startup. The
-// runtime has already stopped any agent process the previous controller left
-// behind (Manager.Recover), so every run that was starting or running is over,
-// and a run that was waiting has no process. See Interrupt for what becomes of each.
+// runtime has stopped verifiable orphan processes (Manager.Recover). Ambiguous
+// processes retain ownership for intervention. Other sessions are reconciled by
+// Interrupt; a resumable session is never replayed without a user message.
 func (s *Runs) RecoverAfterRestart(ctx context.Context) (int, error) {
 	recovered := 0
 	err := s.update(ctx, func(tx store.Tx, em *emitter) error {
@@ -935,7 +948,7 @@ func (s *Runs) RecoverAfterRestart(ctx context.Context) (int, error) {
 		}
 		for i := range active {
 			r := &active[i]
-			if r.Remote {
+			if r.Remote || r.Recovery != "" {
 				continue
 			}
 			// A run that is already idle or blocked, with no process, needs nothing.
@@ -1217,4 +1230,40 @@ func oneLine(s string) string {
 		return string(r[:maxActivityRunes-1]) + "…"
 	}
 	return s
+}
+
+// RecordProcessRecovery fences an ambiguous local process without relinquishing
+// the task, worktree or schedule claim. Reconciliation is the only automatic exit.
+func (s *Runs) RecordProcessRecovery(ctx context.Context, runID string, uncertain bool) error {
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		r, err := tx.Runs().Get(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if r.Remote || r.State.Terminal() {
+			return domain.ErrConflict
+		}
+		recovery := ""
+		if uncertain {
+			recovery = "intervention"
+		}
+		if r.Recovery == recovery {
+			return nil
+		}
+		r.Recovery = recovery
+		if uncertain && r.State == domain.RunRunning {
+			if err := r.Block(domain.Blocker{Source: domain.BlockerReport, Summary: "Execution state is ambiguous; intervention required", Detail: "Inspect the runner and stop the original process before restarting Werkbord. Ownership remains reserved."}, s.now()); err != nil {
+				return err
+			}
+		}
+		if uncertain {
+			now := s.now()
+			r.Activity, r.ActivityAt = "Execution state is ambiguous; inspect the runner and stop the original process before restarting Werkbord", &now
+		}
+		r.UpdatedAt = s.now()
+		if err := tx.Runs().Update(ctx, r); err != nil {
+			return err
+		}
+		return emitRun(em, r, r.State)
+	})
 }

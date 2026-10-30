@@ -323,6 +323,9 @@ func TestMessageDuringATurnSteersIt(t *testing.T) {
 func TestFailedTurnAndRetryNotice(t *testing.T) {
 	s, _ := start(t, Config{}, "fail this")
 	evs := collect(t, s)
+	if last := evs[len(evs)-1]; last.Kind != agent.KindTurnEnd || last.Failure != "usage limit reached" {
+		t.Fatalf("failed turn not distinguished: %+v", last)
+	}
 	sys := strings.Join(texts(evs, domain.StreamSystem), "|")
 	if !strings.Contains(sys, "Temporary error, retrying: stream dropped") || !strings.Contains(sys, "The turn failed: usage limit reached") {
 		t.Fatalf("system output = %q", sys)

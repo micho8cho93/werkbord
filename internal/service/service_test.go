@@ -155,8 +155,8 @@ func TestRecoverAfterRestart(t *testing.T) {
 		}
 		return r
 	}
-	if r := get(running.ID); r.State != domain.RunFailed || r.EndedAt == nil || r.Reason != interruptedReason || r.PID != 0 {
-		t.Errorf("a run that was working lost it: %+v", r)
+	if r := get(running.ID); r.State != domain.RunBlocked || r.EndedAt != nil || r.Blocker == nil || !strings.Contains(r.Blocker.Detail, interruptedReason) || r.PID != 0 || r.SessionRef != "sess-1" {
+		t.Errorf("working session must be held for review: %+v", r)
 	}
 	if r := get(stranded.ID); r.State != domain.RunFailed {
 		t.Errorf("a waiting run that cannot be resumed has nothing left: %+v", r)

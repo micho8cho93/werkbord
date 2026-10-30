@@ -11,23 +11,31 @@ import (
 // Orchestration belongs to a Task, never to a separate calendar job. Key names
 // one explicitly armed, one-shot attempt. Dispatch metadata is controller-owned.
 type Orchestration struct {
-	Rearm          bool       `json:"rearm,omitempty"`
-	Enabled        bool       `json:"enabled"`
-	ScheduledAt    *time.Time `json:"scheduledAt,omitempty"`
-	NotBefore      *time.Time `json:"notBefore,omitempty"`
-	Deadline       *time.Time `json:"deadline,omitempty"`
-	Timezone       string     `json:"timezone,omitempty"`
-	ExecutionOrder *int       `json:"executionOrder,omitempty"`
-	Dependencies   []string   `json:"dependencies"`
-	ExpectedPaths  []string   `json:"expectedPaths"`
-	TargetCommit   string     `json:"targetCommit,omitempty"`
-	MissedPolicy   string     `json:"missedPolicy,omitempty"`
-	GraceSeconds   int        `json:"graceSeconds,omitempty"`
-	Key            string     `json:"key,omitempty"`
-	DispatchedAt   *time.Time `json:"dispatchedAt,omitempty"`
-	RunID          string     `json:"runId,omitempty"`
-	Missed         bool       `json:"missed"`
-	Error          string     `json:"error,omitempty"`
+	// Recovery preferences are per one-shot schedule. Dispatch state is owned by the controller.
+	ReconnectPolicy    string            `json:"reconnectPolicy,omitempty"` // run (default), manual
+	RetryLimit         int               `json:"retryLimit,omitempty"`
+	UsageLimitBehavior string            `json:"usageLimitBehavior,omitempty"` // pause (default), retry_temporary
+	WaitingRunner      bool              `json:"waitingRunner,omitempty"`
+	RetryCount         int               `json:"retryCount,omitempty"`
+	RetryAt            *time.Time        `json:"retryAt,omitempty"`
+	FailureKind        ProviderErrorKind `json:"failureKind,omitempty"`
+	Rearm              bool              `json:"rearm,omitempty"`
+	Enabled            bool              `json:"enabled"`
+	ScheduledAt        *time.Time        `json:"scheduledAt,omitempty"`
+	NotBefore          *time.Time        `json:"notBefore,omitempty"`
+	Deadline           *time.Time        `json:"deadline,omitempty"`
+	Timezone           string            `json:"timezone,omitempty"`
+	ExecutionOrder     *int              `json:"executionOrder,omitempty"`
+	Dependencies       []string          `json:"dependencies"`
+	ExpectedPaths      []string          `json:"expectedPaths"`
+	TargetCommit       string            `json:"targetCommit,omitempty"`
+	MissedPolicy       string            `json:"missedPolicy,omitempty"`
+	GraceSeconds       int               `json:"graceSeconds,omitempty"`
+	Key                string            `json:"key,omitempty"`
+	DispatchedAt       *time.Time        `json:"dispatchedAt,omitempty"`
+	RunID              string            `json:"runId,omitempty"`
+	Missed             bool              `json:"missed"`
+	Error              string            `json:"error,omitempty"`
 }
 
 func (o *Orchestration) Normalize() {
@@ -52,6 +60,15 @@ func (o *Orchestration) Normalize() {
 }
 
 func (o Orchestration) Validate() error {
+	if o.ReconnectPolicy != "" && o.ReconnectPolicy != "run" && o.ReconnectPolicy != "manual" {
+		return fmt.Errorf("%w: reconnectPolicy must be run or manual", ErrInvalid)
+	}
+	if o.RetryLimit < 0 || o.RetryLimit > 5 {
+		return fmt.Errorf("%w: retryLimit must be between 0 and 5", ErrInvalid)
+	}
+	if o.UsageLimitBehavior != "" && o.UsageLimitBehavior != "pause" && o.UsageLimitBehavior != "retry_temporary" {
+		return fmt.Errorf("%w: usageLimitBehavior must be pause or retry_temporary", ErrInvalid)
+	}
 	if _, err := time.LoadLocation(o.Timezone); err != nil {
 		return fmt.Errorf("%w: unknown IANA timezone %q", ErrInvalid, o.Timezone)
 	}

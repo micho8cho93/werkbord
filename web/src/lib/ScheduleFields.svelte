@@ -204,7 +204,7 @@
         bind:value={value.missedPolicy}
         ><option value="run_late"
           >Run when ready, including after restart</option
-        ><option value="skip">Mark missed after grace period</option></select
+        ><option value="skip">Require approval after grace period</option></select
       ></label
     >
     {#if value.missedPolicy === "skip"}
@@ -225,6 +225,24 @@
       {#if issue('grace')}<small class="field-error" id="schedule-grace-error">{issue('grace')}</small>{/if}
     {/if}
   </div>
+  <details>
+    <summary>Recovery preferences</summary>
+    <div class="fields">
+      <label>When the runner reconnects<select class="select" value={value.reconnectPolicy || 'run'} onchange={(e) => value.reconnectPolicy = e.currentTarget.value as 'run' | 'manual'}>
+        <option value="run">Run when eligible</option>
+        <option value="manual">Ask me before running</option>
+      </select></label>
+      <label>Provider usage limits<select class="select" value={value.usageLimitBehavior || 'pause'} onchange={(e) => value.usageLimitBehavior = e.currentTarget.value as 'pause' | 'retry_temporary'}>
+        <option value="pause">Pause for intervention</option>
+        <option value="retry_temporary">Retry temporary rate limits</option>
+      </select></label>
+      {#if value.usageLimitBehavior === 'retry_temporary'}
+        <label>Retry limit (0–5)<input class="input" type="number" min="0" max="5" step="1" value={value.retryLimit ?? 0} oninput={(e) => value.retryLimit = e.currentTarget.valueAsNumber} required /></label>
+      {/if}
+    </div>
+    <p class="muted small">Retries wait 30 seconds, then double the delay. Quota, context and sign-in failures need intervention. A claimed run is never restarted automatically, and the provider stays the same.</p>
+    {#if original?.retryAt}<p class="muted small">Next retry: {new Date(original.retryAt).toLocaleString()}. Attempt {original.retryCount} of {original.retryLimit}.</p>{/if}
+  </details>
   <p class="muted small">Run order affects priority; dependencies make a task wait.</p>
   <fieldset id="schedule-dependencies" tabindex="-1" class:invalid={!!issue('dependencies')} aria-describedby={issue('dependencies') ? 'schedule-dependencies-error' : undefined}>
     <legend>Wait for tasks</legend>

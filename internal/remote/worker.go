@@ -525,7 +525,7 @@ func (w *Worker) launch(id string) {
 	sess, e := adapter.Start(ctx, agent.StartRequest{RunID: id, WorkDir: path, Prompt: j.Run.Prompt, Policy: j.Run.Policy, Model: j.Run.Model, Reasoning: j.Run.Reasoning})
 	w.mu.Lock()
 	if e != nil {
-		_ = w.endLocked(r, agent.Result{State: domain.RunFailed, Reason: "agent failed to start", ExitCode: -1})
+		_ = w.endLocked(r, agent.Result{State: domain.RunFailed, Reason: "agent failed to start", ExitCode: -1, Failure: e.Error()})
 		w.mu.Unlock()
 		return
 	}

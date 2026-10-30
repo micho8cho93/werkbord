@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -218,7 +219,7 @@ func TestShutdownKillsRealProcesses(t *testing.T) {
 	}
 	waitGone(t, "the agent", run.PID)
 	waitGone(t, "the agent's child", s.childPID())
-	if got := e.run(run.ID); got.State != domain.RunFailed || got.PID != 0 {
+	if got := e.run(run.ID); got.State != domain.RunBlocked || got.PID != 0 || got.Blocker == nil || got.SessionRef != "shell-session" {
 		t.Fatalf("run = %+v", got)
 	}
 }
@@ -244,7 +245,7 @@ func TestOrphanedAgentIsStoppedAfterACrash(t *testing.T) {
 	waitGone(t, "the orphaned agent", pid)
 	waitGone(t, "the orphan's child", child)
 	got := e.run(run.ID)
-	if got.State != domain.RunFailed || got.Reason != "interrupted: controller restarted" || got.PID != 0 {
+	if got.State != domain.RunBlocked || got.Blocker == nil || !strings.Contains(got.Blocker.Detail, "interrupted: controller restarted") || got.PID != 0 || got.SessionRef != "shell-session" {
 		t.Fatalf("run = %+v", got)
 	}
 }
@@ -281,8 +282,11 @@ func TestRecoveryNeverKillsAProcessItCannotVouchFor(t *testing.T) {
 	if !alive(other.Process.Pid) {
 		t.Fatal("recovery killed a process that merely had the recorded pid")
 	}
-	if got := e.run(run.ID); got.State != domain.RunFailed {
-		t.Fatalf("run = %+v", got)
+	if got := e.run(run.ID); !got.State.Active() || got.Recovery != "intervention" {
+		t.Fatalf("ambiguous process released ownership: %+v", got)
+	}
+	if _, err := e.mgr.Start(ctx, StartInput{TaskID: run.TaskID, AgentID: "shell"}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("ambiguous process allowed duplicate: %v", err)
 	}
 	// The real agent is still ours to clean up; do so.
 	_ = s.Stop(ctx)

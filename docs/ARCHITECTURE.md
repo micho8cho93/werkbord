@@ -206,11 +206,12 @@ snapshot is left untouched, so a project never silently starts describing anothe
 4. **Recover** state left by the previous process (`runner.Manager.Recover`). First, any agent
    process still running for a recorded run is stopped, but only if the PID still has the
    recorded start-time identity and leads its own process group, so a PID reused by an unrelated
-   program is never signalled. Then `service.Runs.RecoverAfterRestart` settles the runs: those that
-   were `starting`/`running` are marked `failed` (`interrupted: controller restarted`); a run that
-   was waiting is kept if it has a `SessionRef` (its pending questions are cancelled, since the
-   requests died with the process, and it becomes `idle`: a message resumes it) and failed
-   otherwise. Each change emits `run.state_changed` and an `agent.*` event.
+   program is never signalled. Ambiguous process identities retain ownership with an intervention
+   marker. Then `service.Runs.RecoverAfterRestart` settles the other runs: a working session with
+   a `SessionRef` becomes blocked for review and explicit resume; a starting run or a session
+   without a saved handle fails (`interrupted: controller restarted`). Waiting sessions with a
+   saved handle become idle, with dead questions cancelled, and existing blockers stay blocked.
+   See [execution recovery](EXECUTION_RECOVERY.md). Changes emit persisted run and agent events.
 5. **Resolve auth**: a token is required unless `requireToken` is off and the address is
    loopback (§10); it is read from config or `<dataDir>/token`, generating one (mode 0600) on
    first use. If auth is off the controller logs a warning.

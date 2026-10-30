@@ -328,10 +328,12 @@ func (s *session) beginPrompt(ctx context.Context, text string) error {
 	go func() {
 		defer func() { <-s.busy }()
 		_, err := s.proc.Connection.Prompt(s.ctx, acp.PromptRequest{SessionId: s.sessionID, Prompt: []acp.ContentBlock{acp.TextBlock(text)}})
+		failure := ""
 		if err != nil && s.ctx.Err() == nil {
 			s.Emit(agentapi.Event{Kind: agentapi.KindOutput, Stream: domain.StreamSystem, Text: s.cfg.Name + " could not finish the turn: " + clip(err.Error(), 300)})
+			failure = clip(err.Error(), 500)
 		}
-		s.Emit(agentapi.Event{Kind: agentapi.KindTurnEnd})
+		s.Emit(agentapi.Event{Kind: agentapi.KindTurnEnd, Failure: failure})
 	}()
 	return nil
 }

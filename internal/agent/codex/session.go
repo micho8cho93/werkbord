@@ -339,6 +339,7 @@ func (s *session) onNotification(method string, params json.RawMessage) {
 			s.turnID = ""
 		}
 		s.mu.Unlock()
+		failure := ""
 		switch p.Turn.Status {
 		case "failed":
 			why := "unknown error"
@@ -349,10 +350,11 @@ func (s *session) onNotification(method string, params json.RawMessage) {
 			s.lastError = clip(why, 500)
 			s.mu.Unlock()
 			s.Say(domain.StreamSystem, "The turn failed: %s", clip(why, 500))
+			failure = clip(why, 500)
 		case "interrupted":
 			s.Say(domain.StreamSystem, "The turn was interrupted.")
 		}
-		s.Emit(agent.Event{Kind: agent.KindTurnEnd})
+		s.Emit(agent.Event{Kind: agent.KindTurnEnd, Failure: failure})
 
 	case "item/started":
 		var p struct {

@@ -48,7 +48,13 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 				return err
 			}
 			o := t.Orchestration
-			if !o.Enabled || o.Key == "" || o.RunID != "" || o.Missed || o.Error != "" {
+			if !o.Enabled || o.Key == "" || o.RunID != "" || o.Missed || o.Error != "" && o.RetryAt == nil {
+				continue
+			}
+			if d.State == "waiting_runner" {
+				if err := m.opt.Scheduler.RecordWaitingRunner(ctx, t.ID, o.Key); err != nil {
+					return err
+				}
 				continue
 			}
 			if d.State == "blocked" && d.Reason == "Schedule missed its allowed start window" {
@@ -67,7 +73,7 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 				if errors.Is(err, domain.ErrConflict) {
 					continue
 				}
-				// Pre-launch failures are durable and require an explicit rearm; no retry storm.
+				// Only unclaimed temporary rate limits can retry, using durable bounded backoff.
 				if e := m.opt.Scheduler.RecordDispatchError(ctx, t.ID, o.Key, err.Error(), false); e != nil {
 					return e
 				}

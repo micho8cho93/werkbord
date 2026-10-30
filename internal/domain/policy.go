@@ -97,6 +97,7 @@ const (
 // Blocker explains why a run stopped rather than guess. It is persisted on the
 // run, so the explanation survives a restart and is the same on every device.
 type Blocker struct {
+	ProviderKind ProviderErrorKind `json:"providerKind,omitempty"`
 	// Summary is what is blocking the run, in a sentence.
 	Summary string `json:"summary"`
 	// Detail is what the user needs to decide: context, what was tried, what the

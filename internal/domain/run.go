@@ -91,6 +91,9 @@ func (k WaitingKind) Valid() bool { return k == WaitNone || k == WaitQuestion ||
 // for the next message (RunWaitingForUser, WaitIdle), and the session only
 // ends when the process exits, the user finishes it, or the user stops it.
 type Run struct {
+	// Recovery holds ownership when a leftover process cannot be identified safely.
+	// It clears only after process reconciliation establishes that it is gone.
+	Recovery string `json:"recovery,omitempty"`
 	// PendingRequests is derived from the owned runner journal; it is not stored as run state.
 	PendingRequests []string `json:"pendingRequests,omitempty"`
 

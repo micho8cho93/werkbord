@@ -53,6 +53,11 @@ func configureOrchestration(ctx context.Context, tx store.Tx, task *domain.Task,
 	} else {
 		o.Key, o.RunID, o.DispatchedAt, o.Missed, o.Error = old.Key, old.RunID, old.DispatchedAt, old.Missed, old.Error
 	}
+	if o.Rearm || old.Key == "" {
+		o.WaitingRunner, o.RetryCount, o.RetryAt, o.FailureKind = false, 0, nil, ""
+	} else {
+		o.WaitingRunner, o.RetryCount, o.RetryAt, o.FailureKind = old.WaitingRunner, old.RetryCount, old.RetryAt, old.FailureKind
+	}
 	o.Rearm = false
 	// An unclaimed schedule edit invalidates in-flight scheduler snapshots. Used,
 	// missed and failed occurrences still require explicit authorisation to rearm.
@@ -236,7 +241,13 @@ func baseDecision(task domain.Task, x scheduleSnapshot, now time.Time, manual bo
 		if o.Missed {
 			return set("blocked", "Schedule was marked missed; reschedule to rearm")
 		}
-		if o.Error != "" {
+		if o.WaitingRunner && o.ReconnectPolicy == "manual" {
+			return set("blocked", "Runner was unavailable; approve by scheduling another run")
+		}
+		if o.RetryAt != nil && now.Before(*o.RetryAt) {
+			return set("waiting_retry", "Temporary provider rate limit; retry at "+o.RetryAt.Format(time.RFC3339))
+		}
+		if o.Error != "" && o.RetryAt == nil {
 			return set("blocked", o.Error)
 		}
 	}
@@ -479,6 +490,11 @@ func (s *Scheduler) Plan(ctx context.Context, projectID string) ([]domain.Schedu
 			if runner, _, e := s.Runners.RouteWithReservations(ctx, &t, resolved, reserved); e != nil {
 				d.State = "queued"
 				d.Reason = e.Error()
+				var unavailable *runnerUnavailableError
+				if errors.As(e, &unavailable) && unavailable.offline {
+					d.State = "waiting_runner"
+					d.Reason = "Waiting for runner to reconnect: " + e.Error()
+				}
 			} else if runner.CurrentRuns >= runner.Capacity {
 				d.State, d.Reason = "waiting_capacity", "Earlier tasks reserved the selected runner capacity"
 			} else {
@@ -557,11 +573,22 @@ func (s *Scheduler) RecordDispatchError(ctx context.Context, taskID, key, reason
 		if t.Orchestration.Key != key || t.Orchestration.RunID != "" {
 			return nil
 		}
-		if t.Orchestration.Error == reason && t.Orchestration.Missed == missed {
+		if t.Orchestration.Error == reason && t.Orchestration.Missed == missed && t.Orchestration.RetryAt == nil {
 			return nil
 		}
-		t.Orchestration.Error = reason
-		t.Orchestration.Missed = missed
+		o := &t.Orchestration
+		o.RetryAt = nil
+		if !missed {
+			o.FailureKind = domain.ClassifyProviderError(reason)
+			if o.FailureKind == domain.ProviderRateLimit && o.UsageLimitBehavior == "retry_temporary" && o.RetryCount < o.RetryLimit {
+				delay := 30 * time.Second * time.Duration(1<<o.RetryCount)
+				next := s.now().Add(delay)
+				o.RetryAt = &next
+				o.RetryCount++
+			}
+		}
+		o.Error = reason
+		o.Missed = missed
 		t.UpdatedAt = s.now()
 		if e = tx.Tasks().Update(ctx, t); e != nil {
 			return e
@@ -604,4 +631,26 @@ func (s *Scheduler) DependencyContext(ctx context.Context, taskID string) (strin
 		return nil
 	})
 	return note, err
+}
+
+// RecordWaitingRunner preserves the occurrence and requires explicit rearming
+// when its recovery preference asks for approval. Repeated polls are idempotent.
+func (s *Scheduler) RecordWaitingRunner(ctx context.Context, taskID, key string) error {
+	return s.update(ctx, func(tx store.Tx, em *emitter) error {
+		t, err := tx.Tasks().Get(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		if t.Orchestration.Key != key || t.Orchestration.RunID != "" || t.Orchestration.WaitingRunner {
+			return nil
+		}
+		t.Orchestration.WaitingRunner = true
+		t.UpdatedAt = s.now()
+		if err := tx.Tasks().Update(ctx, t); err != nil {
+			return err
+		}
+		ev := newEvent(domain.EventTaskUpdated, t)
+		ev.ProjectID, ev.TaskID = t.ProjectID, t.ID
+		return em.emit(ev)
+	})
 }

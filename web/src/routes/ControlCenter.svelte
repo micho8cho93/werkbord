@@ -18,6 +18,8 @@
     runnable: 0,
     queued: 1,
     waiting_capacity: 2,
+    waiting_runner: 2,
+    waiting_retry: 2,
     waiting_dependency: 3,
     waiting_schedule: 4,
     potentially_conflicting: 5,

@@ -44,8 +44,11 @@ export interface ExecutionConfig {
   priority?: Priority;
 }
 
+export type ProviderErrorKind = 'rate_limit' | 'quota_exhausted' | 'context_exhausted' | 'authentication' | 'other';
+
 /** Why a run stopped rather than guess. Persisted on the run. */
 export interface Blocker {
+  providerKind?: ProviderErrorKind;
   summary: string;
   detail?: string;
   options?: string[];
@@ -103,6 +106,13 @@ export interface Orchestration {
  expectedPaths: string[];
  targetCommit?: string;
  missedPolicy?: 'run_late' | 'skip';
+ reconnectPolicy?: 'run' | 'manual';
+ retryLimit?: number;
+ usageLimitBehavior?: 'pause' | 'retry_temporary';
+ waitingRunner?: boolean;
+ retryCount?: number;
+ retryAt?: string;
+ failureKind?: ProviderErrorKind;
  graceSeconds?: number;
  key?: string;
  dispatchedAt?: string;
@@ -110,7 +120,7 @@ export interface Orchestration {
  missed?: boolean;
  error?: string;
 }
-export interface SchedulingDecision { taskId: string; state: 'runnable'|'queued'|'waiting_dependency'|'waiting_schedule'|'waiting_capacity'|'potentially_conflicting'|'blocked'; reason: string }
+export interface SchedulingDecision { taskId: string; state: 'runnable'|'queued'|'waiting_dependency'|'waiting_schedule'|'waiting_capacity'|'waiting_runner'|'waiting_retry'|'potentially_conflicting'|'blocked'; reason: string }
 export interface Handoff {
  objective: string; summary: string; filesChanged: string[]; decisions: string[]; tests: string[];
  results: string; gitState: string; knownIssues: string[]; blockers: string[]; questions: string[];
@@ -182,6 +192,7 @@ export interface Task {
 }
 
 export interface Run {
+ recovery?: "intervention";
   pendingRequests?: ('send' | 'respond' | 'stop' | 'finish')[];
  runnerId?: string; remote?: boolean; branch?: string; baseCommit?: string; headCommit?: string; uncommitted?: boolean; usage?: Usage;
  attempt?: number;

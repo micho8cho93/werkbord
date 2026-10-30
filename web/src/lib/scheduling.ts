@@ -2,6 +2,8 @@ import type { Orchestration, SchedulingDecision, Task, Run } from "./types";
 
 export const schedulingLabels: Record<SchedulingDecision["state"], string> = {
   runnable: "Ready",
+  waiting_runner: "Waiting for runner",
+  waiting_retry: "Waiting to retry",
   queued: "Queued",
   waiting_dependency: "Waiting for a prerequisite",
   waiting_schedule: "Scheduled",
@@ -17,6 +19,8 @@ export function schedulingReason(decision: SchedulingDecision): string {
 /** What a refused start means for the person, by the scheduler's reason. The controller's own reason names runs and
  *  runners by ID; that stays on the task's scheduling details. */
 const refusals: Partial<Record<SchedulingDecision["state"], string>> = {
+  waiting_runner: "The scheduled task is preserved. It waits for an eligible runner to reconnect.",
+  waiting_retry: "A temporary provider limit delayed this start. Werkbord will retry within the configured limit.",
   queued: "Earlier tasks are ahead of it. It starts when their turn has passed.",
   waiting_dependency: "It waits for the tasks it depends on to finish.",
   waiting_schedule: "It is scheduled for later and starts at its scheduled time.",
@@ -42,7 +46,7 @@ export function emptyOrchestration(): Orchestration {
 }
 /** A used or blocked one-shot needs explicit authorisation for another attempt. */
 export function canScheduleAnother(original: Orchestration | undefined, enabled: boolean): boolean {
-  return !!original?.enabled && enabled && !!(original.runId || original.missed || original.error);
+  return !!original?.enabled && enabled && !!(original.runId || original.missed || original.error || original.waitingRunner && original.reconnectPolicy === "manual");
 }
 export function wallTime(
   instant: string | undefined,
@@ -103,6 +107,9 @@ export function editableOrchestration(o: Orchestration): Orchestration {
     targetCommit,
     missedPolicy,
     graceSeconds,
+    reconnectPolicy,
+    retryLimit,
+    usageLimitBehavior,
   } = o;
   return {
     enabled,
@@ -116,6 +123,9 @@ export function editableOrchestration(o: Orchestration): Orchestration {
     targetCommit,
     missedPolicy,
     graceSeconds,
+    reconnectPolicy,
+    retryLimit,
+    usageLimitBehavior,
   };
 }
 

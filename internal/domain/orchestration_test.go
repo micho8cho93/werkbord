@@ -41,3 +41,19 @@ func TestDependencyCycle(t *testing.T) {
 		})
 	}
 }
+
+func TestRecoveryPreferenceValidation(t *testing.T) {
+	for _, o := range []Orchestration{
+		{ReconnectPolicy: "fallback"}, {RetryLimit: -1}, {RetryLimit: 6}, {UsageLimitBehavior: "switch_provider"},
+	} {
+		o.Normalize()
+		if o.Validate() == nil {
+			t.Fatalf("accepted unsafe preference: %+v", o)
+		}
+	}
+	o := Orchestration{ReconnectPolicy: "manual", RetryLimit: 5, UsageLimitBehavior: "retry_temporary"}
+	o.Normalize()
+	if err := o.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -142,6 +142,11 @@ func (s *Session) Ref(ref string) { s.emit(agent.Event{Kind: agent.KindSessionRe
 // TurnEnd reports that the agent finished its turn.
 func (s *Session) TurnEnd() { s.emit(agent.Event{Kind: agent.KindTurnEnd}) }
 
+// FailTurn reports a provider failure while preserving the interactive session.
+func (s *Session) FailTurn(message string) {
+	s.emit(agent.Event{Kind: agent.KindTurnEnd, Failure: message})
+}
+
 // Ask makes the agent ask a question and wait. With options it is a selection
 // and a typed answer is also accepted; without, a clarification.
 func (s *Session) Ask(ref, prompt string, options ...string) {

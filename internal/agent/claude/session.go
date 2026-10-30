@@ -274,6 +274,7 @@ func (s *session) onResult(e *envelope) {
 		}
 	}
 
+	failure := ""
 	if e.IsError || strings.HasPrefix(e.Subtype, "error") {
 		why := strings.TrimSpace(e.Result)
 		if why == "" {
@@ -281,10 +282,11 @@ func (s *session) onResult(e *envelope) {
 		}
 		s.mu.Lock()
 		s.lastError = clip(why, 500)
+		failure = clip(why, 500)
 		s.mu.Unlock()
 		s.Emit(agent.Event{Kind: agent.KindOutput, Stream: domain.StreamSystem, Text: "The turn failed: " + clip(why, 500)})
 	}
-	s.Emit(agent.Event{Kind: agent.KindTurnEnd})
+	s.Emit(agent.Event{Kind: agent.KindTurnEnd, Failure: failure})
 }
 
 // ---- permission requests ----

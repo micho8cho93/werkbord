@@ -364,7 +364,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	// A manual start consumes an armed one-shot too, so a later scheduler tick
 	// cannot duplicate work the user deliberately started early.
 	manual := in.ScheduleKey == ""
-	if manual && task.Orchestration.Enabled && task.Orchestration.RunID == "" && !task.Orchestration.Missed && task.Orchestration.Error == "" {
+	if manual && task.Orchestration.Enabled && task.Orchestration.RunID == "" && !task.Orchestration.Missed && (task.Orchestration.Error == "" || task.Orchestration.RetryAt != nil) {
 		in.ScheduleKey = task.Orchestration.Key
 	}
 	var runnerID string
@@ -405,7 +405,7 @@ func (m *Manager) Start(ctx context.Context, in StartInput) (*domain.Run, error)
 	})
 	if err != nil {
 		m.log().Warn("agent failed to start", "run", run.ID, "agent", agentID, "err", err)
-		_, _ = m.opt.Runs.End(bg(), run.ID, service.Ended{State: domain.RunFailed, Reason: truncateReason("could not start " + agentID + ": " + err.Error())})
+		_, _ = m.opt.Runs.End(bg(), run.ID, service.Ended{State: domain.RunFailed, Reason: truncateReason("could not start " + agentID + ": " + err.Error()), ProviderFailure: err.Error()})
 		discard()
 		return nil, fmt.Errorf("could not start %s: %w", agentID, errors.Join(domain.ErrAgent, err))
 	}
@@ -535,6 +535,8 @@ func (m *Manager) endOffline(ctx context.Context, runID string, state domain.Run
 		return nil, err
 	}
 	switch {
+	case run.Recovery != "":
+		return nil, fmt.Errorf("%w: execution state is ambiguous; reconcile the original process on its runner first", domain.ErrConflict)
 	case run.State.Terminal():
 		return nil, fmt.Errorf("run %s has already ended (%s): %w", runID, run.State, domain.ErrConflict)
 	case run.State != domain.RunWaitingForUser && run.State != domain.RunBlocked:
@@ -566,6 +568,8 @@ func (m *Manager) resume(ctx context.Context, runID, text string) error {
 		return err
 	}
 	switch {
+	case run.Recovery != "":
+		return fmt.Errorf("%w: execution state is ambiguous; reconcile the original process on its runner first", domain.ErrConflict)
 	case run.State.Terminal():
 		return fmt.Errorf("run %s has ended (%s) and cannot take a message: %w", runID, run.State, domain.ErrConflict)
 	case !resumable(run):
@@ -632,6 +636,9 @@ func (m *Manager) Recover(ctx context.Context) error {
 			continue
 		}
 		res, err := agent.Reap(r.PID, r.ProcessID, m.opt.ReapGrace)
+		if e := m.opt.Runs.RecordProcessRecovery(ctx, r.ID, err != nil || res == agent.ReapForeign); e != nil {
+			return e
+		}
 		switch {
 		case err != nil:
 			m.log().Warn("cannot check for a leftover agent process", "run", r.ID, "pid", r.PID, "err", err)
@@ -646,8 +653,8 @@ func (m *Manager) Recover(ctx context.Context) error {
 }
 
 // Shutdown ends every live session and records what became of each. Runs that
-// were working fail with a reason that says the controller stopped; runs that
-// were waiting for the user are kept, to be resumed by a message. It returns
+// have a saved session are kept for review and resume by a user message; runs
+// without a resumable handle fail and retain their work. It returns
 // when every process is gone, or ctx is done.
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()

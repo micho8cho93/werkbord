@@ -124,7 +124,7 @@ func (l *live) loop() {
 				l.onQuestionClosed(ev.Ref)
 			case agent.KindTurnEnd:
 				flush()
-				l.onTurnEnd()
+				l.onTurnEnd(ev.Failure)
 			}
 		case <-tick.C:
 			flush()
@@ -253,9 +253,16 @@ func (l *live) onQuestionClosed(ref string) {
 	}
 }
 
-func (l *live) onTurnEnd() {
+func (l *live) onTurnEnd(failure string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if failure != "" {
+		if _, err := l.m.opt.Runs.Block(bg(), l.runID, domain.ProviderBlocker(failure)); err != nil {
+			l.m.log().Warn("cannot record failed provider turn", "run", l.runID, "err", err)
+		}
+		l.turn = l.turn[:0]
+		return
+	}
 	text := string(l.turn)
 	l.turn = l.turn[:0]
 
@@ -294,7 +301,10 @@ func (l *live) conclude(res agent.Result) {
 	ctx, cancel := context.WithTimeout(bg(), 30*time.Second)
 	defer cancel()
 	code := res.ExitCode
-	ended := service.Ended{State: res.State, Reason: res.Reason, ExitCode: &code}
+	ended := service.Ended{State: res.State, Reason: res.Reason, ExitCode: &code, ProviderFailure: res.Failure}
+	if r, err := l.m.opt.Runs.Get(ctx, l.runID); err == nil && r.Blocker != nil && r.Blocker.ProviderKind != "" && l.mode.Load() == modeNone {
+		ended.State, ended.Reason = domain.RunFailed, r.Blocker.Summary
+	}
 
 	l.rmu.Lock()
 	forced, abortReason := l.forced, l.abortReason

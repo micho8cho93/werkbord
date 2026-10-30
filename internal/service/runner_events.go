@@ -97,7 +97,10 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 			r.Usage.Acceptance = acceptance
 		}
 		code := ob.Result.ExitCode
-		if e := s.Runs.end(ctx, tx, em, r, Ended{State: ob.Result.State, Reason: ob.Result.Reason, ExitCode: &code}, domain.CancelRunEnded); e != nil {
+		if r.Blocker != nil && r.Blocker.ProviderKind != "" && ob.Result.State == domain.RunCompleted {
+			ob.Result.State, ob.Result.Reason = domain.RunFailed, r.Blocker.Summary
+		}
+		if e := s.Runs.end(ctx, tx, em, r, Ended{State: ob.Result.State, Reason: ob.Result.Reason, ExitCode: &code, ProviderFailure: ob.Result.Failure}, domain.CancelRunEnded); e != nil {
 			return e
 		}
 		return nil
@@ -279,6 +282,13 @@ func (s *Runners) observe(ctx context.Context, tx store.Tx, em *emitter, r *doma
 		case agent.KindTurnEnd:
 			if r.State != domain.RunRunning {
 				return nil
+			}
+			if ev.Failure != "" {
+				j.Turn = ""
+				if e := r.Block(domain.ProviderBlocker(truncate(ev.Failure, 1000)), now); e != nil {
+					return e
+				}
+				return persist()
 			}
 			if r.Policy.Interaction == domain.InteractionAutonomousStopIfBlocked {
 				if b, ok := agent.ParseBlocker(j.Turn); ok {

@@ -16,6 +16,8 @@ describe('authorising another scheduled attempt', () => {
     expect(canScheduleAnother({ ...armed, runId: 'run-1' }, true)).toBe(true);
     expect(canScheduleAnother({ ...armed, missed: true }, true)).toBe(true);
     expect(canScheduleAnother({ ...armed, error: 'Start failed' }, true)).toBe(true);
+    expect(canScheduleAnother({ ...armed, waitingRunner: true, reconnectPolicy: 'manual' }, true)).toBe(true);
+    expect(canScheduleAnother({ ...armed, waitingRunner: true, reconnectPolicy: 'run' }, true)).toBe(false);
     expect(canScheduleAnother({ ...armed, runId: 'run-1' }, false)).toBe(false);
     expect(canScheduleAnother({ ...armed, enabled: false, runId: 'run-1' }, true)).toBe(false);
   });
@@ -69,8 +71,18 @@ describe("IANA wall times", () => {
       runId: "run",
       missed: true,
       error: "old",
+      reconnectPolicy: "manual" as const,
+      retryLimit: 3,
+      usageLimitBehavior: "retry_temporary" as const,
+      retryAt: "2026-10-30T12:00:00Z",
+      retryCount: 1,
+      waitingRunner: true,
     };
     expect(editableOrchestration(o)).not.toHaveProperty("runId");
     expect(editableOrchestration(o)).not.toHaveProperty("key");
+    expect(editableOrchestration(o)).not.toHaveProperty("retryAt");
+    expect(editableOrchestration(o)).not.toHaveProperty("retryCount");
+    expect(editableOrchestration(o)).not.toHaveProperty("waitingRunner");
+    expect(editableOrchestration(o)).toMatchObject({reconnectPolicy: "manual", retryLimit: 3, usageLimitBehavior: "retry_temporary"});
   });
 });

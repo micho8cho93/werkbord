@@ -290,6 +290,7 @@ func (q questionRepo) ListByRun(ctx context.Context, runID string) ([]domain.Que
 
 func encodeDistribution(r *domain.Run) string {
 	return mustJSON(struct {
+		Recovery    string       `json:"recovery,omitempty"`
 		RunnerID    string       `json:"runnerId"`
 		Remote      bool         `json:"remote"`
 		Branch      string       `json:"branch"`
@@ -297,5 +298,5 @@ func encodeDistribution(r *domain.Run) string {
 		HeadCommit  string       `json:"headCommit"`
 		Uncommitted *bool        `json:"uncommitted,omitempty"`
 		Usage       domain.Usage `json:"usage"`
-	}{r.RunnerID, r.Remote, r.Branch, r.BaseCommit, r.HeadCommit, r.Uncommitted, r.Usage})
+	}{r.Recovery, r.RunnerID, r.Remote, r.Branch, r.BaseCommit, r.HeadCommit, r.Uncommitted, r.Usage})
 }

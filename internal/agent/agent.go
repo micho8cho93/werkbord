@@ -144,6 +144,8 @@ const (
 
 // Event is one normalised piece of agent behaviour.
 type Event struct {
+	// Failure is set only on a failed turn's KindTurnEnd, never inferred from output.
+	Failure    string
 	Usage      *domain.Usage
 	Kind       EventKind
 	Stream     domain.OutputStream // KindOutput
@@ -194,6 +196,8 @@ type Question struct {
 // exited successfully and domain.RunFailed otherwise. The controller replaces
 // it with domain.RunStopped when it was the one that asked the process to end.
 type Result struct {
+	// Failure is a provider startup/terminal error, separate from process exit text.
+	Failure  string `json:",omitempty"`
 	State    domain.RunState
 	Reason   string // why it failed; empty on success
 	ExitCode int    // -1 if the process was killed by a signal

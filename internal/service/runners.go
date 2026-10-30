@@ -208,6 +208,14 @@ func (s *Runners) Manage(ctx context.Context, id string, in domain.Runner, remov
 	return out, err
 }
 
+type runnerUnavailableError struct {
+	reason  string
+	offline bool
+}
+
+func (e *runnerUnavailableError) Error() string { return e.reason }
+func (e *runnerUnavailableError) Unwrap() error { return domain.ErrConflict }
+
 // Route ranks by project affinity, free capacity, RAM, CPU, and finally ID.
 // Priority/order are applied by the durable scheduler before this decision.
 func (s *Runners) Route(ctx context.Context, task *domain.Task, resolved domain.Resolved) (*domain.Runner, domain.Resolved, error) {
@@ -279,6 +287,7 @@ func (s *Runners) RouteWithReservations(ctx context.Context, task *domain.Task, 
 	}
 	candidates := []domain.Runner{}
 	reasons := []string{}
+	offline := false
 	for _, r := range list {
 		r.CurrentRuns += reserved[r.ID]
 		if resolved.Runner != "" && resolved.Runner != "automatic" && r.ID != resolved.Runner {
@@ -290,6 +299,7 @@ func (s *Runners) RouteWithReservations(ctx context.Context, task *domain.Task, 
 			reason = "disabled"
 		case !r.Online:
 			reason = "offline; ownership retained"
+			offline = true
 		case (resolved.Runner == "" || resolved.Runner == "automatic") && !r.Automatic:
 			reason = "automatic routing is off"
 		case r.CurrentRuns >= r.Capacity:
@@ -350,7 +360,7 @@ func (s *Runners) RouteWithReservations(ctx context.Context, task *domain.Task, 
 		candidates = append(candidates, r)
 	}
 	if len(candidates) == 0 {
-		return nil, resolved, fmt.Errorf("%w: no eligible runner (%s)", domain.ErrConflict, strings.Join(reasons, "; "))
+		return nil, resolved, &runnerUnavailableError{reason: fmt.Sprintf("%s: no eligible runner (%s)", domain.ErrConflict, strings.Join(reasons, "; ")), offline: offline}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		a, b := candidates[i], candidates[j]

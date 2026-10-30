@@ -1,6 +1,6 @@
 # V1: Calendar, scheduling, dependencies and handoffs
 
-All execution remains on this controller. Calendar is a view of the same tasks
+Execution stays on your local controller and authorised runners. See [Durable agent execution recovery](EXECUTION_RECOVERY.md) for reconnect preferences, provider limits and intervention guarantees. Calendar is a view of the same tasks
 as Work, scoped to a project or visible across accessible workspaces through All Projects. It has day/week views, an upcoming queue, hourly
 drag targets, and a schedule form that also works on a phone. Open a task to
 reschedule or inspect its execution policy, dependencies, not-before time,
@@ -23,8 +23,7 @@ The controller evaluates pending work every second after run recovery. No page,
 phone, frontend event stream, or remote worker is needed. Starting a run commits
 its durable schedule claim, run and task event in one SQLite transaction. A unique
 index prevents reusing `(task, schedule key)`. A manual Start also consumes an
-armed pending schedule. Interrupted attempts retain their claim and surface as
-failed; they are never automatically rerun. This is **at-most-once dispatch per
+armed pending schedule. Interrupted attempts retain their claim. Resumable sessions wait for review; sessions without a saved handle fail. They are never automatically rerun. This is **at-most-once dispatch per
 armed attempt**, not a promise of exactly-once agent side effects. Rearm after
 inspecting an interrupted or failed run. Worktree setup before the claim can be
 recovered and reused without having launched an agent.

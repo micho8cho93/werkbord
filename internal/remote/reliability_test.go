@@ -343,3 +343,32 @@ func TestLocalHealthRecordsOnlyCompletedControllerSync(t *testing.T) {
 		t.Fatal("failed sync refreshed healthy evidence")
 	}
 }
+
+func TestFailedProviderTurnReconcilesWithoutFinishingOrRelaunch(t *testing.T) {
+	e := workerFixture(t)
+	run := e.start()
+	e.fake.Last().FailTurn("insufficient_quota")
+	waitPending(t, e.worker, run.ID, "event")
+	for i := 0; i < 3; i++ {
+		if err := e.worker.Tick(testCtx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := e.runs.Get(testCtx, run.ID)
+	if err != nil || got.State != domain.RunBlocked || got.Blocker == nil || got.Blocker.ProviderKind != domain.ProviderQuota {
+		t.Fatalf("provider state lost: %+v %v", got, err)
+	}
+	if len(e.fake.Sessions()) != 1 || e.fake.Last().CloseRequested() {
+		t.Fatal("failed turn finished or relaunched")
+	}
+	// An erroneous zero exit cannot turn the failed provider turn into success.
+	e.fake.Last().Exit(0, "")
+	waitPending(t, e.worker, run.ID, "ended")
+	if err := e.worker.Tick(testCtx); err != nil {
+		t.Fatal(err)
+	}
+	got, err = e.runs.Get(testCtx, run.ID)
+	if err != nil || got.State != domain.RunFailed || got.Blocker.ProviderKind != domain.ProviderQuota {
+		t.Fatalf("failed provider turn became successful: %+v %v", got, err)
+	}
+}

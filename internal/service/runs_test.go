@@ -400,14 +400,17 @@ func TestInterrupt(t *testing.T) {
 	f := newRunFixture(t)
 	ctx := context.Background()
 
-	t.Run("working run fails", func(t *testing.T) {
+	t.Run("working session is held for review", func(t *testing.T) {
 		r := f.running(t)
 		got, err := f.runs.Interrupt(ctx, r.ID, "interrupted: controller shut down")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.State != domain.RunFailed || got.Reason != "interrupted: controller shut down" {
+		if got.State != domain.RunBlocked || got.Blocker == nil || !strings.Contains(got.Blocker.Detail, "interrupted: controller shut down") || got.SessionRef != "sess-1" || got.PID != 0 {
 			t.Fatalf("got %+v", got)
+		}
+		if _, err := f.runs.End(ctx, r.ID, Ended{State: domain.RunStopped}); err != nil {
+			t.Fatal(err)
 		}
 	})
 	t.Run("idle run with a session is kept", func(t *testing.T) {
