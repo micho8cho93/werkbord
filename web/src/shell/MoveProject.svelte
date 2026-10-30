@@ -38,7 +38,7 @@
       <h3>{result.archived ? 'Project moved' : 'Destination saved'}</h3>
       <p>{name} is saved in {preview?.destination}.</p>
       {#if result.warning}<p role="alert">{result.warning}</p>{:else}<p>The original is archived with its history. You can restore it there.</p>{/if}
-      <button class="btn primary" onclick={() => { model.goTo(destination, destination === 'personal' ? `#/p/${result!.id}/board` : `?tab=board&project=${result!.id}`); close(); }}>Open destination project</button>
+      <button class="btn primary" onclick={() => { model.goTo(destination, destination === 'personal' ? `#/p/${result!.id}/work` : `?tab=board&project=${result!.id}`); close(); }}>Open destination project</button>
     {:else if preview}
       <p><strong>{preview.source} → {preview.destination}</strong></p>
       <h3>Review the text that will be copied</h3>

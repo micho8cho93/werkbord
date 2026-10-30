@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"werkbord/internal/domain"
@@ -28,10 +31,82 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 		if err != nil {
 			return err
 		}
+		var global domain.ExecutionConfig
+		if err := tx.Settings().Get(ctx, domain.SettingExecution, &global); err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
 		for _, p := range ov.Projects {
+			project, err := tx.Projects().Get(ctx, p.ProjectID)
+			if err != nil {
+				return err
+			}
 			tasks, err := tx.Tasks().ListByProject(ctx, p.ProjectID)
 			if err != nil {
 				return err
+			}
+			plans, err := tx.WorkPlans().List(ctx, p.ProjectID)
+			if err != nil {
+				return err
+			}
+			for _, plan := range plans {
+				done := 0
+				for _, id := range plan.TaskIDs {
+					for _, t := range tasks {
+						if t.ID == id && t.State == domain.TaskDone {
+							done++
+						}
+					}
+				}
+				out.Queue = append(out.Queue, workspace.QueueItem{ID: plan.ID, Title: plan.Title, Project: p.Name, Href: "#/p/" + p.ProjectID + "/work?plan=" + plan.ID, Group: "plan", Detail: fmt.Sprintf("%d of %d tasks complete", done, len(plan.TaskIDs))})
+			}
+			for _, t := range tasks {
+				if t.ArchivedAt != nil {
+					continue
+				}
+				priority := domain.ResolveExecution(domain.Level{Config: global}, domain.Level{Config: project.Execution}, domain.Level{Config: t.Execution}).Priority
+				group := "next"
+				detail := string(t.State)
+				blocked := []string{}
+				for _, id := range t.Orchestration.Dependencies {
+					found := false
+					for _, dep := range tasks {
+						if dep.ID == id {
+							found = true
+							if dep.State != domain.TaskDone {
+								blocked = append(blocked, dep.Title)
+							}
+						}
+					}
+					if !found {
+						blocked = append(blocked, "Unavailable task")
+					}
+				}
+				if len(blocked) > 0 {
+					group = "later"
+					detail = "Blocked by " + strings.Join(blocked, ", ")
+				}
+				start := t.Orchestration.ScheduledAt
+				if start == nil {
+					start = t.Orchestration.NotBefore
+				}
+				if start != nil && start.After(out.At) {
+					group = "later"
+				}
+				if t.Plan.Start > out.At.Local().Format("2006-01-02") || priority == domain.PriorityLow {
+					group = "later"
+				}
+				if t.State == domain.TaskDoing || t.State == domain.TaskReview || priority == domain.PriorityHigh {
+					group = "now"
+				}
+				for _, active := range out.Work {
+					if active.ID == t.ID && active.Execution != "" && active.Execution != workspace.ExecCompleted && active.Execution != workspace.ExecCanceled {
+						group = "now"
+					}
+				}
+				if t.State == domain.TaskDone {
+					group = "done"
+				}
+				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail})
 			}
 			for _, t := range tasks {
 				if t.ArchivedAt != nil || (t.Plan.Start == "" && t.Plan.End == "") {
@@ -52,7 +127,8 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 		}
 		return nil
 	})
-	return out, err
+	cleaned, _ := out.Clean()
+	return cleaned, err
 }
 
 func taskHref(projectID, taskID string) string { return "#/p/" + projectID + "/task/" + taskID }
@@ -110,7 +186,7 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 		At:        now.UTC(),
 	}
 	for _, p := range ov.Projects {
-		out.Projects = append(out.Projects, workspace.Project{ID: p.ProjectID, Name: p.Name, Href: "#/p/" + p.ProjectID + "/board"})
+		out.Projects = append(out.Projects, workspace.Project{ID: p.ProjectID, Name: p.Name, Href: "#/p/" + p.ProjectID + "/work"})
 	}
 
 	seen := map[string]bool{}

@@ -73,7 +73,7 @@ func (e *Engine) requestWorkspace(ctx context.Context, session, proposal, worksp
 	e.hub(session).publish(Event{SessionID: session, Type: EventWorkspaceRequest, Workspace: &request})
 	// Reads are answered at once. A creation stays live only while the desktop verifies and carries out the approved request.
 	limit := 25 * time.Second
-	if method == "create_ticket" {
+	if method == "create_ticket" || method == "save_work_plan" {
 		limit = 120 * time.Second
 	}
 	timer := time.NewTimer(limit)

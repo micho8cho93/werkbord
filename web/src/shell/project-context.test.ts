@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { contextKey, parseContext, projectInHref, projectOptions, scopedOverview } from './project-context';
 import type { Item, Overview, Summary } from './types';
 const workspace = (id: string, kind: Item['kind'] = 'personal', state: Item['state'] = 'ready'): Item => ({ id, kind, state, name: id, source: 'fixture' });
-const summary = (w: Item, ids: string[]): Summary => ({ schema: 'workspace-summary/v1', workspace: w, at: '', projects: ids.map(id => ({ id, name: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/board` : `?tab=board&project=${id}` })), work: ids.map(id => ({ id: `task-${id}`, title: id, status: 'doing', execution: 'running', project: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/task/x` : `?tab=board&project=${id}&ticket=x` })), attention: ids.map(id => ({ id, kind: 'review', severity: 'info', title: id, href: w.kind === 'personal' ? `#/p/${id}/git` : `?tab=board&project=${id}` })), schedule: [], planned: [] });
+const summary = (w: Item, ids: string[]): Summary => ({ schema: 'workspace-summary/v1', workspace: w, at: '', projects: ids.map(id => ({ id, name: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/work` : `?tab=board&project=${id}` })), work: ids.map(id => ({ id: `task-${id}`, title: id, status: 'doing', execution: 'running', project: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/task/x` : `?tab=board&project=${id}&ticket=x` })), attention: ids.map(id => ({ id, kind: 'review', severity: 'info', title: id, href: w.kind === 'personal' ? `#/p/${id}/git` : `?tab=board&project=${id}` })), schedule: [], planned: [] });
 const overview = (items: Item[], ids = ['a', 'b']): Overview => ({ at: '', entries: items.map(w => ({ workspace: w, summary: summary(w, ids) })) });
 describe('shared project context', () => {
   it.each([[workspace('personal')], [workspace('team:one', 'team'), workspace('team:two', 'team')], [workspace('personal'), workspace('team:one', 'team')]])('uses composite identity across personal and team projects: %j', (...items) => {
@@ -44,4 +44,12 @@ describe('shared project context', () => {
     expect(projectInHref('personal', '#/p/%zz/task/x')).toBeNull();
     expect(projectInHref('team', 'https://external/?project=a')).toBeNull();
   });
+});
+
+it('scopes Work queue and plans without hiding ready work in All Projects', () => {
+ const items=[workspace('personal'),workspace('team:main','team')],o=overview(items);
+ for(const e of o.entries) e.summary!.queue=['a','b'].flatMap(id=>[{id:'task-'+id,title:'Ready '+id,project:'Same name',group:'next' as const,href:e.workspace.kind==='personal'?`#/p/${id}/task/t`:`?tab=work&project=${id}&ticket=t`},{id:'plan-'+id,title:'Plan '+id,project:'Same name',group:'plan' as const,href:e.workspace.kind==='personal'?`#/p/${id}/work?plan=p`:`?tab=work&project=${id}&plan=p`}]);
+ expect(scopedOverview(o,items,null)?.entries.flatMap(e=>e.summary?.queue??[])).toHaveLength(8);
+ const selected=scopedOverview(o,items,{workspace:'team:main',project:'b'})!;
+ expect(selected.entries[0].summary?.queue?.map(q=>q.title)).toEqual(['Ready b','Plan b']);
 });

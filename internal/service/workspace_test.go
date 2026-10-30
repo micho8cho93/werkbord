@@ -59,7 +59,7 @@ func TestTheIndividualWorkspaceIsTranslatedIntoTheShellsWords(t *testing.T) {
 	if len(got.Schedule) != 1 || got.Schedule[0].Zone != "Europe/Paris" || got.Schedule[0].State != "waiting" {
 		t.Fatalf("schedule = %+v", got.Schedule)
 	}
-	if got.Work[0].Href != "#/p/prj_1/task/tsk_1" || got.Projects[0].Href != "#/p/prj_1/board" {
+	if got.Work[0].Href != "#/p/prj_1/task/tsk_1" || got.Projects[0].Href != "#/p/prj_1/work" {
 		t.Fatalf("links = %+v %+v", got.Work[0], got.Projects[0])
 	}
 	// Nothing that waits for the person is hidden behind something less urgent.

@@ -12,7 +12,7 @@
   <div class="connection-note" role="status" data-testid="connection-status">
     <div>
       <strong>{app.connection === 'syncing' ? 'Synchronizing…' : app.connection === 'connecting' ? 'Connecting…' : 'Live updates disconnected'}</strong>
-      <p>Displayed status may be outdated.{app.lastSyncedAt ? ` Last synchronized ${timeAgo(app.lastSyncedAt, app.now)}.` : ''} Agents may still be running on their machines. Reconnect to refresh status before acting; keep this tab open to retain drafts.{app.remote ? ' Board changes, new runs and Git need the controller, so they wait until it is reachable; this computer never switches to a board of its own.' : ''}</p>
+      <p>Displayed status may be outdated.{app.lastSyncedAt ? ` Last synchronized ${timeAgo(app.lastSyncedAt, app.now)}.` : ''} Agents may still be running on their machines. Reconnect to refresh status before acting; keep this tab open to retain drafts.{app.remote ? ' Work changes, new runs and Git need the controller, so they wait until it is reachable; this computer never switches to a board of its own.' : ''}</p>
     </div>
     {#if app.connection === 'offline'}<button class="btn small" type="button" onclick={() => app.reconnect()}>Reconnect</button>{/if}
   </div>

@@ -162,12 +162,6 @@ summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 13
 .project-bar select { width: auto; min-width: 12rem; font-family: var(--sans); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text); }
 .project-head p { font-size: 13px; }
 
-/* The board: four inset columns; ticket details open over the board. */
-.tboard { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; min-width: 0; margin-bottom: 16px; }
-.board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 12px; align-items: stretch; min-width: 0; min-height: 0; overflow-x: auto; padding-bottom: 6px; overscroll-behavior-x: contain; }
-.col { background: var(--s2); border-radius: 8px; padding: 12px; min-height: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.col h3 { font-size: 14px; font-weight: 600; margin: 2px 2px 0; display: flex; gap: 8px; align-items: center; }
-.col h3 .badge { margin-left: auto; }
 .card { border: 1px solid var(--line); border-radius: 6px; padding: 14px; background: var(--panel); display: grid; gap: 8px; min-width: 0; }
 .card.mine { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .card.open { border-color: var(--accent); }
@@ -188,7 +182,6 @@ summary { cursor: pointer; color: var(--accent); font-weight: 500; font-size: 13
 .ticket-head h2 { margin: 0; font-size: 18px; letter-spacing: -.015em; overflow-wrap: anywhere; }
 .ticket h3 { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
 .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; }
-.tboard .two { grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .prose { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: 13px; }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 12px 0 0; font-size: 13px; }
 .facts dt { color: var(--muted); font-family: var(--mono); font-size: 11px; padding-top: 2px; }
@@ -219,7 +212,6 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } button.primary, button.plain, button.danger { transition: none; } }
 
 @media (max-width: 1100px) {
-  .tboard.with-ticket { grid-template-columns: minmax(0, 1fr); }
   .ticket { position: static; max-height: none; }
 }
 @media (max-width: 900px) {
@@ -235,12 +227,7 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
   .device-settings .setting-group { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Only histories scroll; each board column owns its viewport. */
 .project-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .7fr); gap: 20px; align-items: start; }
-.board-tools { margin-top: 0; }
-.column-cards { flex: 1; display: grid; align-content: start; gap: 10px; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
-.col h3 { flex: none; }
-.col.drop-over { outline: 2px solid var(--accent); outline-offset: -2px; }
 .archive-list { max-height: 60vh; overflow-y: auto; scrollbar-gutter: stable; }
 .archive-list [hidden] { display: none; }
 .section-controls { gap: 8px; flex-wrap: wrap; overflow: visible; }
@@ -248,7 +235,6 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
 .ticket-head { position: sticky; top: -16px; padding: 12px 0; background: var(--panel); z-index: 1; }
 .ticket pre, .handoff pre { overflow-wrap: anywhere; }
 @media (min-width: 1280px) {
-  .tboard.with-ticket { grid-template-columns: minmax(0, 1fr); }
   .with-ticket .ticket { position: fixed; z-index: 8; top: 12px; bottom: 12px; right: 12px; width: min(560px, 45vw); box-shadow: 0 12px 36px -12px rgba(0,0,0,.4); }
 }
 @media (max-width: 1279px) {
@@ -256,8 +242,6 @@ th { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-tran
   .project-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 899px) {
-  .board { height: max(360px, calc(100dvh - 280px)); grid-template-columns: repeat(4, minmax(min(80vw, 320px), 1fr)); scroll-snap-type: x proximity; }
-  .col { scroll-snap-align: start; }
 }
 
 /* One map for everyday work; administration has its own Settings screen. */
@@ -400,12 +384,9 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 .project-head { margin-bottom: 20px; }
 .project-bar select { max-width: 100%; min-width: 0; width: 240px; }
 .project-bar .plain { margin-left: auto; }
-.board-tools { gap: 8px; margin: 0 0 16px; }
-.board-tools > .primary { margin-left: auto; }
 .ticket-head { top: -24px; }
 .ticket .actions { gap: 8px; }
 .ticket-head .plain { flex: none; }
-.column-cards { gap: 12px; }
 .banner { flex: none; }
 
 @media (min-width: 900px) {
@@ -415,9 +396,6 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
 @media (min-width: 900px) {
   .main-content > .project-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .project-view > .project-head { flex: none; }
-  .board-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .board-view > :not(.tboard) { flex: none; }
-  .tboard { flex: 1; min-height: 0; margin: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
 }
 @media (min-width: 1800px) {
   .app-shell { grid-template-columns: 248px minmax(0, 1fr); }
@@ -478,7 +456,6 @@ header.page-head { padding: 24px 32px; margin: 0; min-height: 88px; flex: none; 
   .member-manage summary { width: 44px; height: 44px; }
   .ticket { padding: 20px; }
   .ticket-head { top: -20px; }
-  .board-tools > button { padding-left: 10px; padding-right: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .jump-search[open] { animation: search-in 180ms cubic-bezier(.16, 1, .3, 1); }
@@ -624,8 +601,7 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 .settings-layout.hosted { display: block; }
 .settings-layout.hosted .settings-content { width: 100%; }
 
-/* In the window the page is the window less its sidebar, so a window of 1100px gives the page under 900px. The board stays a board
-   (the page lays out as it does on a desktop, and a narrow frame scrolls the columns sideways) until the frame is phone-sized. */
+/* Keep framed project navigation usable in smaller desktop windows. */
 @media (max-width: 899px) and (min-width: 520px) {
   body:has(.app-shell.framed) { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   #app.signed-in:has(.app-shell.framed) { flex: 1; min-height: 0; }
@@ -633,10 +609,6 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
   .framed .main-content { display: flex; overflow-y: auto; padding: 20px 24px 24px; }
   .framed .main-content > .project-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .framed .project-view > .project-head { flex: none; }
-  .framed .board-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-  .framed .board-view > :not(.tboard) { flex: none; }
-  .framed .tboard { flex: 1; min-height: 0; margin: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-  .framed .board { height: auto; grid-template-columns: repeat(4, minmax(210px, 1fr)); scroll-snap-type: none; }
   .framed header.page-head { padding: 24px 24px 16px; }
   .framed .project-title-row .actions { width: auto; }
 }
@@ -697,3 +669,22 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 .analytics-created, .analytics-done { transform-origin: center bottom; }
 .analytics-track > span { transform-origin: left center; }
 :root[data-motion-paused] * { animation-play-state: paused !important; }
+
+/* Work is a vertical queue; categories derive from task state and planning. */
+.work-view {padding:16px 24px;overflow:auto;min-height:0;flex:1;}
+.work-tools {margin-bottom:20px;}
+.work-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:28px;align-items:start;}
+.work-group {margin-bottom:24px;}
+.work-group>header {display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.work-group h2 {font-size:16px;margin:0;}
+.work-queue .work-card {margin:0;padding:12px 0;border:0;border-top:1px solid var(--border);border-radius:0;box-shadow:none;background:transparent;}
+.work-blocked {font-size:12px;color:var(--block-text);}
+.work-plan {padding:12px 0;border-bottom:1px solid var(--border);}
+.work-plan>summary {cursor:pointer;font-weight:500;}
+.work-layout aside {min-width:0;} .work-layout aside .panel {border:0;padding:0;box-shadow:none;background:transparent;}
+@media(max-width:1000px){.work-layout{grid-template-columns:1fr;}.work-layout aside{border-top:1px solid var(--border);padding-top:20px;}}
+
+.work-queue .work-card > button {align-self:flex-start;}
+.work-plan .plan-tasks {padding-left:22px;margin:12px 0;}
+.work-plan .plan-tasks li {padding:10px 0;border-bottom:1px solid var(--border);}
+.work-plan .plan-tasks li > span {display:block;margin-top:4px;}

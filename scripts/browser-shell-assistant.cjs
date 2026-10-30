@@ -51,7 +51,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const entry = (id, kind, name) => ({ id, kind, name, state: 'ready' });
     const items = [{ ...entry('personal', 'personal', 'Individual'), source: 'local' }, { ...entry('team:main', 'team', 'Northstar'), source: 'team', role: 'owner' }];
     const teamTickets = [], workspaceRequests = new Map();
-    const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/board` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
+    const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/work` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
         Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
@@ -318,7 +318,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await assistantFrame.getByRole('dialog').filter({ has: assistantFrame.getByRole('heading', { name: 'Salie' }) }).count(), 1, 'the assistant remains the only dialog; no second task confirmation opens');
         await added.getByRole('button', { name: 'Open task', exact: true }).click();
         await page.locator('iframe[data-workspace="team:main"]').waitFor({ state: 'visible' });
-        await page.waitForFunction(() => document.querySelector('iframe[data-workspace="team:main"]')?.contentWindow?.__lastPlace === '?tab=board&project=p_portfolio&ticket=t_1');
+        await page.waitForFunction(() => document.querySelector('iframe[data-workspace="team:main"]')?.contentWindow?.__lastPlace === '?tab=work&project=p_portfolio&ticket=t_1');
         ok('one confirmation adds a Team task to Backlog and its success link opens that exact ticket');
         await assistantFrame.getByTestId('assistant-close').click();
         await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid=assistant-frame]')).visibility === 'hidden');

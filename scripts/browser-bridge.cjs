@@ -22,7 +22,7 @@ async function api(base, credential, method, path, body) { const r = await fetch
         const h = await api(team, token, 'POST', `/api/team/v1/projects/${p.id}/tickets/${k.id}/handoff`);
         assert.equal(h.schema, 'werkbord-team.handoff/v1');
         const title = [...(h.ticket.key + ': ' + h.ticket.title)].slice(0, 200).join('');
-        const sourceRef = team + '/?tab=board&project=' + encodeURIComponent(p.id) + '&ticket=' + encodeURIComponent(k.id);
+        const sourceRef = team + '/?tab=work&project=' + encodeURIComponent(p.id) + '&ticket=' + encodeURIComponent(k.id);
         return api(local, L, 'POST', `/api/projects/${lp.id}/tasks`, { title, description: h.prompt, sourceRef, workBranch: h.git.branch, baseBranch: h.git.baseBranch });
     }
     // Report: the branch, its commits and its pull request, as the member's Werkbord sees them, to Team.

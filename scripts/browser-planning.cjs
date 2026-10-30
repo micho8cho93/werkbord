@@ -35,30 +35,16 @@ let browser, server, debugPage;
     debugPage=page; const errors=[]; page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(({token,teamToken})=>{localStorage.setItem('werkbord.token',token);sessionStorage.setItem('werkbord-team-token',teamToken);},{token,teamToken});
     task=await getTask(); if(task.state!=='backlog') task=await personal('PATCH',`/projects/${work.id}/tasks/${task.id}`,{version:task.version,state:'backlog'});
-    await page.goto(`${personalURL}/#/p/${work.id}/board`);
-    const card=page.locator(`[data-board-item="${task.id}"]`); await card.waitFor();
-    await drag(page,card.locator('.work-detail').first(),page.locator('[data-board-column=doing]'));
-    await wait(async()=> (await getTask()).state==='doing',engine+' full card move');
-    await wait(()=>page.locator('[data-drag-handle]').first().isEnabled(),'Individual move acknowledgement');
-    await page.locator('[data-drag-handle]').first().focus(); await page.keyboard.press('ArrowRight');
-    await wait(async()=> (await getTask()).state==='review',engine+' keyboard board move');
+    await page.goto(`${personalURL}/#/p/${work.id}/work`);
+    const card=page.locator(`[data-task-id="${task.id}"]`); await card.waitFor();
     await page.goto(`${personalURL}/#/p/${work.id}/calendar`);
     const event=page.locator(`[data-plan-item="${task.id}"]`).first(); await event.waitFor();
     const original=await getTask(), target=add(original.plan.start,1);
     if (await page.locator(`[data-plan-day="${target}"]`).count()) { await drag(page,event,page.locator(`[data-plan-day="${target}"]`)); await wait(async()=> (await getTask()).plan.start===target,'Individual work calendar drag'); }
-    await page.goto(`${teamURL}/?tab=board&project=${tp.id}`);
-    const teamCard=page.locator(`[data-board-item="${ticket.id}"]`); await teamCard.waitFor(); ticket=await getTicket();
-    await drag(page,teamCard.locator('.title'),page.locator('[data-board-column=in_progress]'));
-    await wait(async()=> (await getTicket()).status==='in_progress',engine+' Team full title claim');
-    await wait(()=>page.locator('[data-drag-handle]').first().isEnabled(),'Team settled');
-    await page.locator('[data-drag-handle]').first().focus(); await page.keyboard.press('ArrowRight');
-    await wait(async()=> (await getTicket()).status==='review','Team submit');
-    await page.locator(`[data-board-item="${ticket.id}"][data-work-state=review]`).waitFor();
-    await wait(()=>page.locator(`[data-board-item="${ticket.id}"] [data-drag-handle]`).isEnabled(),'Team submit acknowledgement');
-    await drag(page,page.locator(`[data-board-item="${ticket.id}"] .title`),page.locator('[data-board-column=available]'));
-    await page.getByText(/This move needs the ticket’s normal workflow action/).waitFor(); assert.equal((await getTicket()).status,'review','refused drop preserves original status');
+    await page.goto(`${teamURL}/?tab=work&project=${tp.id}`);
+    const teamCard=page.locator(`[data-task-id="${ticket.id}"]`); await teamCard.waitFor(); ticket=await getTicket();
     const tabs=page.getByRole('navigation',{name:'Project sections'});
-    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Board','Calendar','Git','Runs','Product Map']);
+    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Work','Calendar','Git','Runs','Product Map']);
     await page.getByRole('button',{name:/^Project settings/}).waitFor();
     assert.equal(await page.locator('.project-details, .project-people').count(),0,'the project header has no people list or details dropdown');
     await page.getByRole('button',{name:/^Project settings/}).click();
@@ -82,7 +68,7 @@ let browser, server, debugPage;
       await page.setViewportSize({width:1440,height:1000});
       await page.goto(`${personalURL}/#/p/${work.id}/calendar`);await page.locator('.event').first().waitFor(); await page.screenshot({path:path.join(artifacts,'individual-planning-desktop.png')});
     }
-    console.log('PASS '+engine+' full-card and keyboard board moves, refused drops, calendar dates and edits in place');
+    console.log('PASS '+engine+' calendar dates and edits in place');
     await browser.close(); browser=null;
   }
   // An actual agent start and an unavailable-agent refusal use the normal controller workflow.
@@ -93,12 +79,12 @@ let browser, server, debugPage;
   const repository=await personal('POST','/projects',{name:'Agent gestures',path:process.env.WERKBORD_BROWSER_REPO});
   const refused=await personal('POST',`/projects/${repository.id}/tasks`,{title:'Unavailable agent drop',execution:{agent:'codex'}});
   const runnable=await personal('POST',`/projects/${repository.id}/tasks`,{title:'Start from a board drop',execution:{agent:'fixture'}});
-  await interaction.goto(`${personalURL}/#/p/${repository.id}/board`);
-  await interaction.locator(`[data-board-item="${refused.id}"]`).waitFor();
-  await drag(interaction,interaction.locator(`[data-board-item="${refused.id}"] .title`),interaction.locator('[data-board-column=doing]'));
+  await interaction.goto(`${personalURL}/#/p/${repository.id}/work`);
+  await interaction.locator(`[data-task-id="${refused.id}"]`).waitFor();
+  await interaction.locator(`[data-task-id="${refused.id}"]`).getByRole('button',{name:/Start an agent on/}).click();
   await interaction.getByRole('status').filter({hasText:/agent|Codex|available|installed/i}).first().waitFor();
   assert.equal((await personal('GET',`/projects/${repository.id}/tasks`)).tasks.find(t=>t.id===refused.id).state,'backlog','configuration refusal preserves Backlog');
-  await drag(interaction,interaction.locator(`[data-board-item="${runnable.id}"] .title`),interaction.locator('[data-board-column=doing]'));
+  await interaction.locator(`[data-task-id="${runnable.id}"]`).getByRole('button',{name:/Start an agent on/}).click();
   await wait(async()=> (await personal('GET',`/projects/${repository.id}/tasks`)).tasks.find(t=>t.id===runnable.id).state==='doing','board drag starts configured agent');
   const execution=(await personal('GET',`/projects/${repository.id}/runs`)).runs.find(r=>r.taskId===runnable.id);assert(execution,'a real run exists');
   await personal('POST',`/projects/${repository.id}/runs/${execution.id}/stop`,{});
@@ -125,8 +111,8 @@ let browser, server, debugPage;
   const shellRoot=path.resolve(__dirname,'../desktop/frontend/dist/shell');
   server=http.createServer(async(req,res)=>{
     if(req.url==='/fixture-overview'){
-      const summary=await personal('GET','/workspace/v1/summary'),b=await team('GET',`/projects/${tp.id}/board`),schedules=await team('GET',`/projects/${tp.id}/schedules`);
-      res.setHeader('Content-Type','application/json');res.end(JSON.stringify({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{schema:summary.schema,workspace:items[1],projects:[{id:tp.id,name:tp.name,href:`?tab=board&project=${tp.id}`}],work:[],attention:[],schedule:schedules.map(s=>({id:s.id,title:b.tickets.find(k=>k.id===s.ticketId)?.title,project:tp.name,at:s.at,state:s.state,href:`?tab=calendar&project=${tp.id}&ticket=${s.ticketId}`})),planned:b.tickets.filter(k=>k.plan?.start).map(k=>({id:k.id,title:k.title,project:tp.name,start:k.plan.start,end:k.plan.end||k.plan.start,href:`?tab=calendar&project=${tp.id}&ticket=${k.id}`})),at:new Date().toISOString()}}],at:new Date().toISOString()}));return;
+      const summary=await personal('GET','/workspace/v1/summary'),b=await team('GET',`/projects/${tp.id}/work`),schedules=await team('GET',`/projects/${tp.id}/schedules`);
+      res.setHeader('Content-Type','application/json');res.end(JSON.stringify({entries:[{workspace:items[0],summary},{workspace:items[1],summary:{schema:summary.schema,workspace:items[1],projects:[{id:tp.id,name:tp.name,href:`?tab=work&project=${tp.id}`}],work:[],attention:[],schedule:schedules.map(s=>({id:s.id,title:b.tickets.find(k=>k.id===s.ticketId)?.title,project:tp.name,at:s.at,state:s.state,href:`?tab=calendar&project=${tp.id}&ticket=${s.ticketId}`})),planned:b.tickets.filter(k=>k.plan?.start).map(k=>({id:k.id,title:k.title,project:tp.name,start:k.plan.start,end:k.plan.end||k.plan.start,href:`?tab=calendar&project=${tp.id}&ticket=${k.id}`})),at:new Date().toISOString()}}],at:new Date().toISOString()}));return;
     }
     const file=path.join(shellRoot,decodeURIComponent(req.url.split('?')[0]));if(!file.startsWith(shellRoot)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}
     res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'application/octet-stream');res.end(fs.readFileSync(file));

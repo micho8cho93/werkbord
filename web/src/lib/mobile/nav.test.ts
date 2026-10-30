@@ -12,7 +12,7 @@ describe('phoneParent', () => {
   it('puts a project’s pages under the list of projects, and a task on its board', () => {
     expect(phoneParent({ view: 'git', projectId: 'p', taskId: '' })).toEqual({ view: 'projects', projectId: '', taskId: '' });
     expect(phoneParent({ view: 'runs', projectId: 'p', taskId: '' })).toEqual({ view: 'projects', projectId: '', taskId: '' });
-    expect(phoneParent({ view: 'task', projectId: 'p', taskId: 't' })).toEqual({ view: 'board', projectId: 'p', taskId: '' });
+    expect(phoneParent({ view: 'task', projectId: 'p', taskId: 't' })).toEqual({ view: 'work', projectId: 'p', taskId: '' });
   });
 
   it('puts Git’s drill-down on Git', () => {
@@ -24,9 +24,9 @@ describe('parentHref and parentTitle', () => {
   it('gives an address and the words for it', () => {
     expect(parentHref({ view: 'mywork', projectId: '', taskId: '' })).toBe('#/deck');
     expect(parentTitle({ view: 'mywork', projectId: '', taskId: '' })).toBe('Control Deck');
-    expect(parentHref({ view: 'task', projectId: 'p', taskId: 't' })).toBe('#/p/p/board');
-    expect(parentTitle({ view: 'task', projectId: 'p', taskId: 't' })).toBe('Board');
-    expect(parentTitle({ view: 'board', projectId: 'p', taskId: '' })).toBe('Projects');
+    expect(parentHref({ view: 'task', projectId: 'p', taskId: 't' })).toBe('#/p/p/work');
+    expect(parentTitle({ view: 'task', projectId: 'p', taskId: 't' })).toBe('Work');
+    expect(parentTitle({ view: 'work', projectId: 'p', taskId: '' })).toBe('Projects');
     expect(parentHref({ view: 'deck', projectId: '', taskId: '' })).toBe('#/deck');
   });
 });
@@ -35,6 +35,6 @@ describe('titleOf', () => {
   it('names the pages the phone has', () => {
     expect(titleOf('repositories')).toBe('Git');
     expect(titleOf('schedule')).toBe('Calendar');
-    expect(titleOf('board')).toBe('');
+    expect(titleOf('work')).toBe('');
   });
 });

@@ -6,7 +6,7 @@
 //   global          #/control          what needs you, in every project
 //                   #/projects         every registered repository, and registering one
 //                   #/help             bundled task guidance and keyboard shortcuts
-//   in a project    #/p/<id>/board     (also: overview, calendar, git, runs, defaults)
+//   in a project    #/p/<id>/work     (also: overview, calendar, git, runs, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
 //
@@ -22,7 +22,7 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
  */
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
-export type ProjectSection = 'product-map' | 'overview' | 'board' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
+export type ProjectSection = 'product-map' | 'overview' | 'work' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
@@ -38,7 +38,7 @@ const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'board', label: 'Board' },
+  { id: 'work', label: 'Work' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'git', label: 'Git' },
   { id: 'product-map', label: 'Product Map' },
@@ -91,7 +91,7 @@ export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readon
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
 /** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
-const RENAMED: Record<string, ProjectSection> = { activity: 'runs', timeline: 'calendar' };
+const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'calendar' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
 /** A path part decoded, or '' when it is not valid percent-encoding. */
@@ -122,7 +122,7 @@ export function parse(hash: string): Location {
       const taskId = decode(fourth);
       // A task page without a task is the board.
       const runId = new URLSearchParams(queryOf(hash)).get('run') ?? '';
-      return taskId ? { view: 'task', projectId, taskId, ...(runId ? { runId } : {}) } : { view: 'board', projectId, taskId: '' };
+      return taskId ? { view: 'task', projectId, taskId, ...(runId ? { runId } : {}) } : { view: 'work', projectId, taskId: '' };
     }
     if (third === 'git') {
       // Git has screens of its own below it. Everything after `git/`, and the query, is theirs to read.
@@ -131,12 +131,12 @@ export function parse(hash: string): Location {
       const sub = rest + (q === -1 ? '' : full.slice(q));
       return sub ? { view: 'git', projectId, taskId: '', sub } : { view: 'git', projectId, taskId: '' };
     }
-    return { view: section(third) || 'board', projectId, taskId: '' };
+    return { view: section(third) || 'work', projectId, taskId: '' };
   }
 
   // Older links named a section without a project: it is the one last used.
   if (section(first)) return { view: section(first) as ProjectSection, projectId: '', taskId: '' };
-  return { view: 'board', projectId: '', taskId: '' };
+  return { view: 'work', projectId: '', taskId: '' };
 }
 
 /** Whether a page lives inside a project. */
@@ -150,7 +150,7 @@ export function globalHref(view: GlobalView): string {
   return `#/${view}`;
 }
 
-export function projectHref(projectId: string, section: ProjectSection = 'board'): string {
+export function projectHref(projectId: string, section: ProjectSection = 'work'): string {
   return `#/p/${enc(projectId)}/${section}`;
 }
 
@@ -169,13 +169,13 @@ export function hrefOf(loc: Location): string {
 
 /**
  * Where switching to another project goes. The section is kept where it makes
- * sense: from a project's Board, Git or Activity you land on the same one of the
+ * sense: from a project's Work, Git or Activity you land on the same one of the
  * new project. A task belongs to the project it is in, so from its page you land
  * on the new project's board, and from a global page you enter the new project at
  * its board.
  */
 export function switchedTo(from: Location, projectId: string): Location {
-  const section: ProjectSection = !isGlobal(from.view) && isSection(from.view) ? from.view : 'board';
+  const section: ProjectSection = !isGlobal(from.view) && isSection(from.view) ? from.view : 'work';
   return { view: section, projectId, taskId: '' };
 }
 

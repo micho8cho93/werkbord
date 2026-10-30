@@ -221,7 +221,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 		return out
 	}
 	all := names(full)
-	if len(all) != 17 {
+	if len(all) != 19 {
 		t.Fatalf("the full catalog has %d operations: %v", len(all), all)
 	}
 	for _, s := range f.svc.Catalog(full) {
@@ -235,7 +235,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 			t.Errorf("%s does not marshal as a tool description: %v", s.Name, err)
 		}
 	}
-	if got := strings.Join(names(readOnly), ","); got != "get_analytics,get_overview,get_project_metrics,get_ticket,list_labels,list_projects,list_tickets" {
+	if got := strings.Join(names(readOnly), ","); got != "get_analytics,get_overview,get_project_metrics,get_ticket,list_labels,list_projects,list_tickets,list_work_plans" {
 		t.Errorf("read-only catalog = %s", got)
 	}
 	if got := strings.Join(names(none), ","); got != "get_schedule" {
@@ -243,7 +243,7 @@ func TestCatalogShowsOnlyWhatThePrincipalMayCall(t *testing.T) {
 	}
 	// The set is exactly this. Adding an operation, above all one that starts or stops a run, touches Git, a setting or
 	// a repository, or deletes, has to change this list, where a reviewer will see it.
-	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,recommend_next_actions,retrieve_memory,update_ticket"
+	want := "answer_question,create_ticket,get_analytics,get_overview,get_project_metrics,get_run_status,get_schedule,get_ticket,list_agent_questions,list_blockers,list_labels,list_projects,list_runs,list_tickets,list_work_plans,recommend_next_actions,retrieve_memory,save_work_plan,update_ticket"
 	if got := strings.Join(all, ","); got != want {
 		t.Errorf("the operations are\n%s\nwant\n%s", got, want)
 	}

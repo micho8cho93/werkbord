@@ -1,4 +1,4 @@
-// The label and work-mode filter of each project, shared by its Board and its Timeline: narrow the
+// The label and work-mode filter of each project, shared by its Work and its Timeline: narrow the
 // board to "Design" work and the timeline shows the same. Kept for this page only; a filter is a way
 // of looking, not something the controller stores.
 

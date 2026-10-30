@@ -39,7 +39,7 @@ export function entries(kind: Kind): NavEntry[] {
   ];
 }
 
-const TEAM_PROJECT_TABS = new Set(['overview', 'board', 'calendar', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
+const TEAM_PROJECT_TABS = new Set(['overview', 'work', 'calendar', 'repository', 'activity', 'product-map', 'project-settings', 'people']);
 
 /** The entry a workspace's current place belongs to; '' when it is somewhere the sidebar does not list. */
 export function activeKey(kind: Kind, place: string | undefined): NavKey {
@@ -54,7 +54,7 @@ export function activeKey(kind: Kind, place: string | undefined): NavKey {
   }
   if (!place.startsWith('?')) return '';
   const q = new URLSearchParams(place);
-  const tab = q.get('tab') === 'timeline' ? 'calendar' : q.get('tab') ?? 'workspace';
+  const tab = q.get('tab') === 'board' ? 'work' : q.get('tab') === 'timeline' ? 'calendar' : q.get('tab') ?? 'workspace';
   if (tab === 'workspace') return 'home';
   if (tab === 'projects') return 'projects';
   if (tab === 'reviews' || tab === 'members' || tab === 'analytics') return tab;

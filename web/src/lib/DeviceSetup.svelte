@@ -95,7 +95,7 @@
       <summary>If something goes wrong</summary>
       <dl>
         <dt>The other computer is unreachable</dt>
-        <dd>Board changes, new runs and Git on that machine need it, so they are unavailable until it returns. Nothing is retried for you and this computer never starts a board of its own.</dd>
+        <dd>Work changes, new runs and Git on that machine need it, so they are unavailable until it returns. Nothing is retried for you and this computer never starts a board of its own.</dd>
         <dt>Agents already running here</dt>
         <dd>They keep running while the connection is down, and what they report is kept and delivered when it returns. No new work starts while this computer’s permission has expired.</dd>
         <dt>Stop, finish or reply while a runner is offline</dt>

@@ -72,6 +72,10 @@
       },
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
+      workSalie: (workspace, project, plan) => {
+        const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;
+        void model.explainCatchUp(plan ? `Help me edit Work plan ${plan} in project ${pid}. Read list_work_plans and the associated tasks first.` : `Help me organise work in project ${pid}. Read its tasks and plans first.`);
+      },
       runSession: (projectId, runId) => { void model.openRunSession(projectId, runId); },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),

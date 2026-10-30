@@ -37,12 +37,13 @@ type summaryInputs struct {
 	// Schedules are the shared schedule requests, by project.
 	Schedules map[string][]domain.Schedule
 	Changes   *workspace.RecentChanges
+	Queue     []workspace.QueueItem
 	Planned   []workspace.Planned
 	Progress  map[string]*domain.ProgressRecord
 }
 
 func ticketHref(projectID, ticketID string) string {
-	return "?tab=board&project=" + projectID + "&ticket=" + ticketID
+	return "?tab=work&project=" + projectID + "&ticket=" + ticketID
 }
 
 func statusOf(s domain.TicketStatus) workspace.Status {
@@ -135,6 +136,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		Projects: []workspace.Project{}, Work: []workspace.Item{}, Attention: []workspace.Attention{}, Schedule: []workspace.Scheduled{},
 		At:      in.Now.UTC(),
 		Planned: in.Planned,
+		Queue:   in.Queue,
 		Changes: in.Changes,
 	}
 	if out.Workspace.Name == "" {
@@ -150,7 +152,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				continue
 			}
 			projectNames[p.Project.ID] = p.Project.Name
-			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=board&project=" + p.Project.ID})
+			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=work&project=" + p.Project.ID})
 		}
 	}
 	if in.MyWork != nil {
@@ -264,7 +266,8 @@ func buildSummary(in summaryInputs) workspace.Summary {
 	sort.SliceStable(out.Attention, func(i, j int) bool {
 		return attentionRank(out.Attention[i].Severity) < attentionRank(out.Attention[j].Severity)
 	})
-	return out
+	cleaned, _ := out.Clean()
+	return cleaned
 }
 
 func attentionRank(s workspace.Severity) int {
@@ -388,6 +391,18 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	if err := host.Do(ctx, http.MethodGet, "/overview", nil, &ov); err == nil {
 		in.Overview = &ov
 		in.Planned = ov.Planned
+		in.Queue = ov.Queue
+		var plans []service.InitiativeView
+		if err := host.Do(ctx, http.MethodGet, "/initiatives", nil, &plans); err == nil {
+			for _, v := range plans {
+				if v.Initiative.Status == "archived" {
+					continue
+				}
+				for _, p := range v.Projects {
+					in.Queue = append(in.Queue, workspace.QueueItem{ID: v.Initiative.ID + "_" + p.ID, Title: v.Initiative.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&plan=" + v.Initiative.ID, Group: "plan", Detail: fmt.Sprintf("%d of %d tasks complete", v.Done, len(v.Tickets))})
+				}
+			}
+		}
 	}
 	var changes workspace.RecentChanges
 	if err := host.Do(ctx, http.MethodGet, "/catch-up", nil, &changes); err == nil {

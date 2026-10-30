@@ -80,6 +80,7 @@ type txn struct{ q queryer }
 
 func (t *txn) Projects() store.ProjectRepo                 { return projectRepo{t.q} }
 func (t *txn) Repositories() store.GitRepositoryRepo       { return gitRepoRepo{t.q} }
+func (t *txn) WorkPlans() store.WorkPlanRepo               { return workPlanRepo{t.q} }
 func (t *txn) Tasks() store.TaskRepo                       { return taskRepo{t.q} }
 func (t *txn) Labels() store.LabelRepo                     { return labelRepo{t.q} }
 func (t *txn) Runs() store.RunRepo                         { return runRepo{t.q} }

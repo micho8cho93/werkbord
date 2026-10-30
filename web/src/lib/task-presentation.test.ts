@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentWorkable, cardStatus, dropAction, firstNeedsYouColumn, modeChipShown, quickChoices, sinceShort } from './board';
+import { agentWorkable, cardStatus, quickChoices, sinceShort } from './task-presentation';
 import type { Question, Run, Task } from './types';
 
 const now = Date.parse('2026-10-05T10:30:00Z');
@@ -43,32 +43,6 @@ describe('agentWorkable', () => {
     expect(agentWorkable({ workMode: 'agent' }, { kind: 'work' })).toBe(false);
   });
 
-  it('only moves work an agent cannot do', () => {
-    expect(dropAction(task(), undefined, 'doing', false, false)).toBe('move');
-    expect(dropAction(task({ state: 'review' }), run({ state: 'completed' }), 'done', true, false)).toBe('merge');
-  });
-});
-
-describe('dropAction', () => {
-  it('starts an agent when a backlog card is dropped in In progress', () => {
-    expect(dropAction(task(), undefined, 'doing', false)).toBe('start');
-    expect(dropAction(task(), run({ state: 'failed' }), 'doing', false)).toBe('start');
-  });
-
-  it('only moves a card whose agent is already working', () => {
-    expect(dropAction(task(), run(), 'doing', false)).toBe('move');
-  });
-
-  it('merges a reviewed branch on the way to Done, and moves work with nothing to merge', () => {
-    expect(dropAction(task({ state: 'review' }), run({ state: 'completed' }), 'done', true)).toBe('merge');
-    expect(dropAction(task({ state: 'review' }), run({ state: 'completed' }), 'done', false)).toBe('move');
-  });
-
-  it('does nothing on its own column and moves everywhere else', () => {
-    expect(dropAction(task(), undefined, 'backlog', false)).toBe('none');
-    expect(dropAction(task({ state: 'doing' }), undefined, 'review', false)).toBe('move');
-    expect(dropAction(task({ state: 'done' }), undefined, 'backlog', false)).toBe('move');
-  });
 });
 
 describe('cardStatus', () => {
@@ -109,39 +83,5 @@ describe('sinceShort', () => {
     expect(sinceShort('2026-10-05T10:29:30Z', now)).toBe('30s');
     expect(sinceShort('2026-10-05T07:30:00Z', now)).toBe('3h');
     expect(sinceShort('2026-10-03T10:30:00Z', now)).toBe('2d');
-  });
-});
-
-describe('firstNeedsYouColumn', () => {
-  const none = () => false;
-
-  it('is empty when nothing needs a person', () => {
-    expect(firstNeedsYouColumn([task(), task({ id: 'tsk_2', state: 'done' })], {}, none)).toBe('');
-    expect(firstNeedsYouColumn([task({ state: 'doing' })], { tsk_1: run() }, none)).toBe('');
-  });
-
-  it('finds finished work waiting in Review', () => {
-    const tasks = [task(), task({ id: 'tsk_2', state: 'review' })];
-    expect(firstNeedsYouColumn(tasks, { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'completed' }) }, none)).toBe('review');
-  });
-
-  it('prefers the earlier column: a waiting question in In progress comes before Review', () => {
-    const tasks = [task({ state: 'review' }), task({ id: 'tsk_2', state: 'doing' })];
-    const runs = { tsk_2: run({ id: 'run_2', taskId: 'tsk_2', state: 'waiting_for_user' }) };
-    expect(firstNeedsYouColumn(tasks, runs, (r) => r.id === 'run_2')).toBe('doing');
-  });
-
-  it('counts a blocked run', () => {
-    expect(firstNeedsYouColumn([task({ state: 'doing' })], { tsk_1: run({ state: 'blocked' }) }, none)).toBe('doing');
-  });
-});
-
-describe('modeChipShown', () => {
-  it('names who does the work, except "Human" in a work project where it is true of every card', () => {
-    expect(modeChipShown('human', false)).toBe(true);
-    expect(modeChipShown('human', true)).toBe(false);
-    expect(modeChipShown('hybrid', true)).toBe(true);
-    expect(modeChipShown('agent', false)).toBe(false);
-    expect(modeChipShown('agent', true)).toBe(false);
   });
 });

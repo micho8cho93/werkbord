@@ -13,7 +13,7 @@ desk or, away from it, from a phone. Werkbord Team adds people who coordinate wo
 
 ## Product Purpose
 
-Werkbord is a local-first remote control for coding agents. Each repository is a project with a board,
+Werkbord is a local-first remote control for coding agents. Each repository is a project with Work queues and structured plans,
 a calendar, Git, and runs; the controller runs on the user's computer and keeps working with the browser
 closed. Success is that the person sees what needs them immediately, answers it in one step, and reviews and
 merges finished work without leaving the app.

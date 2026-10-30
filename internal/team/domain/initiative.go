@@ -4,6 +4,8 @@ import "time"
 
 // Initiative references existing work; it never owns tickets or runner assignments.
 type Initiative struct {
+	Decisions    string                 `json:"decisions"`
+	Questions    string                 `json:"questions"`
 	ID           string                 `json:"id"`
 	Title        string                 `json:"title"`
 	Objective    string                 `json:"objective"`

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../api';
   import { KIND_LABEL, KIND_TONE, type AttentionItem } from '../attention';
-  import { sinceShort } from '../board';
+  import { sinceShort } from '../task-presentation';
   import { agentLabel } from '../execution';
   import { oneLine } from '../format';
   import { overviewHref } from '../gitroute';

@@ -248,7 +248,7 @@ const LABELS: Record<string, string> = {
   get_overview: 'Looking over your projects',
   list_projects: 'Looking at your projects',
   list_labels: 'Checking labels',
-  list_tickets: 'Reading the board',
+  list_tickets: 'Reading Work',
   get_ticket: 'Reading a task',
   get_schedule: 'Checking the schedule',
   list_blockers: 'Looking for what is blocked',

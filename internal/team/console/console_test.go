@@ -11,7 +11,7 @@ import (
 
 func TestTheConsoleIsServedAndReadOnlyForOtherMethods(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/console.js", "/console.css", "/board.css", "/board-drag.js", "/motion.js", "/theme.js", "/search.js", "/ui/planning.js", "/ui/tokens.css", "/ui/controls.css", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
+	for _, path := range []string{"/", "/console.js", "/console.css", "/work.css", "/motion.js", "/theme.js", "/search.js", "/ui/planning.js", "/ui/tokens.css", "/ui/controls.css", "/mentions.js", "/comments.js", "/comments.css", "/mark-dark.svg"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		if rec.Code != 200 || rec.Header().Get("Cache-Control") != "no-cache" {

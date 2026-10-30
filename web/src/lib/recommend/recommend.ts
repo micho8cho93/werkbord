@@ -72,7 +72,7 @@ export function destination(rec: Pick<Recommendation, 'projectId' | 'action'>): 
     case 'open_health':
       return { href: overviewHref(projectId) };
     case 'open_board':
-      return { href: projectHref(projectId, 'board') };
+      return { href: projectHref(projectId, 'work') };
   }
   return null;
 }

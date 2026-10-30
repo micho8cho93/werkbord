@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { cardStatus } from '../board';
+  import { cardStatus } from '../task-presentation';
   import { taskHref } from '../router.svelte';
   import { app } from '../state.svelte';
   import { spanOf, spanTitle } from '../planning-dates';

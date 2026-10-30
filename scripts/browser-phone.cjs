@@ -167,7 +167,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         for (const scheme of ['light', 'dark']) {
             const { ctx, page } = await phone(w, h, scheme);
             await page.getByTestId('deck-grid').waitFor();
-            for (const hash of ['#/deck', '#/mywork', '#/schedule', '#/agents', '#/reviews', '#/repositories', '#/runners', '#/analytics', '#/control', '#/projects', `#/p/${project.id}/board`]) {
+            for (const hash of ['#/deck', '#/mywork', '#/schedule', '#/agents', '#/reviews', '#/repositories', '#/runners', '#/analytics', '#/control', '#/projects', `#/p/${project.id}/work`]) {
                 await page.goto(base + '/' + hash);
                 await page.waitForTimeout(300);
                 await noOverflow(page, `${hash} at ${w}x${h} ${scheme}`);
@@ -179,18 +179,14 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
     }
     console.log('PASS phone sizes and themes: no horizontal overflow');
 
-    // ---- the project's board shows one column at a time ----
+    // Work keeps all three queue categories reachable on a phone.
     {
         const { ctx, page } = await phone(390, 844);
-        await page.getByTestId('deck-grid').waitFor();
-        await page.goto(base + `/#/p/${project.id}/board`);
-        const group = page.getByRole('group', { name: 'Board column' });
-        await group.waitFor();
-        await group.getByRole('button', { name: /^Backlog/ }).click();
-        assert.equal(await page.locator('.col:not(.off)').count(), 1, 'one column is shown');
+        await page.goto(base + `/#/p/${project.id}/work`);
+        for (const name of ['Now','Next','Later']) await page.getByRole('heading',{name,exact:true}).waitFor();
+        await noOverflow(page,'phone Work queue');
         await ctx.close();
     }
-    console.log('PASS phone board: one column at a time');
 
     // A task advances with one tap; Back ignores intermediate pages and follows the tree.
     {
@@ -209,7 +205,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         await page.goto(base + '/#/mywork');
         await page.getByTestId('phone-back').click();
         await page.waitForURL('**/#/deck');
-        await page.goto(base + `/#/p/${project.id}/board`);
+        await page.goto(base + `/#/p/${project.id}/work`);
         await page.getByTestId('phone-back').click();
         await page.waitForURL('**/#/projects');
         await ctx.close();
@@ -291,7 +287,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
             const refused = [];
             page.on('response', (res) => { if (res.status() === 403) refused.push(res.request().method() + ' ' + new URL(res.url()).pathname); });
             const tasks = (await ownerRequest('GET', `/api/projects/${project.id}/tasks`)).tasks;
-            for (const hash of ['#/deck', ...KEYS.map((k) => k[2]), `#/p/${project.id}/board`, `#/p/${project.id}/task/${tasks[0].id}`, `#/p/${project.id}/git`, `#/p/${project.id}/runs`, `#/p/${project.id}/calendar`, '#/settings']) {
+            for (const hash of ['#/deck', ...KEYS.map((k) => k[2]), `#/p/${project.id}/work`, `#/p/${project.id}/task/${tasks[0].id}`, `#/p/${project.id}/git`, `#/p/${project.id}/runs`, `#/p/${project.id}/calendar`, '#/settings']) {
                 await page.goto(base + '/' + hash);
                 await page.waitForTimeout(500);
             }

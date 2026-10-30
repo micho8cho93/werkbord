@@ -1,11 +1,10 @@
 <script lang="ts">
-  import '../../../../internal/uipresentation/static/board.css';
-  import '../../../../internal/uipresentation/static/board-drag.js';
+  import '../../../../internal/uipresentation/static/work.css';
+  import { blockingTasks } from '../work-queue';
   import { runReportStale } from '../format';
   import { assistant } from '../assistant/sessions.svelte';
-  import { liveRun } from '../assistant/run-session.svelte';
   import { api } from '../api';
-  import { cardStatus, quickChoices, type CardStatus } from '../board';
+  import { cardStatus, quickChoices, type CardStatus } from '../task-presentation';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
   import Icon from '../Icon.svelte';
   import { spanOf, spanTitle } from '../planning-dates';
@@ -16,7 +15,7 @@
   import { app } from '../state.svelte';
   import type { GitBranch, Run, Task, TaskState } from '../types';
 
-  // One task on the board: what it is, what its agent is doing or wants, and the one or two
+  // One task in Work: what it is, what its agent is doing or wants, and the one or two
   // things you would do about it, right here. The whole card opens the task.
 
   let {
@@ -32,8 +31,6 @@
     onstart,
     onmerge,
     onmove,
-    ondragstart,
-    ondragend,
   }: {
     task: Task;
     run: Run | undefined;
@@ -49,19 +46,13 @@
     onstart: (task: Task) => void;
     onmerge: (task: Task) => void;
     onmove: (task: Task, state: TaskState) => void;
-    ondragstart: (e: DragEvent, task: Task) => void;
-    ondragend: () => void;
   } = $props();
 
   const questions = $derived(run ? scope.pendingFor(run.id) : []);
   const runner = $derived(run?.runnerId ? app.runners.find((r) => r.id === run.runnerId) : undefined);
   const decision = $derived(scope.decisions.find((d) => d.taskId === task.id));
-  const waitingFor = $derived(
-    (task.orchestration?.dependencies ?? [])
-      .map((id) => scope.tasks.find((t) => t.id === id))
-      .filter((t): t is Task => !!t && t.state !== 'review' && t.state !== 'done')
-      .map((t) => t.title),
-  );
+  const dependencies = $derived(blockingTasks(task, scope.tasks));
+  const waitingFor = $derived(dependencies.map(t => t.title));
   const status: CardStatus = $derived(
     cardStatus(task, run, {
       now: app.now,
@@ -139,20 +130,17 @@
 <li
   class="card task work-card"
   data-tone={status.tone}
-  data-board-item={task.id}
+  data-task-id={task.id}
   class:live={status.live && !stale}
   class:settled={task.state === 'done'}
   class:selected
-  draggable={!pending}
   aria-busy={pending}
-  ondragstart={(e) => ondragstart(e, task)}
-  {ondragend}
 >
-  <button type="button" data-drag-handle draggable="false" disabled={pending} aria-label="Move task: {task.title}" title="Drag to a column, or use Left and Right arrows"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" aria-hidden="true"><circle cx="4" cy="3" r="1"/><circle cx="8" cy="3" r="1"/><circle cx="4" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="4" cy="13" r="1"/><circle cx="8" cy="13" r="1"/></svg></button>
-  <a class="title" {href} draggable={!pending}>{task.title}</a>
-  {#if pending || stale || task.state !== 'backlog' || status.text !== 'Not started'}
+  <a class="title" {href}>{task.title}</a>
+  {#if pending || stale || task.state !== 'backlog' || (waitingFor.length === 0 && status.text !== 'Not started')}
     <p class="st"><span class="dot" data-tone={status.tone} class:hollow={status.tone === 'neutral' || status.tone === 'idle'}></span>{pending ? 'Updating task…' : `${stale ? 'Last reported: ' : ''}${status.text}${run?.pendingRequests?.includes('stop') ? ' · stop requested' : run?.pendingRequests?.includes('finish') ? ' · finish requested' : ''}`}</p>
   {/if}
+  {#if dependencies.length && task.state !== 'done'}<p class="dependency">Blocked by {#each dependencies as dependency, i (dependency.id)}{#if i}, {/if}<a href={taskHref(task.projectId,dependency.id)}>{dependency.title}</a>{/each}</p>{/if}
   <!-- A work project has no run to describe, so what the task is about is the one other line it has. -->
   {#if !agentWork && task.description}<p class="work-detail one">{task.description}</p>{/if}
   {#if status.detail}<p class="detail">{status.detail}</p>{/if}
@@ -201,12 +189,13 @@
       {/if}
     </div>
   {/if}
-{#if run && liveRun(run)}
+{#if run}
   <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id); }}>Open Session</button></div>
 {/if}
 </li>
 
 <style>
+ .dependency { font-size:12px; color:var(--block-text); margin:0; } .dependency a { color:inherit; }
   .task {
     --work-border: var(--border);
     --work-surface: var(--surface);
@@ -218,14 +207,14 @@
     gap: 6px;
     padding: 10px 12px;
     border-radius: var(--radius);
-    cursor: grab;
+    cursor: default;
     transition:
       border-color 0.15s,
       opacity 0.15s;
   }
 
   .task:active {
-    cursor: grabbing;
+    cursor: default;
   }
 
   .task:hover {
@@ -240,7 +229,7 @@
     left: -1px;
     top: 10px;
     bottom: 10px;
-    width: 3px;
+    width: 1px;
     border-radius: 0 3px 3px 0;
     background: var(--accent);
   }
@@ -285,17 +274,6 @@
     outline-offset: 2px;
   }
 
-  /* The grip is there when the card is pointed at, focused or selected, and always on a touch screen. */
-  [data-drag-handle] {
-    opacity: 0;
-    transition: opacity 0.12s;
-  }
-
-  .task:hover [data-drag-handle],
-  .task:focus-within [data-drag-handle],
-  .selected [data-drag-handle] {
-    opacity: 1;
-  }
 
   .st {
     display: flex;
@@ -414,8 +392,5 @@
       font-size: 14px;
     }
 
-    [data-drag-handle] {
-      opacity: 1;
-    }
   }
 </style>

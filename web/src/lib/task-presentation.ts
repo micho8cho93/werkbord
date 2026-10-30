@@ -1,45 +1,14 @@
 // What the board does and says, without the framework, so it can be tested on its own.
 
 import { cardActivity, oneLine, runElapsed, runStatus, type Tone } from './format';
-import type { Question, Run, SchedulingDecision, Task, TaskState, WorkMode } from './types';
+import type { Question, Run, SchedulingDecision, Task } from './types';
 import { schedulingLabels, schedulingReason } from './scheduling';
 import { modeOf } from './labels';
 import type { Project } from './types';
-import { TASK_STATES } from './types';
 
 /** Whether an agent may be started on the task: not human work, and not in a project with no repository. */
 export function agentWorkable(task: Pick<Task, 'workMode'>, project: Pick<Project, 'kind'> | undefined): boolean {
   return project?.kind !== 'work' && modeOf(task) !== 'human';
-}
-
-/**
- * Whether a card names who does the work. In a work project every task is a person's, so "Human" on each card says
- * nothing; an agent or shared task is still named there.
- */
-export function modeChipShown(mode: WorkMode, work: boolean): boolean {
-  return mode !== 'agent' && !(work && mode === 'human');
-}
-
-/**
- * What dropping a card on a column does. The board follows the rules of the work, not of the
- * furniture:
- *
- *   - Backlog → Doing starts an agent on the task (the controller then puts it in Doing). A
- *     task whose agent is already working just moves.
- *   - Review → Done is a merge: the merge is confirmed first, and the card moves once it is
- *     done. Work without a branch to merge simply moves.
- *   - Anything else moves the card, as choosing its column does.
- */
-export type DropAction = 'start' | 'merge' | 'move' | 'none';
-
-export function dropAction(task: Task, run: Run | undefined, to: TaskState, mergeableBranch: boolean, agentWork = true): DropAction {
-  if (to === task.state) return 'none';
-  const active = !!run && runStatus(run).active;
-  // Work no agent can do (human work, or a project with no repository) only moves: dropping it on Doing
-  // means a person has started it.
-  if (agentWork && task.state === 'backlog' && to === 'doing' && !active) return 'start';
-  if (task.state === 'review' && to === 'done' && mergeableBranch && !active) return 'merge';
-  return 'move';
 }
 
 export interface CardStatus {
@@ -106,26 +75,4 @@ export function sinceShort(iso: string, now: number): string {
 export function quickChoices(choices: readonly string[]): string[] {
   if (choices.length === 0 || choices.length > 3) return [];
   return choices.every((c) => c.length <= 24) ? [...choices] : [];
-}
-
-/**
- * The first column, in board order, holding work that needs a person: an agent's question or a reply it waits
- * for, a blocked run, or finished work waiting in Review. On a phone the board opens there, because the columns
- * are wider than the screen. Empty when nothing needs anyone.
- */
-export function firstNeedsYouColumn(
-  tasks: readonly Task[],
-  latestRun: Readonly<Record<string, Run | undefined>>,
-  hasQuestion: (run: Run) => boolean,
-): TaskState | '' {
-  const needs = (t: Task): boolean => {
-    const run = latestRun[t.id];
-    const s = run ? runStatus(run) : undefined;
-    if (run && s?.active) return hasQuestion(run) || run.state === 'blocked' || s.tone === 'idle' || s.tone === 'ask' || s.tone === 'block';
-    return t.state === 'review';
-  };
-  for (const state of TASK_STATES) {
-    if (tasks.some((t) => t.state === state && needs(t))) return state;
-  }
-  return '';
 }

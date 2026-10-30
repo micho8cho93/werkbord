@@ -28,7 +28,7 @@ export const titleOf = (view: View): string => TITLES[view] ?? '';
  */
 export function phoneParent(loc: Location): Location | null {
   if (loc.view === 'deck') return null;
-  if (loc.view === 'task') return { view: 'board', projectId: loc.projectId, taskId: '' };
+  if (loc.view === 'task') return { view: 'work', projectId: loc.projectId, taskId: '' };
   if (loc.view === 'git' && loc.sub) return { view: 'git', projectId: loc.projectId, taskId: '' };
   if (loc.projectId) return { view: 'projects', projectId: '', taskId: '' };
   return { view: 'deck', projectId: '', taskId: '' };
@@ -40,9 +40,9 @@ export const parentHref = (loc: Location): string => {
   return parent ? hrefOf(parent) : globalHref('deck');
 };
 
-/** The words for the page Back would go to: "Projects", "Control Deck", "Board". */
+/** The words for the page Back would go to: "Projects", "Control Deck", "Work". */
 export function parentTitle(loc: Location): string {
   const parent = phoneParent(loc);
   if (!parent) return '';
-  return parent.view === 'board' ? 'Board' : (titleOf(parent.view) || 'Back');
+  return parent.view === 'work' ? 'Work' : (titleOf(parent.view) || 'Back');
 }

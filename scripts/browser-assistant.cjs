@@ -457,8 +457,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.match(await btn.getAttribute('aria-label'), /1 request is waiting for you/);
             assert.equal(await btn.locator('.num').innerText(), '1');
             assert.equal(requests.filter(r => /\/actions\//.test(r)).length, 0, 'closing the screen decided nothing');
-            await page.goto(base + `/#/p/${project.id}/board`); // go to a different view altogether
-            await page.waitForFunction(() => location.hash.includes('/board'));
+            await page.goto(base + `/#/p/${project.id}/work`); // go to a different view altogether
+            await page.waitForFunction(() => location.hash.includes('/work'));
             assert.match(await page.getByTestId('assistant-button').first().getAttribute('aria-label'), /waiting for you/);
             await openAssistant(page);
             assert.equal(await page.locator('section.confirm[data-state="waiting"]').count(), 1, 'still waiting after changing view');
@@ -579,7 +579,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await lastReply(page).locator('.md').waitFor();
             await closeAssistant(page);
             assert.match(await page.getByTestId('assistant-button').first().getAttribute('aria-label'), /working/);
-            await page.goto(base + `/#/p/${project.id}/board`);
+            await page.goto(base + `/#/p/${project.id}/work`);
             await sleep(400);
             await openAssistant(page);
             await page.waitForFunction(() => [...document.querySelectorAll('article.reply')].at(-1)?.dataset.status === 'done');

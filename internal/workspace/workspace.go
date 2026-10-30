@@ -403,7 +403,24 @@ func DecodeListing(r io.Reader) (Listing, error) {
 }
 
 // Summary is everything the shell shows of one workspace outside the workspace's own interface.
+// QueueItem is reference-only work metadata. Group is computed by the source.
+type QueueItem struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Project string `json:"project"`
+	Href    string `json:"href"`
+	Group   string `json:"group"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+func (q QueueItem) valid() bool {
+	return ValidID(q.ID) && q.Title != "" && len(q.Title) <= MaxText && len(q.Project) <= MaxName && ValidHref(q.Href) && len(q.Detail) <= MaxText && (q.Group == "now" || q.Group == "next" || q.Group == "later" || q.Group == "done" || q.Group == "plan")
+}
+
 type Summary struct {
+	QueueIncomplete bool        `json:"queueIncomplete,omitempty"`
+	Queue           []QueueItem `json:"queue,omitempty"`
+
 	Changes   *RecentChanges `json:"changes,omitempty"`
 	Schema    string         `json:"schema"`
 	Workspace Entry          `json:"workspace"`
@@ -475,6 +492,14 @@ func (s Summary) Validate() error {
 	}
 	if err := s.Workspace.validate(); err != nil {
 		return err
+	}
+	if len(s.Queue) > MaxItems {
+		return errors.New("workspace: too many queue items")
+	}
+	for _, q := range s.Queue {
+		if !q.valid() {
+			return errors.New("workspace: invalid queue item")
+		}
 	}
 	if len(s.Projects) > MaxProjects || len(s.Work) > MaxItems || len(s.Attention) > MaxAttention || len(s.Schedule) > MaxSchedule || len(s.Planned) > MaxItems {
 		return errors.New("workspace: too many entries")
@@ -581,6 +606,18 @@ func (s Summary) Clean() (Summary, int) {
 		a.Title, a.Detail, a.Project = clip(a.Title, MaxText), clip(a.Detail, MaxText), clip(a.Project, MaxName)
 		if ValidID(a.ID) && ValidID(a.Kind) && a.Severity.Valid() && a.Title != "" && (a.Href == "" || ValidHref(a.Href)) && len(out.Attention) < MaxAttention {
 			out.Attention = append(out.Attention, a)
+		} else {
+			dropped++
+		}
+	}
+	out.QueueIncomplete = s.QueueIncomplete || len(s.Queue) > MaxItems
+	out.Queue = []QueueItem{}
+	for _, q := range s.Queue {
+		q.Title = clip(q.Title, MaxText)
+		q.Project = clip(q.Project, MaxName)
+		q.Detail = clip(q.Detail, MaxText)
+		if q.valid() && len(out.Queue) < MaxItems {
+			out.Queue = append(out.Queue, q)
 		} else {
 			dropped++
 		}

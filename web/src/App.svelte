@@ -42,7 +42,7 @@
   import { phoneSubtitle } from './lib/mobile/subtitle';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
-  import Board from './routes/Board.svelte';
+  import Work from './routes/Work.svelte';
   import Scheduling from './routes/Scheduling.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
@@ -104,7 +104,7 @@
   $effect(() => {
     const v = router.view;
     if (project && inProject(v) && v !== 'task' && !sectionApplies(v, project.kind)) {
-      router.go({ view: 'board', projectId: project.id, taskId: '' }, true);
+      router.go({ view: 'work', projectId: project.id, taskId: '' }, true);
     }
   });
 
@@ -128,7 +128,7 @@
   // A new page starts at its top, not wherever the last one was scrolled to. Opening or closing a task keeps the board where it was.
   let mainEl = $state<HTMLElement>();
   $effect(() => {
-    void [router.view === 'task' ? 'board' : router.view, router.projectId, router.sub];
+    void [router.view === 'task' ? 'work' : router.view, router.projectId, router.sub];
     window.scrollTo(0, 0);
     mainEl?.scrollTo(0, 0);
   });
@@ -176,14 +176,14 @@
 
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Workspace', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
-    ...(['board', 'calendar', 'git', 'runs'] as const)
+    ...(['work', 'calendar', 'git', 'runs'] as const)
       .filter((s) => sectionApplies(s, project?.kind))
       .map((s) => ({
       id: s,
-      label: { board: 'Board', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
+      label: { work: 'Work', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
-      current: inside && (router.view === s || (s === 'board' && router.view === 'task')),
+      current: inside && (router.view === s || (s === 'work' && router.view === 'task')),
     })),
   ]);
 </script>
@@ -300,7 +300,7 @@
             {:else if router.view === 'git' && project.kind === 'work'}
               <p class="empty">This project has no Git repository. Add a repository project to inspect Git changes.</p>
             {:else if router.view === 'runs' && project.kind === 'work'}
-              <p class="empty">This project has no execution history. Work is tracked on its Board and Calendar.</p>
+              <p class="empty">This project has no execution history. Work is tracked in Work and Calendar.</p>
             {:else if router.view === 'git'}
               {#if app.remote}<div class="page"><DeviceGit {project} /></div>{:else if router.sub && !router.sub.startsWith('?')}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
             {:else if router.view === 'runs'}
@@ -308,7 +308,7 @@
             {:else if router.view === 'defaults'}
               <div class="page"><ProjectSettings {project} /></div>
             {:else}
-              <Board {scope} {project} />
+              <Work {scope} {project} />
               {#if router.view === 'task'}<TaskPanelHost {scope} {project} />{/if}
             {/if}
           {/key}

@@ -133,8 +133,8 @@ export function pageTitle(pending: number, base = 'Werkbord'): string {
 }
 
 /** Screens of a project that ask its questions themselves, each with its answer: the Overview's Needs you list, the
- *  Board's cards and the Runs rows. */
-const ASKS_ITS_OWN = new Set(['overview', 'board', 'runs']);
+ *  Work's cards and the Runs rows. */
+const ASKS_ITS_OWN = new Set(['overview', 'work', 'runs']);
 
 /**
  * The questions the banner states: those the person is not already looking at. Not the task whose panel is open, and

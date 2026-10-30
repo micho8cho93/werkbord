@@ -45,7 +45,7 @@
             </span>
           </div>
           {#if c.guidance}<p class="note">{c.guidance}</p>{/if}
-          {#if c.state === 'Idle'}<p class="note">Ready. Start it on a task from a project's Board.</p>{/if}
+          {#if c.state === 'Idle'}<p class="note">Ready. Start it on a task from a project's Work.</p>{/if}
           {#each c.sessions as x (x.run.id)}<ul class="inside"><SessionRow {x} bare /></ul>{/each}
         </li>
       {/each}

@@ -3,7 +3,7 @@
   import { api } from '../lib/api';
   import { addDays, clockAt, lanes, minuteOf, rangeTitle, visibleDays } from '../lib/calendar';
   import { formatWall, hourLabel } from '../lib/clock.svelte';
-  import { agentWorkable } from '../lib/board';
+  import { agentWorkable } from '../lib/task-presentation';
   import { agentLabel, resolveFor } from '../lib/execution';
   import { spanOf } from '../lib/planning-dates';
   import { runStatus } from '../lib/format';
@@ -15,7 +15,7 @@
   import { app } from '../lib/state.svelte';
   import type { Project, Task } from '../lib/types';
 
-  // The same tasks as the Board, placed in time. Drag a task onto the week (or pick it and click a
+  // The same tasks as the Work, placed in time. Drag a task onto the week (or pick it and click a
   // time); the controller starts it then, browser open or not. Dependencies, order, deadlines and
   // missed-time policy are set on the task.
 
@@ -242,7 +242,7 @@
       {#if emptyView}
         <p class="empty-view" role="status">
           Nothing is scheduled to run {view === 'day' ? 'on this day' : 'this week'}.
-          {unscheduled.length ? '' : 'Add a task on the Board and it can be scheduled here.'}
+          {unscheduled.length ? '' : 'Add a task on the Work and it can be scheduled here.'}
         </p>
       {/if}
       <div class="grid-scroll" bind:this={grid}>

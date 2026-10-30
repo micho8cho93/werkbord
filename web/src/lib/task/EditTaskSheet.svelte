@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
   import { ApiError, api } from '../api';
-  import { agentWorkable } from '../board';
+  import { agentWorkable } from '../task-presentation';
   import DependencyPicker from '../DependencyPicker.svelte';
   import { compact, type Resolved } from '../execution';
   import { editableOrchestration, emptyOrchestration, instantFromWall, wallTime } from '../scheduling';

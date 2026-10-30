@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"werkbord/internal/team/domain"
@@ -459,6 +460,7 @@ type ProjectSummary struct {
 
 // Overview answers "what is available, and what is everyone working on?".
 type Overview struct {
+	Queue       []workspace.QueueItem `json:"queue,omitempty"`
 	Planned     []workspace.Planned   `json:"planned,omitempty"`
 	Schedule    []workspace.Scheduled `json:"schedule,omitempty"`
 	Revision    int64                 `json:"revision"`
@@ -524,6 +526,39 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 				if v.role[p.ID].Can(domain.PPTicketsView) {
 					byTicket := map[string]domain.Ticket{}
 					for _, k := range tickets {
+						if k.ArchivedAt == nil {
+							group := "next"
+							detail := string(k.Status)
+							blocked := []string{}
+							for _, id := range k.Dependencies {
+								found := false
+								for _, dep := range tickets {
+									if dep.ID == id {
+										found = true
+										if dep.Status != domain.TicketDone {
+											blocked = append(blocked, dep.Title)
+										}
+									}
+								}
+								if !found {
+									blocked = append(blocked, "Unavailable task")
+								}
+							}
+							if len(blocked) > 0 {
+								group = "later"
+								detail = "Blocked by " + strings.Join(blocked, ", ")
+							}
+							if k.Plan.Start > out.GeneratedAt.Local().Format("2006-01-02") {
+								group = "later"
+							}
+							if k.Status == domain.TicketInProgress || k.Status == domain.TicketReview {
+								group = "now"
+							}
+							if k.Status == domain.TicketDone {
+								group = "done"
+							}
+							out.Queue = append(out.Queue, workspace.QueueItem{ID: k.ID, Title: k.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID, Group: group, Detail: detail})
+						}
 						byTicket[k.ID] = k
 						if k.Status == domain.TicketAvailable && k.AssigneeID == "" && k.ArchivedAt == nil {
 							out.Available++
@@ -538,7 +573,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 						if end == "" || k.Plan.Milestone {
 							end = start
 						}
-						out.Planned = append(out.Planned, workspace.Planned{ID: k.ID, Title: k.Title, Project: p.Name, Start: start, End: end, Href: "?tab=board&project=" + p.ID + "&ticket=" + k.ID})
+						out.Planned = append(out.Planned, workspace.Planned{ID: k.ID, Title: k.Title, Project: p.Name, Start: start, End: end, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID})
 					}
 					schedules, err := tx.Schedules(ctx, a.Workspace.ID, p.ID)
 					if err != nil {
@@ -549,7 +584,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 						if !ok || k.ArchivedAt != nil || schedule.Terminal() || len(out.Schedule) >= workspace.MaxSchedule {
 							continue
 						}
-						out.Schedule = append(out.Schedule, workspace.Scheduled{ID: schedule.ID, Title: k.Title, Project: p.Name, At: schedule.At.UTC(), Zone: schedule.Timezone, State: schedule.State, Href: "?tab=board&project=" + p.ID + "&ticket=" + k.ID})
+						out.Schedule = append(out.Schedule, workspace.Scheduled{ID: schedule.ID, Title: k.Title, Project: p.Name, At: schedule.At.UTC(), Zone: schedule.Timezone, State: schedule.State, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID})
 					}
 				}
 				branches, err := tx.Branches(ctx, a.Workspace.ID, p.ID)

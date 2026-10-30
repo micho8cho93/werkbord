@@ -190,7 +190,7 @@
         {/each}
       </div>
     {:else}
-      <p class="empty">{!scope.loaded ? 'Loading…' : filtering ? 'No run matches the filters.' : 'No agent has run in this project yet. Start one from the Board.'}</p>
+      <p class="empty">{!scope.loaded ? 'Loading…' : filtering ? 'No run matches the filters.' : 'No agent has run in this project yet. Start one from the Work.'}</p>
     {/if}
   </div>
   <nav class="pagination" aria-label="Run history pages">

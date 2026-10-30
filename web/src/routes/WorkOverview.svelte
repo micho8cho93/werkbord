@@ -40,7 +40,7 @@
 
 <div class="page">
   <section class="pn">
-    <div class="ph">Board<a class="end small" href={projectHref(project.id, 'board')}>Open →</a></div>
+    <div class="ph">Work<a class="end small" href={projectHref(project.id, 'work')}>Open →</a></div>
     <ul class="counts">
       {#each counts as c (c.state)}<li><strong>{c.n}</strong><span>{TASK_STATE_LABELS[c.state]}</span></li>{/each}
     </ul>

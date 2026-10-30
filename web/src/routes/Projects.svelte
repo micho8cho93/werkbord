@@ -83,7 +83,7 @@
           <li>
             <a class="project" href={projectHref(p.id, 'overview')} onclick={() => app.enter(p.id)}>
               <span class="sq"></span>
-              <span class="tile" aria-hidden="true"><Icon name={p.kind === 'work' ? 'board' : 'folder'} size={18} /></span>
+              <span class="tile" aria-hidden="true"><Icon name={p.kind === 'work' ? 'work' : 'folder'} size={18} /></span>
               <span class="what">
                 <span class="name">{p.name}</span>
                 <span class="mm path">{p.kind === 'work' ? 'Work project · no repository' : shortPath(p.repoPath)}{p.repository ? ` · ${p.repository.currentBranch || 'detached'}` : ''}</span>

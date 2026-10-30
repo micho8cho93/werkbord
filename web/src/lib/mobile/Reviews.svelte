@@ -1,6 +1,6 @@
 <script lang="ts">
   import { layout, surface } from '../motion';
-  import { sinceShort } from '../board';
+  import { sinceShort } from '../task-presentation';
   import { agentLabel } from '../execution';
   import { oneLine } from '../format';
   import Icon from '../Icon.svelte';

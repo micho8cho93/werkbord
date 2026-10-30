@@ -27,17 +27,17 @@ describe('parse', () => {
   });
 
   it('knows a project and each of its sections, and defaults to its board', () => {
-    expect(parse('#/p/prj_a')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
-    expect(parse('#/p/prj_a/board')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a/work')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
     expect(parse('#/p/prj_a/git')).toEqual({ view: 'git', projectId: 'prj_a', taskId: '' });
     expect(parse('#/p/prj_a/runs')).toEqual({ view: 'runs', projectId: 'prj_a', taskId: '' });
-    expect(parse('#/p/prj_a/nonsense')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a/nonsense')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
   });
 
   it('knows a task, which is always in a project', () => {
     expect(parse('#/p/prj_a/task/tsk_1')).toEqual({ view: 'task', projectId: 'prj_a', taskId: 'tsk_1' });
     expect(parse('#/p/prj_a/task/tsk_1?x=1')).toEqual({ view: 'task', projectId: 'prj_a', taskId: 'tsk_1' });
-    expect(parse('#/p/prj_a/task/')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a/task/')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
   });
 
   it('selects a specific task run from an explicit deep link', () => {
@@ -48,31 +48,31 @@ describe('parse', () => {
   });
 
   it('reads an older link that names no project as a page in the project last used', () => {
-    expect(parse('#/board')).toEqual({ view: 'board', projectId: '', taskId: '' });
+    expect(parse('#/work')).toEqual({ view: 'work', projectId: '', taskId: '' });
     expect(parse('#/git')).toEqual({ view: 'git', projectId: '', taskId: '' });
     expect(parse('#/runs')).toEqual({ view: 'runs', projectId: '', taskId: '' });
-    expect(parse('')).toEqual({ view: 'board', projectId: '', taskId: '' });
-    expect(parse('#/nonsense')).toEqual({ view: 'board', projectId: '', taskId: '' });
-    expect(parse('#/p/')).toEqual({ view: 'board', projectId: '', taskId: '' });
+    expect(parse('')).toEqual({ view: 'work', projectId: '', taskId: '' });
+    expect(parse('#/nonsense')).toEqual({ view: 'work', projectId: '', taskId: '' });
+    expect(parse('#/p/')).toEqual({ view: 'work', projectId: '', taskId: '' });
   });
 
   it('survives a mangled id', () => {
-    expect(parse('#/p/%E0%A4%A/board')).toEqual({ view: 'board', projectId: '', taskId: '' });
-    expect(parse('#/p/prj_a/task/%E0%A4%A')).toEqual({ view: 'board', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/%E0%A4%A/work')).toEqual({ view: 'work', projectId: '', taskId: '' });
+    expect(parse('#/p/prj_a/task/%E0%A4%A')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
   });
 });
 
 describe('links', () => {
   it('round-trip, including ids that need escaping', () => {
     expect(globalHref('control')).toBe('#/control');
-    expect(projectHref('prj_a')).toBe('#/p/prj_a/board');
+    expect(projectHref('prj_a')).toBe('#/p/prj_a/work');
     expect(projectHref('prj_a', 'git')).toBe('#/p/prj_a/git');
     expect(taskHref('prj_a', 'tsk_1')).toBe('#/p/prj_a/task/tsk_1');
     expect(parse(taskHref('prj/a b', 'tsk/1 2'))).toEqual({ view: 'task', projectId: 'prj/a b', taskId: 'tsk/1 2' });
     for (const loc of [
       { view: 'control', projectId: '', taskId: '' },
       { view: 'projects', projectId: '', taskId: '' },
-      { view: 'board', projectId: 'p', taskId: '' },
+      { view: 'work', projectId: 'p', taskId: '' },
       { view: 'runs', projectId: 'p', taskId: '' },
       { view: 'task', projectId: 'p', taskId: 't' },
     ] as const) {
@@ -81,7 +81,7 @@ describe('links', () => {
   });
 
   it('say which pages are in a project', () => {
-    expect(inProject('board')).toBe(true);
+    expect(inProject('work')).toBe(true);
     expect(inProject('task')).toBe(true);
     expect(inProject('control')).toBe(false);
     expect(inProject('projects')).toBe(false);
@@ -92,21 +92,21 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'product-map', 'runs', 'analytics', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'analytics', 'settings', 'help']);
   });
 
   it('keeps any listed section when switching projects', () => {
     for (const s of PROJECT_SECTIONS) {
-      expect(switchedTo({ view: s.id, projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: s.id === 'analytics' ? 'board' : s.id, projectId: 'prj_b', taskId: '' });
+      expect(switchedTo({ view: s.id, projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: s.id === 'analytics' ? 'work' : s.id, projectId: 'prj_b', taskId: '' });
     }
   });
 });
 
 describe('a work project has no repository to show', () => {
   it('keeps planning pages but excludes repository analysis', () => {
-    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs', 'analytics', 'defaults']);
-    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'board', 'calendar', 'git', 'runs']);
+    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'runs', 'analytics', 'defaults']);
+    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'runs']);
   });
 
   it('shows a repository project, or one of an older controller, everything', () => {
@@ -131,16 +131,16 @@ describe('switching projects', () => {
 
   it('leaves a task behind: it belongs to the project it is in', () => {
     const to = switchedTo({ view: 'task', projectId: 'prj_a', taskId: 'tsk_1' }, 'prj_b');
-    expect(to).toEqual({ view: 'board', projectId: 'prj_b', taskId: '' });
+    expect(to).toEqual({ view: 'work', projectId: 'prj_b', taskId: '' });
   });
 
   it('enters the new project at its board from a global page', () => {
-    expect(switchedTo({ view: 'control', projectId: '', taskId: '' }, 'prj_b')).toEqual({ view: 'board', projectId: 'prj_b', taskId: '' });
-    expect(switchedTo({ view: 'projects', projectId: '', taskId: '' }, 'prj_b')).toEqual({ view: 'board', projectId: 'prj_b', taskId: '' });
+    expect(switchedTo({ view: 'control', projectId: '', taskId: '' }, 'prj_b')).toEqual({ view: 'work', projectId: 'prj_b', taskId: '' });
+    expect(switchedTo({ view: 'projects', projectId: '', taskId: '' }, 'prj_b')).toEqual({ view: 'work', projectId: 'prj_b', taskId: '' });
   });
 
   it('never carries a task or the old project into the new address', () => {
-    for (const from of ['#/p/prj_a/task/tsk_1', '#/p/prj_a/board', '#/control', '#/p/prj_a/git']) {
+    for (const from of ['#/p/prj_a/task/tsk_1', '#/p/prj_a/work', '#/control', '#/p/prj_a/git']) {
       const href = hrefOf(switchedTo(parse(from), 'prj_b'));
       expect(href).toContain('prj_b');
       expect(href).not.toContain('prj_a');
@@ -159,13 +159,13 @@ describe('resolved', () => {
 
   it('puts a page that names none in the project last used', () => {
     expect(resolved(parse('#/git'), ids, 'prj_b')).toEqual({ view: 'git', projectId: 'prj_b', taskId: '' });
-    expect(resolved(parse(''), ids, 'prj_b')).toEqual({ view: 'board', projectId: 'prj_b', taskId: '' });
+    expect(resolved(parse(''), ids, 'prj_b')).toEqual({ view: 'work', projectId: 'prj_b', taskId: '' });
   });
 
   it('falls back to the first project if the last used is gone, and to Projects if there are none', () => {
-    expect(resolved(parse('#/board'), ids, 'prj_gone').projectId).toBe('prj_a');
-    expect(resolved(parse('#/board'), ids, '').projectId).toBe('prj_a');
-    expect(resolved(parse('#/board'), [], 'prj_a')).toEqual({ view: 'projects', projectId: '', taskId: '' });
+    expect(resolved(parse('#/work'), ids, 'prj_gone').projectId).toBe('prj_a');
+    expect(resolved(parse('#/work'), ids, '').projectId).toBe('prj_a');
+    expect(resolved(parse('#/work'), [], 'prj_a')).toEqual({ view: 'projects', projectId: '', taskId: '' });
   });
 });
 
@@ -197,7 +197,7 @@ describe('the phone\'s More entry', () => {
 
   it('marks the tab current on those pages only', () => {
     for (const v of ['overview', 'defaults', 'projects', 'analytics', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
-    for (const v of ['control', 'board', 'task', 'calendar', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
+    for (const v of ['control', 'work', 'task', 'calendar', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
   });
 });
 

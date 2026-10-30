@@ -187,3 +187,14 @@ describe('native terminal tabs', () => {
     vi.restoreAllMocks();
   });
 });
+
+it('opens Work plan prompts in a conversation while preserving the associated CLI session', async () => {
+  const m = await manager();
+  m.openRun('project-one', 'run-one');
+  const runTab = m.activeId;
+  m.draft = 'Help me edit Work plan wpl_one.';
+  expect(m.activeId).not.toBe(runTab);
+  expect(m.activeTab.run).toBeUndefined();
+  expect(m.active.draft).toBe('Help me edit Work plan wpl_one.');
+  expect(m.tabs.find(t => t.id === runTab)?.run?.runId).toBe('run-one');
+});

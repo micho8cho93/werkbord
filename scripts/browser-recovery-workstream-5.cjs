@@ -44,7 +44,7 @@ const api = async (route) => {
     }
   };
   const openTask = async project => {
-    await page.goto(`${base}/#/p/${project.id}/board`);
+    await page.goto(`${base}/#/p/${project.id}/work`);
     await page.getByRole('button',{name:'New task',exact:true}).click();
     return page.getByRole('dialog',{name:`New task in ${project.name}`,exact:true});
   };
@@ -174,7 +174,7 @@ const api = async (route) => {
     await page.unroute('**/questions');
     // Coarse pointer + reduced motion is a browser emulation, not a physical-device observation.
     const touch=await browser.newContext({viewport:{width:375,height:812},hasTouch:true,isMobile:true,reducedMotion:'reduce',storageState:await context.storageState()});
-    const phone=await touch.newPage(); await phone.goto(`${base}/#/p/${work.id}/board`); await phone.getByRole('button',{name:'New task',exact:true}).click();
+    const phone=await touch.newPage(); await phone.goto(`${base}/#/p/${work.id}/work`); await phone.getByRole('button',{name:'New task',exact:true}).click();
     assert(await phone.evaluate(()=>matchMedia('(pointer: coarse)').matches && matchMedia('(prefers-reduced-motion: reduce)').matches));
     const target=await phone.getByRole('button',{name:'Add to Backlog'}).boundingBox();assert(target.height>=44);
     await phone.screenshot({path:path.join(artifacts,'coarse-new-task.png')});await touch.close();

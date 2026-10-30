@@ -13,7 +13,7 @@ describe('where a suggestion leads', () => {
     expect(destination(rec(action('open_changes')))).toEqual({ href: '#/p/prj_1/git/changes' });
     expect(destination(rec(action('open_git')))).toEqual({ href: '#/p/prj_1/git' });
     expect(destination(rec(action('open_health')))).toEqual({ href: '#/p/prj_1/git' });
-    expect(destination(rec(action('open_board')))).toEqual({ href: '#/p/prj_1/board' });
+    expect(destination(rec(action('open_board')))).toEqual({ href: '#/p/prj_1/work' });
     expect(destination(rec(action('open_workflow', { workflow: 'find-bugs' })))).toEqual({ workflow: 'find-bugs' });
   });
 

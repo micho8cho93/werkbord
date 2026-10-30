@@ -132,7 +132,7 @@ func (s *Shell) AssistantWorkspaceCall(session, request, proposalID, id, method 
 	if !ok {
 		return nil, errors.New("workspace operations are unavailable")
 	}
-	if method != "create_ticket" {
+	if method != "create_ticket" && method != "save_work_plan" {
 		return client.AssistantBoard(ctx, id, method, in)
 	}
 	if proposalID == "" {

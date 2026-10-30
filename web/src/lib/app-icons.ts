@@ -1,7 +1,7 @@
 // The icons the app itself draws (navigation, actions, status), one Lucide icon for each meaning and never the same one twice.
 import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 import LayoutPanelLeft from '@lucide/svelte/icons/layout-panel-left';
-import SquareKanban from '@lucide/svelte/icons/square-kanban';
+import ListTodo from '@lucide/svelte/icons/list-todo';
 import Calendar from '@lucide/svelte/icons/calendar';
 import GitFork from '@lucide/svelte/icons/git-fork';
 import GitCompareArrows from '@lucide/svelte/icons/git-compare-arrows';
@@ -48,7 +48,7 @@ import TextAlignStart from '@lucide/svelte/icons/text-align-start';
 export const appIconComponents = {
   control: LayoutGrid,
   overview: LayoutPanelLeft,
-  board: SquareKanban,
+  work: ListTodo,
   calendar: Calendar,
   git: GitFork,
   'product-map': GitCompareArrows,
@@ -98,7 +98,7 @@ export type AppIconName = keyof typeof appIconComponents;
 export const appIconSources: Record<AppIconName, string> = {
   control: 'layout-grid',
   overview: 'layout-panel-left',
-  board: 'square-kanban',
+  work: 'list-todo',
   calendar: 'calendar',
   git: 'git-fork',
   'product-map': 'git-compare-arrows',

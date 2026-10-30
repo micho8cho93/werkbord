@@ -39,6 +39,7 @@ type Tx interface {
 	Savepoint(context.Context, func() error) error
 	Projects() ProjectRepo
 	Repositories() GitRepositoryRepo
+	WorkPlans() WorkPlanRepo
 	Tasks() TaskRepo
 	Labels() LabelRepo
 	Runs() RunRepo
@@ -344,4 +345,10 @@ type ProductMapRepo interface {
 	SaveJob(context.Context, string, string, any) error
 	Jobs(context.Context, string) ([]json.RawMessage, error)
 	InterruptJobs(context.Context) error
+}
+
+// WorkPlanRepo stores reference-only structured plans, scoped to a project.
+type WorkPlanRepo interface {
+	List(context.Context, string) ([]domain.WorkPlan, error)
+	Save(context.Context, domain.WorkPlan, int64) error
 }

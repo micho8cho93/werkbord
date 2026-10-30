@@ -91,3 +91,26 @@ func TestDefiniteWorkspaceFailuresKeepKnownOutcomesActionable(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkPlanBridgeChecksExactApprovedDocument(t *testing.T) {
+	r := newRig(t)
+	client := &assistantTeam{fakeTeam: r.tm}
+	r.o.Team = client
+	args := teamlink.BoardArgs{ProjectID: "p1", PlanJSON: `{"projectId":"p1","title":"Delivery","description":"Coordinate","taskIds":["t1"],"version":0}`}
+	raw, _ := json.Marshal(args)
+	launcher := r.o.Launcher.(*fakeLauncher)
+	launcher.assistantWorkspaceRequest = func(_ context.Context, _, _ string) ([]byte, error) {
+		return json.Marshal(map[string]any{"pending": true, "request": map[string]any{"id": "wreq_plan", "proposalId": "act_plan", "workspaceId": "team:main", "method": "save_work_plan", "args": args}})
+	}
+	if _, err := r.AssistantWorkspaceCall("ast_plan", "wreq_plan", "act_plan", "team:main", "save_work_plan", raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AssistantWorkspaceCall("ast_plan", "wreq_plan", "act_plan", "team:main", "save_work_plan", raw); err != nil || client.calls != 1 {
+		t.Fatal("replayed plan", client.calls, err)
+	}
+	args.PlanJSON = `{"projectId":"p1","title":"Tampered","taskIds":[],"version":0}`
+	raw, _ = json.Marshal(args)
+	if _, err := r.AssistantWorkspaceCall("ast_plan", "wreq_plan", "act_plan", "team:main", "save_work_plan", raw); err == nil || client.calls != 1 {
+		t.Fatal("changed approved document")
+	}
+}

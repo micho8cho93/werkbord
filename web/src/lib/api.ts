@@ -233,6 +233,8 @@ function withoutExecution<T extends object>(body: T): T {
 }
 
 export const api = {
+  workPlans: (project: string) => request<import('./work-queue').WorkPlan[]>('GET', `${inProject(project)}/work-plans`),
+  saveWorkPlan: (project: string, plan: import('./work-queue').WorkPlan) => request<import('./work-queue').WorkPlan>(plan.id ? 'PUT' : 'POST', `${inProject(project)}/work-plans${plan.id ? '/' + enc(plan.id) : ''}`, plan),
   /** Suggested next steps for a project: the rules' answer, with its evidence. Reads only. */
   recommendations: (project: string, focus = '') =>
     request<import('./recommend/types').RecommendationSet>('GET', `${inProject(project)}/recommendations${focus ? `?focus=${enc(focus)}` : ''}`),

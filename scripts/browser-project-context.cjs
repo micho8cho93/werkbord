@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '../desktop/frontend/dist/shell');
 const artifacts = path.resolve(__dirname, '../output/playwright/project-context');
 const workspace = (id, kind = 'personal', state = 'ready') => ({ id, kind, state, name: kind === 'personal' ? 'Personal' : id.replace('team:', ''), source: 'fixture', role: 'member' });
 let items = [workspace('personal')], projects = ['one'], calls = [];
-const href = (w, id) => w.kind === 'personal' ? `#/p/${id}/board` : `?tab=board&project=${id}`;
+const href = (w, id) => w.kind === 'personal' ? `#/p/${id}/work` : `?tab=work&project=${id}`;
 const summary = w => ({ schema: 'workspace-summary/v1', workspace: w, at: new Date().toISOString(),
   projects: projects.map(id => ({ id, name: `Project ${id}`, href: href(w, id) })),
   work: projects.map(id => ({ id: `task-${id}`, title: `${w.name} ${id}`, project: `Project ${id}`, status: 'doing', execution: 'running', href: href(w, id) })),

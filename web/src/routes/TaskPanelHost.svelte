@@ -10,7 +10,7 @@
   // or the rest of the app, and says so with a way out.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
-  const boardHref = $derived(projectHref(project.id, 'board'));
+  const boardHref = $derived(projectHref(project.id, 'work'));
 
   let failedHeading = $state<HTMLElement>();
   $effect(() => {

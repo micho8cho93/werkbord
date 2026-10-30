@@ -90,6 +90,11 @@ func (s *Service) SaveInitiative(ctx context.Context, a Actor, id string, in dom
 		if in.Objective, e = domain.CleanTicketText("objective", in.Objective); e != nil {
 			return e
 		}
+		for _, text := range []string{in.Decisions, in.Questions} {
+			if len(text) > 20000 {
+				return domain.ErrInvalid
+			}
+		}
 		if in.Objective == "" || len(in.ProjectIDs) == 0 || len(in.ProjectIDs) > 30 || len(in.Tickets) > 200 || len(in.Memories) > 100 || len(in.Dependencies) > 200 {
 			return domain.ErrInvalid
 		}

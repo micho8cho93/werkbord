@@ -229,7 +229,7 @@
 
   function openWorkspace() {
     const first = local.project;
-    router.go(first ? { view: 'board', projectId: first.id, taskId: '' } : { view: 'projects', projectId: '', taskId: '' });
+    router.go(first ? { view: 'work', projectId: first.id, taskId: '' } : { view: 'projects', projectId: '', taskId: '' });
   }
 
 </script>

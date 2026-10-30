@@ -43,7 +43,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     for (const m of [bo, cy]) await api('PUT', `/projects/${project.id}/members/${m.id}`, {});
     const ticket = await api('POST', `/projects/${project.id}/tickets`, { title: 'Checkout flow', description: 'Make it faster', status: 'available' });
     const T = `/projects/${project.id}/tickets/${ticket.id}`;
-    const ticketAddress = `${base}/?tab=board&project=${project.id}&ticket=${ticket.id}`;
+    const ticketAddress = `${base}/?tab=work&project=${project.id}&ticket=${ticket.id}`;
     // Enough conversation that the ticket has to scroll.
     for (let i = 1; i <= 8; i++) await api('POST', T + '/comments', { clientId: clientId(), segments: say(`Earlier note ${i}: the checkout has to stay fast on slow phones, and the cart must survive a reload. `.repeat(2)) }, cyJoin.token);
 
@@ -226,7 +226,7 @@ const clientId = () => 'browser-' + stamp + '-' + (++counter);
     assert.equal(await boPage.locator(`#comment-${longComments[4].id}`).count(), 1, 'a refresh did not snap the conversation to its end');
     assert.match(await boPage.locator(`#comment-${longComments[4].id}`).getAttribute('class'), /is-referenced/);
     // The same ticket opened plainly shows the latest page, with the way back.
-    await boPage.goto(`${base}/?tab=board&project=${project.id}&ticket=${long.id}`);
+    await boPage.goto(`${base}/?tab=work&project=${project.id}&ticket=${long.id}`);
     await boPage.locator('.comment', { hasText: 'A new message at the end' }).waitFor();
     assert.equal(await boPage.locator('.comment', { hasText: 'Message number 5' }).count(), 0);
     await boPage.getByRole('button', { name: 'Load earlier comments' }).click();

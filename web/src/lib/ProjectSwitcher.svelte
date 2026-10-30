@@ -174,7 +174,7 @@
           {/if}
           <li id="jt-{it.id}" role="option" aria-selected={i === highlight} class="row" data-active={i === highlight}>
             <button type="button" class="row-btn" onclick={() => choose(it)} onmousemove={() => (highlight = i)} tabindex="-1">
-              {#if it.icon}<span class="ic"><Icon name={it.icon} /></span>{:else if it.group === 'Projects'}<span class="sq" class:here={it.current}></span>{:else}<span class="ic"><Icon name="board" /></span>{/if}
+              {#if it.icon}<span class="ic"><Icon name={it.icon} /></span>{:else if it.group === 'Projects'}<span class="sq" class:here={it.current}></span>{:else}<span class="ic"><Icon name="work" /></span>{/if}
               <span class="it">{it.label}</span>
               {#if it.current}<span class="chip">current</span>{/if}
               {#if it.sub}<span class="sub">{it.sub}</span>{/if}

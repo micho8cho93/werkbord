@@ -80,7 +80,7 @@ async function api(method, path, data, credential = token) {
     await page.reload();
     await page.getByRole('heading', { name: /^People on this project/ }).waitFor();
     console.log('PASS missing/empty URL state, fallback tab, browser Back/Forward, People deep-link reload');
-    await page.goto(base + `/?tab=board&project=${p.id}&ticket=${k.id}`);
+    await page.goto(base + `/?tab=work&project=${p.id}&ticket=${k.id}`);
     await page.getByText('Edit this ticket', { exact: true }).click();
     const editTitle = page.locator(`[name="e-title-${k.id}"]`);
     await editTitle.fill('Draft title');
@@ -110,7 +110,7 @@ async function api(method, path, data, credential = token) {
     await page.waitForFunction(id => document.querySelector('[name="e-title-' + id + '"]')?.value === 'Other client title', k.id);
     console.log('PASS concurrent editors, stale-version rejection, intentional empty text, disclosure, keyboard focus, conflict recovery');
     // Independent drafts survive navigation without carrying into another project.
-    await page.goto(base + `/?tab=board&project=${p.id}`);
+    await page.goto(base + `/?tab=work&project=${p.id}`);
     await page.getByRole('button', { name: 'New ticket', exact: true }).waitFor();
     // A ticket is made in a dialog over the board; closing it keeps what was typed, and each project keeps its own draft.
     const openDraft = async () => { await page.locator('body').press('n'); await page.getByRole('dialog', { name: 'New ticket' }).waitFor(); await page.waitForFunction(() => document.activeElement?.name === 't-title'); };
@@ -130,7 +130,7 @@ async function api(method, path, data, credential = token) {
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
     await closeDraft();
     await page.getByRole('button', { name: 'Runs', exact: true }).click();
-    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.getByRole('button', { name: 'Work', exact: true }).click();
     await page.locator('.board').waitFor();
     await openDraft();
     await page.waitForFunction(() => document.querySelector('[name="t-title"]')?.value === 'Alpha draft');
@@ -171,7 +171,7 @@ async function api(method, path, data, credential = token) {
     assert.equal(await page.getByRole('button', { name: 'Mark done', exact: true }).first().isDisabled(), true);
     console.log('PASS consistent open-PR completion restriction in Board and Reviews');
     await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
-    await page.getByRole('button', { name: 'Board', exact: true }).click();
+    await page.getByRole('button', { name: 'Work', exact: true }).click();
     await page.getByRole('button', { name: 'Other client title', exact: true }).click();
     // Drag, close and restore retain the ticket's reports and use the server's rules.
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).focus();
@@ -186,20 +186,15 @@ async function api(method, path, data, credential = token) {
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, q.id);
     await page.getByRole('button', { name: 'Open project ' + p.name, exact: true }).click();
     await page.waitForFunction(id => state.tab === 'repository' && state.projectId === id && state.data?.id === id, p.id);
-    await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Board', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Work', exact: true }).click();
     console.log('PASS N / Escape shortcuts, viewport-sized board and project switching that keeps the Git section');
-    for (let i = 0; i < 30; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Kanban scroll fixture ${i}`, status: 'available' });
-    await page.getByRole('region', { name: 'Available', exact: true }).getByRole('button', { name: 'Kanban scroll fixture 29', exact: true }).waitFor();
+    for (let i = 0; i < 30; i++) await api('POST', `/projects/${p.id}/tickets`, { title: `Work queue fixture ${i}`, status: 'available' });
+    await page.getByRole('button', { name: 'Work queue fixture 29', exact: true }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Backlog', exact: true }).count(), 0, 'the board starts at Available: there is no Backlog column');
-    assert.equal(await page.locator('[aria-label="Kanban board"] > section').first().getAttribute('data-board-column'), 'available');
-    await require('./browser-kanban.cjs')(page, 4, artifacts, 'team');
+    await require('./browser-work-layout.cjs')(page, 4, artifacts, 'team');
     let dragged = await api('POST', `/projects/${p.id}/tickets`, { title: 'Team drag fixture', description: 'Keep this context', status: 'available' });
     await page.getByRole('button', { name: dragged.title, exact: true }).waitFor();
-    // Dragging an available ticket into In progress claims it.
-    const assignResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/claim'));
-    await page.getByRole('button', { name: dragged.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In Progress', exact: true }));
-    assert.equal((await assignResponse).status(), 200);
-    await page.getByRole('region', { name: 'In Progress', exact: true }).getByRole('button', { name: dragged.title, exact: true }).waitFor();
+    await api('POST', `/projects/${p.id}/tickets/${dragged.id}/claim`, {});
     dragged = await api('GET', `/projects/${p.id}/tickets/${dragged.id}`);
     assert.equal(dragged.status, 'in_progress');
     await page.getByRole('button', { name: dragged.title, exact: true }).click();
@@ -210,7 +205,7 @@ async function api(method, path, data, credential = token) {
     await page.getByRole('button', { name: /^Archive \(/ }).click();
     await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).waitFor();
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
-    await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
     await api('POST', `/projects/${p.id}/tickets/${dragged.id}/submit`, {});
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: dragged.title, exact: true }).click();
@@ -219,7 +214,7 @@ async function api(method, path, data, credential = token) {
     assert.equal((await api('GET', `/projects/${p.id}/tickets/${dragged.id}`)).status, 'done');
     await page.locator('.ticket').getByRole('button', { name: 'Close', exact: true }).click();
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.locator('[data-board-item]').filter({ hasText: dragged.title }).getByRole('button', { name: 'Archive', exact: true }).click();
+    await page.locator('[data-task-id]').filter({ hasText: dragged.title }).getByRole('button', { name: 'Archive', exact: true }).click();
     await page.getByRole('button', { name: /^Archive \(/ }).click();
     await page.locator('.archive-list').getByRole('button', { name: new RegExp(dragged.title + '$') }).click();
     await page.getByText('Keep this context', { exact: true }).waitFor();
@@ -227,7 +222,7 @@ async function api(method, path, data, credential = token) {
     await page.locator('.ticket').getByText('More actions', { exact: true }).click();
     await page.getByRole('button', { name: 'Archive ticket', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
     console.log('PASS Team drag-to-claim, archive from the card, restore and retained details');
     // A Workspace Host older than this window has no route for Calendar, Analytics or MCP clients and answers 404 "no such
     // endpoint" to each. The screen says so once, in its own place, and the words do not follow the person to other screens.
@@ -304,8 +299,8 @@ async function api(method, path, data, credential = token) {
     const ticketBounds = await page.locator('.ticket').boundingBox();
     assert.ok(ticketBounds.y >= 0 && ticketBounds.y < 100, 'mobile ticket opens within the viewport');
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('region', { name: 'Review', exact: true }).evaluate(el => el.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
-    await page.getByRole('region', { name: 'Review', exact: true }).waitFor({ state: 'visible' });
+    await page.getByRole('region', { name: 'Now', exact: true }).evaluate(el => el.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+    await page.getByRole('region', { name: 'Now', exact: true }).waitFor({ state: 'visible' });
     for (const tab of ['workspace', 'projects', 'repository']) {
         await page.goto(base + `/?tab=${tab}&project=${p.id}`);
         await page.getByRole('heading', {level:1}).waitFor();

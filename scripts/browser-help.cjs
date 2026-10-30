@@ -43,21 +43,21 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
 
     await page.goto(`${base}/#token=${token}`);
-    await page.goto(`${base}/#/p/${projects.review}/board`);
+    await page.goto(`${base}/#/p/${projects.review}/work`);
     await page.getByRole('heading', { name: 'Second repo' }).waitFor();
     await page.getByRole('link', { name: 'Help', exact: true }).click();
     await page.getByRole('link', { name: 'Open project work' }).first().click();
     assert.match(page.url(), new RegExp(`/p/${projects.review}/runs$`), 'repository guide returns to a repository view');
 
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto(`${base}/#/p/${projects.work}/board`);
+    await page.goto(`${base}/#/p/${projects.work}/work`);
     await page.getByRole('heading', { name: 'Venue search' }).waitFor();
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
     await page.getByRole('link', { name: 'Open planning or schedule' }).click();
     assert.match(page.url(), new RegExp(`/p/${projects.work}/calendar$`), 'work guide links to Calendar for planned dates');
 
-    await page.goto(`${base}/#/p/${projects.review}/board`);
+    await page.goto(`${base}/#/p/${projects.review}/work`);
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();

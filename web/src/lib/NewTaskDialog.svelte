@@ -3,7 +3,7 @@
   import { readDraft, writeDraft, uncertainMutation } from './recovery';
   import { ApiError, api } from './api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, resolveFor, sourceLabel } from './execution';
-  import { agentWorkable } from './board';
+  import { agentWorkable } from './task-presentation';
   import { INTERACTION_OPTIONS, PERMISSIONS_NOTE } from './policy';
   import { globalHref } from './router.svelte';
   import ExecutionFields from './ExecutionFields.svelte';
@@ -105,7 +105,7 @@
       uncertainSave = !saved && uncertainMutation(err);
       uncertainStart = !!saved && uncertainStart && uncertainMutation(err);
       persist();
-      error = planIssues.length ? 'Fix the highlighted planning issues.' : uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Board before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
+      error = planIssues.length ? 'Fix the highlighted planning issues.' : uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Work before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
       if (planIssues.length) {
         await tick();
         document.getElementById(planIssues[0].field === 'plan.end' ? 'new-task-end' : 'new-task-start')?.focus();
@@ -156,7 +156,7 @@
     <fieldset disabled={!!saved || uncertainSave}><TaskPlanFields bind:plan repository={!isWork} idPrefix="new-task" issues={planIssues} /></fieldset>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
-    {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Board before creating another task.</p><a class="btn" href={`#/p/${project.id}/board`} onclick={close}>Check Board</a>{/if}
+    {#if uncertainSave}<p role="status">Save status is unknown. Your brief is kept in this tab; check the Work before creating another task.</p><a class="btn" href={`#/p/${project.id}/work`} onclick={close}>Check Work</a>{/if}
     {#if uncertainStart && !error}<p role="status">Start status is unknown. Open the saved task to check Runs before starting again.</p>{/if}
     {#if !draftStored}<p role="status">This browser cannot keep the brief through reload. Copy it before closing or reloading.</p>{/if}
     {#if saved}<button class="btn open" type="button" onclick={() => { if (saved) router.go({ view: 'task', projectId: project.id, taskId: saved.id }); close(); }}>View task</button>{/if}

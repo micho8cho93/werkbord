@@ -46,7 +46,7 @@ export const needsAttention = (f: HealthFinding): boolean => severityRank(f.seve
 
 /**
  * Says how sure a signal is, in words a person can weigh. A fact is stated by Git or Dev
- * Board's records; a guess is a pattern, and the finding is worded as a possibility.
+ * Work's records; a guess is a pattern, and the finding is worded as a possibility.
  */
 export function basisLabel(b: HealthBasis): string {
   return b === 'deterministic' ? 'Git says so' : 'A guess';

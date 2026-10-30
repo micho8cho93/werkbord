@@ -1,5 +1,5 @@
 <script lang="ts">
-  // One row of tabs for the sub-areas of a major part: a project's Board and Git, a workspace's Workspace and Projects. The window's
+  // One row of tabs for the sub-areas of a major part: a project's Work and Git, a workspace's Workspace and Projects. The window's
   // sidebar lists the major parts; this is the only other navigation, and everything that has sub-areas draws them here.
   let { label, tabs, current, deck = false }: {
     label: string;

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
-  import { phone } from '../lib/mobile/phone.svelte';
   import { acknowledge, surface } from '../lib/motion';
   import { ApiError, api } from '../lib/api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
@@ -23,7 +22,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
   import EditTaskSheet from '../lib/task/EditTaskSheet.svelte';
-  import { agentWorkable } from '../lib/board';
+  import { agentWorkable } from '../lib/task-presentation';
   import { spanOf, spanTitle } from '../lib/planning-dates';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { TASK_STATES, TASK_STATE_LABELS, type ExecutionConfig, type Project, type Run, type Task, type TaskState, type Worktree } from '../lib/types';
@@ -40,7 +39,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const effective = $derived(resolveFor(task?.execution, project.execution, app.globalExecution));
   /** What it would get if the task itself set nothing. */
   const below = $derived(resolveFor({}, project.execution, app.globalExecution));
-  const boardHref = $derived(projectHref(project.id, 'board'));
+  const boardHref = $derived(projectHref(project.id, 'work'));
 
   function close() {
     location.hash = boardHref;
@@ -180,7 +179,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     const t = await act(() => api.moveTask(task, state));
     if (t) {
       scope.upsertTask(t);
-      if (phone.on) app.notify(`Moved to ${TASK_STATE_LABELS[t.state]}.`, 6000, { label: `View in ${TASK_STATE_LABELS[t.state]}`, run: () => { document.dispatchEvent(new CustomEvent('werkbord-board-column', { detail: { projectId: project.id, state: t.state } })); close(); } });
     }
     else await scope.load().catch((err) => app.handleError(err));
   }

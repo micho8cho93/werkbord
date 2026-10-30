@@ -237,8 +237,8 @@ describe('the banner states a question once', () => {
     for (const view of ['calendar', 'timeline', 'git', 'projects', 'settings']) expect(bannerQuestions(all, { view, projectId: 'prj_1' })).toEqual(all);
   });
 
-  it('leaves out the project\'s own on the screens that answer them: Overview, Board and Runs', () => {
-    for (const view of ['overview', 'board', 'runs']) expect(bannerQuestions(all, { view, projectId: 'prj_1' })).toEqual([other]);
+  it('leaves out the project\'s own on the screens that answer them: Overview, Work and Runs', () => {
+    for (const view of ['overview', 'work', 'runs']) expect(bannerQuestions(all, { view, projectId: 'prj_1' })).toEqual([other]);
   });
 
   it('leaves out the task whose panel is open, and nothing else', () => {

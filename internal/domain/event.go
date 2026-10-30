@@ -16,6 +16,7 @@ const (
 	EventLabelCreated      EventType = "label.created"    // payload: the label. Labels belong to no project, so these carry no project ID
 	EventLabelUpdated      EventType = "label.updated"    // payload: the label
 	EventLabelDeleted      EventType = "label.deleted"    // payload: {id}; the tasks that carried it each get a task.updated
+	EventWorkPlanUpdated   EventType = "work_plan.updated"
 	EventTaskCreated       EventType = "task.created"
 	EventTaskUpdated       EventType = "task.updated"
 	EventRunStateChanged   EventType = "run.state_changed"

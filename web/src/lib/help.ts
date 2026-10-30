@@ -73,7 +73,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     ],
     recovery: 'If evidence changes or Werkbord refuses the merge, return to the task and inspect the latest Git state. A successful local merge moves the task to Done and offers Undo for the task move.',
     searchTerms: ['review', 'merge', 'verdict', 'accept', 'reject', 'reported tests', 'verified tests', 'branch', 'pull request'],
-    destination: { kind: 'project', repository: 'runs', work: 'board' },
+    destination: { kind: 'project', repository: 'runs', work: 'work' },
     linkLabel: 'Open project work',
   },
   {
@@ -82,13 +82,13 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     summary: 'A task keeps its run history and its current state. Open an In progress task to see the latest run and use the available reply, answer or run-again action.',
     example: 'If a run finished without changes and the task remains In progress, open the task and start another run when the task is ready.',
     steps: [
-      'Open the task from the Board or Runs and read the latest reported state.',
+      'Open the task from the Work or Runs and read the latest reported state.',
       'If it is waiting for a decision, answer the question in place. If it is still running, use the task message field to send a follow-up.',
       'When a finished task offers Run again, review its current execution choices before starting another run.',
     ],
     recovery: 'A lost start response can leave the outcome uncertain. Check the task and Runs before trying again; do not replay a start when the app says it cannot tell whether it succeeded.',
     searchTerms: ['continue', 'run again', 'doing', 'message', 'follow-up', 'lost response', 'uncertain'],
-    destination: { kind: 'project', repository: 'runs', work: 'board' },
+    destination: { kind: 'project', repository: 'runs', work: 'work' },
     linkLabel: 'Open project work',
   },
   {
@@ -125,7 +125,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     id: 'disconnect',
     title: 'Recover after disconnection',
     summary: 'Werkbord may keep working while a browser is disconnected. A last reported state is not proof of what is happening now.',
-    example: 'If a task save reports an uncertain outcome, reconnect and check the Board or use View saved task before creating it again.',
+    example: 'If a task save reports an uncertain outcome, reconnect and check the Work or use View saved task before creating it again.',
     steps: [
       'Reconnect to the Werkbord that owns the project and wait for a fresh report.',
       'Check the task or Runs to see what was saved or started before taking the action again.',
@@ -163,8 +163,8 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     ],
     recovery: 'If a shortcut does not open, first finish or leave the focused field or menu. Jump to is also a visible button in the page heading.',
     searchTerms: ['keyboard', 'shortcut', 'shortcuts', 'jump to', 'command k', 'control k', 'ctrl k', 'escape', 'skip'],
-    destination: { kind: 'project', repository: 'board', work: 'board' },
-    linkLabel: 'Open the current Board',
+    destination: { kind: 'project', repository: 'work', work: 'work' },
+    linkLabel: 'Open the current Work',
   },
 ];
 

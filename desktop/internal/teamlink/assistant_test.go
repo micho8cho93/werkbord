@@ -82,3 +82,66 @@ func TestAssistantBoardPreservesDefinitiveTeamResponseStatus(t *testing.T) {
 		t.Fatalf("response error: %#v", err)
 	}
 }
+
+func TestWorkPlansUseFixedMetadataRoutesAndPreserveVersion(t *testing.T) {
+	writes := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Header.Get("Authorization") != "Bearer "+key {
+			t.Error("missing authentication")
+		}
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/w/main/api/team/v1/projects/p1/initiatives":
+			_, _ = w.Write([]byte(`[{"initiative":{"id":"ini_1","title":"Delivery","objective":"Coordinate tasks","status":"active","projectIds":["p1"],"tickets":[{"projectId":"p1","ticketId":"t1"},{"projectId":"p1","ticketId":"t2"}],"version":3,"ownerId":"owner","dependencies":[],"memories":[],"questions":"Who reviews?"}}]`))
+		case r.Method == "PUT" && r.URL.Path == "/w/main/api/team/v1/initiatives/ini_1":
+			writes++
+			var body initiativePlan
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Version != 3 || body.Tickets[0].TicketID != "t2" || body.OwnerID != "owner" || body.Questions != "Ready?" {
+				t.Errorf("wrong plan mutation: %+v", body)
+			}
+			body.Version = 4
+			_ = json.NewEncoder(w).Encode(body)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer ts.Close()
+	l, err := New(ts.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := l.AssistantBoard(bg, "team:main", "list_work_plans", BoardArgs{ProjectID: "p1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans := out.([]workPlan)
+	if len(plans) != 1 || plans[0].TaskIDs[1] != "t2" {
+		t.Fatal(plans)
+	}
+	p := plans[0]
+	p.TaskIDs = []string{"t2", "t1"}
+	p.Questions = "Ready?"
+	document, _ := json.Marshal(p)
+	raw, _ := json.Marshal(BoardArgs{ProjectID: "p1", PlanJSON: string(document)})
+	args, err := DecodeBoardArgs("save_work_plan", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := l.AssistantBoard(bg, "team:main", "save_work_plan", args)
+	if err != nil || result.(workPlan).Version != 4 || writes != 1 {
+		t.Fatal(result, err, writes)
+	}
+	if _, err = DecodeBoardArgs("list_tickets", raw); err == nil {
+		t.Fatal("plan data accepted by another operation")
+	}
+	p.ProjectID = "other"
+	document, _ = json.Marshal(p)
+	raw, _ = json.Marshal(BoardArgs{ProjectID: "p1", PlanJSON: string(document)})
+	if _, err = DecodeBoardArgs("save_work_plan", raw); err == nil {
+		t.Fatal("cross-project plan accepted")
+	}
+}

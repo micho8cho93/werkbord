@@ -197,3 +197,33 @@ func TestInitiativeRespectsExistingProjectDependencies(t *testing.T) {
 	_, e = tm.svc.Initiatives(bg, other, "", i.ID)
 	wantErr(t, e, domain.ErrNotFound)
 }
+
+func TestWorkPlanOrderAndContextUseInitiativePermissions(t *testing.T) {
+	tm := newTeam(t)
+	a := tm.working(tm.bo, "Design")
+	b := tm.working(tm.bo, "Build")
+	in := domain.Initiative{Title: "Delivery plan", Objective: "Ship together", ProjectIDs: []string{tm.pid()}, Tickets: []domain.InitiativeTicket{{ProjectID: tm.pid(), TicketID: b.ID}, {ProjectID: tm.pid(), TicketID: a.ID}}, Decisions: "Use existing sessions", Questions: "Who reviews?"}
+	plan, e := tm.svc.SaveInitiative(bg, tm.bo, "", in)
+	if e != nil {
+		t.Fatal(e)
+	}
+	views, e := tm.svc.Initiatives(bg, tm.bo, tm.pid(), plan.ID)
+	if e != nil || len(views) != 1 {
+		t.Fatal(views, e)
+	}
+	got := views[0]
+	if got.Initiative.Tickets[0].TicketID != b.ID || got.Initiative.Decisions != in.Decisions || got.Initiative.Questions != in.Questions {
+		t.Fatal(got)
+	}
+	before := a.Version
+	ticket, e := tm.svc.GetTicket(bg, tm.bo, tm.pid(), a.ID)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if ticket.Version != before {
+		t.Fatal("plan edited task")
+	}
+	plan.Decisions = strings.Repeat("x", 20001)
+	_, e = tm.svc.SaveInitiative(bg, tm.bo, plan.ID, plan)
+	wantErr(t, e, domain.ErrInvalid)
+}

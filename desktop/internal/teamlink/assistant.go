@@ -16,6 +16,7 @@ import (
 // BoardArgs is the entire semantic input surface offered to the desktop assistant. No URL, credential, repository,
 // execution setting or command can be supplied. Ticket creation uses Team's ordinary service and its current permissions.
 type BoardArgs struct {
+	PlanJSON     string `json:"planJSON,omitempty"`
 	Query        string `json:"query,omitempty"`
 	TaskID       string `json:"taskId,omitempty"`
 	RequestType  string `json:"requestType,omitempty"`
@@ -42,6 +43,9 @@ func DecodeBoardArgs(method string, raw json.RawMessage) (BoardArgs, error) {
 	if method != "retrieve_memory" && (in.Query != "" || in.TaskID != "" || in.RequestType != "" || in.TokenBudget != 0) {
 		return in, errors.New("unexpected memory arguments")
 	}
+	if method != "save_work_plan" && in.PlanJSON != "" {
+		return in, errors.New("unexpected plan arguments")
+	}
 	switch method {
 	case "retrieve_memory":
 		if !boardID.MatchString(in.ProjectID) || in.TaskID != "" && !boardID.MatchString(in.TaskID) || len(in.Query) > 800 || in.TokenBudget < 512 || in.TokenBudget > 6000 || in.Title != "" || in.Description != "" || in.WorkMode != "" || in.PlannedStart != "" || in.PlannedEnd != "" || in.Milestone {
@@ -50,6 +54,21 @@ func DecodeBoardArgs(method string, raw json.RawMessage) (BoardArgs, error) {
 	case "list_projects", "get_overview":
 		if !bytes.Equal(bytes.TrimSpace(raw), []byte("{}")) {
 			return in, errors.New("this workspace read takes no arguments")
+		}
+	case "save_work_plan", "list_work_plans":
+		if !boardID.MatchString(in.ProjectID) || in.Title != "" || in.Description != "" || in.WorkMode != "" || in.PlannedStart != "" || in.PlannedEnd != "" || in.Milestone {
+			return in, errors.New("invalid plan arguments")
+		}
+		if method == "save_work_plan" {
+			var p workPlan
+			if len(in.PlanJSON) > 60000 || json.Unmarshal([]byte(in.PlanJSON), &p) != nil || p.ProjectID != in.ProjectID || len(p.TaskIDs) > 200 || p.ID != "" && !boardID.MatchString(p.ID) {
+				return in, errors.New("invalid Work plan")
+			}
+			for _, id := range p.TaskIDs {
+				if !boardID.MatchString(id) {
+					return in, errors.New("invalid task id")
+				}
+			}
 		}
 	case "get_project", "list_tickets", "create_ticket":
 		if !boardID.MatchString(in.ProjectID) {
@@ -110,6 +129,8 @@ func (l *Link) AssistantBoard(ctx context.Context, id, method string, in BoardAr
 	}
 	base := "/w/" + slot + "/api/team/v1/projects"
 	switch method {
+	case "save_work_plan", "list_work_plans":
+		return l.assistantWorkPlans(ctx, slot, method, in)
 	case "retrieve_memory":
 		return l.assistantMemory(ctx, base, in)
 	case "list_projects", "get_overview":

@@ -57,7 +57,10 @@ export class AssistantSessions {
   get waiting(): number { return this.interactions.length; }
   get isOpen(): boolean { return this.mounted && this.phase !== 'closing' && this.phase !== 'closed'; }
   get draft(): string { return this.active.draft; }
-  set draft(value: string) { this.active.draft = value; }
+  set draft(value: string) {
+    if (this.activeTab.run || this.activeTab.terminal) this.newTab();
+    this.active.draft = value;
+  }
 
   private add(id = crypto.randomUUID(), title = '', closed = false): SalieTab {
     const tab = { id, title, closed, store: new AssistantStore(keyOf(id), this.streams.connect) };

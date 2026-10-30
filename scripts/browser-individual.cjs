@@ -76,7 +76,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await captureDecisionSurface('settings');
     const focusTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Navigation focus fixture' });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(base + `/#/p/${p.id}/board`);
+    await page.goto(base + `/#/p/${p.id}/work`);
     const focusOpener = page.getByRole('link', { name: focusTask.title, exact: true });
     await focusOpener.waitFor();
     await focusOpener.focus();
@@ -91,7 +91,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await taskPanel.getByRole('link', { name: 'Close panel', exact: true }).click();
     await page.waitForFunction(href => {
         const opener = [...document.querySelectorAll('a[href]')].find(el => el.getAttribute('href') === href);
-        return location.hash.includes('/board') && opener === document.activeElement;
+        return location.hash.includes('/work') && opener === document.activeElement;
     }, await focusOpener.getAttribute('href'));
     assert.equal(await focusOpener.evaluate(el => el === document.activeElement), true, 'closing task details restores focus to the board card');
     console.log('PASS Settings keyboard access, responsive/theme captures, and task focus order');
@@ -122,7 +122,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('button', { name: 'Check again', exact: true }).click();
     await page.getByText(/3 of 3 requirements verified/).waitFor();
     // Completion ordering, optional decisions and failures are exercised in browser-onboarding.cjs.
-    await page.goto(base + `/#/p/${p.id}/board`);
+    await page.goto(base + `/#/p/${p.id}/work`);
     await page.getByRole('button', { name: 'New task', exact: true }).click();
     await page.getByRole('heading', { name: 'New task in ' + p.name, exact: true }).waitFor();
     // Sheet protects keyboard users even with disabled submit buttons and collapsed execution settings.
@@ -320,31 +320,24 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor();
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
 
-        await page.goto(base + `/#/p/${p.id}/board`);
+        await page.goto(base + `/#/p/${p.id}/work`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
-        await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+        await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
         let finished = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Clear Done fixture', description: 'Details to recall' });
         finished = await api('PATCH', `/api/projects/${p.id}/tasks/${finished.id}`, { version: finished.version, state: 'done' });
-        await page.goto(base + `/#/p/${p.id}/board`);
+        await page.goto(base + `/#/p/${p.id}/work`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         assert.equal(await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).count(), 0);
-        await page.locator('[data-board-item="' + finished.id + '"]').getByRole('button', { name: 'Archive', exact: true }).click();
+        await page.locator('[data-task-id="' + finished.id + '"]').getByRole('button', { name: 'Archive', exact: true }).click();
         await page.getByRole('button', { name: /^Archive/ }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
         await page.getByRole('button', { name: 'Restore', exact: true }).click();
-        await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+        await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
         await page.getByRole('link', { name: finished.title, exact: true }).waitFor();
-        for (let i = 0; i < 30; i++) await api('POST', `/api/projects/${p.id}/tasks`, { title: `Kanban scroll fixture ${i}` });
-        await page.getByRole('link', { name: 'Kanban scroll fixture 9', exact: true }).waitFor();
-        await require('./browser-kanban.cjs')(page, 4, artifacts, 'individual');
-        const dragTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Drag to In progress fixture' });
-        await page.getByRole('link', { name: dragTask.title, exact: true }).waitFor();
-        await page.getByRole('link', { name: dragTask.title, exact: true }).locator('..').dragTo(page.getByRole('region', { name: 'In progress', exact: true }));
-        await page.getByRole('region', { name: 'In progress', exact: true }).getByRole('link', { name: dragTask.title, exact: true }).waitFor();
-        assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === dragTask.id).state, 'doing');
-        const dragRun = (await api('GET', `/api/projects/${p.id}/runs`)).runs.find(r => r.taskId === dragTask.id);
-        await sync([{ runId: dragRun.id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
-        console.log('PASS per-card Archive preserves details, restore to Done, backlog drop persists Doing while remote start is queued');
+        for (let i = 0; i < 30; i++) await api('POST', `/api/projects/${p.id}/tasks`, { title: `Work queue fixture ${i}` });
+        await page.getByRole('link', { name: 'Work queue fixture 9', exact: true }).waitFor();
+        await require('./browser-work-layout.cjs')(page, 4, artifacts, 'individual');
+        console.log('PASS per-task archive and restore preserve completed work');
         // Save succeeds, two launch attempts fail, then a lost launch response is recovered.
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         await page.setViewportSize({ width: 390, height: 844 });
@@ -387,7 +380,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.unroute(launchRoute);
         await sync([{ runId: recoveredRuns[0].id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
-        await page.goto(base + `/#/p/${p.id}/board`);
+        await page.goto(base + `/#/p/${p.id}/work`);
         await page.route(launchRoute, route => route.request().method() === 'POST' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'conflict', message: 'Runner became unavailable' } }) }) : route.continue());
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Close saved recovery fixture');
@@ -458,7 +451,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(finishedRun,true,'finishing the run records its ended state before the Review task is reopened');
         const completedTask = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === localTask.id);
         if (completedTask.state !== 'review') await api('PATCH', `/api/projects/${p.id}/tasks/${localTask.id}`, { version: completedTask.version, state: 'review' });
-        await page.goto(base + `/#/p/${p.id}/board`);
+        await page.goto(base + `/#/p/${p.id}/work`);
         await page.getByText(localTask.title,{exact:true}).click();
         await page.getByRole('heading', {name:localTask.title,exact:true}).waitFor();
         await page.waitForFunction(() => document.querySelector('.panel .state select')?.value === 'review');
@@ -481,7 +474,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await verdict.waitFor();
         assert(await verdict.getByText('Not recorded',{exact:false}).isVisible(), 'verdict is discoverable beside the review decision');
         assert(await reviewHead.getByText(/records your assessment.*does not merge, move or archive the task/i).isVisible(), 'verdict explanation is beside its controls');
-        await page.goto(base + `/#/p/${p.id}/board`);
+        await page.goto(base + `/#/p/${p.id}/work`);
         await page.getByText(localTask.title,{exact:true}).click();
         await headerReviewLink.waitFor();
         assert.equal(await page.evaluate(() => document.activeElement?.id),'task-title','opening the task panel focuses its title');
@@ -700,10 +693,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await undo.waitFor();
         await undo.click();
         await page.locator('.panel').waitFor({state:'hidden'});
-        // On a phone the board shows one column at a time: ask for Done.
-        const doneSegment = page.getByRole('group',{name:'Board column',exact:true}).getByRole('button',{name:/^Done/});
-        if (await doneSegment.count()) await doneSegment.click();
-        await page.locator('#col-done .task').filter({hasText:localTask.title}).waitFor();
+        await page.locator('.completed summary').click();
+        await page.locator('.completed .task').filter({hasText:localTask.title}).waitFor();
         assert.equal((await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t=>t.id===localTask.id).state,'done','Archive Undo restores the task after its merge to Done');
         await page.evaluate(() => document.documentElement.dataset.theme = 'light');
         await page.setViewportSize({width:1440,height:1000});
@@ -724,7 +715,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.waitForTimeout(400);
         assert.equal(await page.locator('#project-priority').inputValue(), 'high');
         console.log('PASS unsaved project defaults survive SSE refresh');
-        for (const [name, route] of [['board', `/p/${p.id}/board`], ['project-settings', `/p/${p.id}/defaults`], ['settings', '/settings'], ['runs', `/p/${p.id}/runs`], ['git', `/p/${p.id}/git`], ['projects', '/projects']]) {
+        for (const [name, route] of [['board', `/p/${p.id}/work`], ['project-settings', `/p/${p.id}/defaults`], ['settings', '/settings'], ['runs', `/p/${p.id}/runs`], ['git', `/p/${p.id}/git`], ['projects', '/projects']]) {
             await page.setViewportSize({ width: 1440, height: 1000 });
             await page.goto(base + '/#' + route);
             if (name === 'git') await page.getByRole('navigation', { name: 'Git sections' }).waitFor({ timeout: 120000 });

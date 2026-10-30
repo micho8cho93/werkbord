@@ -91,7 +91,7 @@ let child, browser, server, activePage;
   await page.getByRole('heading',{name:'You’re ready to use Werkbord',exact:true}).waitFor();
   assert((await api('GET','/onboarding')).completedAt);
   await page.getByRole('button',{name:'Open my workspace',exact:true}).click();
-  await page.waitForURL('**/#/p/'+project.id+'/board');
+  await page.waitForURL('**/#/p/'+project.id+'/work');
   await page.reload();
   assert.equal(await page.getByRole('dialog',{name:'Let’s set up Werkbord',exact:true}).count(),0);
   console.log('PASS guided setup: ordering, explicit optional choices, pause/reload, repository persistence, readiness and completion errors, themes and narrow browser');

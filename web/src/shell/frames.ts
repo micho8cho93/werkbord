@@ -24,6 +24,7 @@ export interface MessageLike {
 }
 
 export interface Deps {
+  workSalie?(workspace: string, project: string, plan: string): void;
   runSession?(projectId: string, runId: string): void;
   onboarding?(required: boolean, paused: boolean): void;
   saliePlacement?(value?: SaliePlacements): SaliePlacements;
@@ -128,6 +129,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       d.reply(frame, { type: 'werkbord.salie-placement', value });
     }
     else if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    else if (m.event === 'work_salie' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && (m.planId === undefined || typeof m.planId === 'string' && /^[\w-]{1,120}$/.test(m.planId))) d.workSalie?.(frame.id, m.projectId, typeof m.planId === 'string' ? m.planId : '');
     else if (m.event === 'run_session' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && typeof m.runId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && /^[\w-]{1,120}$/.test(m.runId)) d.runSession?.(m.projectId, m.runId);
     else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
       const problem = await d.reauth?.(frame.id, m.manual === true);

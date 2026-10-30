@@ -118,11 +118,11 @@ async function api(route) {
     await page.unroute(`${base}/api/projects`);
 
     // Work projects retain Overview and planning, with no repository-only weekly tabs.
-    await page.goto(`${base}/#/p/${work.id}/board`);
+    await page.goto(`${base}/#/p/${work.id}/work`);
     await page.getByRole('heading', { name: 'Venue search', exact: true }).waitFor();
     const workTabs = primary.locator('.tab');
     const workLabels = await workTabs.allTextContents();
-    assert(workLabels.some((label) => label.trim() === 'Board'));
+    assert(workLabels.some((label) => label.trim() === 'Work'));
     assert(workLabels.some((label) => label.trim() === 'Calendar'));
     for (const unavailable of ['Calendar', 'Git', 'Runs']) assert(!workLabels.some((label) => label.trim() === unavailable), `${unavailable} is not offered for a work project`);
     await primary.getByRole('button', { name: 'More', exact: true }).click();
@@ -131,12 +131,12 @@ async function api(route) {
 
     const task = (await api(`/api/projects/${repo.id}/tasks`)).tasks.find((item) => item.title === 'Dark mode audit');
     assert(task, 'fixture must contain the seeded task used to check task-panel return');
-    await page.goto(`${base}/#/p/${repo.id}/board`);
+    await page.goto(`${base}/#/p/${repo.id}/work`);
     await page.goto(`${base}/#/p/${repo.id}/task/${task.id}`);
     await page.getByRole('link', { name: 'Back to the board', exact: true }).waitFor();
     await page.getByRole('link', { name: 'Back to the board', exact: true }).click();
-    await page.waitForFunction((id) => location.hash === `#/p/${id}/board`, repo.id);
-    assert.match(page.url(), new RegExp(`#\\/p\\/${repo.id}\\/board$`), 'closing a task panel returns to the owning project board');
+    await page.waitForFunction((id) => location.hash === `#/p/${id}/work`, repo.id);
+    assert.match(page.url(), new RegExp(`#\\/p\\/${repo.id}\\/work$`), 'closing a task panel returns to the owning project board');
 
     // At 200%-zoom-equivalent width, the chooser and bottom bar do not create document overflow.
     await page.setViewportSize({ width: 720, height: 450 });

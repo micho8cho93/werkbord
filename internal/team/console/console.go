@@ -35,7 +35,7 @@ func Handler() http.Handler {
 			http.StripPrefix("/ui/", uipresentation.Handler()).ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/motion.js" || r.URL.Path == "/board.css" || r.URL.Path == "/board-drag.js" || r.URL.Path == "/planning.css" || r.URL.Path == "/planning-drag.js" {
+		if r.URL.Path == "/motion.js" || r.URL.Path == "/work.css" || r.URL.Path == "/planning.css" || r.URL.Path == "/planning-drag.js" {
 			http.StripPrefix("/", uipresentation.Handler()).ServeHTTP(w, r)
 			return
 		}

@@ -43,5 +43,5 @@ it('keeps recovery and the exact example task reachable, while blocking unrelate
   for (const view of ['settings', 'help', 'onboarding']) expect(setupRouteAllowed(view, '')).toBe(true);
   expect(setupRouteAllowed('task', 'example', 'example')).toBe(true);
   expect(setupRouteAllowed('task', 'other', 'example')).toBe(false);
-  for (const view of ['board', 'projects', 'control', 'analytics']) expect(setupRouteAllowed(view, '')).toBe(false);
+  for (const view of ['work', 'projects', 'control', 'analytics']) expect(setupRouteAllowed(view, '')).toBe(false);
 });

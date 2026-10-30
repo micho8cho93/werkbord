@@ -23,7 +23,7 @@ outcome. Tell people to check uncertain outcomes before repeating an action.
 Use British English in new Werkbord prose: *colour*, *organise*, *authorised*, *synchronise*, *cancelled* and
 *acknowledgement*. Preserve brand and provider names, commands, API and domain identifiers, provider output, and text
 entered by people. Individual calls its board item a **task**; Team calls its coordination record a **ticket**. Explain that
-opening a Team ticket in a person's Werkbord creates a local task for the handoff. Keep **plan** for work dates shown in Calendar,
+opening a Team ticket in a person's Werkbord creates a local task for the handoff. Use **plan** for a structured group of related tasks in Work, and **planned dates** for task date ranges in Calendar,
 **schedule** for agent starts, **Review** for inspection, **Done** for completed work, and **Archive** for work removed
 from the active board.
 
@@ -486,3 +486,15 @@ The shell always sends its theme, including Device, when a workspace opens. A Te
 shown as needing an update rather than silently loading its old console. Updating an enrolled service uses verified backups
 and post-update identity and health checks for every local workspace. Personal startup also checks the running controller
 when the installed executable already matches the app: a current file does not establish that the process is current.
+
+### Work queues and structured plans
+
+Work replaces Kanban in Personal and Team. Show Now, Next and Later as vertical task groups with thin dividers;
+never use lanes or drag gestures to change lifecycle state. Derive the grouping from activity, attention, priority,
+dates and unfinished dependencies. Completed work stays in a disclosure. Name and link blocking tasks inside each row.
+Keep existing task details, review and Git confirmations, assignment and CLI session controls.
+
+Plans sit beside the queue on wide screens and follow it on narrow screens. Opening a plan shows its description,
+ordered task references, current progress, decisions, open questions and links to tasks and their sessions. Plan editing
+uses explicit Up/Down controls. Salie prepares plan changes through the existing confirmation path. The window's Work
+uses the selected project context; All Projects aggregates only currently accessible workspace projections.

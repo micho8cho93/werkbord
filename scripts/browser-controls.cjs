@@ -77,7 +77,7 @@ let browser, activePage;
  assert(await edit.getByRole('button',{name:'Save',exact:true}).isEnabled());
  await page.keyboard.press('Escape');
  await edit.waitFor({ state: 'detached' });
- await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/board`);
+ await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/work`);
  await page.getByRole('button',{name:'Switch project, current: '+p.name,exact:true}).waitFor();
  await page.locator('.head.deck').waitFor();
  await page.getByRole('button',{name:'Jump to',exact:true}).waitFor({state:'hidden'});

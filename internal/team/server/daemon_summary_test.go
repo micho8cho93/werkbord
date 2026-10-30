@@ -71,7 +71,7 @@ func TestATeamWorkspaceIsTranslatedIntoTheShellsWordsAndPassesItsStrictReader(t 
 	if len(got.Projects) != 1 || got.Projects[0].Name != "Platform" {
 		t.Fatalf("an archived project is listed: %+v", got.Projects)
 	}
-	if len(got.Work) != 2 || got.Work[0].Status != workspace.StatusDoing || got.Work[1].Status != workspace.StatusReview || got.Work[0].Href != "?tab=board&project=tpj_1&ticket=ttk_1" {
+	if len(got.Work) != 2 || got.Work[0].Status != workspace.StatusDoing || got.Work[1].Status != workspace.StatusReview || got.Work[0].Href != "?tab=work&project=tpj_1&ticket=ttk_1" {
 		t.Fatalf("work = %+v", got.Work)
 	}
 	// Only the schedules the person owns and that are not over.

@@ -39,14 +39,15 @@ const FRAMED = window.parent !== window;
 // moves about.
 const HOSTED = FRAMED && new URLSearchParams(location.search).get('hosted') === '1';
 
-const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['initiatives', 'Initiatives'], ['overview', 'Overview'], ['board', 'Board'], ['calendar', 'Calendar'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['product-map', 'Product Map'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
+const TABS = [['workspace', 'Workspace'], ['projects', 'Projects'], ['overview', 'Overview'], ['work', 'Work'], ['calendar', 'Calendar'], ['plans', 'Plans'], ['mywork', 'My Work'], ['reviews', 'Reviews'], ['repository', 'Git'], ['product-map', 'Product Map'], ['activity', 'Runs'], ['analytics', 'Analytics'], ['members', 'People'], ['people', 'Project people']];
 const ADVANCED_TABS = new Set(['hosts', 'connectivity']);
 const ADMIN_TABS = [['settings', 'This computer'], ['mcp', 'MCP clients'], ['labels', 'Labels'], ['devices', 'Devices'], ['hosts', 'Workspace Hosts'], ['connectivity', 'Connectivity'], ['backups', 'Backups']];
-const PROJECT_TABS = new Set(['product-map', 'overview', 'board', 'calendar', 'repository', 'activity', 'people', 'project-settings']);
+const PROJECT_TABS = new Set(['product-map', 'overview', 'work', 'calendar', 'repository', 'activity', 'people', 'project-settings']);
 // The team's own sub-areas, in the order of their tabs. They are the team as a major part; a project's are PROJECT_TABS.
-const WORKSPACE_TABS = ['workspace', 'projects', 'initiatives', 'members'];
+const WORKSPACE_TABS = ['workspace', 'projects', 'members'];
 const SETTINGS_PARTS = new Set(['computer', 'phones', 'memory', 'history']);
 
+if (new URLSearchParams(location.search).get('tab') === 'board') { const url = new URL(location.href); url.searchParams.set('tab','work'); history.replaceState(null,'',url); }
 const state = {
   token: null, me: null, tab: 'workspace', projectId: null, ticketId: null, secret: null, error: '', info: '',
   invite: null,   // an invite code from the address, waiting to be used
@@ -56,7 +57,6 @@ const state = {
   showArchived: false, newTicketOpen: false, repoSection: 'attention', wsSegment: 'all',
   advancedSettings: false, archiveProjectId: '',
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
-  filter: { labels: [], match: 'any' }, // the board's label filter: a way of looking, never stored
   calendarAnchor: null,
   online: true,   // whether the live connection to the server is up
   desktop: null, device: null, joinLink: null,
@@ -127,7 +127,7 @@ function icon(name) {
   const shapes = {
     workspace: [['rect',{width:'7',height:'7',x:'3',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'3',rx:'1'}],['rect',{width:'7',height:'7',x:'14',y:'14',rx:'1'}],['rect',{width:'7',height:'7',x:'3',y:'14',rx:'1'}]],
     projects: [['path',{d:'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'}],['path',{d:'M8 10v4'}],['path',{d:'M12 10v2'}],['path',{d:'M16 10v6'}]],
-    board: [['rect',{width:'18',height:'18',x:'3',y:'3',rx:'2'}],['path',{d:'M8 7v7'}],['path',{d:'M12 7v4'}],['path',{d:'M16 7v9'}]],
+    work: [['rect',{width:'18',height:'18',x:'3',y:'3',rx:'2'}],['path',{d:'M8 7v7'}],['path',{d:'M12 7v4'}],['path',{d:'M16 7v9'}]],
     plans: [['path',{d:'M13 5h8'}],['path',{d:'M13 12h8'}],['path',{d:'M13 19h8'}],['path',{d:'m3 17 2 2 4-4'}],['rect',{x:'3',y:'4',width:'6',height:'6',rx:'1'}]],
     mywork: [['rect',{width:'8',height:'4',x:'8',y:'2',rx:'1',ry:'1'}],['path',{d:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'}],['path',{d:'m9 14 2 2 4-4'}]],
     reviews: [['circle',{cx:'18',cy:'18',r:'3'}],['circle',{cx:'6',cy:'6',r:'3'}],['path',{d:'M6 21V9a9 9 0 0 0 9 9'}]],
@@ -190,12 +190,12 @@ function navigation(counts) {
   return h('aside', { class: 'rail', 'aria-label': 'Werkbord Team navigation' },
     h('button', { class: 'brand-home', type: 'button', onclick: () => go('workspace'), 'aria-label': 'Werkbord Team workspace' }, brand()),
     h('div', { class: 'workspace-name', title: state.me.workspace.name }, state.me.workspace.name),
-    h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.filter(([id]) => ['workspace', 'projects', 'initiatives', 'reviews', 'members', 'analytics'].includes(id)).map(([id, label]) =>
+    h('nav', { class: 'rail-primary', 'aria-label': 'Werkbord Team' }, TABS.filter(([id]) => ['workspace', 'projects', 'reviews', 'members', 'analytics'].includes(id)).map(([id, label]) =>
       h('button', { name: 'nav-' + id, type: 'button', 'aria-label': label, 'aria-description': counts[id] ? plural(counts[id], 'ticket') : null, 'aria-current': navTab() === id ? 'page' : null, onclick: () => go(id) }, icon(id), h('span', { class: 'nav-label' }, label),
         badgeOn(counts[id], id === 'repository' ? 'bad' : id === 'reviews' ? '' : 'quiet')))),
     projects.length ? h('nav', { class: 'project-links', 'aria-label': 'Projects' },
       h('span', { class: 'lab' }, 'Projects'),
-      projects.map(p => h('button', { type: 'button', 'aria-label': 'Open project ' + p.project.name, 'aria-current': PROJECT_TABS.has(state.tab) && state.projectId === p.project.id ? 'true' : null, title: p.project.name, onclick: () => openProject(p.project.id, PROJECT_TABS.has(state.tab) ? state.tab : 'board') },
+      projects.map(p => h('button', { type: 'button', 'aria-label': 'Open project ' + p.project.name, 'aria-current': PROJECT_TABS.has(state.tab) && state.projectId === p.project.id ? 'true' : null, title: p.project.name, onclick: () => openProject(p.project.id, PROJECT_TABS.has(state.tab) ? state.tab : 'work') },
         h('span', { class: 'project-dot', 'aria-hidden': 'true' }), h('span', { class: 'nav-label' }, p.project.name), badgeOn(p.toReview)))) : '',
     h('div', { class: 'rail-foot' },
       h('nav', { class: 'rail-settings', 'aria-label': 'Settings' }, h('button', { name: 'nav-settings', type: 'button', 'aria-label': 'Settings', 'aria-current': settingsTab() ? 'page' : null, onclick: () => go('settings') }, icon('settings'), h('span', {}, 'Settings'))),
@@ -469,8 +469,8 @@ function askForSettings(tab, part) {
   window.parent.postMessage({ type: 'werkbord.frame', event: 'settings', place }, '*');
 }
 function go(tab, part) { if (FRAMED && !HOSTED && ADMIN_TABS.some(([id]) => id === tab)) return askForSettings(tab, part); focusMain = true; if (tab === 'settings') state.settingsPart = SETTINGS_PARTS.has(part) ? part : state.settingsPart; state.tab = tab; state.ticketId = null; state.handoff = null; state.secret = null; state.error = ''; state.validationIssues = []; state.info = ''; remember(); return render(); }
-function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'board'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
-function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && state.tab === 'calendar'; state.projectId = projectId; if (!keepCalendar) state.tab = 'board'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
+function openProject(id, tab) { focusMain = true; state.projectId = id; state.tab = tab || 'work'; state.ticketId = null; state.handoff = null; state.data = null; state.secret = null; state.validationIssues = []; remember(); return render(); }
+function openTicket(projectId, ticketId) { const keepCalendar = state.projectId === projectId && state.tab === 'calendar'; state.projectId = projectId; if (!keepCalendar) state.tab = 'work'; state.ticketId = ticketId; state.handoff = null; state.data = null; state.validationIssues = []; remember(); return render(); }
 function openInRunner(it) { return act(async () => { state.handoff = await api('POST', itemPath(it) + '/handoff'); }); }
 function itemPath(it) { return '/projects/' + it.project.id + '/tickets/' + it.ticket.id; }
 
@@ -493,7 +493,7 @@ let rendering = Promise.resolve();
 function render() { rendering = rendering.then(renderNow, renderNow); return rendering; }
 
 async function renderNow() {
-  if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
+  if (document.querySelector('.planning-dragging')) return;
   const requestedScope = screenScope();
   // An error belongs to the screen it happened on. It does not follow the person to the next one.
   if (state.error && errorScope && errorScope !== requestedScope) state.error = '';
@@ -523,7 +523,6 @@ async function renderNow() {
     switch (state.tab) {
       case 'workspace': body = await workspaceView(); break;
       case 'projects': body = await projectsView(); break;
-      case 'initiatives': body = await initiativesView(); break;
       case 'mywork': body = await myWorkView(); break;
       case 'reviews': body = await reviewsView(); break;
       case 'members': body = await membersView(); break;
@@ -546,7 +545,7 @@ async function renderNow() {
   const ov = state.ov;
   const counts = {
     workspace: ov.mentions || 0,
-    board: sum(ov.projects, (p) => p.counts.available || 0),
+    work: sum(ov.projects, (p) => p.counts.available || 0),
     plans: 0,
     mywork: sum(ov.projects, (p) => p.mine),
     reviews: sum(ov.projects, (p) => p.toReview),
@@ -554,14 +553,14 @@ async function renderNow() {
   };
   const projectScreen = PROJECT_TABS.has(state.tab) && !!state.data?.board;
   const title = projectScreen ? state.data.board.project.name : settingsTab() ? 'Settings' : TABS.find(([id]) => id === navTab())?.[1] || 'Projects';
-  if (draggedTicket || document.querySelector('.pointer-dragging, .planning-dragging')) return;
+  if (document.querySelector('.planning-dragging')) return;
   const motion = window.WerkbordMotion;
-  const motionBefore = motion?.snapshot(app, '[data-board-item], [data-plan-item]');
+  const motionBefore = motion?.snapshot(app, '[data-task-id], [data-plan-item]');
   const chartsBefore = motion?.chartSnapshot(app);
-  const nextMotionFilter = JSON.stringify([state.filter, state.showArchived, state.ownTickets, state.calendarAnchor]);
+  const nextMotionFilter = JSON.stringify([state.showArchived, state.ownTickets, state.calendarAnchor]);
   const animateSaved = renderedScope === screenScope() && state.online && !motionResync && motionFilter === nextMotionFilter;
   motionFilter = nextMotionFilter;
-  app.replaceChildren(h('div', { class: 'app-shell' + (state.tab === 'board' ? ' is-board' : '') + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
+  app.replaceChildren(h('div', { class: 'app-shell' + (FRAMED ? ' framed' : '') + (HOSTED ? ' hosted' : '') },
     h('button', { class: 'skip-link', onclick: () => app.querySelector('#main-title').focus() }, 'Skip to content'),
     navigation(counts),
     h('main', { class: 'main-pane' },
@@ -576,7 +575,7 @@ async function renderNow() {
     upgradeDialog()));
   for (const dlg of app.querySelectorAll('dialog.ticket-dialog, dialog.upgrade-dialog')) if (!dlg.open) dlg.showModal();
   restore(app, keep, previousScope === screenScope());
-  if (animateSaved) motion?.layout(app, motionBefore, '[data-board-item], [data-plan-item]', true);
+  if (animateSaved) motion?.layout(app, motionBefore, '[data-task-id], [data-plan-item]', true);
   motion?.charts(app, renderedScope === screenScope() ? chartsBefore : undefined);
   motionResync = false;
   revealComment();
@@ -642,7 +641,7 @@ function joinScreen() {
       h('div', { class: 'actions' },
         h('button', { class: 'primary', onclick: () => act(async () => {
           const j = await api('POST', '/invites/join', { code });
-          done(); state.tab = 'board'; state.projectId = j.project.id; remember(); state.info = 'You joined ' + j.project.name + '.';
+          done(); state.tab = 'work'; state.projectId = j.project.id; remember(); state.info = 'You joined ' + j.project.name + '.';
         }) }, 'Join the project'),
         h('button', { class: 'plain', onclick: () => { done(); render(); } }, 'Not now')));
   } else {
@@ -653,7 +652,7 @@ function joinScreen() {
           const j = await api('POST', '/invites/redeem', { code, name: name.value, email: email.value });
           done();
           try { sessionStorage.setItem(KEY('token'), j.token); } catch (_) {}
-          state.token = j.token; state.tab = 'board'; state.projectId = j.project.id; remember();
+          state.token = j.token; state.tab = 'work'; state.projectId = j.project.id; remember();
           state.secret = { kind: 'token', name: j.member.name, self: true, token: j.token };
           state.info = 'Welcome to ' + j.project.name + '. Keep your token somewhere safe: it is how you sign in again.';
         }); } },
@@ -779,7 +778,7 @@ async function workspaceView() {
         h('button', { type: 'button', class: 'link', onclick: () => openTicket(it.project.id, it.ticket.id) }, it.ticket.key + ' · ' + it.ticket.title),
         h('p', { class: 'muted small' }, it.project.name + ' · ' + (it.ticket.assigneeId === me ? 'You' : it.author || 'a former member')),
         h('div', { class: 'cc-run-meta' }, h('span', { class: 'badge' }, statusName(it.ticket.status)), mergeBadge(it), when(it.ticket.updatedAt))))
-    : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain small', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open board' : can('projects.create') ? 'Create a project' : 'Join a project'));
+    : h('div', { class: 'empty-state' }, h('p', { class: 'muted' }, 'No work in progress.'), h('button', { class: 'plain small', onclick: () => best ? openProject(best.project.id) : go('projects') }, best ? 'Open Work' : can('projects.create') ? 'Create a project' : 'Join a project'));
   const shortcut = (label, count, click, tone) => h('button', { type: 'button', class: 'cc-shortcut', onclick: click }, label, h('span', { class: 'badge' + (tone ? ' ' + tone : '') }, String(count)));
 
   const totals = [['Available', ov.available], ['In progress', sum(ov.projects, p => p.counts.in_progress || 0)], ['To review', toReview], ['Your tickets', mine]];
@@ -873,12 +872,12 @@ function projectHistoryPanel() {
 async function projectsView() {
   const projects = state.ov.projects.filter(({ project }) => !project.archived);
   const rows = projects.map(p => h('article', { class: 'project-card' },
-    h('header', {}, h('button', { class: 'link project-card-title', onclick: () => openProject(p.project.id, 'board') }, p.project.name),
+    h('header', {}, h('button', { class: 'link project-card-title', onclick: () => openProject(p.project.id, 'work') }, p.project.name),
       h('span', { class: 'badge' }, p.member ? p.role : 'not a member')),
     p.project.repository ? h('p', { class: 'project-card-repository' }, icon('repository'), p.project.repository) : '',
     p.project.description ? h('p', { class: 'project-card-description' }, p.project.description) : '',
     h('dl', { class: 'project-card-counts' }, ['available', 'in_progress', 'review', 'done'].map(status => h('div', {}, h('dt', {}, statusName(status)), h('dd', {}, String(p.counts[status] || 0))))),
-    h('footer', { class: 'actions' }, h('button', { class: 'plain open small', onclick: () => openProject(p.project.id, 'board') }, 'Open board'),
+    h('footer', { class: 'actions' }, h('button', { class: 'plain open small', onclick: () => openProject(p.project.id, 'work') }, 'Open Work'),
       p.toReview ? h('span', { class: 'badge warn' }, plural(p.toReview, 'review') + ' for you') : '')));
   const list = h('section', { class: 'projects-list', 'aria-label': 'Active projects' },
     h('h2', {}, 'Projects', h('span', { class: 'badge' }, String(projects.length))),
@@ -888,7 +887,7 @@ async function projectsView() {
   panels.push(h('details', { class: 'panel project-tool' }, h('summary', {}, 'Join a project with a code'),
     h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
         const j = await api('POST', '/invites/join', { code: code.value.trim() });
-        code.value = ''; state.projectId = j.project.id; state.tab = 'board'; state.data = null; remember(); state.info = 'You joined ' + j.project.name + '.'; }); } },
+        code.value = ''; state.projectId = j.project.id; state.tab = 'work'; state.data = null; remember(); state.info = 'You joined ' + j.project.name + '.'; }); } },
       field('Invite code', code), h('button', { class: 'primary' }, 'Join'))));
   if (can('projects.create')) {
     const name = h('input', { name: 'p-name', required: true, maxlength: 80 });
@@ -896,7 +895,7 @@ async function projectsView() {
     const repo = h('input', { name: 'p-repo', placeholder: 'https://github.com/owner/repo (optional)', maxlength: 2048 });
     panels.unshift(h('details', { class: 'panel project-tool', open: !projects.length }, h('summary', {}, 'New project'),
       h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => { const p = await api('POST', '/projects', { name: name.value, description: desc.value, repository: repo.value });
-          name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'board'; state.data = null; remember(); }); } },
+          name.value = ''; desc.value = ''; repo.value = ''; state.projectId = p.id; state.tab = 'work'; state.data = null; remember(); }); } },
         field('Name', name), field('Description (optional)', desc), field('Repository', repo), h('button', { class: 'primary' }, 'Create'))));
   }
   return h('div', { class: 'projects-page' }, list, h('aside', { class: 'project-tools', 'aria-label': 'Manage projects' }, panels, h('details', { class: 'project-history' }, h('summary', {}, 'Project history'), projectHistoryPanel())));
@@ -909,6 +908,7 @@ async function loadProject() {
   const id = state.projectId;
   const board = await api('GET', '/projects/' + id + '/board');
   const d = { id, board, tab: state.tab };
+  if (state.tab === 'work') d.plansView = await initiativesView(id).catch(e => h('p', { class: 'error', role: 'alert' }, 'Plans unavailable: ' + e.message));
   if (state.ticketId) {
     d.ticket = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId);
     d.progress = await api('GET', '/projects/' + id + '/tickets/' + state.ticketId + '/progress').catch(() => []);
@@ -923,7 +923,7 @@ async function loadProject() {
   }
   if (state.tab === 'product-map') d.productMap = await api('GET', '/projects/' + id + '/product-map');
   if (state.tab === 'repository') d.repo = await api('GET', '/projects/' + id + '/repository');
-  if (state.tab === 'activity' || state.tab === 'board') {
+  if (state.tab === 'activity' || state.tab === 'work') {
     d.progressReports = await Promise.all(board.tickets.filter(k => k.assigneeId === state.me.member.id).map(async k => ({ ticket: k, progress: await api('GET', '/projects/' + id + '/tickets/' + k.id + '/progress').catch(() => []) })));
   }
   if (state.tab === 'people' || state.tab === 'project-settings') {
@@ -961,10 +961,11 @@ async function projectScopedView() {
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['board', 'Board', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['product-map', 'Product Map', 0]]);
+  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['work', 'Work', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0], ['product-map', 'Product Map', 0]]);
   const calendarLacking = state.tab === 'calendar' && d.timeline === null ? await hostOutdatedView() : null;
-  const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : boardTab(d);
+  const content = state.tab === 'product-map' ? productMapTab(d) : state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : workTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
+  if (new URLSearchParams(location.search).get('new') === 'task') {state.newTicketOpen = true;const url=new URL(location.href);url.searchParams.delete('new');history.replaceState(null,'',url);}
   const newTicket = pcan('tickets.create') && !p.archived ? h('button', { class: 'primary', title: 'New ticket (N)', onclick: () => { state.newTicketOpen = true; render(); } }, 'New ticket') : '';
   let view = content;
   if (state.tab === 'calendar' && state.ticketId) {
@@ -1053,7 +1054,7 @@ function projectOverviewTab(d) {
   return h('section', { class: 'panel' }, h('h2', {}, b.project.name), b.project.description ? h('p', {}, b.project.description) : '',
     h('div', { class: 'overview-counts' }, b.statuses.map(s => h('p', {}, h('strong', {}, String(b.tickets.filter(k => k.status === s.status).length)), ' ' + s.label))),
     h('p', { class: 'muted' }, 'Work is coordinated here. Git and execution evidence is provided by each member’s own Werkbord.'),
-    h('button', { class: 'primary', onclick: () => openProject(d.id, 'board') }, 'Open board'),
+    h('button', { class: 'primary', onclick: () => openProject(d.id, 'work') }, 'Open Work'),
     h('section', { class: 'mentions-block overview-mentions', 'aria-label': 'Mentions in this project' }, h('div', { class: 'section-head' }, h('h3', {}, 'Mentions'),
       d.mentions && d.mentions.unread ? h('span', { class: 'badge warn', title: 'Unread mentions in this project' }, String(d.mentions.unread)) : ''),
       mentionRows(d.mentions, 'No unread mentions in this project.')));
@@ -1302,21 +1303,7 @@ function personName(d, id) {
   return p ? p.name : 'a former member';
 }
 
-let draggedTicket = null;
 const pendingTickets = new Set();
-function dropAction(d, k, to) {
-  if (!k || k.archivedAt || pendingTickets.has(k.id) || k.status === to) return null;
-  const holder = k.assigneeId === state.me.member.id || pcan('tickets.assign');
-  // Dropping an available ticket into In progress claims it, like the Claim button.
-  if (to === 'in_progress' && k.status === 'available' && !k.assigneeId && d.board.member && pcan('tickets.claim')) return ['claim'];
-  if (to === 'in_progress' && k.status === 'available' && k.assigneeId === state.me.member.id) return ['start-work']; // claimed before claiming moved a ticket
-  if (k.status === 'in_progress' && to === 'available' && holder) return ['release'];
-  if (k.status === 'review' && to === 'in_progress' && pcan('tickets.review') && k.assigneeId) return ['request-changes', { note: '' }];
-  if (k.status === 'in_progress' && to === 'review' && holder) return ['submit', {}];
-  if (k.status === 'review' && to === 'done' && pcan('tickets.review') && !d.board.completion[k.id]) return ['complete'];
-  if (k.status === 'done' && to === 'available' && pcan('tickets.reopen')) return ['move', { status: to }];
-  return null;
-}
 // Ownership is the only board filter; saved labels remain available to reports.
 function matchesFilter(k) { return !state.ownTickets || k.assigneeId === state.me.member.id; }
 
@@ -1328,29 +1315,16 @@ function labelChip(l) {
   return chip;
 }
 
-function boardTab(d) {
-  const b = d.board;
-  const toolbar = h('div', { class: 'actions board-tools' },
-    choiceGroup('Whose tickets', [['all', 'All tickets'], ['own', 'My tickets (' + b.tickets.filter(k => k.assigneeId === state.me.member.id).length + ')']], w => (w === 'own') === !!state.ownTickets, w => { state.ownTickets = w === 'own'; render(); }, 'actions', false),
-    h('button', { class: 'plain', 'aria-pressed': state.showArchived, onclick: () => { state.showArchived = !state.showArchived; render(); } }, state.showArchived ? 'Back to board' : 'Archive (' + (b.archived || []).length + ')'),
-    '');
-  const cols = b.statuses.map((s) => {
-    const items = b.tickets.filter((k) => k.status === s.status && matchesFilter(k));
-    return h('section', { class: 'col', 'aria-label': s.label, 'data-board-column': s.status,
-      ondragover: e => { const k = b.tickets.find(t => t.id === draggedTicket); if (!k) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop-over'); },
-      ondragleave: e => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop-over'); },
-      ondrop: e => { e.preventDefault(); e.currentTarget.classList.remove('drop-over'); const k = b.tickets.find(t => t.id === draggedTicket || t.id === e.dataTransfer?.getData('text/plain')); draggedTicket = null; if (k) performBoardDrop(d, k, s.status); }
-    },
-      h('h3', {}, s.label, ' ', h('span', { class: 'badge' }, String(items.length))),
-      h('div', { class: 'column-cards', 'data-scroll-key': 'column-' + s.status }, items.length ? items.map((k) => card(d, k)) : h('p', { class: 'muted small' }, 'No tickets here yet.')));
-  });
-  let open = null;
-  if (state.ticketId) {
-    const k = [...b.tickets, ...(b.archived || [])].find((x) => x.id === state.ticketId);
-    if (k) open = ticketPanel(d, d.ticket || k); else state.ticketId = null;
-  }
-  return h('div', { class: 'board-view' }, toolbar,
-    h('div', { class: 'tboard' + (open ? ' with-ticket' : '') }, state.showArchived ? archiveTab(d) : h('div', { class: 'board', role: 'region', 'aria-label': 'Kanban board', 'data-board': '', tabindex: '0', 'data-scroll-key': 'kanban-board' }, cols), open || ''));
+function workTab(d) {
+ const b=d.board;
+ const toolbar=h('div',{class:'actions work-tools'},choiceGroup('Whose tasks',[['all','All tasks'],['own','My tasks']],w=>(w==='own')===!!state.ownTickets,w=>{state.ownTickets=w==='own';render();},'actions',false),
+ h('button',{class:'plain','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;render();}},state.showArchived?'Back to Work':'Archive ('+(b.archived||[]).length+')'));
+ const group=k=>{const own=k.assigneeId===state.me.member.id?ownAgentRun(d,k):null;return WerkbordWork.group({done:k.status==='done',active:k.status==='in_progress',attention:k.status==='review'||['blocked','failed','needs_input'].includes(own?.run),blocked:(k.dependencies||[]).some(id=>b.tickets.find(t=>t.id===id)?.status!=='done'),start:k.plan?.start});};
+ const rows=k=>{const blocked=(k.dependencies||[]).filter(id=>b.tickets.find(t=>t.id===id)?.status!=='done');return h('div',{},card(d,k),blocked.length?h('p',{class:'work-blocked'},'Blocked by ',blocked.map(id=>{const dep=b.tickets.find(t=>t.id===id);return dep?h('button',{class:'link',onclick:()=>openTicket(d.id,id)},dep.title):'Unavailable task';})): '');};
+ const groups=[['now','Now','Active work and immediate priorities'],['next','Next','Ready to pick up'],['later','Later','Planned or waiting on dependencies']].map(([id,title,detail])=>{const items=b.tickets.filter(k=>matchesFilter(k)&&group(k)===id);return h('section',{class:'work-group','aria-label':title},h('header',{},h('h2',{},title),h('span',{class:'badge'},String(items.length)),h('span',{class:'muted small'},detail)),items.length?items.map(rows):h('p',{class:'muted small'},'No tasks here.'));});
+ const done=b.tickets.filter(k=>matchesFilter(k)&&k.status==='done');
+ let open=null;if(state.ticketId){const k=[...b.tickets,...(b.archived||[])].find(k=>k.id===state.ticketId);if(k)open=ticketPanel(d,d.ticket||k);else state.ticketId=null;}
+ return h('div',{class:'work-view'},toolbar,h('div',{class:'work-layout'},h('div',{class:'work-queue','aria-label':'Work queue'},state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),done.map(rows)):'']),h('aside',{'aria-label':'Structured plans'},d.plansView||'')),open||'');
 }
 function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
@@ -1403,8 +1377,7 @@ function card(d, k) {
     : k.status === 'available' && k.assigneeId ? 'Claimed · ready to start' : statusName(k.status);
   const canStartAgent = mine && state.desktop && agentWork && k.status === 'in_progress' && !running && run !== 'blocked' && !k.archivedAt;
   const open = () => openTicket(d.id, k.id);
-  return h('article', { class: 'card work-card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), 'data-board-item': k.id, 'data-work-state': k.status, draggable: !pendingTickets.has(k.id), 'aria-busy': pendingTickets.has(k.id), ondragstart: e => { draggedTicket = k.id; e.dataTransfer.setData('text/plain', k.id); e.dataTransfer.effectAllowed = 'move'; }, ondragend: () => { draggedTicket = null; document.querySelectorAll('.drop-over').forEach(el => el.classList.remove('drop-over')); void render(); } },
-    h('button', { type: 'button', 'data-drag-handle': '', draggable: false, 'aria-label': 'Move ticket: ' + k.title, title: 'Drag to a column, or use Left and Right arrows' }, icon('board')),
+  return h('article', { class: 'card work-card' + (mine ? ' mine' : '') + (k.id === state.ticketId ? ' open' : ''), 'data-task-id': k.id, 'data-work-state': k.status, 'aria-busy': pendingTickets.has(k.id) },
     h('div', { class: 'muted small' }, k.key),
     h('button', { class: 'link title', onclick: () => { state.ticketId = k.id === state.ticketId ? null : k.id; state.handoff = null; remember(); render(); } }, k.title),
     pendingTickets.has(k.id) || status !== statusName(k.status) ? h('p', { class: 'work-status' }, status) : '',
@@ -1879,7 +1852,7 @@ function peopleTab(d) {
 
 function readLocation() {
  const q = new URLSearchParams(location.search);
- const tab = q.get('tab') === 'timeline' ? 'calendar' : q.get('tab');
+ const tab = q.get('tab') === 'board' ? 'work' : q.get('tab') === 'timeline' ? 'calendar' : q.get('tab');
  state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
  if (FRAMED && !HOSTED && ADMIN_TABS.some(x => x[0] === state.tab)) state.tab = 'workspace'; // the window's own Settings shows these
  state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
@@ -1897,7 +1870,7 @@ window.addEventListener('keydown', e => {
   }
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
   if (e.key === 'Escape' && state.ticketId) { e.preventDefault(); state.ticketId = null; state.handoff = null; remember(); render(); }
-  if (e.key.toLowerCase() === 'n' && state.tab === 'board' && pcan('tickets.create') && !state.data.board.project.archived) {
+  if (e.key.toLowerCase() === 'n' && state.tab === 'work' && pcan('tickets.create') && !state.data.board.project.archived) {
     e.preventDefault(); state.newTicketOpen = true; render().then(() => app.querySelector('[name="t-title"]')?.focus());
   }
 });
@@ -2144,31 +2117,6 @@ async function analyticsView() {
       r.truncated ? h('p', { class: 'warning', role: 'status' }, 'Some history is unavailable. Totals may be incomplete.') : '', body));
 }
 
-function dropRefusal(d, k, to) {
-  if (d.board.project.archived) return 'Unarchive this project before moving tickets.';
-  if (to === 'done' && k.status === 'review') return d.board.completion[k.id] || 'You need review permission to complete this ticket.';
-  if (to === 'review') return k.status !== 'in_progress' ? 'Claim this ticket first. When its agent finishes, it moves to Review by itself.' : 'Only its owner or a project owner can submit this ticket for review.';
-  if (to === 'in_progress') return !d.board.member ? 'Join this project before claiming a ticket.' : k.status === 'available' ? 'You need permission to claim tickets on this project.' : k.status === 'review' ? 'Only a reviewer can send a ticket in Review back for changes.' : 'Reopen this ticket first.';
-  if (to === 'available' && k.status === 'in_progress') return 'Only its owner or a project owner can release it.';
-  return 'This move needs the ticket’s normal workflow action or your project owner’s permission. Open the ticket to see the available actions.';
-}
-function performBoardDrop(d, k, to) {
-  if (actionBusy || pendingTickets.has(k.id) || k.status === to) return;
-  const action = dropAction(d, k, to);
-  if (!action) { toast('Kept in ' + statusName(k.status) + '. ' + dropRefusal(d, k, to)); return; }
-  pendingTickets.add(k.id);
-  act(async () => {
-    try { await api('POST', projectPath(k) + '/' + action[0], action[1]); }
-    catch (error) { toast('Move could not be completed. ' + error.message); throw error; }
-    finally { pendingTickets.delete(k.id); }
-  });
-}
-document.addEventListener('werkbord-board-drop', event => {
-  const { id, state: to } = event.detail, d = state.data;
-  const k = d?.board?.tickets.find(k => k.id === id);
-  if (k) performBoardDrop(d, k, to);
-});
-
 // Calendar gestures use the same versioned plan and schedule operations as the editor.
 function planAttrs(k, schedule) {
   const span = schedule ? { start: TL.localToday(new Date(schedule.at).getTime()), end: TL.localToday(new Date(schedule.at).getTime()) } : TL.spanOf(k);
@@ -2234,24 +2182,29 @@ window.addEventListener('message', async event => {
 // Initiatives coordinate references; project boards remain the place to work.
 let initiativeEditor;
 let initiativeEditorIdentity;
-async function initiativesView() {
-  const [rows, initiativePeople] = await Promise.all([api('GET', '/initiatives'), api('GET', '/members')]);
+async function initiativesView(projectId) {
+  const [allRows, initiativePeople] = await Promise.all([api('GET', '/initiatives'), api('GET', '/members')]);
+  const rows = projectId ? allRows.filter(v => v.initiative.projectIds.includes(projectId)) : allRows;
   const ownerNames = new Map(initiativePeople.map(m => [m.id, m.name]));
   const identity = state.me.workspace.id + ':' + state.me.member.id;
   if (initiativeEditorIdentity !== identity) { initiativeEditor = h('div'); initiativeEditorIdentity = identity; }
   const editor = initiativeEditor;
   if (editor.dataset.initiative && !rows.some(v => v.initiative.id === editor.dataset.initiative)) editor.replaceChildren();
   const edit = async (original) => {
-    const i = original || { title: '', objective: '', status: 'active', projectIds: [], tickets: [], dependencies: [], memories: [], version: 0 };
+    const i = original || { title: '', objective: '', status: 'active', projectIds: projectId ? [projectId] : [], tickets: [], dependencies: [], memories: [], version: 0 };
     const title = h('input', { name: 'initiative-title', value: i.title, required: true, maxlength: 200 });
+    const decisions = h('textarea', { name: 'plan-decisions', 'aria-label': 'Decisions', maxlength: 20000 }, i.decisions || '');
+    const questions = h('textarea', { name: 'plan-questions', 'aria-label': 'Open questions', maxlength: 20000 }, i.questions || '');
     const objective = h('textarea', { name: 'initiative-objective', required: true, maxlength: 20000 }, i.objective);
     const status = h('select', { name: 'initiative-status', 'aria-label': 'Status' }, ['planned', 'active', 'paused', 'completed', 'archived'].map(s => h('option', { value: s, selected: s === i.status }, s)));
     const people = await api('GET', '/members');
     const owner = h('select', { name: 'initiative-owner', 'aria-label': 'Owner' }, people.map(m => h('option', { value: m.id, selected: m.id === (i.ownerId || state.me.member.id) }, m.name)));
-    const projects = new Set(i.projectIds), tickets = new Map(i.tickets.map(t => [t.ticketId, t]));
+    const projects = new Set(i.projectIds || []), tickets = new Map((i.tickets || []).map(t => [t.ticketId, t]));
     const choices = h('div', { class: 'stack' });
-    const dependencies = [...i.dependencies];
-    const memories = new Map(i.memories.map(m => [m.memoryId, m]));
+    const order = h('div');
+    const showOrder = () => { const refs=[...tickets.values()]; order.replaceChildren(...refs.map((ref,n)=>h('div',{class:'row'},h('span',{class:'grow'},(n+1)+'. '+(names.get(ref.ticketId)||ref.ticketId)),h('button',{type:'button',class:'plain small',disabled:n===0,onclick:()=>{[refs[n-1],refs[n]]=[refs[n],refs[n-1]];tickets.clear();refs.forEach(r=>tickets.set(r.ticketId,r));showOrder();}},'Up'),h('button',{type:'button',class:'plain small',disabled:n===refs.length-1,onclick:()=>{[refs[n+1],refs[n]]=[refs[n],refs[n+1]];tickets.clear();refs.forEach(r=>tickets.set(r.ticketId,r));showOrder();}},'Down')))); };
+    const dependencies = [...(i.dependencies || [])];
+    const memories = new Map((i.memories || []).map(m => [m.memoryId, m]));
     const memoryChoices = h('div', { class: 'stack' });
     const dependencyList = h('div');
     const from = h('select', { 'aria-label': 'Prerequisite ticket' });
@@ -2264,40 +2217,42 @@ async function initiativesView() {
     for (const { p, board, memory } of available) {
       const selected = h('input', { type: 'checkbox', checked: projects.has(p.id), onchange: e => { if (e.target.checked) projects.add(p.id); else projects.delete(p.id); } });
       choices.append(field(p.name, selected));
-      for (const m of memory.records.filter(m => m.state === 'published')) {
+      for (const m of (memory.records || []).filter(m => m.state === 'published')) {
         memoryChoices.append(field(p.name + ' · ' + m.content.summary, h('input', { type: 'checkbox', checked: memories.has(m.id), onchange: e => { if (e.target.checked) { memories.set(m.id, { projectId: p.id, memoryId: m.id }); projects.add(p.id); selected.checked = true; } else memories.delete(m.id); } })));
       }
       for (const k of board.tickets) {
         names.set(k.id, k.key + ' · ' + k.title);
         const ref = { projectId: p.id, ticketId: k.id };
-        choices.append(field(k.key + ' · ' + k.title, h('input', { type: 'checkbox', checked: tickets.has(k.id), onchange: e => { if (e.target.checked) { tickets.set(k.id, ref); projects.add(p.id); selected.checked = true; } else tickets.delete(k.id); } })));
+        choices.append(field(k.key + ' · ' + k.title, h('input', { type: 'checkbox', checked: tickets.has(k.id), onchange: e => { if (e.target.checked) { tickets.set(k.id, ref); projects.add(p.id); selected.checked = true; } else tickets.delete(k.id); showOrder(); } })));
         for (const control of [from, to]) control.append(h('option', { value: k.id }, k.key + ' · ' + p.name));
       }
     }
-    showDependencies();
+    showDependencies(); showOrder();
     editor.dataset.initiative = i.id || '';
     editor.replaceChildren(h('form', { class: 'panel stack', onsubmit: e => { e.preventDefault(); act(async () => {
-      const body = { title: title.value, objective: objective.value, status: status.value, ownerId: owner.value, projectIds: [...projects], tickets: [...tickets.values()], dependencies, memories: [...memories.values()], version: i.version };
+      const body = { title: title.value, decisions: decisions.value, questions: questions.value, objective: objective.value, status: status.value, ownerId: owner.value, projectIds: [...projects], tickets: [...tickets.values()], dependencies, memories: [...memories.values()], version: i.version };
       await api(original ? 'PUT' : 'POST', '/initiatives' + (original ? '/' + i.id : ''), body);
       editor.replaceChildren();
-      state.info = 'Initiative saved.';
-    }); } }, h('h2', {}, original ? 'Edit Initiative' : 'New Initiative'), field('Title', title), field('Objective', objective), field('Status', status), field('Owner', owner), h('h3', {}, 'Link existing projects and tickets'), choices, h('h3', {}, 'Shared context and decisions'), memoryChoices,
+      state.info = 'Plan saved.';
+    }); } }, h('h2', {}, original ? 'Edit plan' : 'New plan'), field('Title', title), field('Description', objective), field('Decisions', decisions), field('Open questions', questions), field('Status', status), field('Owner', owner), h('h3', {}, 'Link existing projects and tickets'), choices, h('h3', {}, 'Task order'), order, h('h3', {}, 'Shared context and decisions'), memoryChoices,
     h('h3', {}, 'Dependencies'), h('p', { class: 'muted' }, 'Link both tickets above before adding a dependency.'), from, to,
     h('button', { type: 'button', class: 'plain add', onclick: () => { const before = tickets.get(from.value), after = tickets.get(to.value); if (before && after) { dependencies.push({ before, after }); showDependencies(); } } }, 'Add dependency'), dependencyList,
-    h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save Initiative'), h('button', { class: 'plain', type: 'button', onclick: () => editor.replaceChildren() }, 'Cancel'))));
+    h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'submit' }, 'Save plan'), h('button', { class: 'plain', type: 'button', onclick: () => editor.replaceChildren() }, 'Cancel'))));
     title.focus();
   };
-  return h('div', { class: 'stack' }, h('div', { class: 'section-head' }, h('p', { class: 'muted' }, 'Shared objectives across existing projects. Progress reflects stored ticket states and last-reported PR states.'), h('button', { class: 'primary', onclick: () => edit().catch(e => { state.error = e.message; render(); }) }, 'New Initiative')), editor,
-    rows.length ? rows.map(v => h('section', { class: 'panel stack' }, h('div', { class: 'section-head' }, h('h2', {}, v.initiative.title), h('span', { class: 'badge' }, v.initiative.status)), h('p', {}, v.initiative.objective), h('p', { class: 'muted small' }, 'Owner · ' + (ownerNames.get(v.initiative.ownerId) || 'Former member')),
+  if (projectId && new URLSearchParams(location.search).get('new') === 'plan') {const url=new URL(location.href);url.searchParams.delete('new');history.replaceState(null,'',url);await edit();}
+  return h('div', { class: 'stack' }, h('div', { class: 'section-head' }, h('p', { class: 'muted' }, 'Plans group existing tasks. Progress follows their current state.'), h('button', { class: 'primary', onclick: () => edit().catch(e => { state.error = e.message; render(); }) }, 'New plan')), editor,
+    rows.length ? rows.map(v => h('details', { class: 'work-plan', open: new URLSearchParams(location.search).get('plan') === v.initiative.id }, h('summary', {}, v.initiative.title + ' · ' + v.done + '/' + v.tickets.length + ' complete'), h('p', {}, v.initiative.objective), v.initiative.decisions ? h('div', {}, h('h3', {}, 'Decisions'), h('p', {}, v.initiative.decisions)) : '', v.initiative.questions ? h('div', {}, h('h3', {}, 'Open questions'), h('p', {}, v.initiative.questions)) : '', h('p', { class: 'muted small' }, 'Owner · ' + (ownerNames.get(v.initiative.ownerId) || 'Former member')),
       h('div', { class: 'actions' }, v.projects.map(p => h('button', { class: 'link', onclick: () => openProject(p.id) }, p.name))),
       h('p', {}, v.done + ' of ' + v.tickets.length + ' tickets done · ' + plural(v.openPRs, 'reported open PR')),
-      v.tickets.map(k => h('div', { class: 'row' }, h('button', { class: 'link grow', onclick: () => openTicket(k.projectId, k.id) }, k.key + ' · ' + k.title), h('span', { class: 'badge' }, statusName(k.status)), k.pullRequest ? extLink(k.pullRequest.url, 'PR · ' + k.pullRequest.state) : '', when(k.updatedAt))),
-      h('h3', {}, 'Blockers'), v.blockers.length ? h('ul', {}, v.blockers.map(b => h('li', {}, b))) : h('p', { class: 'muted' }, 'No blockers identified in current reports.'),
+      h('ol', { class: 'plan-tasks' }, v.tickets.map(k => h('li', {}, h('button', { class: 'link', onclick: () => openTicket(k.projectId, k.id) }, k.key + ' · ' + k.title), h('span', { class: 'muted small' }, statusName(k.status)), k.pullRequest ? extLink(k.pullRequest.url, 'PR · ' + k.pullRequest.state) : ''))),
+      h('details', {}, h('summary', {}, 'Dependencies and context'), h('h3', {}, 'Blockers'), v.blockers.length ? h('ul', {}, v.blockers.map(b => h('li', {}, b))) : h('p', { class: 'muted' }, 'No blockers identified in current reports.'),
       h('h3', {}, 'Next actions'), h('ul', {}, v.nextActions.map(a => h('li', {}, a))),
-      v.memories.length ? h('div', {}, h('h3', {}, 'Shared context and decisions'), v.memories.map(m => h('p', {}, m.content.summary + ' · ' + (m.freshness?.status || 'uncertain')))) : '',
+      v.memories.length ? h('div', {}, h('h3', {}, 'Shared context and decisions'), v.memories.map(m => h('p', {}, m.content.summary + ' · ' + (m.freshness?.status || 'uncertain')))) : ''),
       h('details', {}, h('summary', {}, 'Activity and changes'), v.activity.map(a => h('p', {}, a.kind + ' · ' + a.ticketKey + ' · ', when(a.createdAt))), v.initiative.history.map(a => h('p', {}, 'Initiative ' + a.kind + ' · ', when(a.at)))),
       h('p', { class: 'muted small' }, 'Updated ', when(v.initiative.updatedAt)),
-      v.initiative.ownerId === state.me.member.id || can('projects.manage') ? h('button', { class: 'plain', onclick: () => edit(v.initiative).catch(e => { state.error = e.message; render(); }) }, 'Edit Initiative') : '')) : h('p', { class: 'muted' }, 'No Initiatives to show. Create an Initiative to link work around a shared objective.'));
+      FRAMED && projectId ? h('button', {class:'plain small',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:v.initiative.id},'*')}, 'Edit with Salie') : '',
+      v.initiative.ownerId === state.me.member.id || can('projects.manage') ? h('button', { class: 'plain', onclick: () => edit(v.initiative).catch(e => { state.error = e.message; render(); }) }, 'Edit plan') : '')) : h('p', { class: 'muted' }, 'No plans yet. Create a plan to group related tasks.'));
 }
 
 

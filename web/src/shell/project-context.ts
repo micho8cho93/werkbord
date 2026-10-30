@@ -35,6 +35,7 @@ export function scopedOverview(overview: Overview | null, items: readonly Item[]
     const s = entry.summary;
     const belongs = (row: { href?: string }): boolean => projectInHref(workspace.kind, row.href) === selected.project;
     return { ...entry, workspace, summary: { ...s,
+      queue: s.queue?.filter(belongs),
       projects: s.projects.filter(p => p.id === selected.project), work: s.work.filter(belongs),
       attention: s.attention.filter(belongs), schedule: s.schedule.filter(belongs), planned: s.planned?.filter(belongs),
       // Some events have no project route. Omit them and disclose incomplete coverage.
