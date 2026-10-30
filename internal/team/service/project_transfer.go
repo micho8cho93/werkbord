@@ -108,6 +108,7 @@ func (s *Service) ImportTransfer(ctx context.Context, a Actor, in integration.Pr
 				return err
 			}
 			k := domain.Ticket{ID: domain.NewID(domain.PrefixTicket), ProjectID: id, Number: n, Key: domain.TicketKey(n), Title: t.Title, Description: t.Description, Status: domain.TicketAvailable, CreatorID: a.Member.ID, WorkMode: planning.ModeHuman, Version: 1, CreatedAt: now, UpdatedAt: now}
+			k.Position = float64(k.Number)
 			if err := tx.InsertTicket(ctx, a.Workspace.ID, k); err != nil {
 				return err
 			}

@@ -204,6 +204,8 @@ export interface TaskEdit {
   labelIds?: string[];
   /** Replaces the planned dates; `{}` clears them. */
   plan?: Plan;
+  /** Where the task sits in its project's queue; lower is higher. */
+  position?: number;
 }
 
 /** What a new task can say beyond its title and description. */

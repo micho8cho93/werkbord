@@ -321,3 +321,9 @@ test-project-context-browser: web-shell
 ## test-work-browser: Work queues, plans and dependencies in Personal, Team and the shell, desktop and phone
 test-work-browser: web web-embed web-shell
 	BROWSER_SCRIPT=scripts/browser-work.cjs node scripts/test-browser.cjs
+
+.PHONY: test-work-order-browser
+## test-work-order-browser: Work queue cards, drag and keyboard ordering, plan order, and Team claims, locks and shared order
+test-work-order-browser: web web-embed web-shell build-team
+	BROWSER_SCRIPT=scripts/browser-work-order.cjs node scripts/test-browser.cjs
+	BROWSER_SCRIPT=scripts/browser-team-work-order.cjs node scripts/test-browser.cjs

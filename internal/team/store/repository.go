@@ -117,6 +117,7 @@ type ProjectQueries interface {
 type TicketQueries interface {
 	NextTicketNumber(ctx context.Context, workspaceID string) (int, error)
 	InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error
+	SetTicketPosition(ctx context.Context, workspaceID, projectID, id string, position float64) error
 	Ticket(ctx context.Context, workspaceID, projectID, id string) (domain.Ticket, error)
 	Tickets(ctx context.Context, workspaceID, projectID string) ([]domain.Ticket, error)
 	// SearchTickets returns bounded summaries, restricted to onlyMemberID's projects

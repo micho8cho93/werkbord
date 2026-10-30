@@ -18,6 +18,29 @@ The desktop Work destination uses its shared project selection. All Projects rea
 from Personal and connected teams; it does not infer access from names. Unavailable workspaces and bounded summaries are
 identified explicitly. Opening a row uses the owning workspace's task interface.
 
+## Queue cards and ordering
+
+Each queue (Now, Next, Later) is a card with a count. Projects (in All Projects) and plans (a series of tasks) are disclosures inside it,
+so a plan's tasks sit together; a plan nests under its project. Rows keep their compact form and gain a drag handle.
+
+Ordering is a stored position, never a status. Dragging a row, or Alt plus Up or Down on it, changes only where it sits among its neighbours
+in the same group, project and plan; the groups themselves stay derived, so a row cannot be dropped into another group. A move reports the
+ids now above and below it; the product computes the position between them (`WerkbordWork.order.between`) and, when two neighbours have no
+room left, numbers the list again in the order chosen. Escape cancels a drag. The gesture transport is `internal/uipresentation/static/work-order.js`
+and has no product behaviour.
+
+- **Personal:** a standalone task's position is its existing `position`, set with the ordinary task patch. A plan's tasks are ordered by
+  the plan (the existing versioned save), so the same task is never ordered in two places.
+- **Team:** each ticket has one `position` shared by every member (migration 0029 keeps today's order, creation order; a new ticket joins the
+  end). `PUT /projects/{id}/tickets/{tid}/position` sets it and, unlike every other ticket write, leaves `version` and `updatedAt` alone, so an
+  open edit never goes stale. Who may move what: a ticket nobody holds is the project's shared priority, for people who may edit tickets
+  (`tickets.edit`); a ticket someone holds is ordered by its holder or by an editor; finished and archived tickets are not in the queue. Rows
+  you may not move show a lock and the reason. Claiming moves a ticket from Next into Now, shows its holder as an initials chip and gives
+  the holder a handle. Plans reorder through the existing initiative save and its own permissions.
+- **All Projects** is the cross-project read view: the same cards, project and plan disclosures and holder chips, but no drag and no claim;
+  open a project to order or claim. Team work held by others is hidden by default (**Mine and unclaimed**, with an **Everyone** toggle that
+  appears only when a teammate holds work). The queue summary carries `owner`, `mine` and `plan` for this: display and grouping only, never authority.
+
 ## Structured plans
 
 Personal stores small, versioned plan documents whose ordered task IDs reference the existing task service. Team reuses
@@ -43,6 +66,7 @@ web types, lint, unit tests and builds. The targeted browser acceptance runs aga
 ```sh
 make web web-embed web-shell
 BROWSER_SCRIPT=scripts/browser-work.cjs node scripts/test-browser.cjs
+make test-work-order-browser   # cards, drag and keyboard ordering, plan order, Team claims, locks and shared order
 ```
 
 It exercises Personal and Team queues and plans, ordering, dependencies, persistence, session association, desktop/phone

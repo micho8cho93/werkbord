@@ -184,13 +184,16 @@ type Ticket struct {
 	// Plan is when the work is planned to happen, for the timeline only.
 	Plan planning.Range `json:"plan"`
 	// Dependencies are the tickets of the same project that must finish before this one starts.
-	Dependencies []string   `json:"dependencies"`
-	Version      int64      `json:"version"`
-	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
-	ClaimedAt    *time.Time `json:"claimedAt,omitempty"`
-	SubmittedAt  *time.Time `json:"submittedAt,omitempty"`
-	CompletedAt  *time.Time `json:"completedAt,omitempty"`
+	Dependencies []string `json:"dependencies"`
+	Version      int64    `json:"version"`
+	// Position is where the ticket sits in its project's queue, one order shared by every member; lower is higher.
+	// Writing it never changes Version, so reordering never makes an open edit stale.
+	Position    float64    `json:"position"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	ClaimedAt   *time.Time `json:"claimedAt,omitempty"`
+	SubmittedAt *time.Time `json:"submittedAt,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }
 
 // Mode is the ticket's work mode, with the empty one read as it always was: agent work.

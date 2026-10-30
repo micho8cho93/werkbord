@@ -1,0 +1,123 @@
+/* Work queue cards. Shared presentation only: each product owns its rows, permissions and persistence.
+   One card per queue (Now, Next, Later); inside it, projects and plans are quiet disclosures separated by hairlines, never
+   cards of their own. Only tokens: it follows Paper, Graphite and Classic and both themes. */
+.queue-stack { display: grid; gap: 16px; }
+.queue-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: clip;
+}
+.queue-card > header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.queue-card > header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.queue-card > header .queue-count {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.queue-card > header .queue-detail { margin-left: auto; color: var(--text-2); font-size: 12px; }
+.queue-card .queue-empty { margin: 0; padding: 18px 16px; color: var(--text-2); font-size: 13px; line-height: 1.6; }
+
+/* Projects and plans: a disclosure row, then its rows. Every row, section and list is separated by one hairline. */
+.queue-card > :is(ul, details) { border-top: 1px solid var(--border); }
+.queue-card > header + :is(ul, details) { border-top: 0; }
+.queue-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 16px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.queue-section > summary::-webkit-details-marker { display: none; }
+.queue-section > summary:hover { background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+.queue-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.queue-section > summary .where { color: var(--text-2); font-size: 12px; font-weight: 400; }
+.queue-section > summary .progress { margin-left: auto; color: var(--text-2); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.queue-section > summary .count { margin-left: auto; color: var(--text-2); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.queue-section > summary .progress + .count { margin-left: 8px; }
+.queue-section > .queue-section { border-top: 1px solid var(--border); }
+.queue-section > .queue-section > summary { padding-left: 32px; }
+.queue-section > summary .where::before { content: '·'; margin-right: 8px; }
+.queue-section > ul, .queue-card > ul { list-style: none; margin: 0; padding: 0; }
+.queue-section > ul > li, .queue-card > ul > li { border-top: 1px solid var(--border); }
+.queue-card > header + ul > li:first-child { border-top: 0; }
+
+/* Who holds a ticket. A chip, not a colour: initials on the tray; the person's own is cobalt-tinted. */
+.owner-chip {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.owner-chip[data-me] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); }
+.owner-chip[data-open] { background: transparent; border: 1px dashed var(--border); color: var(--text-2); font-weight: 400; }
+
+/* Ordering. The handle belongs to a row; a locked row shows why it cannot move instead of a handle. */
+.order-handle, .order-lock {
+  /* Above a row's stretched link, which otherwise takes the pointer and starts a link drag. */
+  position: relative;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.order-handle { cursor: grab; touch-action: none; }
+.order-handle:hover { background: var(--surface-2); color: var(--text); }
+.order-handle:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
+[data-order-item]:hover .order-handle, [data-order-item]:focus-within .order-handle, [data-order-item]:hover .order-lock, [data-order-item]:focus-within .order-lock { opacity: 1; }
+@media (hover: none) { .order-handle, .order-lock { opacity: 1; } }
+.order-lock { cursor: default; }
+[data-order-item] { position: relative; }
+[data-order-item].order-dragging { opacity: .5; background: var(--surface-2); }
+.order-active { cursor: grabbing; user-select: none; }
+.order-active .order-handle { cursor: grabbing; }
+[data-order-item].order-drop-before::before, [data-order-item].order-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  z-index: 2;
+}
+[data-order-item].order-drop-before::before { top: -1px; }
+[data-order-item].order-drop-after::after { bottom: -1px; }
+@media (prefers-reduced-motion: reduce) { .order-handle, .order-lock { transition: none; } }
+@media (max-width: 640px) {
+  .queue-card > header .queue-detail { display: none; }
+  .queue-section > summary { min-height: 44px; padding-inline: 12px; }
+  .queue-card > header { padding-inline: 12px; }
+}

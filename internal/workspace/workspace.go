@@ -412,6 +412,11 @@ type QueueItem struct {
 	Href    string `json:"href"`
 	Group   string `json:"group"`
 	Detail  string `json:"detail,omitempty"`
+	// Owner is the display name of whoever holds the work (Team only); Mine says it is the viewer. Plan is the title of the plan the
+	// work belongs to, so a queue can show a series of tasks together. All three are for display and grouping, never for authority.
+	Owner string `json:"owner,omitempty"`
+	Mine  bool   `json:"mine,omitempty"`
+	Plan  string `json:"plan,omitempty"`
 }
 
 func (q QueueItem) valid() bool {
@@ -617,6 +622,7 @@ func (s Summary) Clean() (Summary, int) {
 		q.Title = clip(q.Title, MaxText)
 		q.Project = clip(q.Project, MaxName)
 		q.Detail = clip(q.Detail, MaxText)
+		q.Owner, q.Plan = clip(q.Owner, MaxName), clip(q.Plan, MaxText)
 		if q.valid() && len(out.Queue) < MaxItems {
 			out.Queue = append(out.Queue, q)
 		} else {

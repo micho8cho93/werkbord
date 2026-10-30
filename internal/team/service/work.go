@@ -557,7 +557,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 							if k.Status == domain.TicketDone {
 								group = "done"
 							}
-							out.Queue = append(out.Queue, workspace.QueueItem{ID: k.ID, Title: k.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID, Group: group, Detail: detail})
+							out.Queue = append(out.Queue, workspace.QueueItem{ID: k.ID, Title: k.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID, Group: group, Detail: detail, Owner: v.who(k.AssigneeID), Mine: k.AssigneeID != "" && k.AssigneeID == a.Member.ID})
 						}
 						byTicket[k.ID] = k
 						if k.Status == domain.TicketAvailable && k.AssigneeID == "" && k.ArchivedAt == nil {

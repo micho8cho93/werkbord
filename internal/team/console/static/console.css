@@ -680,3 +680,17 @@ button.icon-button[aria-current='page'] { background: var(--s2); box-shadow: var
 .plan-progress progress::-webkit-progress-bar{background:var(--surface-2);border-radius:5px;}
 .plan-progress progress::-webkit-progress-value{background:var(--ok);border-radius:5px;}
 .plan-progress progress::-moz-progress-bar{background:var(--ok);border-radius:5px;}
+
+/* Work queue cards (shared styles: ui/work-cards.css). The console only lays a row out beside its handle and gives a plan the same
+   chevron as the web app's disclosures. */
+.queue-stack > .work-group, .queue-stack > .queue-card { margin-bottom: 0; }
+.work-group.queue-card > header { margin-bottom: 0; }
+.work-queue .queue-card .work-card { border-bottom: 0; }
+.work-result { display: flex; align-items: center; }
+.work-result > .work-card { flex: 1; min-width: 0; }
+.work-result > .order-handle, .work-result > .order-lock { margin-left: 6px; }
+.queue-section > summary { color: var(--text); font-size: 13px; font-weight: 500; }
+.queue-section > summary::before { content: ''; flex: none; box-sizing: border-box; width: 6px; height: 6px; border-right: 1.4px solid currentColor; border-bottom: 1.4px solid currentColor; transform: rotate(-45deg); transition: transform .15s ease-out; margin-inline-end: 3px; }
+.queue-section[open] > summary::before { transform: rotate(45deg); }
+.work-row-actions .owner-chip { align-self: center; }
+@media (prefers-reduced-motion: reduce) { .queue-section > summary::before { transition: none; } }

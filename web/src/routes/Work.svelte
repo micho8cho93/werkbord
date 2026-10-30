@@ -12,7 +12,9 @@
   import { gitStore } from '../lib/git/store.svelte';
   import Icon from '../lib/Icon.svelte';
   import WorkPlans from '../lib/work/WorkPlans.svelte';
-  import { WORK_GROUPS, workGroup } from '../lib/work-queue';
+  import { WORK_GROUPS, workGroup, type WorkPlan } from '../lib/work-queue';
+  import { isPhone } from '../lib/phones/capability';
+  import { orderDrops, positionBetween, reorderedIds, spreadPositions, type OrderDrop } from '../lib/orderGestures';
   import { assistant } from '../lib/assistant/sessions.svelte';
   import { projectHref } from '../lib/location';
   import { router } from '../lib/router.svelte';
@@ -54,7 +56,31 @@
     return true;
   }
 
-  const groups = $derived(WORK_GROUPS.map(group => ({ ...group, tasks: scope.activeTasks.filter(t => shown(t) && workGroup(t, scope.tasks, scope.latestRun[t.id], effectiveOf(t).priority, app.now, scope.latestRun) === group.id).sort((a,b) => a.position-b.position) })));
+  // Plans the queue can show a task under: the first plan that lists it. A plan is a series of tasks, so its tasks sit together.
+  let plans = $state<WorkPlan[]>([]);
+  $effect(() => {
+    // A paired phone may not read plans, so on one the queue is flat and never asks.
+    if (isPhone()) return;
+    let live = true;
+    const load = () => api.workPlans(project.id).then(p => { if (live) plans = p; }, () => {});
+    void load();
+    const timer = setInterval(load, 5000);
+    return () => { live = false; clearInterval(timer); };
+  });
+  const planOf = $derived.by(() => {
+    const own: Record<string, WorkPlan> = {};
+    for (const plan of plans) for (const id of plan.taskIds) own[id] ??= plan;
+    return own;
+  });
+  const progressOf = (plan: WorkPlan) => `${plan.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length} of ${plan.taskIds.length} complete`;
+  const groups = $derived(WORK_GROUPS.map(group => {
+    const tasks = scope.activeTasks.filter(t => shown(t) && workGroup(t, scope.tasks, scope.latestRun[t.id], effectiveOf(t).priority, app.now, scope.latestRun) === group.id);
+    const standalone = tasks.filter(t => !planOf[t.id]).sort((a, b) => a.position - b.position);
+    const sections = plans
+      .map(plan => ({ plan, tasks: plan.taskIds.map(id => tasks.find(t => t.id === id && planOf[id] === plan)).filter((t): t is Task => !!t) }))
+      .filter(section => section.tasks.length);
+    return { ...group, tasks, standalone, sections };
+  }));
   const done = $derived(scope.activeTasks.filter(t => t.state === 'done' && shown(t)).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)));
   // ---- what can be merged from the board: the task's own branch, while it is not merged yet ----
   function branchOf(task: Task): GitBranch | undefined {
@@ -72,6 +98,43 @@
   }
 
   let pendingTasks = $state<Record<string, boolean>>({});
+
+  // ---- ordering: a person's drag (or Alt+Arrow) becomes a stored position, or a new order of a plan's tasks ----
+  async function reorder(drop: OrderDrop) {
+    const [kind, key] = drop.scope.split(':');
+    try {
+      if (kind === 'plan') {
+        const plan = plans.find(p => p.id === key);
+        if (!plan) return;
+        const taskIds = reorderedIds(plan.taskIds, drop);
+        plans = plans.map(p => p.id === plan.id ? { ...p, taskIds } : p);
+        const saved = await api.saveWorkPlan(project.id, { ...plan, taskIds });
+        plans = plans.map(p => p.id === saved.id ? saved : p);
+        return;
+      }
+      const list = groups.find(g => g.id === key)?.standalone ?? [];
+      const task = list.find(t => t.id === drop.id);
+      if (!task || pendingTasks[task.id]) return;
+      const position = positionBetween(list.find(t => t.id === drop.before)?.position, list.find(t => t.id === drop.after)?.position);
+      pendingTasks[task.id] = true;
+      try {
+        if (position !== null) {
+          scope.upsertTask({ ...task, position });
+          scope.upsertTask(await api.editTask(task, { position }));
+          return;
+        }
+        // The neighbours have no room between them: number the whole list again, in the order the person chose.
+        const order = list.filter(t => t.id !== task.id);
+        order.splice(drop.to, 0, task);
+        const spread = spreadPositions(order.length);
+        for (const [i, item] of order.entries()) if (item.position !== spread[i]) scope.upsertTask(await api.editTask(scope.tasks.find(t => t.id === item.id) ?? item, { position: spread[i] }));
+      } finally { pendingTasks[task.id] = false; }
+    } catch (err) {
+      app.notify(err instanceof ApiError && err.code === 'conflict' ? 'This changed on another device. The queue has been refreshed.' : err instanceof Error ? err.message : String(err));
+      await scope.load().catch(e => app.handleError(e));
+      plans = await api.workPlans(project.id).catch(() => plans);
+    }
+  }
 
   // ---- actions ----
   async function move(task: Task, state: TaskState) {
@@ -141,26 +204,35 @@
         {#if filtering}<button class="btn quiet small" onclick={() => { agentFilter = ''; runnerFilter = ''; priorityFilter = ''; setFilter(project.id, noFilter()); }}>Reset filters</button>{/if}
       </div></details>
       {#if viewingArchive}<Archive {scope} />{:else}
+        <div class="queue-stack" use:orderDrops={reorder}>
         {#each groups as group (group.id)}
-          <section class="queue-group" aria-labelledby="work-{group.id}">
-            <header><h2 id="work-{group.id}">{group.title}</h2><span class="queue-count">{group.tasks.length}</span></header>
-            <ul class="task-list">{#each group.tasks as task (task.id)}{@render taskRow(task)}{:else}<li class="empty-row">{!scope.loaded ? 'Loading tasks…' : filtering || search ? 'No tasks match your filters.' : group.id === 'now' ? 'Nothing needs your attention right now.' : group.id === 'next' ? 'No tasks ready to pick up.' : 'Nothing planned for later.'}</li>{/each}</ul>
+          <section class="queue-card" aria-labelledby="work-{group.id}">
+            <header><h2 id="work-{group.id}">{group.title}</h2><span class="queue-count">{group.tasks.length}</span><span class="queue-detail">{group.detail}</span></header>
+            {#if !group.tasks.length}<p class="queue-empty">{!scope.loaded ? 'Loading tasks…' : filtering || search ? 'No tasks match your filters.' : group.id === 'now' ? 'Nothing needs your attention right now.' : group.id === 'next' ? 'No tasks ready to pick up.' : 'Nothing planned for later.'}</p>{/if}
+            {#if group.standalone.length}<ul data-order-list data-order-scope="tasks:{group.id}" aria-label="{group.title} tasks">{#each group.standalone as task (task.id)}{@render taskRow(task, true)}{/each}</ul>{/if}
+            {#each group.sections as section (section.plan.id)}
+              <details class="queue-section" open>
+                <summary>{section.plan.title}<span class="progress">{progressOf(section.plan)}</span></summary>
+                <ul data-order-list data-order-scope="plan:{section.plan.id}" aria-label="Tasks in {section.plan.title}">{#each section.tasks as task (task.id)}{@render taskRow(task, true)}{/each}</ul>
+              </details>
+            {/each}
           </section>
         {/each}
-        {#if done.length}<details class="completed"><summary>Completed <span>{done.length}</span></summary><ul class="task-list">{#each done as task (task.id)}{@render taskRow(task)}{/each}</ul></details>{/if}
+        {#if done.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{done.length}</span></summary><ul>{#each done as task (task.id)}{@render taskRow(task, false)}{/each}</ul></details></section>{/if}
+        </div>
         <footer class="queue-footer"><button class="btn quiet small" onclick={openSalie}>Plan your next step with Salie <Icon name="right" size={14} /></button></footer>
       {/if}
     </section>
   {/if}
 </div>
-{#snippet taskRow(task: Task)}
+{#snippet taskRow(task: Task, sortable: boolean)}
   {@const run = scope.latestRun[task.id]}
-  <TaskCard {task} {run} {scope} effective={effectiveOf(task)} selected={router.taskId === task.id} pending={!!pendingTasks[task.id]} mergeable={mergeable(task)} agentWork={agentWorkable(task,project)} branch={branchOf(task)} onstart={start} onmerge={merge} onmove={move} />
+  <TaskCard {task} {run} {scope} effective={effectiveOf(task)} selected={router.taskId === task.id} pending={!!pendingTasks[task.id]} mergeable={mergeable(task)} agentWork={agentWorkable(task,project)} branch={branchOf(task)} onstart={start} onmerge={merge} onmove={move} {sortable} />
 
 {/snippet}
 <GitSheets projectId={project.id} store={git} />
 <style>
  .work-new{display:none;}.archive{margin-left:auto;font-size:12px;color:var(--text-2);background:transparent;border:0;cursor:pointer;}.queue-filters{font-size:12px;color:var(--text-2);margin-bottom:20px;}.queue-filters summary{cursor:pointer;}.filters{display:flex;gap:14px;flex-wrap:wrap;padding:14px 0 0;}.filters label{display:flex;align-items:center;gap:8px;}.filters select{min-height:32px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);background:var(--surface);font:inherit;max-width:180px;}
- .queue-group{margin-bottom:26px;}.queue-group>header{display:flex;gap:8px;align-items:center;margin-bottom:6px;}h2{margin:0;font-size:14px;font-weight:600;}.queue-count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}.task-list{list-style:none;padding:0;margin:0;}.task-list :global(.work-card){border:0;border-bottom:1px solid var(--border);border-radius:0;box-shadow:none;background:transparent;}.empty-row{color:var(--text-2);padding:16px 28px;font-size:13px;}.completed summary{cursor:pointer;font-size:13px;color:var(--text-2);padding:12px 0;}.completed summary span{margin-left:6px;}.queue-footer{border-top:1px solid var(--border);margin-top:24px;padding-top:14px;}
- @media(max-width:899px){.work-new{display:inline-flex;}.archive{min-height:44px;}.filters select{min-height:44px;}.queue-group{margin-bottom:22px;}}
+ .queue-card :global(.work-card){border-inline-width:0;border-bottom-width:0;border-radius:0;box-shadow:none;background:transparent;}.queue-footer{margin-top:20px;padding-top:4px;}
+ @media(max-width:899px){.work-new{display:inline-flex;}.archive{min-height:44px;}.filters select{min-height:44px;}}
 </style>

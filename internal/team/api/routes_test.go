@@ -51,7 +51,7 @@ var projectRoutes = []string{
 	// Archive routes only change stored ticket metadata; they cannot execute work or reach a member.
 	"POST /projects/{id}/tickets/archive-done", "POST /projects/{id}/tickets/{tid}/archive",
 	"POST /projects/{id}/tickets", "GET /projects/{id}/tickets/{tid}", "PATCH /projects/{id}/tickets/{tid}",
-	"POST /projects/{id}/tickets/{tid}/move", "POST /projects/{id}/tickets/{tid}/claim", "POST /projects/{id}/tickets/{tid}/start-work", "POST /projects/{id}/tickets/{tid}/release",
+	"POST /projects/{id}/tickets/{tid}/move", "PUT /projects/{id}/tickets/{tid}/position", "POST /projects/{id}/tickets/{tid}/claim", "POST /projects/{id}/tickets/{tid}/start-work", "POST /projects/{id}/tickets/{tid}/release",
 	"POST /projects/{id}/tickets/{tid}/assign", "POST /projects/{id}/tickets/{tid}/submit", "POST /projects/{id}/tickets/{tid}/request-changes",
 	"POST /projects/{id}/tickets/{tid}/complete", "PUT /projects/{id}/tickets/{tid}/git", "POST /projects/{id}/tickets/{tid}/handoff", "GET /projects/{id}/tickets/{tid}/handoff",
 	"GET /projects/{id}/repository", "POST /projects/{id}/repository/branches", "GET /projects/{id}/activity",

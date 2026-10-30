@@ -118,7 +118,7 @@ export interface Infra {
 export interface Change { id: string; key: string; kind: 'completed' | 'pr_merged'; title: string; href: string; origin?: string; at: string }
 export interface RecentChanges { since: string; through: string; cursor: number; items: Change[]; incomplete: boolean }
 
-export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string }
+export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string; owner?: string; mine?: boolean; plan?: string }
 export interface Summary {
  queue?: QueueItem[];
  queueIncomplete?: boolean;

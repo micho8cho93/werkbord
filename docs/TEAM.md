@@ -62,10 +62,11 @@ Desktop navigation sits in a sidebar with direct project shortcuts; changing pro
 section. **Settings** contains **This computer**, **Devices**, **Workspace Hosts**, **Connectivity**,
 **Backups** and **License**, with a section list and reloadable addresses. On phones, primary navigation is one
 scrolling row and Settings remains visible. Workspace opens to the focused overview; actionable attention comes
-first on phones. Git separates attention, pull requests and branches. Small windows show one selected board
-column; large windows use the available width and height, with scrolling inside each column. **New ticket** (N)
-opens its form only when needed; Escape closes ticket details. Dragging a ticket between columns performs the
-same permitted action as claim, assign, submit or complete; it does not bypass ownership or review rules.
+first on phones. Git separates attention, pull requests and branches. Work shows the Now, Next and Later queues as
+cards, with a plan's tickets together under a disclosure; **New ticket** (N) opens its form only when needed and Escape
+closes ticket details. Dragging a ticket (or Alt plus the Up or Down arrow) changes only its place in the project's
+shared order; claiming, assigning, submitting and completing remain explicit actions and no gesture bypasses ownership or
+review rules. See [WORK.md](WORK.md#queue-cards-and-ordering).
 
 **Search** in the heading, or **⌘/Ctrl K**, jumps to projects, tickets and sections. Search finds ticket keys, titles,
 descriptions, requirements and branch names across projects you can see, including archived work. Arrow keys select,

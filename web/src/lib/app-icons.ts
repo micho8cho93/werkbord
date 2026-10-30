@@ -35,6 +35,7 @@ import Maximize2 from '@lucide/svelte/icons/maximize-2';
 import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
 import ExternalLink from '@lucide/svelte/icons/external-link';
 import GripVertical from '@lucide/svelte/icons/grip-vertical';
+import Lock from '@lucide/svelte/icons/lock';
 import Users from '@lucide/svelte/icons/users';
 import AssistantGlyph from './AssistantGlyph.svelte';
 import Paperclip from '@lucide/svelte/icons/paperclip';
@@ -82,6 +83,7 @@ export const appIconComponents = {
   branch: GitCommitHorizontal,
   link: ExternalLink,
   grip: GripVertical,
+  lock: Lock,
   people: Users,
   assistant: AssistantGlyph,
   attach: Paperclip,
@@ -132,6 +134,7 @@ export const appIconSources: Record<AppIconName, string> = {
   branch: 'git-commit-horizontal',
   link: 'external-link',
   grip: 'grip-vertical',
+  lock: 'lock',
   people: 'users',
   assistant: 'werkbord-sparkles',
   attach: 'paperclip',

@@ -394,6 +394,22 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 		in.Queue = ov.Queue
 		var plans []service.InitiativeView
 		if err := host.Do(ctx, http.MethodGet, "/initiatives", nil, &plans); err == nil {
+			planOf := map[string]string{}
+			for _, v := range plans {
+				if v.Initiative.Status == "archived" {
+					continue
+				}
+				for _, ref := range v.Initiative.Tickets {
+					if _, taken := planOf[ref.TicketID]; !taken {
+						planOf[ref.TicketID] = v.Initiative.Title
+					}
+				}
+			}
+			for i := range in.Queue {
+				if in.Queue[i].Group != "plan" {
+					in.Queue[i].Plan = planOf[in.Queue[i].ID]
+				}
+			}
 			for _, v := range plans {
 				if v.Initiative.Status == "archived" {
 					continue

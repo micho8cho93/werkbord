@@ -175,6 +175,7 @@ func (s *Service) CreateTicket(ctx context.Context, a Actor, projectID string, i
 		if err := planning.ValidateChange(ticketPlanningItems(all), ticketPlanningItem(k)); err != nil {
 			return fmt.Errorf("%w: %w", domain.ErrInvalid, err)
 		}
+		k.Position = float64(k.Number) // a new ticket joins the end of the queue
 		if err := tx.InsertTicket(ctx, a.Workspace.ID, k); err != nil {
 			return err
 		}

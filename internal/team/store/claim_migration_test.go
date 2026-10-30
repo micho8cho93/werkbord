@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"werkbord/internal/sqlitekit"
@@ -43,7 +44,28 @@ func TestClaimMigrationPreservesTicketsAndEveryDependentTable(t *testing.T) {
 	tables := []string{"tickets", "ticket_commits", "ticket_progress", "ticket_schedules", "ticket_labels", "ticket_dependencies"}
 	snapshot := func(db *sql.DB, table string) [][]any {
 		t.Helper()
-		rows, err := db.QueryContext(ctx, "SELECT * FROM "+table+" ORDER BY rowid")
+		// Columns added by migrations after the one under test are not part of what it must preserve.
+		later := map[string]bool{"position": true}
+		names, err := db.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var keep []string
+		for names.Next() {
+			var name string
+			if err := names.Scan(&name); err != nil {
+				t.Fatal(err)
+			}
+			if !(table == "tickets" && later[name]) {
+				keep = append(keep, `"`+name+`"`)
+			}
+		}
+		names.Close()
+		selected := "*" // a table-valued pragma has no table info
+		if len(keep) > 0 {
+			selected = strings.Join(keep, ",")
+		}
+		rows, err := db.QueryContext(ctx, "SELECT "+selected+" FROM "+table+" ORDER BY rowid")
 		if err != nil {
 			t.Fatal(err)
 		}

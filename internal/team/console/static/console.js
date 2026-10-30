@@ -138,6 +138,8 @@ function icon(name) {
     analytics: [['path',{d:'M3 3v16a2 2 0 0 0 2 2h16'}],['path',{d:'M18 17V9'}],['path',{d:'M13 17V5'}],['path',{d:'M8 17v-3'}]],
     members: [['path',{d:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'}],['path',{d:'M16 3.128a4 4 0 0 1 0 7.744'}],['path',{d:'M22 21v-2a4 4 0 0 0-3-3.87'}],['circle',{cx:'9',cy:'7',r:'4'}]],
     check: [['path',{d:'m20 6-11 11-5-5'}]],
+    grip: [['circle',{cx:'9',cy:'12',r:'1'}],['circle',{cx:'9',cy:'5',r:'1'}],['circle',{cx:'9',cy:'19',r:'1'}],['circle',{cx:'15',cy:'12',r:'1'}],['circle',{cx:'15',cy:'5',r:'1'}],['circle',{cx:'15',cy:'19',r:'1'}]],
+    lock: [['rect',{width:'18',height:'11',x:'3',y:'11',rx:'2',ry:'2'}],['path',{d:'M7 11V7a5 5 0 0 1 10 0v4'}]],
     left: [['path',{d:'m15 18-6-6 6-6'}]],
     right: [['path',{d:'m9 18 6-6-6-6'}]],
     search: [['path',{d:'m21 21-4.34-4.34'}],['circle',{cx:'11',cy:'11',r:'8'}]],
@@ -936,6 +938,7 @@ async function loadProject() {
     d.everyone = board.can.includes('members.manage') ? await api('GET', '/members') : [];
   }
   state.data = d;
+  if (state.tab === 'work') d.initiativeRows = await api('GET', '/initiatives').catch(() => []);
   if (state.tab === 'work') d.plansView = await initiativesView(id).catch(e => h('p', { class: 'error', role: 'alert' }, 'Plans unavailable: ' + e.message));
   return d;
 }
@@ -1329,14 +1332,56 @@ function workTab(d) {
  const toolbar=h('header',{class:'work-heading'},h('div',{},h('h1',{},'Work'),h('p',{class:'muted'},'Your tasks, plans and agent activity.')),h('label',{class:'work-search'},icon('search'),search));
  const tabs=h('nav',{class:'work-tabs','aria-label':'Work sections'},[['queue','Queue'],['plans','Plans']].map(([id,label])=>h('button',{'aria-current':state.workSection===id?'page':null,onclick:()=>{state.workSection=id;state.workPlanId='';state.ticketId=null;state.workQuery='';remember();render();}},label)),h('button',{class:'work-archive','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;state.workSection='queue';state.workPlanId='';remember();render();}},state.showArchived?'Back to queue':'Archive ('+(b.archived||[]).length+')'));
  const group=k=>{const own=k.assigneeId===state.me.member.id?ownAgentRun(d,k):null;return WerkbordWork.group({done:k.status==='done',active:k.status==='in_progress',attention:k.status==='review'||['blocked','failed','needs_input'].includes(own?.run),blocked:(k.dependencies||[]).some(id=>b.tickets.find(t=>t.id===id)?.status!=='done'),start:k.plan?.start});};
- const rows=k=>h('li',{class:'work-result','data-search':(k.title+' '+k.description+' '+k.key).toLowerCase()},card(d,k));
- const groups=[['now','Now'],['next','Next'],['later','Later']].map(([id,title])=>{const items=b.tickets.filter(k=>matchesFilter(k)&&group(k)===id);return h('section',{class:'work-group','aria-label':title},h('header',{},h('h2',{},title),h('span',{class:'group-count'},String(items.length))),h('ul',{class:'work-task-list'},items.map(rows)),h('p',{class:'muted small work-empty',hidden:items.length>0},'No tasks here.'));});
+ const mineId=state.me.member.id,canOrder=pcan('tickets.edit');
+ const placeable=k=>k.assigneeId===mineId||canOrder;
+ const lockWhy=k=>k.assigneeId&&k.assigneeId!==mineId?'Held by '+personName(d,k.assigneeId)+'. Only they or an editor can reorder it.':'Only people who can edit tickets set the shared order.';
+ const rows=(k,sortable=true)=>h('li',{class:'work-result','data-search':(k.title+' '+k.description+' '+k.key).toLowerCase(),'data-order-item':sortable?k.id:null,'data-order-label':sortable?k.title:null,'data-order-locked':sortable&&!placeable(k)?true:null},
+  !sortable?'':placeable(k)?h('button',{type:'button',class:'order-handle','data-order-handle':true,'aria-label':'Reorder “'+k.title+'”. Alt plus Up or Down arrow moves it.',title:'Drag to reorder'},icon('grip')):h('span',{class:'order-lock',role:'img','aria-label':lockWhy(k),title:lockWhy(k)},icon('lock')),
+  card(d,k));
+ const planOf=new Map();for(const v of d.initiativeRows||[])for(const r of v.initiative.tickets||[])if(r.projectId===state.projectId&&!planOf.has(r.ticketId))planOf.set(r.ticketId,v);
+ const isDone=id=>b.tickets.find(t=>t.id===id)?.status==='done';
+ const groups=[['now','Now','Active work and immediate priorities'],['next','Next','Ready to pick up'],['later','Later','Planned or waiting on dependencies']].map(([id,title,detail])=>{
+  const items=b.tickets.filter(k=>matchesFilter(k)&&group(k)===id);
+  const loose=items.filter(k=>!planOf.has(k.id));
+  const plans=[...new Map(items.filter(k=>planOf.has(k.id)).map(k=>[planOf.get(k.id).initiative.id,planOf.get(k.id)])).values()];
+  const section=v=>{const i=v.initiative,mine=(i.tickets||[]).filter(r=>r.projectId===state.projectId),tasks=mine.map(r=>items.find(k=>k.id===r.ticketId)).filter(Boolean);
+   return h('details',{class:'queue-section',open:true},h('summary',{},i.title,h('span',{class:'progress'},mine.filter(r=>isDone(r.ticketId)).length+' of '+mine.length+' complete')),h('ul',{class:'work-task-list','data-order-list':true,'data-order-scope':'plan:'+i.id,'aria-label':'Tasks in '+i.title},tasks.map(k=>rows(k))));};
+  return h('section',{class:'work-group queue-card','aria-label':title},h('header',{},h('h2',{},title),h('span',{class:'group-count queue-count'},String(items.length)),h('span',{class:'queue-detail'},detail)),
+   loose.length?h('ul',{class:'work-task-list','data-order-list':true,'data-order-scope':'queue:'+id,'aria-label':title+' tasks'},loose.map(k=>rows(k))):'',
+   plans.map(section),
+   h('p',{class:'muted small work-empty queue-empty',hidden:items.length>0},id==='now'?'Nothing needs your attention right now.':id==='next'?'No tasks ready to pick up.':'Nothing planned for later.'));});
  const done=b.tickets.filter(k=>matchesFilter(k)&&k.status==='done');
  const ownership=h('div',{class:'work-filter'},choiceGroup('Whose tasks',[['all','All tasks'],['own','My tasks']],w=>(w==='own')===!!state.ownTickets,w=>{state.ownTickets=w==='own';render();},'actions',false));
  let open=null;if(state.ticketId){const k=[...b.tickets,...(b.archived||[])].find(k=>k.id===state.ticketId);if(k)open=ticketPanel(d,d.ticket||k);else state.ticketId=null;}
- const view=h('div',{class:'work-view'+(open?' with-ticket':'')},detail?'':[toolbar,tabs],state.workSection==='plans'?d.plansView||'':h('div',{class:'work-queue',role:'region','aria-label':'Work queue'},ownership,state.showArchived?archiveTab(d):[...groups,done.length?h('details',{},h('summary',{},'Completed · '+done.length),h('ul',{class:'work-task-list'},done.map(rows))):'']),open||'');
+ const view=h('div',{class:'work-view'+(open?' with-ticket':'')},detail?'':[toolbar,tabs],state.workSection==='plans'?d.plansView||'':h('div',{class:'work-queue queue-stack',role:'region','aria-label':'Work queue'},ownership,state.showArchived?archiveTab(d):[...groups,done.length?h('section',{class:'queue-card'},h('details',{class:'queue-section completed'},h('summary',{},'Completed',h('span',{class:'count'},String(done.length))),h('ul',{class:'work-task-list'},done.map(k=>rows(k,false))))):'']),open||'');
+ view.addEventListener('werkbord-order-drop',e=>{const list=e.target.closest('[data-order-list]');if(list)void reorderQueue(d,list,e.detail);});
  filter();return view;
 }
+
+// A person's drag (or Alt+Arrow) becomes a stored position, or a new order of a plan's tickets. The service checks who may move what.
+function reorderQueue(d, list, drop) {
+  const scope = list.dataset.orderScope, at = scope.indexOf(':'), kind = scope.slice(0, at), key = scope.slice(at + 1);
+  const byId = id => d.board.tickets.find(t => t.id === id);
+  return act(async () => {
+    if (kind === 'plan') {
+      const i = (d.initiativeRows || []).map(v => v.initiative).find(v => v.id === key);
+      if (!i) return;
+      const refs = i.tickets || [], rest = refs.map(r => r.ticketId).filter(id => id !== drop.id);
+      const to = drop.after && rest.includes(drop.after) ? rest.indexOf(drop.after) : drop.before && rest.includes(drop.before) ? rest.indexOf(drop.before) + 1 : rest.length;
+      rest.splice(to, 0, drop.id);
+      await api('PUT', '/initiatives/' + i.id, { title: i.title, decisions: i.decisions, questions: i.questions, objective: i.objective, status: i.status, ownerId: i.ownerId, projectIds: i.projectIds, tickets: rest.map(id => refs.find(r => r.ticketId === id)), dependencies: i.dependencies, memories: i.memories, version: i.version });
+      return;
+    }
+    const shown = [...list.querySelectorAll(':scope > [data-order-item]')].map(li => li.dataset.orderItem);
+    const position = WerkbordWork.order.between(byId(drop.before)?.position, byId(drop.after)?.position);
+    if (position !== null) { await api('PUT', projectPath(byId(drop.id)) + '/position', { position }); return; }
+    // No room left between the neighbours: number the whole list again, in the order the person chose.
+    const order = shown.filter(id => id !== drop.id); order.splice(drop.to, 0, drop.id);
+    const spread = WerkbordWork.order.spread(order.length);
+    for (const [n, id] of order.entries()) if (byId(id).position !== spread[n]) await api('PUT', projectPath(byId(id)) + '/position', { position: spread[n] });
+  });
+}
+
 function archiveTab(d) {
   const rows = (d.board.archived || []).slice().reverse().map(k => h('div', { class: 'row', 'data-search': (k.title + ' ' + k.description + ' ' + k.key).toLowerCase() },
     h('div', { class: 'grow' }, h('button', { class: 'link', onclick: () => openTicket(d.id, k.id) }, k.key + ' · ' + k.title), h('p', { class: 'muted' }, statusName(k.status) + ' · Archived ' + ago(k.archivedAt))),
@@ -1396,11 +1441,18 @@ function card(d, k) {
       progress?.stale?h('p',{class:'work-detail'},'Last reported '+ago(progress.reportedAt)):'',
       blocked.length?h('p',{class:'work-blocked'},'Blocked by ',blocked.map(id=>{const dep=d.board.tickets.find(t=>t.id===id);return dep?h('button',{class:'link',onclick:()=>openTicket(d.id,id)},dep.title):'Unavailable task';})): '',
       flags.length?h('div',{class:'flags'},flags):''),
-    h('div',{class:'work-row-actions'},k.status==='review'?h('button',{class:'plain open small',onclick:open},'Review work'):'',
+    h('div',{class:'work-row-actions'},k.assigneeId&&k.status!=='done'?ownerChip(d,k):'',k.status==='review'?h('button',{class:'plain open small',onclick:open},'Review work'):'',
       canStartAgent?h('button',{class:'primary small','data-start-agent':k.id,onclick:()=>startAgent(k)},['completed','failed','canceled'].includes(run)?'Start agent again':'Start agent'):'',
       ['available','in_progress'].includes(k.status)&&mine?h('button',{class:'plain open small',onclick:open},'Open work'):'',
       k.status==='available'&&!k.assigneeId&&d.board.member&&pcan('tickets.claim')?h('button',{class:'plain small',onclick:()=>act(()=>api('POST',projectPath(k)+'/claim'))},'Claim'):'',
       k.status==='done'&&!k.archivedAt&&canArchiveTicket(k)?h('button',{class:'plain open small',onclick:()=>act(()=>api('POST',projectPath(k)+'/archive',{version:k.version,archived:true}))},'Archive'):''));
+}
+
+// Who holds a ticket, as initials: the person's own is tinted. The name is also in the card's text and in the chip's label.
+function ownerChip(d, k) {
+  const mine = k.assigneeId === state.me.member.id, name = mine ? 'You' : personName(d, k.assigneeId);
+  const initials = (name === 'You' ? state.me.member.name : name).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  return h('span', { class: 'owner-chip', 'data-me': mine ? true : null, role: 'img', 'aria-label': 'Held by ' + name, title: 'Held by ' + name }, initials);
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }

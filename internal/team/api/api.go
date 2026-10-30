@@ -158,6 +158,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/team/v1/projects/{id}/tickets/{tid}", s.handleGetTicket)
 	api.HandleFunc("PATCH /api/team/v1/projects/{id}/tickets/{tid}", s.handleUpdateTicket)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/move", s.handleMoveTicket)
+	api.HandleFunc("PUT /api/team/v1/projects/{id}/tickets/{tid}/position", s.handleReorderTicket)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/claim", s.handleClaimTicket)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/start-work", s.handleStartWork)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/tickets/{tid}/release", s.handleReleaseTicket)

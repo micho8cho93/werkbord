@@ -1,6 +1,7 @@
 package api
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -92,6 +93,23 @@ func (s *Server) handleMoveTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	k, err := s.opt.Service.MoveTicket(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"), to)
+	s.respond(w, r, http.StatusOK, k, err)
+}
+
+// handleReorderTicket places a ticket in its project's shared queue order.
+func (s *Server) handleReorderTicket(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Position *float64 `json:"position"`
+	}
+	if !s.decode(w, r, &in) {
+		return
+	}
+	// A missing position is NaN, which the service refuses once it has checked the caller's access to the project.
+	position := math.NaN()
+	if in.Position != nil {
+		position = *in.Position
+	}
+	k, err := s.opt.Service.ReorderTicket(r.Context(), actorOf(r), r.PathValue("id"), r.PathValue("tid"), position)
 	s.respond(w, r, http.StatusOK, k, err)
 }
 

@@ -4,7 +4,7 @@
   min-height: 0;
   overflow: auto;
   padding: 28px clamp(18px, 3vw, 40px) 32px;
-  background: var(--surface);
+  background: var(--bg);
 }
 .work-heading {
   display: flex;

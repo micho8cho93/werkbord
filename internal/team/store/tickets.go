@@ -34,7 +34,7 @@ func (t *sqlTx) Revision(ctx context.Context, workspaceID, projectID string) (in
 
 const ticketCols = `id, project_id, number, title, description, requirements, status, assignee_id, creator_id, reviewer_id, branch,
 	pr_url, pr_number, pr_state, pr_draft, pr_mergeable, pr_base, pr_behind, pr_ahead, pr_reported_by, pr_reported_at, pr_created_at,
-	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at, assignment, work_mode, plan_start, plan_end, milestone, source_ref`
+	version, created_at, updated_at, claimed_at, submitted_at, completed_at, archived_at, assignment, work_mode, plan_start, plan_end, milestone, source_ref, position`
 
 func optMS(v sql.NullInt64) *time.Time {
 	if !v.Valid {
@@ -71,7 +71,7 @@ func scanTicket(s interface{ Scan(...any) error }) (domain.Ticket, error) {
 	var milestone int
 	err := s.Scan(&t.ID, &t.ProjectID, &t.Number, &t.Title, &t.Description, &t.Requirements, &status, &assignee, &t.CreatorID, &reviewer, &t.Branch,
 		&prURL, &prNumber, &prState, &prDraft, &prMergeable, &prBase, &prBehind, &prAhead, &prBy, &prReported, &prCreated,
-		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived, &t.Assignment, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone, &t.SourceRef)
+		&t.Version, &created, &updated, &claimed, &submitted, &completed, &archived, &t.Assignment, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone, &t.SourceRef, &t.Position)
 	if err != nil {
 		return t, err
 	}
@@ -98,14 +98,31 @@ func (t *sqlTx) NextTicketNumber(ctx context.Context, workspaceID string) (int, 
 	return n, err
 }
 
-// InsertTicket stores a new ticket.
+// SetTicketPosition moves a ticket within its project's queue. It is the one write that leaves version and updated_at alone: where a
+// ticket sits is not part of what an open edit or a report was based on.
+func (t *sqlTx) SetTicketPosition(ctx context.Context, workspaceID, projectID, id string, position float64) error {
+	res, err := t.q.ExecContext(ctx, `UPDATE tickets SET position = ? WHERE workspace_id = ? AND project_id = ? AND id = ?`, position, workspaceID, projectID, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// InsertTicket stores a new ticket, at the end of its project's queue.
 func (t *sqlTx) InsertTicket(ctx context.Context, workspaceID string, k domain.Ticket) error {
+	position := k.Position
+	if position == 0 {
+		position = float64(k.Number)
+	}
 	_, err := t.q.ExecContext(ctx, `INSERT INTO tickets (id, workspace_id, project_id, number, title, description, requirements, status,
-		assignee_id, creator_id, reviewer_id, branch, version, created_at, updated_at, work_mode, plan_start, plan_end, milestone, source_ref)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+		assignee_id, creator_id, reviewer_id, branch, version, created_at, updated_at, work_mode, plan_start, plan_end, milestone, source_ref, position)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		k.ID, workspaceID, k.ProjectID, k.Number, k.Title, k.Description, k.Requirements, string(k.Status),
 		nullStr(k.AssigneeID), k.CreatorID, nullStr(k.ReviewerID), k.Branch, ms(k.CreatedAt), ms(k.UpdatedAt),
-		string(k.Mode()), k.Plan.Start, k.Plan.End, b2i(k.Plan.Milestone), k.SourceRef)
+		string(k.Mode()), k.Plan.Start, k.Plan.End, b2i(k.Plan.Milestone), k.SourceRef, position)
 	if err != nil {
 		return err
 	}
@@ -134,7 +151,7 @@ func (t *sqlTx) Ticket(ctx context.Context, workspaceID, projectID, id string) (
 
 // Tickets lists a project's tickets, newest number first within a status; commits are not loaded.
 func (t *sqlTx) Tickets(ctx context.Context, workspaceID, projectID string) ([]domain.Ticket, error) {
-	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND project_id = ? ORDER BY number`, workspaceID, projectID)
+	rows, err := t.q.QueryContext(ctx, `SELECT `+ticketCols+` FROM tickets WHERE workspace_id = ? AND project_id = ? ORDER BY position, number`, workspaceID, projectID)
 	if err != nil {
 		return nil, err
 	}

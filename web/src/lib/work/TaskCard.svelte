@@ -31,6 +31,7 @@
     onstart,
     onmerge,
     onmove,
+    sortable = false,
   }: {
     task: Task;
     run: Run | undefined;
@@ -46,6 +47,8 @@
     onstart: (task: Task) => void;
     onmerge: (task: Task) => void;
     onmove: (task: Task, state: TaskState) => void;
+    /** The row can be dragged (or moved with Alt+Arrow) within its list. */
+    sortable?: boolean;
   } = $props();
 
   const questions = $derived(run ? scope.pendingFor(run.id) : []);
@@ -134,8 +137,12 @@
   class:live={status.live && !stale}
   class:settled={task.state === 'done'}
   class:selected
+  class:sortable
   aria-busy={pending}
+  data-order-item={sortable ? task.id : undefined}
+  data-order-label={sortable ? task.title : undefined}
 >
+  {#if sortable}<button type="button" class="order-handle" data-order-handle aria-label="Reorder “{task.title}”. Alt plus Up or Down arrow moves it." title="Drag to reorder"><Icon name="grip" size={14} /></button>{/if}
   <span class="task-marker" class:finished={task.state === 'done'} aria-label={task.state === 'done' ? 'Complete' : status.text}>{#if task.state === 'done'}<Icon name="check" size={12} />{/if}</span>
   <div class="task-content">
   <a class="title" {href}>{task.title}</a>
@@ -195,5 +202,6 @@
 
 <style>
  .task{--work-border:var(--border);--work-surface:var(--surface);--work-muted:var(--text-2);display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 8px;position:relative;cursor:default;}.task:hover,.task.selected{background:color-mix(in srgb,var(--accent) 3%,var(--surface));}.task-marker{width:14px;height:14px;border:1px solid var(--text-2);border-radius:50%;display:grid;place-items:center;color:var(--surface);}.task-marker.finished{background:var(--ok);border-color:var(--ok);}.live .task-marker{border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--surface);background:var(--accent);}.task[data-tone=ask] .task-marker{border-color:var(--warn);background:var(--warn);}.task-content{min-width:0;}.title{font-weight:500;font-size:14px;line-height:1.5;color:var(--text);text-decoration:none;overflow-wrap:anywhere;}.title:hover{text-decoration:underline;}.title::after{content:'';position:absolute;inset:0;}.title:focus-visible{outline:none;}.title:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px;}.st,.detail,.work-detail,.meta,.dependency{font-size:12px;line-height:1.5;color:var(--text-2);margin:4px 0 0;overflow-wrap:anywhere;}.st{display:flex;align-items:center;gap:6px;}.st .dot{width:6px;height:6px;}.dependency{color:var(--block-text);position:relative;z-index:1;}.dependency a{color:inherit;}.detail,.work-detail{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}.meta{display:flex;gap:0;flex-wrap:wrap;}.meta span+span::before{content:'·';margin:0 6px;}.prio[data-p=high]{color:var(--danger-text);}.row-actions{position:relative;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:350px;}.acts,.foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}.row-actions :global(.btn){font-size:12px;}.settled .task-content{color:var(--text-2);}
- @media(max-width:800px){.task{grid-template-columns:15px minmax(0,1fr);padding:14px 0;align-items:start;}.task-marker{margin-top:4px;}.row-actions{grid-column:2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
+ .task.sortable{grid-template-columns:20px 15px minmax(0,1fr) auto;padding-left:6px;}
+ @media(max-width:800px){.task.sortable{grid-template-columns:20px 15px minmax(0,1fr);}.task.sortable .row-actions{grid-column:3;}.task{grid-template-columns:15px minmax(0,1fr);padding:14px 0;align-items:start;}.task-marker{margin-top:4px;}.row-actions{grid-column:2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
 </style>

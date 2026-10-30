@@ -508,6 +508,17 @@ never use lanes or drag gestures to change lifecycle state. Derive the grouping 
 dates and unfinished dependencies. Completed work stays in a disclosure. Name and link blocking tasks inside each row.
 Keep existing task details, review and Git confirmations, assignment and CLI session controls.
 
+**Queue cards.** Each queue is one flat card on the page tray (`--bg`): `--surface`, a hairline `--border`, `--radius`, no shadow, a 14px/600
+title with a tabular count chip on `--surface-2`, and a quiet 12px description on the right (hidden on phones). Inside a card, projects and
+plans are disclosure rows separated by hairlines, never cards of their own: cards are never nested. A disclosure uses the one global chevron
+(`details > summary::before`); its summary shows the name, where it lives (workspace) or its progress ("1 of 3 complete") in 12px secondary
+text. Rows stay compact: title, one status line, and only the controls the person needs. A holder is a 24px initials chip on `--surface-2`
+(the viewer's own tinted cobalt, never amber); an unheld row has no chip. The drag handle is a 20×28 grip that appears on hover or focus and is
+always visible where hover does not exist; a row someone else holds shows a lock with the reason instead of a handle. Motion is state only:
+the dragged row dims, one 2px cobalt line shows where it will land, and nothing else animates. Alt plus Up or Down moves a row, a polite live
+region announces it ("Alpha moved to position 3 of 4"), and Escape cancels a drag. The shared stylesheet is
+`internal/uipresentation/static/work-cards.css` and the gesture transport `work-order.js`; products supply rows, rules and persistence.
+
 Queue and Plans share a compact section navigation. Opening a plan replaces the queue with a dedicated detail page: its description,
 current progress and ordered task references lead, with plan information and actions in a narrow sidebar. Sessions, decisions and
 questions are sections inside the plan. On narrow screens the information follows the main content. Plan editing

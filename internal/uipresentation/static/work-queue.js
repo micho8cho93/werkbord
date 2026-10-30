@@ -9,5 +9,5 @@
     if (item.priority === 'low') return 'later';
     return 'next';
   }
-  root.WerkbordWork = { group };
+  root.WerkbordWork = Object.assign(root.WerkbordWork || {}, { group });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

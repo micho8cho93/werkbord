@@ -56,6 +56,14 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 			if err != nil {
 				return err
 			}
+			planOf := map[string]string{}
+			for _, plan := range plans {
+				for _, id := range plan.TaskIDs {
+					if _, taken := planOf[id]; !taken {
+						planOf[id] = plan.Title
+					}
+				}
+			}
 			for _, plan := range plans {
 				done := 0
 				for _, id := range plan.TaskIDs {
@@ -100,7 +108,7 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 				if t.State == domain.TaskDone {
 					group = "done"
 				}
-				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail})
+				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail, Plan: planOf[t.ID]})
 			}
 			for _, t := range tasks {
 				if t.ArchivedAt != nil || (t.Plan.Start == "" && t.Plan.End == "") {

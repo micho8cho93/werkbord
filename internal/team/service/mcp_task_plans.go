@@ -526,6 +526,7 @@ func applyTeamMCPTaskPlan(ctx context.Context, tx store.Tx, s *Service, a Actor,
 			}
 			ticket.Number, ticket.Key = number, domain.TicketKey(number)
 			ticket.Dependencies = []string{} // Dependencies are linked after every new row exists.
+			ticket.Position = float64(number)
 			if err := tx.InsertTicket(ctx, a.Workspace.ID, ticket); err != nil {
 				return mcpplan.Applied{}, err
 			}

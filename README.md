@@ -256,6 +256,7 @@ Use disposable fixtures; no installed controller or Team data is needed:
 ```bash
 make test-project-context-browser  # selector, scoping, offline and narrow navigation
 make test-work-browser             # Personal/Team queues, plans and dependencies
+make test-work-order-browser       # queue cards, drag/keyboard ordering, Team claims, locks and shared order
 make test-browser                  # controller, phones, Team, memory and Analytics
 make test-assistant-browser        # Salie, Agents and session continuity
 make test-planning-browser         # Calendar edits and scheduling, Chromium and WebKit
