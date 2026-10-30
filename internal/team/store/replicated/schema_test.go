@@ -233,7 +233,7 @@ func TestClaimUpgradeKeepsWorkAndReportsOnTheReplicatedStore(t *testing.T) {
 		t.Fatal("claim_before_work migration is missing")
 	}
 	old := open(t, c, 0, func(o *Options) { o.Migrations = all[:target] })
-	k := seed(t, old)
+	k := seedBeforeSourceRef(t, old)
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	if err := old.update(bg, func(q store.Queryer) error {
 		if _, err := q.ExecContext(bg, `UPDATE tickets SET status='in_progress',assignee_id=?,branch='wb-1-work',claimed_at=? WHERE id=?`, k.owner, now.UnixMilli(), k.ticket); err != nil {
@@ -249,7 +249,14 @@ func TestClaimUpgradeKeepsWorkAndReportsOnTheReplicatedStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	before := ticketOf(t, old, k)
+	// Read only columns present before the migration; today's Ticket query also
+	// requires the position column added by a later migration.
+	var before domain.Ticket
+	if err := old.update(bg, func(q store.Queryer) error {
+		return q.QueryRowContext(bg, `SELECT assignee_id,assignment FROM tickets WHERE id=?`, k.ticket).Scan(&before.AssigneeID, &before.Assignment)
+	}); err != nil {
+		t.Fatal(err)
+	}
 	_ = old.Close()
 	upgraded := open(t, c, 1)
 	settle(t, upgraded)

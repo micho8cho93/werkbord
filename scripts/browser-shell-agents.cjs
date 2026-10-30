@@ -114,6 +114,12 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const runs = async () => (await api(ind, 'GET', `/api/projects/${project.id}/tasks/${task.id}/runs`)).runs ?? [];
         const sessions = async () => (await api(ind, 'GET', '/api/agent-sessions')).sessions;
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        // The iframe can finish loading before asynchronous device setup registers
+        // Salie's listener. Opening from the sidebar must survive that delay.
+        await ctx.route('**/api/device', async route => {
+            if (new URL(route.request().frame().url()).searchParams.get('surface') === 'assistant') await sleep(800);
+            await route.continue();
+        });
         page = await ctx.newPage(); page.setDefaultTimeout(20000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');

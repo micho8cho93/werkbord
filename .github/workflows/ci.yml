@@ -146,7 +146,7 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/unified" make test-unified-desktop-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/onboarding" make test-onboarding-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
-          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/personal" make test-personal-browser
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/work" make test-project-context-browser test-work-browser test-work-order-browser
           node scripts/browser-salie-sessions.cjs
       - name: Browser diagnostics
         if: failure()

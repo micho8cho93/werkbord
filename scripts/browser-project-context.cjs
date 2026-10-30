@@ -29,7 +29,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.url.startsWith('/frame')) {
     res.setHeader('Content-Type', 'text/html');
-    res.end(`<html><body>Fixture workspace<script>parent.postMessage({type:'werkbord.frame',event:'ready'},'*');addEventListener('message',e=>{if(e.data.type==='werkbord.assistant'&&e.data.action==='open'){document.body.textContent='Salie · '+(e.data.projectContext?.label??'All Projects'); parent.postMessage({type:'werkbord.frame',event:'assistant',open:true,waiting:0,running:false},'*')}})</script></body></html>`); return;
+    res.end(`<html><body>Fixture workspace<script>parent.postMessage({type:'werkbord.frame',event:'ready'},'*');addEventListener('message',e=>{if(e.data.type==='werkbord.assistant'&&e.data.action==='open'){document.body.textContent='Salie · '+(e.data.projectContext?.label??'All Projects'); parent.postMessage({type:'werkbord.frame',event:'assistant',open:true,waiting:0,running:false},'*')}});parent.postMessage({type:'werkbord.frame',event:'assistant',open:false,waiting:0,running:false},'*')</script></body></html>`); return;
   }
   const url = req.url === '/' ? '/shell/index.html' : req.url.split('?')[0];
   const file = path.join(root, url);

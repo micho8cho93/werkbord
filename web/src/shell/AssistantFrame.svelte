@@ -57,7 +57,12 @@
       },
       // A card in a conversation leads to the session it started: the window shows it in Agents, and Salie folds away without stopping.
       agentSession: key => { void model.openAgents(key); },
-      assistant: (_id, state) => model.setAssistant(state),
+      assistant: (_id, state) => {
+        // The initial report follows registration of Salie's message listener.
+        // The iframe's load event can precede its asynchronous device setup.
+        loaded = true;
+        model.setAssistant(state);
+      },
     });
   }
 
@@ -108,7 +113,6 @@
     aria-hidden={!model.assistantShown}
     data-testid="assistant-frame"
     onload={() => {
-      loaded = true;
       tell();
     }}
   ></iframe>

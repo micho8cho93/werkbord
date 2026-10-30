@@ -41,7 +41,7 @@ func TestTheCommentsMigrationRunsOnceOnTheClusterAndTheConversationReplicates(t 
 
 	// A workspace from before comments, with a member and a ticket in it.
 	old := open(t, c, 0, func(o *Options) { o.Migrations = all[:target] })
-	k := seed(t, old)
+	k := seedBeforeSourceRef(t, old)
 	settle(t, old)
 	seq := position(t, old).Seq
 	_ = old.Close()
@@ -66,8 +66,12 @@ func TestTheCommentsMigrationRunsOnceOnTheClusterAndTheConversationReplicates(t 
 	if got := position(t, news[0]).Seq; got != seq+1 {
 		t.Fatalf("the cluster is at position %d, want %d: the migration was not one write", got, seq+1)
 	}
-	if got := ticketOf(t, news[1], k); got.Title != "First" {
-		t.Fatalf("the ticket did not survive the migration: %+v", got)
+	// This historical schema predates columns used by today's Ticket query.
+	var title string
+	if err := news[1].update(bg, func(q store.Queryer) error {
+		return q.QueryRowContext(bg, `SELECT title FROM tickets WHERE id=?`, k.ticket).Scan(&title)
+	}); err != nil || title != "First" {
+		t.Fatalf("the ticket did not survive the migration: %q, %v", title, err)
 	}
 	hosts := []*Store{news[0], news[1], open(t, c, 0, func(o *Options) { o.Migrations = all[:target+1] })}
 	settle(t, hosts...)
