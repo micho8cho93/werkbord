@@ -191,7 +191,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
     // A task advances with one tap; Back ignores intermediate pages and follows the tree.
     {
         const { ctx, page } = await phone(390, 844);
-        const task = await ensure('Phone workflow regression', {});
+        const task = await ensure('Phone workflow regression', { workMode: 'human' }); // a human task advances by hand; an agent task's one action is to start an agent
         await page.goto(base + `/#/p/${project.id}/task/${task.id}`);
         await page.getByRole('button', { name: 'Move to In progress', exact: true }).click();
         await page.getByRole('button', { name: 'Submit for review', exact: true }).click();

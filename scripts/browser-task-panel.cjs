@@ -57,7 +57,8 @@ async function request(method, route, body) {
             await page.keyboard.press('Home');
             assert.equal(await panel.getByRole('tab', { name: 'Overview', exact: true }).getAttribute('aria-selected'), 'true', `${label}: Home opens Overview`);
             assert(await panel.getByText('Set up a run', { exact: true }).isVisible(), `${label}: a task that never ran opens its run setup`);
-            assert.equal(await panel.getByText('Next', { exact: true }).count(), 0, `${label}: no "Next" line restating the status`);
+            assert.equal(await panel.getByText('Next', { exact: true }).count(), 1, `${label}: one Next, with the one action, beside what is happening now`);
+            assert.equal(await panel.getByTestId('task-next').count(), 1, `${label}: exactly one next action`);
             await page.screenshot({ path: path.join(artifacts, `task-panel-${label}-overview.png`) });
             await panel.getByRole('tab', { name: /^Chat/ }).click();
             assert(await panel.getByText('No agent has worked on this task yet.').isVisible(), `${label}: Chat says there is no conversation yet`);

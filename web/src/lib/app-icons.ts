@@ -4,7 +4,6 @@ import LayoutPanelLeft from '@lucide/svelte/icons/layout-panel-left';
 import ListTodo from '@lucide/svelte/icons/list-todo';
 import Calendar from '@lucide/svelte/icons/calendar';
 import GitFork from '@lucide/svelte/icons/git-fork';
-import GitCompareArrows from '@lucide/svelte/icons/git-compare-arrows';
 import Radar from '@lucide/svelte/icons/radar';
 import SquareTerminal from '@lucide/svelte/icons/square-terminal';
 import ChartColumn from '@lucide/svelte/icons/chart-column';
@@ -52,7 +51,6 @@ export const appIconComponents = {
   work: ListTodo,
   calendar: Calendar,
   git: GitFork,
-  'product-map': GitCompareArrows,
   activity: Radar,
   runs: SquareTerminal,
   analytics: ChartColumn,
@@ -103,7 +101,6 @@ export const appIconSources: Record<AppIconName, string> = {
   work: 'list-todo',
   calendar: 'calendar',
   git: 'git-fork',
-  'product-map': 'git-compare-arrows',
   activity: 'radar',
   runs: 'square-terminal',
   analytics: 'chart-column',

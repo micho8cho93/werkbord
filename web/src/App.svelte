@@ -45,7 +45,6 @@
   import Scheduling from './routes/Scheduling.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
-  import ProductMap from './routes/ProductMap.svelte';
   import Help from './routes/Help.svelte';
   import Onboarding from './routes/Onboarding.svelte';
   import Tour from './lib/Tour.svelte';
@@ -297,8 +296,6 @@
               {#if project.kind === 'work'}<WorkOverview {scope} {project} />{:else}<ProjectOverview {scope} {project} />{/if}
             {:else if router.view === 'calendar'}
               <Scheduling {scope} {project} />
-            {:else if router.view === 'product-map'}
-              <ProductMap {project} />
             {:else if router.view === 'git' && project.kind === 'work'}
               <p class="empty">This project has no Git repository. Add a repository project to inspect Git changes.</p>
             {:else if router.view === 'runs' && project.kind === 'work'}

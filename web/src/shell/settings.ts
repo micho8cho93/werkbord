@@ -10,7 +10,7 @@ import type { Item, Kind } from './types';
 /** Which part of Werkbord Settings is for: Home (everything), Personal, or one team (its id). */
 export type Scope = { kind: 'universal' } | { kind: 'personal' } | { kind: 'team'; id: string };
 
-export type Native = 'appearance' | 'alerts' | 'plan';
+export type Native = 'appearance' | 'alerts' | 'plan' | 'workspaces';
 
 export type Where =
   | { native: Native }
@@ -36,13 +36,17 @@ export interface Group {
 
 const PERSONAL = 'personal';
 
+/** Projects and workspaces are one section of Settings of their own: the workspaces on this computer, and each one's projects. */
+const PROJECTS = 'Projects & workspaces';
+
 const here = (workspace: string, place: string): Where => ({ workspace, place });
 
 /** Individual's sections, in the groups Settings always has. */
 function personal(): Group[] {
   const at = (id: string, label: string, query: string): Section => ({ id: `personal/${id}`, label, where: here(PERSONAL, `#/settings${query}`) });
   return [
-    { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('history', 'Project history', '?history'), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
+    { label: PROJECTS, sections: [at('history', 'Project history', '?history')] },
+    { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
     { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('computer', 'This computer', '?computer')] },
     { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Personal memory', '?memory')] },
   ];
@@ -52,7 +56,8 @@ function personal(): Group[] {
 function team(id: string): Group[] {
   const at = (key: string, label: string, query: string): Section => ({ id: `${id}/${key}`, label, where: here(id, `?tab=${query}`) });
   return [
-    { label: 'Work', sections: [at('labels', 'Labels', 'labels'), at('history', 'Project history', 'projects')] },
+    { label: PROJECTS, sections: [at('history', 'Project history', 'projects')] },
+    { label: 'Work', sections: [at('labels', 'Labels', 'labels')] },
     {
       label: 'Machines',
       sections: [at('computer', 'This computer', 'settings&part=computer'), at('devices', 'Devices', 'devices')],
@@ -75,6 +80,16 @@ export function general(): Group {
   };
 }
 
+/** The workspaces on this computer, and where a team is made or joined: the shell's own, the first of Projects & workspaces. */
+export function workspacesGroup(): Group {
+  return { label: PROJECTS, sections: [{ id: 'general/workspaces', label: 'Workspaces', where: { native: 'workspaces' } }] };
+}
+
+/** Inside one workspace's own scope the workspaces list and that workspace's projects are one group. */
+function withWorkspaces(groups: Group[]): Group[] {
+  return groups.map((g) => (g.label === PROJECTS ? { ...g, sections: [...workspacesGroup().sections, ...g.sections] } : g));
+}
+
 /** The Team workspaces whose settings can be shown: the ones the window has open or can open. */
 export function teamsOf(items: readonly Item[] | undefined): Item[] {
   return (items ?? []).filter((i) => i.kind === 'team' && (i.state === 'ready' || i.state === 'connecting' || i.state === 'offline'));
@@ -82,9 +97,9 @@ export function teamsOf(items: readonly Item[] | undefined): Item[] {
 
 /** What Settings lists for a scope. */
 export function groupsFor(scope: Scope, items: readonly Item[] | undefined): Group[] {
-  if (scope.kind === 'personal') return [general(), ...personal()];
-  if (scope.kind === 'team') return [general(), ...team(scope.id)];
-  const out: Group[] = [general()];
+  if (scope.kind === 'personal') return [general(), ...withWorkspaces(personal())];
+  if (scope.kind === 'team') return [general(), ...withWorkspaces(team(scope.id))];
+  const out: Group[] = [general(), workspacesGroup()];
   out.push(...personal().map((g) => ({ ...g, owner: 'Personal' })));
   for (const t of teamsOf(items)) out.push(...team(t.id).map((g) => ({ ...g, owner: t.name })));
   return out;
@@ -127,5 +142,6 @@ export function sectionForPlace(groups: readonly Group[], workspace: string, pla
     return tab === 'settings' ? `settings:${params.get('part') ?? 'computer'}` : tab;
   };
   const wanted = key(place);
-  return mine.find((s) => 'workspace' in s.where && key(s.where.place) === wanted) ?? mine[0];
+  const first = mine.find((s) => s.id === `${workspace}/${workspace === PERSONAL ? 'defaults' : 'labels'}`) ?? mine[0];
+  return mine.find((s) => 'workspace' in s.where && key(s.where.place) === wanted) ?? first;
 }

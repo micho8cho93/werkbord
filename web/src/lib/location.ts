@@ -23,7 +23,7 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
  */
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
-export type ProjectSection = 'product-map' | 'overview' | 'work' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
+export type ProjectSection = 'overview' | 'work' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
@@ -43,7 +43,6 @@ export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] 
   { id: 'work', label: 'Work' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'git', label: 'Git' },
-  { id: 'product-map', label: 'Product Map' },
   { id: 'runs', label: 'Runs' },
   { id: 'analytics', label: 'Analytics' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
@@ -58,7 +57,7 @@ export const PROJECT_TABS = PROJECT_SECTIONS.filter((s) => !['defaults', 'analyt
  * Sections that exist only for a project with a Git repository: the calendar schedules agents, Git is
  * the repository, and runs are agents' sessions. A work project has none of them.
  */
-const REPOSITORY_ONLY: readonly ProjectSection[] = ['product-map'];
+const REPOSITORY_ONLY: readonly ProjectSection[] = [];
 
 /** Whether a section is there for a project of this kind. */
 export function sectionApplies(section: ProjectSection, kind: string | undefined): boolean {
@@ -93,7 +92,7 @@ export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readon
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
 
 /** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
-const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'calendar' };
+const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'calendar', 'product-map': 'overview' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
 /** A path part decoded, or '' when it is not valid percent-encoding. */

@@ -648,3 +648,21 @@ describe('Back and where a page was opened from', () => {
     expect(asked).toEqual(['open:personal']);
   });
 });
+
+it('knows when this computer already hosts a team, because a computer can host only one', () => {
+  const model = new Model();
+  model.view = view([individual, team]);
+  expect(model.hostedHere).toBeUndefined();
+  model.view = view([individual, { ...team, deviceRoles: ['runner', 'workspace_host'] }]);
+  expect(model.hostedHere?.id).toBe('team:main');
+  model.view = view([individual, { ...team, deviceRoles: ['runner'] }]);
+  expect(model.hostedHere).toBeUndefined();
+});
+
+it('opens Settings on the workspaces list when something sends the person to Devices & Hosting', () => {
+  const model = new Model();
+  model.view = view([individual, team]);
+  model.go('workspaces');
+  expect(model.page).toBe('settings');
+  expect(model.settingsShown.id).toBe('general/workspaces');
+});

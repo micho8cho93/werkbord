@@ -9,8 +9,6 @@
   import { alerts } from './alerts.svelte';
   import { parseChain } from '../lib/origin';
   import { look, theme } from '../lib/theme.svelte';
-  import ShareProductMap from './ShareProductMap.svelte';
-  let mapShare = $state<{ workspace: string; project: string; name: string } | null>(null);
 
   let { shown }: { shown: boolean } = $props();
 
@@ -84,10 +82,6 @@
       notify: (_id, alert) => void alerts.tell(alert),
       settings: (id, place) => model.openSettingsAt(id, place),
       plan: () => model.openSettings('general/plan'),
-      productMap: (id, project) => {
-        const p = model.overview?.entries.find(e => e.workspace.id === id)?.summary?.projects.find(p => p.id === project);
-        if (p) mapShare = { workspace: id, project, name: p.name };
-      },
     });
   }
 
@@ -137,9 +131,6 @@
   {/each}
 </div>
 
-{#if mapShare}
-  <ShareProductMap {...mapShare} onclose={() => { mapShare = null; }} />
-{/if}
 
 <style>
   .frames {

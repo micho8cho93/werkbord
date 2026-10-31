@@ -10,7 +10,7 @@ import { surfaceUrl } from './frames';
 import { agentsPlace, isAgentsPlace, scopedAgentsPlace } from './nav';
 import { chainOf, pushed, withChain, type Origin } from '../lib/origin';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
-import type { App, Overview, Target, WorkspaceView } from './types';
+import type { App, Item, Overview, Target, WorkspaceView } from './types';
 import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
 
 export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'agents';
@@ -67,6 +67,13 @@ export class Model {
    * is not a mode the person chooses: there is one sidebar, and this only says which kind of place they are in.
    */
   universal = $state(true);
+  /**
+   * The team this computer already hosts, if it does. A computer can host only one Team workspace (its Host listens on fixed ports), so a
+   * second team cannot be created here; the person is told so before they fill anything in, and can still join teams hosted elsewhere.
+   */
+  get hostedHere(): Item | undefined {
+    return this.view?.items.find(i => i.kind === 'team' && i.state !== 'setup' && (i.deviceRoles ?? this.overview?.entries.find(e => e.workspace.id === i.id)?.summary?.workspace.deviceRoles ?? []).includes('workspace_host'));
+  }
   get remotePersonal(): boolean { return this.view?.items.find(i => i.id === 'personal')?.deviceRoles?.includes('control_client') ?? false; }
   /** The workspace the Workspace page shows. */
   current = $state('personal');
@@ -549,11 +556,15 @@ export class Model {
     this.departed = null;
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
+    if (p === 'workspaces') {
+      void this.refreshOverview();
+      return this.openSettings('general/workspaces');
+    }
     if (p === 'agents' && this.personalReady) return void this.openAgents();
     if (['calendar', 'inbox', 'reviews', 'analytics', 'agents'].includes(p)) this.universal = true;
     this.leaveAssistant();
     this.page = p;
-    if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'agents' || p === 'workspaces') void this.refreshOverview();
+    if (p === 'calendar' || p === 'inbox' || p === 'reviews' || p === 'analytics' || p === 'agents') void this.refreshOverview();
   }
 
   /** The new-team dialog's work, once it has started: kept here so that closing the dialog does not lose it. */

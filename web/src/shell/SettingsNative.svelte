@@ -20,10 +20,6 @@
 
 <div class="wrap">
   {#if section === 'appearance'}
-    <section class="pn" aria-label="Workspace settings">
-      <div class="head"><h3>Projects and workspaces</h3><p class="muted">Manage this computer, connected workspaces and project setup.</p></div>
-      <div><button class="btn" type="button" onclick={() => model.go('workspaces')}>Devices &amp; Hosting</button> <button class="btn" type="button" onclick={() => model.addOpen = true}>New team or join…</button> <button class="btn" type="button" onclick={() => model.goTo('personal', '#/projects')}>Manage personal projects</button></div>
-    </section>
     <section class="pn" aria-labelledby="theme-h">
       <div class="head">
         <h3 id="theme-h">Theme</h3>

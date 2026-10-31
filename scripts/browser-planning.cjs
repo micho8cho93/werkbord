@@ -44,7 +44,7 @@ let browser, server, debugPage;
     await page.goto(`${teamURL}/?tab=work&project=${tp.id}`);
     const teamCard=page.locator(`[data-task-id="${ticket.id}"]`); await teamCard.waitFor(); ticket=await getTicket();
     const tabs=page.getByRole('navigation',{name:'Project sections'});
-    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Work','Calendar','Git','Runs','Product Map']);
+    assert.deepEqual((await tabs.locator('button').allTextContents()).map(t=>t.replace(/\d+/g,'').trim()),['Overview','Work','Calendar','Git','Runs']);
     await page.getByRole('button',{name:/^Project settings/}).waitFor();
     assert.equal(await page.locator('.project-details, .project-people').count(),0,'the project header has no people list or details dropdown');
     await page.getByRole('button',{name:/^Project settings/}).click();

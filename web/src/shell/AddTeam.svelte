@@ -26,6 +26,9 @@
   const needsSetup = $derived(!!team && team.state !== 'ready');
   const noInstaller = $derived(needsSetup && !model.view?.teamInstaller && team?.state === 'not_installed');
   const working = $derived(!!model.busy);
+  // A computer hosts one team. Creating a second here would fail at the end, so say so first and keep joining and the other computers open.
+  const hosting = $derived(model.hostedHere);
+  const blocked = $derived(way === 'create' && !!hosting);
   const releases = 'https://github.com/micho8cho93/werkbord/releases';
 
   onMount(async () => {
@@ -118,7 +121,12 @@
   {:else}
     <Segmented compact options={[{ id: 'create', label: 'Create a team' }, { id: 'join', label: 'Join with a link' }]} value={way} onchange={(w) => { way = w; problem = ''; model.error = ''; }} label="Create or join" />
     <form onsubmit={submit}>
-      {#if way === 'create'}
+      {#if blocked && hosting}
+        <p class="note" role="status" data-testid="add-team-hosted">
+          <strong>This computer already hosts {hosting.name}.</strong> A computer can host only one team, so a new team has to be created on another computer. You can still join any team with an invitation link, here or there.
+        </p>
+        <div class="actions"><button class="btn" type="button" onclick={() => { way = 'join'; problem = ''; model.error = ''; }}>Join with a link instead</button></div>
+      {:else if way === 'create'}
         <label class="f"><span>Team name</span>
           <input name="team-name" bind:value={teamName} maxlength="80" required autocomplete="organization" placeholder="Smith &amp; Co" data-autofocus data-testid="add-team-name" />
         </label>
@@ -149,7 +157,7 @@
         {/if}
       {/if}
 
-      {#if way === 'create' || invitation}
+      {#if (way === 'create' && !blocked) || (way === 'join' && invitation)}
         <p class="plan" data-testid="add-team-plan">
           {#if plan.premium}<strong>Premium:</strong> teams of any size.
           {:else}<strong>Free plan: up to 2 people</strong>, you and a partner. Teams of 3 or more need Premium for everyone in the team.{/if}
@@ -214,6 +222,13 @@
     border-radius: var(--radius-sm);
     font-weight: 400;
     background: var(--surface);
+  }
+  .note {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    line-height: 1.45;
   }
   .fine {
     margin: 0;

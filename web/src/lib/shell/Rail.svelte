@@ -76,15 +76,12 @@
   {/if}
 
   <div class="foot">
-    <a class="nav" href={globalHref('help')} aria-current={router.view === 'help' ? 'page' : undefined}>
-      <Icon name="help" />Help
-    </a>
     <a class="nav" href={globalHref('settings')} aria-current={router.view === 'settings' ? 'page' : undefined}>
       <Icon name="settings" />Settings
     </a>
-    <div class="row">
-
-    </div>
+    <a class="nav" href={globalHref('help')} aria-current={router.view === 'help' ? 'page' : undefined}>
+      <Icon name="help" />Help
+    </a>
   </div>
 </aside>
 
@@ -229,14 +226,10 @@
     margin-top: auto;
     padding-top: 14px;
     display: flex;
-    flex-direction: column;
     gap: 2px;
   }
-
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding: 4px 4px 0 10px;
+  .foot .nav {
+    flex: 1 1 0;
+    min-width: 0;
   }
 </style>

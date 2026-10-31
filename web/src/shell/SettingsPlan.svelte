@@ -44,6 +44,7 @@
           <li>Everything in Free</li>
           <li>Create or join teams of any size</li>
           <li>As many teams as you need</li>
+          <li>Product Map: see your codebase and its features visually <span class="chip">coming soon</span></li>
           <li>Works offline: there is no account or server to reach</li>
         </ul>
         {#if status.buyUrl}

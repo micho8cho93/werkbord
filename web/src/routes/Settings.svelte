@@ -6,7 +6,6 @@
   import Tour from '../lib/Tour.svelte';
   import { onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
-  import Icon from '../lib/Icon.svelte';
   import { clock, formatTime } from '../lib/clock.svelte';
   import { compact, resolveFor, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -39,7 +38,8 @@
   let mcpDirection = $state<'service' | 'client'>('service');
 
   const GROUPS = [
-    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'history', label: 'Project history' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
+    { label: 'Projects & workspaces', sections: [{ id: 'history', label: 'Project history' }] },
+    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
     { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
     { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Personal memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
@@ -153,7 +153,6 @@
   </nav>
 
   <div class="content">
-    {#if !framed}<a class="btn help-link" href={globalHref('help')} aria-label="Help and keyboard shortcuts"><Icon name="help" size={15} />Help</a>{/if}
     {#if section === 'defaults'}
       <section class="pn">
         <div class="head">
@@ -342,7 +341,6 @@
   /* In the window: one section, no list of its own (the window's Settings has it). */
   .settings.framed { display: block; height: auto; }
   .settings.framed .sections, .settings.framed .mobile-section { display: none; }
-  .help-link { align-self: flex-start; gap: 6px; text-decoration: none; }
 
   .sections a {
     display: flex;

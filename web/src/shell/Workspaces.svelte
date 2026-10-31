@@ -5,7 +5,7 @@
 
   // Every workspace on this computer, what this computer does for each, and where to manage it. Hosting is shown here as
   // the workspace reports it; the devices, roles, Hosts and backups are managed in the workspace's own pages, one click away.
-  let { overview }: { overview: Overview | null } = $props();
+  let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
 
   const items = $derived((model.view?.items ?? []).filter((i) => i.state !== 'setup' || i.id === model.current));
   const entry = (i: Item) => overview?.entries.find((e) => e.workspace.id === i.id);
@@ -26,10 +26,11 @@
   };
 </script>
 
-<section class="page" aria-labelledby="ws-h">
+<section class="page" class:embedded aria-labelledby="ws-h">
   <header>
-    <h1 id="ws-h">Devices &amp; Hosting</h1>
+    {#if embedded}<h3 id="ws-h">Workspaces</h3>{:else}<h1 id="ws-h">Devices &amp; Hosting</h1>{/if}
     <p class="lede">Closing this window stops nothing: your agents, schedules and Team services keep running.</p>
+    {#if embedded}<div class="actions"><button class="btn primary" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">New team or join…</button> <button class="btn" type="button" onclick={() => model.goTo('personal', '#/projects')}>Manage personal projects</button></div>{/if}
   </header>
 
   <section class="service" aria-label="Team service" data-state={teamState?.state}>
@@ -119,7 +120,7 @@
     {/each}
   </ul>
 
-  <p class="foot"><button class="btn add" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">New team or join…</button></p>
+  {#if !embedded}<p class="foot"><button class="btn add" type="button" onclick={() => (model.addOpen = true)} data-testid="add-team-page">New team or join…</button></p>{/if}
 </section>
 
 <style>
@@ -132,6 +133,24 @@
   }
   h1 {
     margin: 0;
+  }
+  /* Inside Settings the page is one section among its siblings: the settings page owns the scrolling and the width. */
+  .embedded {
+    height: auto;
+    max-width: 900px;
+    padding: 20px 24px 32px;
+    overflow: visible;
+  }
+  .embedded h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .embedded header .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
   }
   h2 {
     margin: 0;

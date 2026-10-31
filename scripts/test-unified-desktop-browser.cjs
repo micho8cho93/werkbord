@@ -190,7 +190,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
  const sections = page.getByTestId('settings-sections');
  await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();
- for (const label of ['Appearance', 'Alerts', 'Project history', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Personal memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
+ for (const label of ['Appearance', 'Alerts', 'Plan', 'Workspaces', 'Project history', 'Task defaults', 'Routing rules', 'Runners', 'Agents', 'This computer', 'Phones', 'GitHub', 'MCP services', 'Personal memory']) await sections.getByRole('button', { name: label, exact: true }).waitFor();
  assert.equal(await sections.getByRole('button', { name: 'Labels', exact: true }).count(), 0, 'Labels are Team\'s, not Individual\'s');
  await sections.getByRole('button', { name: 'Appearance', exact: true }).click();
  await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark', exact: true }).click();
@@ -203,7 +203,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await switchUniversal(); await side.locator('[data-page=settings]').click(); await sections.waitFor();
  for (const owner of ['Personal', 'Northstar Studio']) await sections.locator('[data-owner="' + owner + '"]').waitFor();
  await page.getByTestId('help-button').click(); await page.frameLocator('iframe[data-hosted="personal"]').getByRole('heading', { name: 'Find the next step' }).waitFor();
- assert.equal(await page.getByTestId('help-button').count(), 0, 'Help does not offer itself while it is open');
+ assert.equal(await page.getByTestId('help-button').getAttribute('aria-current'), 'page', 'the sidebar marks Help while it is open');
  console.log('PASS Settings and Help: one screen from Universal, Individual and Team; theme follows Settings');
  // Settings is one screen of the window, whichever part of Werkbord it is opened from; Team's sections are shown by Team's own page.
  await switchTo('team:main'); await side.locator('[data-page=settings]').click();
@@ -297,7 +297,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const inline = page.getByRole('region', { name: 'Answer: Commit the fixture work?', exact: true });
  await inline.waitFor();
  const questionRow = page.getByTestId('attention-item').filter({ hasText: 'Answering this question' });
- assert.equal(await page.getByText('Commit the fixture work?', { exact: true }).count(), 1, 'expanded shell Inbox states the question only in its answer card');
+ assert.equal((await page.getByText('Commit the fixture work?', { exact: true }).count()) - (await page.getByTestId('next-decision').getByText('Commit the fixture work?', { exact: true }).count()), 1, 'expanded shell Inbox states the question only in its answer card (the next-decision panel is the other place Work names it)');
  assert(await questionRow.innerText().then(text => text.includes('Personal') && text.includes('Customer portal') && text.includes(importedTask.title)), 'expanded question keeps workspace, project and task provenance');
  assert.equal(await inline.locator(':focus').count(), 0, 'no choice is focused on expansion');
  await capture('attention-expanded');
@@ -371,6 +371,19 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
  await page.setViewportSize({ width: 1440, height: 1000 });
  console.log('PASS workspaces and devices page in desktop/mobile shell');
+ // New teams are made from Settings → Projects & workspaces → Workspaces. This computer already hosts Northstar and a computer can host only one team,
+ // so the dialog says so before anything is typed instead of failing at the end, offers no Create, and keeps joining open.
+ await side.locator('[data-page=settings]').click(); await sections.waitFor();
+ await sections.getByRole('button', { name: 'Workspaces', exact: true }).click();
+ await page.getByTestId('add-team-page').click();
+ const addDialog = page.getByTestId('add-team-dialog');
+ await addDialog.getByTestId('add-team-hosted').waitFor();
+ assert((await addDialog.getByTestId('add-team-hosted').innerText()).includes('already hosts'), 'the dialog says this computer already hosts a team');
+ assert.equal(await addDialog.getByTestId('add-team-continue').count(), 0, 'no Create button that is bound to fail');
+ await addDialog.getByRole('button', { name: 'Join with a link instead', exact: true }).click();
+ await addDialog.getByTestId('add-team-link').waitFor();
+ await addDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+ console.log('PASS a second hosted team is explained before it is attempted, and joining stays open');
  console.log('PASS persistent frames, member restrictions, hosting offer and background run through switching');
  await page.reload(); await page.getByRole('heading', { name: 'Work', exact: true }).waitFor(); await openTeamTicket(); await firstFrame.getByRole('button', { name: 'Stop my run', exact: true }).waitFor();
  await page.close(); assert.equal((await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).state, active.state, 'closing frontend leaves runner alive');

@@ -11,8 +11,9 @@ describe('what Settings lists', () => {
   it('has the same groups in every scope, with only what applies in each', () => {
     const personal = groupsFor({ kind: 'personal' }, items).map((g) => g.label);
     const acme = groupsFor({ kind: 'team', id: 'team:a' }, items).map((g) => g.label);
-    expect(personal).toEqual(['General', 'Work', 'Machines', 'Connections']);
-    expect(acme).toEqual(['General', 'Work', 'Machines', 'Connections', 'Workspace', 'Advanced']);
+    expect(personal).toEqual(['General', 'Projects & workspaces', 'Work', 'Machines', 'Connections']);
+    expect(acme).toEqual(['General', 'Projects & workspaces', 'Work', 'Machines', 'Connections', 'Workspace', 'Advanced']);
+    expect(labels({ kind: 'personal' }).slice(0, 5)).toEqual(['Appearance', 'Alerts', 'Plan', 'Workspaces', 'Project history']);
     expect(labels({ kind: 'personal' })).toContain('Task defaults');
     expect(labels({ kind: 'personal' })).toContain('Personal memory');
     expect(labels({ kind: 'personal' })).not.toContain('Labels');

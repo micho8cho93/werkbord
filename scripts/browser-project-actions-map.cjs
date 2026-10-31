@@ -1,4 +1,4 @@
-// Desktop frame regression: project lifecycle, connected agents and Product Map against disposable real APIs.
+// Desktop frame regression: project lifecycle and connected agents against disposable real APIs.
 // Run: node scripts/browser-project-actions-map.cjs
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const cp = require('node:child_process'), net = require('node:net');
@@ -97,15 +97,5 @@ const ok = text => console.log('PASS ' + text);
   await frame.locator('body').evaluate((el,id)=>{location.hash=`#/p/${id}/overview`;},project.id);
   await frame.getByText('Agents on the controller',{exact:true}).waitFor();
   assert.equal(await frame.locator('.agent').count(),2,'only ready fixture agents are shown');
-  await frame.locator('body').evaluate((el,id)=>{location.hash=`#/p/${id}/product-map`;},project.id);
-  await frame.locator('label').filter({hasText:/^Target branch/}).locator('select').selectOption('feature/planning');
-  assert.equal(await frame.locator('label').filter({hasText:/^Model /}).locator('select').evaluate(el=>el.tagName),'SELECT');
-  await frame.getByLabel('Starting analysis sends permitted source-code context',{exact:false}).check();
-  await frame.getByRole('button',{name:'Generate Product Map',exact:true}).click();
-  await frame.getByRole('button',{name:'Update Map',exact:true}).waitFor({timeout:30000});
-  const view = await personal('GET',`/projects/${project.id}/product-map`);
-  assert.equal(view.snapshot.branch,'feature/planning'); assert(view.snapshot.content.features.length>0);
-  await page.screenshot({path:path.join(artifacts,'framed-product-map.png')});
-  ok('Product Map generates from selected committed branch using a connected agent and model dropdown');
   assert.deepEqual(errors,[]);
 })().catch(async e=>{console.error(e); if(lastPage&&!lastPage.isClosed()) { for(const frame of lastPage.frames()) console.error(frame.url(),await frame.locator('body').innerText()); await lastPage.screenshot({path:path.join(artifacts,'failure.png')}); } process.exitCode=1;}).finally(async()=>{await browser?.close();for(const child of children.reverse())await stop(child);fs.rmSync(temp,{recursive:true,force:true});});

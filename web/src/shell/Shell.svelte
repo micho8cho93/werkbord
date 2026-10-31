@@ -20,7 +20,6 @@
   import SettingsNav from './SettingsNav.svelte';
   import SettingsNative from './SettingsNative.svelte';
   import SettingsPlan from './SettingsPlan.svelte';
-  import HelpButton from './HelpButton.svelte';
   import { model, type Page } from './model.svelte';
   import { onApp } from './native';
 
@@ -92,7 +91,7 @@
         {:else if hostedGone}
           <div class="page-area" use:remembered={model.page}><WorkspaceProblem /></div>
         {:else if native && 'native' in native}
-          <div class="page-area" use:remembered={model.page}>{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
+          <div class="page-area" use:remembered={model.page}>{#if native.native === 'plan'}<SettingsPlan />{:else if native.native === 'workspaces'}<Workspaces overview={model.overview} embedded />{:else}<SettingsNative section={native.native} />{/if}</div>
         {:else if model.page !== 'workspace' && !model.agentsInFrame && !hostedWorkspace}
           <div class="page-area" use:remembered={model.page}>
             {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
@@ -104,7 +103,6 @@
           </div>
         {/if}
       </div>
-      <HelpButton />
     </main>
   </div>
   {#if model.paletteOpen}<Palette />{/if}

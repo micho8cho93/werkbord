@@ -1,6 +1,6 @@
 <script lang="ts">
   import Tour from '../lib/Tour.svelte';
-  import { onMount, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import { api } from '../lib/api';
   import { analyticsDuration, executionTotals, measuredCost, measuredNumber, percent, sumBy, type AnalyticsReport } from '../lib/analytics';
   import { agentLabel } from '../lib/execution';
@@ -41,30 +41,49 @@
   let error = $state('');
   let requestId = 0;
   let chartScope = $state('');
+  let asOf = $state('');
   let mounted = true;
+  // Background refreshes (the timer and controller events) are silent: no "Updating…", no busy state, and the report is replaced
+  // only when something other than its own timestamp changed, so the page does not flicker or redraw its charts while it is read.
   onMount(() => {
-    const timer = setInterval(() => { if (!document.hidden) void load(); }, 15000);
+    const timer = setInterval(() => { if (!document.hidden) void load(true); }, 30000);
     return () => { mounted = false; clearInterval(timer); };
   });
   $effect(() => {
-    void [scope.project, scope.days, scope.provider, app.analyticsRevision, view];
+    void [scope.project, scope.days, scope.provider, view];
     loading = true;
     ++requestId;
     const timer = setTimeout(() => untrack(() => void load()), 120);
     return () => clearTimeout(timer);
   });
+  // Events can arrive every few seconds while agents run: at most one silent refresh per interval, never one per event.
+  let seenRevision = app.analyticsRevision;
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const revision = app.analyticsRevision;
+    if (revision === seenRevision || pending) return;
+    seenRevision = revision;
+    pending = setTimeout(() => { pending = undefined; if (mounted && !document.hidden) void load(true); }, 8000);
+  });
+  onDestroy(() => clearTimeout(pending));
+  const content = (r: AnalyticsReport | null) => r ? JSON.stringify({ ...r, start: '', end: '' }) : '';
 
-  async function load() {
+  async function load(silent = false) {
     const id = ++requestId;
     const requestedScope = `${scope.project}/${scope.days}/${scope.provider}/${scope.runner}`;
-    loading = true; error = '';
+    if (!silent) { loading = true; error = ''; }
     try {
       const next = await api.analytics(scope.project, scope.days, scope.provider);
-      if (mounted && id === requestId) { report = next; chartScope = requestedScope; }
+      if (mounted && id === requestId) {
+        if (!silent || content(next) !== content(report)) report = next;
+        chartScope = requestedScope;
+        asOf = next.end;
+        error = '';
+      }
     } catch (e) {
-      if (mounted && id === requestId) error = e instanceof Error ? e.message : 'Could not load analytics.';
+      if (mounted && id === requestId && (!silent || !report)) error = e instanceof Error ? e.message : 'Could not load analytics.';
     } finally {
-      if (mounted && id === requestId) loading = false;
+      if (mounted && id === requestId && !silent) loading = false;
     }
   }
   const projectName = (id: string) => app.project(id)?.name ?? id;
@@ -126,7 +145,7 @@
   {#if error}<p role="alert" class="error">{error} <button class="btn small quiet" onclick={() => void load()}>Try again</button></p>
   {:else if loading && !report}<p class="empty" role="status">Loading analytics…</p>
   {:else if report}
-    <p class="muted stamp">As of {new Date(report.end).toLocaleString()} · {report.projectId ? projectName(report.projectId) : 'All projects'} · {Math.round((Date.parse(report.end) - Date.parse(report.start)) / 86400000)} days{loading ? ' · showing the previous snapshot while updating' : ''}</p>
+    <p class="muted stamp">As of {new Date(asOf || report.end).toLocaleString()} · {report.projectId ? projectName(report.projectId) : 'All projects'} · {Math.round((Date.parse(report.end) - Date.parse(report.start)) / 86400000)} days{loading ? ' · showing the previous snapshot while updating' : ''}</p>
     {#if report.truncated || report.retentionRemoved || report.missingTaskHistory}
       <p class="notice" role="status">Some history is unavailable. {report.truncated ? 'Older records were not read. ' : ''}{report.retentionRemoved ? 'Event retention has removed some evidence. ' : ''}{report.missingTaskHistory ? `${report.missingTaskHistory} Done records lack a known preceding state and were excluded. ` : ''}Totals may be incomplete.</p>
     {/if}

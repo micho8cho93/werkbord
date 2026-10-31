@@ -11,6 +11,8 @@
     { label: 'Agents', page: 'agents', icon: 'activity' },
     { label: 'Analytics', page: 'analytics', icon: 'analytics' },
   ];
+  // Help is Individual's guides and shortcuts, which describe every part of Werkbord, so it is there wherever the person is.
+  const helpUnavailable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
   let salieButton: HTMLButtonElement | undefined = $state();
   const selected = $derived(contextKey(model.selectedProject));
   const missing = $derived(!!selected && !model.projects.some(p => contextKey(p) === selected));
@@ -54,6 +56,7 @@
   </div>
   <div class="bottom">
     <button class="nav" type="button" aria-current={model.page === 'settings' ? 'page' : undefined} onclick={() => model.openSettings()} data-page="settings"><Icon name="settings" /><span>Settings</span></button>
+    <button class="nav" type="button" aria-current={model.page === 'help' ? 'page' : undefined} disabled={helpUnavailable} onclick={() => model.openHelp()} aria-label="Help and keyboard shortcuts" title="Help and keyboard shortcuts" data-testid="help-button" data-page="help"><Icon name="help" /><span>Help</span></button>
   </div>
 </nav>
 
@@ -70,7 +73,8 @@
   .nav[aria-current='page'] { font-weight: 600; }
   .nav:disabled { cursor: default; color: var(--text-2); }
   button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+  .bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+  .bottom .nav { flex: 1 1 0; min-width: 0; padding-inline: 10px; gap: 8px; }
   .count { margin-left: auto; min-width: 22px; padding: 2px 6px; border-radius: 4px; background: var(--surface-2); color: var(--warn-text); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
   .working { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -79,6 +83,7 @@
     .brand { justify-content: center; padding-inline: 0; }
     .brand > span, .nav > span:not(.count):not(.working) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     .count, .working { margin-left: 0; }
+    .bottom { flex-direction: column; }
     .nav { flex-wrap: wrap; justify-content: center; padding-inline: 8px; gap: 0; }
     select { font-size: 16px; color: transparent; appearance: none; cursor: pointer; }
     option, optgroup { color: var(--text); }
