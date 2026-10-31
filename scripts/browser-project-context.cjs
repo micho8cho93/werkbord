@@ -49,7 +49,7 @@ const server = http.createServer(async (req, res) => {
     const picker = page.getByRole('combobox', { name: 'Project context', exact: true });
     const load = async () => { await page.goto(url); await picker.waitFor(); await page.waitForFunction(() => document.querySelector('[data-testid="project-context"]')?.textContent.includes('Project one')); };
     await load();
-    assert.deepEqual((await page.locator('[data-testid="sidebar"] .destinations button').allTextContents()).map(s => s.trim()), ['Work', 'Calendar', 'Agents', 'Analytics', 'Salie']);
+    assert.deepEqual((await page.locator('[data-testid="sidebar"] .destinations button').allTextContents()).map(s => s.trim()), ['Work', 'Calendar', 'Agents', 'Analytics']);
     assert.equal(await picker.locator('option').count(), 2);
     for (const scenario of [
       { name: 'multiple personal', items: [workspace('personal')] },

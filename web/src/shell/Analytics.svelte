@@ -38,12 +38,21 @@
   let failed = $state<{ workspace: string; message: string }[]>([]);
   let loading = $state(true);
   let loaded = $state(false);
+  let asOf = $state('');
   let requestId = 0;
+  // Where the page reads from, as one string. The workspace list is rebuilt every time it is refreshed, so depending on `targets`
+  // itself would reload (and blank) the page every few seconds even though nothing about where it looks has changed.
+  const targetKey = $derived(targets.map(t => `${t.workspace}/${t.project}`).join('|'));
+  // A report's own timestamps move on every read; what the person sees only changes when something else does.
+  const content = (list: { workspace: string; raw: unknown }[]) => JSON.stringify(list.map(p => ({ ...obj(p.raw), start: '', end: '', at: '', generatedAt: '', workspace: p.workspace })));
+  const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
 
-  async function load(): Promise<void> {
+  // A background refresh (silent) never shows "Updating…", never blanks the page and replaces the figures only when they changed, so the
+  // charts stay put and do not replay their entrance while the page is read. A change the person makes (place, project, period) loads openly.
+  async function load(silent = false): Promise<void> {
     const id = ++requestId;
     const wanted = untrack(() => ({ targets, days }));
-    loading = true;
+    if (!silent) loading = true;
     const results = await Promise.all(
       wanted.targets.map(async (t) => {
         try {
@@ -54,21 +63,27 @@
       }),
     );
     if (id !== requestId) return;
-    parts = results.filter((r): r is { workspace: string; raw: unknown } => 'raw' in r);
-    failed = results.filter((r): r is { workspace: string; message: string } => 'message' in r);
+    const next = results.filter((r): r is { workspace: string; raw: unknown } => 'raw' in r);
+    const problems = results.filter((r): r is { workspace: string; message: string } => 'message' in r);
+    // A silent read that failed keeps what is already on show; the next one tries again.
+    if (!silent || next.length || !parts.length) {
+      if (!silent || content(next) !== content(parts)) parts = next;
+      failed = problems;
+      asOf = activityOf(next[0]?.raw ?? null).end;
+    }
     loading = false;
     loaded = true;
   }
 
   $effect(() => {
-    void [where, projectKey, days, targets.map(t => t.workspace).join()];
-    parts = []; failed = []; loaded = false;
+    void [where, projectKey, days, targetKey];
+    untrack(() => { parts = []; failed = []; loaded = false; loading = true; });
     ++requestId;
     const timer = setTimeout(() => void load(), 120);
     return () => clearTimeout(timer);
   });
   onMount(() => {
-    const timer = setInterval(() => { if (!document.hidden) void load(); }, 30000);
+    const timer = setInterval(() => { if (!document.hidden && loaded) void load(true); }, 30000);
     return () => clearInterval(timer);
   });
 
@@ -100,8 +115,7 @@
       </select>
     </label>
     <Segmented compact options={views.map((v) => ({ id: v, label: v }))} value={view} onchange={(v) => (view = v)} label="Analytics view" />
-    {#if loading}<span class="muted" role="status">Updating…</span>{/if}
-  </FilterBar>
+      </FilterBar>
 
   {#each failed as f (f.workspace)}
     <Notice>{nameOf(f.workspace)} could not be read: {f.message} Its figures are left out.</Notice>
@@ -112,7 +126,7 @@
   {:else if !activity}
     <p class="empty">Nothing could be read. Check that Personal and your teams are connected.</p>
   {:else}
-    <p class="muted stamp">{describe} · the last {days} days{activity.end ? ` · as of ${new Date(activity.end).toLocaleString()}` : ''}</p>
+    <p class="muted stamp">{describe} · the last {days} days{activity.end ? ` · as of ${new Date(asOf || activity.end).toLocaleString()}` : ''}</p>
     {#if activity.partial}
       <p class="notice" role="status">Some history is unavailable, so totals may be incomplete.</p>
     {/if}

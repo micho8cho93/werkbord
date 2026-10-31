@@ -44,6 +44,8 @@ import ShieldHalf from '@lucide/svelte/icons/shield-half';
 import PackageSearch from '@lucide/svelte/icons/package-search';
 import FileDiff from '@lucide/svelte/icons/file-diff';
 import TextAlignStart from '@lucide/svelte/icons/text-align-start';
+import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
+import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
 
 export const appIconComponents = {
   control: LayoutGrid,
@@ -91,6 +93,8 @@ export const appIconComponents = {
   dependencies: PackageSearch,
   refactor: FileDiff,
   summary: TextAlignStart,
+  sidebarClose: PanelLeftClose,
+  sidebarOpen: PanelLeftOpen,
 } as const;
 export type AppIconName = keyof typeof appIconComponents;
 
@@ -141,4 +145,6 @@ export const appIconSources: Record<AppIconName, string> = {
   dependencies: 'package-search',
   refactor: 'file-diff',
   summary: 'text-align-start',
+  sidebarClose: 'panel-left-close',
+  sidebarOpen: 'panel-left-open',
 };
