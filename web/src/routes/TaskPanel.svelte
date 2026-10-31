@@ -19,9 +19,12 @@
   import RunUsage from '../lib/RunUsage.svelte';
 import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
   import Crumbs from '../lib/Crumbs.svelte';
-  import { chainOf, pushed, type Names, type Origin } from '../lib/origin';
+  import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
   import { goOrigin, originHref } from '../lib/origin-nav';
   import type { WorkPlan } from '../lib/work-queue';
+  import { nextAction, planOfTask, stepOf, type NextAction } from '../lib/work-steps';
+  import { branchHref } from '../lib/gitroute';
+  import { isPhone } from '../lib/phones/capability';
   import { schedulingLabels, schedulingReason } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -53,12 +56,17 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     if (given.length) return given;
     return [planParam ? { kind: 'plan', projectId: project.id, planId: planParam } : { kind: 'board', projectId: project.id }];
   });
-  const backHref = $derived(originHref(chain[0], chain.slice(1)));
+  const backHref = $derived(originHref(chain[0], chain.slice(1), router.taskId));
   let plans = $state<WorkPlan[]>([]);
+  // The plans are read to know the task's parent plan, if it has one; a task needs none. A paired phone may not read plans.
   $effect(() => {
-    const wanted = chain.some(o => o.kind === 'plan') ? project.id : '';
-    if (wanted) void api.workPlans(wanted).then(p => (plans = p), () => {});
+    void router.taskId;
+    if (isPhone()) return;
+    let live = true;
+    void api.workPlans(project.id).then(p => { if (live) plans = p; }, () => {});
+    return () => { live = false; };
   });
+  const parentPlan = $derived(planOfTask(router.taskId, plans));
   const names: Names = {
     task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title,
     plan: (_p, id) => plans.find(x => x.id === id)?.title,
@@ -67,7 +75,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const here = $derived<Origin[]>(pushed({ kind: 'task', projectId: project.id, taskId: router.taskId }, chain));
 
   function close() {
-    goOrigin(chain[0], chain.slice(1));
+    goOrigin(chain[0], chain.slice(1), router.taskId);
   }
 
   // ---- which run is shown: the latest, unless the user picked an earlier one ----
@@ -239,6 +247,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         message = '';
         nearBottom = true;
         briefOpen = false;
+        setupOpen = null;
       });
     }
   });
@@ -348,6 +357,39 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const agentWork = $derived(!!task && agentWorkable(task, project));
   const canStart = $derived(agentWork && !task?.archivedAt && (!latest || !runStatus(latest).active));
   const isDone = $derived(task?.state === 'done');
+  const step = $derived(stepOf(task, scope.tasks, scope.latestRun));
+  const next = $derived<NextAction>(task ? nextAction(task, step, { agentWork, canStart: canStart && !(task.state === 'done'), hasRun: !!latest }) : { kind: 'none', label: '' });
+  const stepTone = $derived(({ done: 'ok', running: 'work', attention: 'ask', review: 'ok', blocked: 'block', waiting: 'neutral', ready: 'neutral', missing: 'neutral' } as const)[step.kind]);
+  /** The words for where the task is now: the step's label, with the time on a run that is going. */
+  const nowLine = $derived(step.kind === 'running' && latest ? `Running · ${runElapsed(latest, app.now)}` : step.kind === 'ready' && !latest ? (agentWork ? 'Ready to start' : 'Ready') : step.label);
+  // ---- where else this task is: its plan, session, Calendar entry and branch. Each link carries the way back to this task. ----
+  const planHref = $derived.by(() => {
+    if (!parentPlan) return '';
+    // When the plan is the nearest step back, the link is Back itself; otherwise the plan returns here.
+    const near = chain[0];
+    if (near?.kind === 'plan' && near.planId === parentPlan.id) return originHref(near, chain.slice(1)) ?? '';
+    return withChain(`${projectHref(project.id, 'work')}?plan=${encodeURIComponent(parentPlan.id)}`, here);
+  });
+  const scheduledAt = $derived(task?.orchestration?.enabled ? task.orchestration.scheduledAt : undefined);
+  const calendarHref = $derived(task && scheduledAt ? withChain(`${projectHref(project.id, 'calendar')}?task=${encodeURIComponent(task.id)}`, here) : '');
+  const scheduledText = $derived(scheduledAt ? new Date(scheduledAt).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
+  const gitHref = $derived(run?.branch && !run.remote ? branchHref(project.id, 'local', run.branch) : '');
+  /** The run set-up is open for a task with no run yet, and when the next action asks for it; the person's own choice wins. */
+  let setupOpen = $state<boolean | null>(null);
+  async function doNext() {
+    if (!task) return;
+    if (next.kind === 'answer') tab = 'chat';
+    else if (next.kind === 'review') await move('done');
+    else if (next.kind === 'reopen') await move('backlog');
+    else if (next.kind === 'move') await move(nextState);
+    else if (next.kind === 'start' || next.kind === 'again') {
+      if (next.kind === 'start' && startingAgentReady) { await start(); return; }
+      tab = 'overview';
+      setupOpen = true;
+      await tick();
+      document.getElementById('task-setup')?.scrollIntoView({ block: 'nearest' });
+    }
+  }
   /** The run is idle or stopped for a decision, so the person can end it as done. It sits with Stop in the head, on every view. */
   const canFinishRun = $derived(viewingLatest && !!run && !!status?.active && ((run.state === 'waiting_for_user' && run.waiting === 'idle') || run.state === 'blocked'));
   /** Something only the person can do: an answer, or a run that stopped for a decision. */
@@ -405,7 +447,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const planSpan = $derived(task ? spanOf(task) : null);
   const hasPlanning = $derived(!!planSpan || dependencies.length > 0);
   const nextState = $derived(task?.state === 'backlog' ? 'doing' : task?.state === 'doing' ? 'review' : task?.state === 'review' ? 'done' : 'backlog');
-  const nextStateLabel = $derived(task?.state === 'backlog' ? 'Move to In progress' : task?.state === 'doing' ? 'Submit for review' : task?.state === 'review' ? 'Mark done' : 'Reopen task');
 
   // ---- the views ----
   type Tab = 'overview' | 'chat' | 'run' | 'schedule' | 'history';
@@ -451,14 +492,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 <section class="panel" transition:surface={{ x: 20, y: 0 }} aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
   {#if !task}
     <header class="head">
-      <Crumbs {chain} {names} />
+      <Crumbs {chain} {names} fromTask={router.taskId} />
       {@render closer()}
     </header>
     {#if scope.loaded}<p class="empty">This task was not found in this project.</p>{:else}<Settling compact label="Opening the task…" />{/if}
   {:else}
     <header class="head" use:acknowledge={{ value: task.state, success: task.state === 'done' }}>
       <button class="skip" onclick={skipToContent}>Skip to task content</button>
-      <Crumbs {chain} {names} />
+      <Crumbs {chain} {names} fromTask={router.taskId} />
       <div class="top">
         <label class="state">
           <span class="visually-hidden">Task column</span>
@@ -486,11 +527,40 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       {#if reviewFirst && run}
         <RunReviewSummary {run} onmerged={() => void move('done')} />
       {/if}
+      <section class="focus" aria-label="Where this task stands" data-testid="task-focus" data-step={step.kind}>
+        <div class="now">
+          <span class="k">Now</span>
+          <p class="line"><span class="dot" data-tone={stepTone} class:hollow={stepTone === 'neutral'}></span><strong>{nowLine}</strong></p>
+          {#if step.reason}<p class="why">{step.reason}</p>{/if}
+        </div>
+        {#if !task.archivedAt}
+          <div class="next">
+            <span class="k">Next</span>
+            {#if next.kind !== 'none'}
+              <button class="btn primary" data-testid="task-next" disabled={busy} onclick={doNext}>{next.label}</button>
+            {:else if step.blockedBy.length}
+              <p class="why">Finish {step.blockedBy.length > 1 ? 'the blocking tasks' : 'the blocking task'} first.</p>
+            {:else if step.kind === 'running'}
+              <p class="why">Nothing needed. The agent is working.</p>
+            {:else}
+              <p class="why">Nothing to do right now.</p>
+            {/if}
+            {#if step.blockedBy.length}
+              <ul class="blockers" aria-label="Blocked by">{#each step.blockedBy as b (b.id)}<li><a href={withChain(taskHref(project.id, b.id), here)}>{b.title}</a></li>{/each}</ul>
+            {/if}
+          </div>
+        {/if}
+      </section>
+      <nav class="related" aria-label="Related">
+        {#if parentPlan}<a class="rel" data-rel="plan" href={planHref}><span class="k">Plan</span>{parentPlan.title}</a>{/if}
+        {#if run}<span class="rel"><span class="k">Session</span><button class="btn small" type="button" onclick={() => assistant.openRun(project.id, run.id, here)}>Open Session</button><span class="mm">{status?.label}</span></span>{/if}
+        {#if calendarHref}<a class="rel" data-rel="calendar" href={calendarHref}><span class="k">Calendar</span>{scheduledText}</a>{/if}
+        {#if gitHref}<a class="rel" data-rel="git" href={gitHref}><span class="k">{task.state === 'review' ? 'Review' : 'Git'}</span><code>{run?.branch}</code></a>{/if}
+      </nav>
       {#if !task.archivedAt}
         <div class="task-actions" aria-label="Task actions">
-          <button class="btn primary" disabled={busy} onclick={() => move(nextState)}>{nextStateLabel}</button>
-          <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
-          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
+          <button class="btn quiet small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
+          <button class="btn quiet small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
         </div>
       {/if}
     </header>
@@ -532,19 +602,12 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
           {#if tab === 'overview'}
             {@render viewing()}
-            {#if needsYou}
-              <div class="needs" role="status">
-                <p>{pending.length ? (pending.length === 1 ? 'The agent is asking you something.' : `The agent is asking you ${pending.length} things.`) : 'The run stopped and needs a decision from you.'}</p>
-                <button class="btn small primary" type="button" onclick={() => (tab = 'chat')}>Open chat</button>
-              </div>
-            {/if}
 
             {#if run && status}
               <section class="block" aria-labelledby="run-h" data-tone={status.tone}>
                 <h3 id="run-h">This run</h3>
                 <div class="runbar">
                   <RunBadge {run} />
-                  <button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open Session</button>
                   <span class="mm">
                     {agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning
                       ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}`
@@ -576,7 +639,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
             {#if hasPlanning}{@render planning()}{/if}
 
             {#if canStart && !isDone}
-              <details class="start block" open={!latest}>
+              <details class="start block" id="task-setup" open={setupOpen ?? !latest} ontoggle={(e) => (setupOpen = e.currentTarget.open)}>
                 <summary>{latest ? 'Set up another run' : 'Set up a run'}</summary>
                 {#if available.length === 0 && !startBusy}
                   <p class="error">No coding agent is ready.</p>
@@ -799,6 +862,23 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   .task-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+  /* Where the task stands: one block, in the order the questions come. The objective is the title above; this is Now and Next. */
+  .focus { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: start; padding: 12px 14px; border: 1px solid var(--border); border-left-width: 3px; border-radius: var(--radius); background: var(--surface); }
+  .focus[data-step='attention'], .focus[data-step='blocked'] { border-left-color: var(--warn); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
+  .focus[data-step='running'] { border-left-color: var(--accent); }
+  .focus[data-step='review'], .focus[data-step='done'] { border-left-color: var(--ok); }
+  .focus .now, .focus .next { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+  .focus .next { justify-items: end; text-align: right; }
+  .focus .k, .related .k { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-2); }
+  .focus .line { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+  .focus .why { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.5; overflow-wrap: anywhere; }
+  .blockers { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+  .related { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; }
+  .related:empty { display: none; }
+  .rel { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; min-width: 0; max-width: 100%; }
+  a.rel:hover { text-decoration: underline; }
+  a.rel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   .title:focus,
   .scroll:focus {
     outline: none;
@@ -899,7 +979,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   /* Sections of a view are separated by a hairline, not boxed one inside another. */
   .block { display: grid; gap: 8px; padding: 16px 0; border-top: 1px solid var(--border); }
-  .scroll > .block:first-child, .needs + .block, .viewing + .block { border-top: 0; }
+  .scroll > .block:first-child, .viewing + .block { border-top: 0; }
   .block h3, .sh h3 {
     font-family: var(--mono);
     font-size: 12px;
@@ -913,21 +993,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   .viewing { margin: 12px 0 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13px; color: var(--text-2); }
 
-  /* What needs you, in the colour of "needs you", with a way straight to it. */
-  .needs {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 12px;
-    margin-top: 12px;
-    padding: 10px 14px;
-    border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--border));
-    border-left-width: 3px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--amber) 9%, var(--bg));
-  }
-  .needs p { margin: 0; font-weight: 500; }
 
   .runbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
   .block[data-tone='work'] { border-left: 2px solid var(--accent); padding-left: 12px; }
@@ -1058,6 +1123,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     .top .btn:not(.icon) { flex: 1 1 auto; }
 
     .task-actions .btn { flex: 1 1 auto; min-height: 44px; white-space: normal; }
+    .focus { grid-template-columns: 1fr; }
+    .focus .next { justify-items: start; text-align: left; }
+    .focus .next .btn, .rel { min-height: 44px; }
+    a.rel { display: inline-flex; }
     .state { height: 44px; }
     .close { display: inline-flex; width: 44px; height: 44px; }
 

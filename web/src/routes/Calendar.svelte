@@ -1,7 +1,10 @@
 <script lang="ts">
   import { blockingTasks } from '../lib/work-queue';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
+  import Crumbs from '../lib/Crumbs.svelte';
+  import { chainOf, type Names } from '../lib/origin';
+  import { router } from '../lib/router.svelte';
   import { api } from '../lib/api';
   import { addDays, clockAt, lanes, minuteOf, rangeTitle, visibleDays } from '../lib/calendar';
   import { formatWall, hourLabel } from '../lib/clock.svelte';
@@ -22,6 +25,20 @@
   // missed-time policy are set on the task.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
+
+  // Opened from a task, the Calendar says so: that task's entry is marked, and the way back to it is one link above the week.
+  const chain = $derived(chainOf(router.query));
+  // The task named in the address, or else the task this page was reached from: coming back to the Calendar, its week and entry are as they were.
+  const focusId = $derived(new URLSearchParams(router.query).get('task') ?? (chain[0]?.kind === 'task' ? chain[0].taskId : ''));
+  const names: Names = { task: (_p, id) => scope.tasks.find(t => t.id === id)?.title, plan: () => undefined };
+  $effect(() => {
+    const id = focusId;
+    if (!id) return;
+    // Show the week the task is scheduled in, not just this one.
+    const day = untrack(() => scheduledIn(scope.tasks.find(t => t.id === id))).slice(0, 10);
+    if (day) untrack(() => (anchor = day));
+    void tick().then(() => document.querySelector(`[data-plan-item="${CSS.escape(id)}/schedule"]`)?.scrollIntoView({ block: 'center' }));
+  });
 
   let surface = $state<HTMLElement>();
   let editing = $state<Task | null>(null);
@@ -62,7 +79,7 @@
     const r = scope.latestRun[t.id];
     return !!r && runStatus(r).active;
   };
-  const scheduledIn = (t: Task) => (t.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone) : '');
+  const scheduledIn = (t: Task | undefined) => (t?.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone) : '');
   // Only work an agent can do is placed here: the calendar says when a task is started, and human work is never started.
   const unscheduled = $derived(scope.activeTasks.filter((t) => agentWorkable(t, project) && t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
   const upcoming = $derived(
@@ -201,6 +218,7 @@
 </script>
 
 <div class="cal" bind:this={surface} data-plan-surface>
+  {#if chain.length}<div class="trail"><Crumbs {chain} {names} /></div>{/if}
   <div class="bar">
     <div class="nav">
       <button class="btn" onclick={() => (anchor = today)}>Today</button>
@@ -284,6 +302,8 @@
                   class:run={s?.tone === 'work'}
                   class:needs={s?.needsInput}
                   class:past={!!t.orchestration?.runId || !t.orchestration?.enabled}
+                  class:focused={t.id === focusId}
+                  aria-current={t.id === focusId ? 'true' : undefined}
                   href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}
                   data-plan-item={t.id + '/schedule'} data-plan-start={d} data-plan-end={d} data-plan-scheduled
                   draggable="true"
@@ -595,6 +615,9 @@
     text-decoration: none;
     cursor: grab;
   }
+
+  .trail { padding: 0 0 8px; }
+  .ev.focused { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 
   .ev:hover {
     border-color: color-mix(in srgb, var(--text-2) 50%, var(--border));

@@ -4,7 +4,7 @@
   import { originHref, goOrigin } from './origin-nav';
   import { labelOf, trail, type Names, type Origin } from './origin';
 
-  let { chain, names = {} }: { chain: readonly Origin[]; names?: Names } = $props();
+  let { chain, names = {}, fromTask = '' }: { chain: readonly Origin[]; names?: Names; /** The task this page is, so that a Calendar it leads back to opens on its entry. */ fromTask?: string } = $props();
   const steps = $derived(trail(chain).map((o, i, all) => ({ o, rest: chain.slice(all.length - i), label: labelOf(o, names) })));
 </script>
 
@@ -12,10 +12,10 @@
   <nav class="crumbs" aria-label="Breadcrumb" data-testid="crumbs">
     <ol>
       {#each steps as s, i (i)}
-        {@const href = originHref(s.o, s.rest)}
+        {@const href = originHref(s.o, s.rest, fromTask)}
         <li>
           {#if href}<a class="crumb" class:back={i === steps.length - 1} {href} data-origin={s.o.kind}>{#if i === steps.length - 1}<span class="chev" aria-hidden="true">‹</span>{/if}{s.label}</a>
-          {:else}<button class="crumb" class:back={i === steps.length - 1} type="button" data-origin={s.o.kind} onclick={() => goOrigin(s.o, s.rest)}>{#if i === steps.length - 1}<span class="chev" aria-hidden="true">‹</span>{/if}{s.label}</button>{/if}
+          {:else}<button class="crumb" class:back={i === steps.length - 1} type="button" data-origin={s.o.kind} onclick={() => goOrigin(s.o, s.rest, fromTask)}>{#if i === steps.length - 1}<span class="chev" aria-hidden="true">‹</span>{/if}{s.label}</button>{/if}
         </li>
       {/each}
     </ol>

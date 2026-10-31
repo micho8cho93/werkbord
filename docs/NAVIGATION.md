@@ -50,6 +50,21 @@ The window stamps `work`, `calendar` or `agents` on a task, plan or session of t
 one of those pages (`Model.stamped`). A Team workspace's page cannot carry that in its address, so the window remembers it and
 shows one **‹ Work** (or Calendar, Agents) line above it (`ReturnBar.svelte`) until the person goes somewhere else.
 
+## Plan and Task detail
+
+- **Plan** (`lib/work/WorkPlans.svelte`): trail, title and description, status with progress ("2 of 5 tasks complete"), the task to
+  pick up next, and three actions (*Continue with Salie*, *Edit plan*, *View schedule*). The ordered tasks follow, each with
+  its state (Complete, Running, Ready, Waiting, Blocked, Ready for review, Needs you), a reason for work that cannot go on, its
+  dependencies as links and one next action. Decisions, open questions and sessions are secondary and fold away.
+- **Task** (`routes/TaskPanel.svelte`): the title and description are the objective; **Now** says what is happening and why,
+  **Next** is the one action (*Start an agent*, *Answer*, *Mark done*…), and a *Related* row links the plan (when it has one;
+  a task needs none), the session, the Calendar entry (when scheduled) and the branch (Git). Execution, Schedule and Runs stay
+  in the tabs below.
+- The state words come from `lib/work-steps.ts`, derived from the task, its dependencies and its latest run. Nothing is stored.
+- **Task → Calendar → Task.** The task opens the Calendar with `?task=<id>`; the Calendar opens on that entry's week and marks
+  it. The entry's sheet has *Open task*, whose Back is the Calendar, and Back from a task to a project Calendar names the task,
+  so the Calendar comes back on the same entry.
+
 ## What Back brings back
 
 - **Project context.** Opening a task moves the window's project selector to the task's project (as it always did). The window
@@ -86,7 +101,7 @@ to one of the window's own pages.
 
 ## Validation
 
-- Vitest: `origin.test.ts`, `origin-nav.test.ts`, `agent-view.test.ts`, `shell/model.test.ts` (stamping, context restore,
+- Vitest: `work-steps.test.ts` (task and plan states, next action, the three routes), `origin.test.ts`, `origin-nav.test.ts`, `agent-view.test.ts`, `shell/model.test.ts` (stamping, context restore,
   scoping), `shell/frames.test.ts`, `shell/nav.test.ts`, `shell/aggregate.test.ts`.
 - `node scripts/browser-shell-agents.cjs`: session → task → session → Salie; Work → task → Back with context and search; Work →
   plan → task → session and back; a pasted address that goes back after a reload with no history.

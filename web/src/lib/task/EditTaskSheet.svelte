@@ -14,7 +14,8 @@
   import { openAgents } from '../agent-nav';
   import { runKey } from '../agent-sessions';
   import { router } from '../router.svelte';
-  import { chainOf, pushed, type Origin } from '../origin';
+  import { chainOf, pushed, withChain, type Origin } from '../origin';
+  import { taskHref } from '../router.svelte';
   import { runStatus } from '../format';
   import { validatePlanDraft } from '../planning';
   import type { ExecutionConfig, Plan, PlanIssue, Task, WorkMode } from '../types';
@@ -30,6 +31,13 @@
     const given = chainOf(router.query);
     const base: Origin[] = !given.length && router.view === 'calendar' ? [{ kind: 'calendar', projectId: task.projectId }] : given;
     return pushed({ kind: 'task', projectId: task.projectId, taskId: task.id }, base);
+  }
+
+  /** The task's own page, reached from here: Back on it comes to this page (the Calendar) again, and the Calendar to wherever it was
+   *  reached from. A step that is this very task is dropped: a task is never its own way back. */
+  function openTaskHref(): string {
+    const rest = chainOf(router.query).filter(o => !(o.kind === 'task' && o.taskId === task.id));
+    return withChain(taskHref(task.projectId, task.id), pushed({ kind: 'calendar', projectId: task.projectId }, rest));
   }
 
   // Edits start from the task as it was when the sheet opened: a change elsewhere does not overwrite typing.
@@ -136,6 +144,7 @@
   >
     {#if decision && canAgent}<p class="muted note">{decision.reason}</p>{/if}
     {#if onschedule && canAgent}<button class="btn" type="button" disabled={busy || dirty} onclick={onschedule}>Schedule and dependencies</button>{#if dirty}<p class="muted note">Save or cancel your changes before opening schedule controls.</p>{/if}{/if}
+    {#if side}<p class="session-link"><a class="btn small" data-testid="open-task" href={openTaskHref()} onclick={() => onclose()}>Open task</a></p>{/if}
     {#if latest}
       <p class="session-link" data-testid="task-session">Latest session: {runStatus(latest).label}.
         <button class="btn small" type="button" onclick={() => { const key = runKey(latest.id); const from = routeBack(); onclose(); openAgents(key, from); }}>Open session</button></p>
