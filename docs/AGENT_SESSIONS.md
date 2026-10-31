@@ -73,15 +73,25 @@ a second view in Salie. So does the **Calendar** (and Scheduling): a task's shee
 
 ## The Agents screens
 
-- **Overview** (`#/sessions`, `routes/AgentSessions.svelte`, grouping in `lib/agent-overview.ts`): what needs the person (prominent),
-  what is running, what finished recently (failed and interrupted first), the runners, and the filters (kind, provider, project)
-  with *New session*. Only real sessions are listed; a task that is merely scheduled has none until it starts, and the Work queue
-  is not repeated. With nothing open there is no detail pane.
-- **A session** (`#/sessions/<key>`): Back and its trail, the title once, provider, repository and state as one line, the existing
-  run view or terminal as the page, a switcher to other sessions, and, only when the session belongs to a task, a small panel for
-  the task, its state and its plans. A standalone session has no panel and the conversation gets the room. The run view and the
-  terminal renderer are the ones Salie and the task page use; they only take `header`/`identity` (not repeating the title) and
-  `controls`/`interactive` (what may be done) as options, and keep their defaults everywhere else.
+- **Overview** (`#/sessions`, `routes/AgentSessions.svelte`, grouping in `lib/agent-overview.ts`): in the order of how much each
+  needs the person: sessions **waiting for you**, then **needs a look** (failed or interrupted), then **running**, then what
+  finished recently, with the runners and the filters (kind, provider, project) and *New session*. Only real sessions are listed;
+  a task that is merely scheduled has none until it starts, and the Work queue is not repeated. A card (`lib/agents/SessionCard.svelte`)
+  carries what the person can do without opening it, when the controller says the session offers it: answer a question (an approval
+  with its context in view), reply to an agent that is waiting, **Stop** (asked twice, the question lapses by itself) and **Retry**
+  for a task run that failed, was interrupted or was stopped (`canRetry`). Running cards keep Stop out of the way until they are
+  pointed at or focused; a question is never hidden.
+- **A session** (`#/sessions/<key>`) opens **beside the list**, which keeps its place, filter and scroll; choosing another session
+  changes only the address, inside the page, so nothing is rebuilt. On a window too narrow for both the session takes the page and
+  closing it brings the list back as it was. Inside Work the page is shown with `?pane=1`: the one session alone, with no list.
+  The session has Back and its trail, the title once, provider, repository and state as one line, and, only when it belongs to a
+  task, a small panel for the task, its state and its plans. A standalone session has no panel.
+- **Terminal first.** A terminal session is the agent's own command line (`TerminalSession.svelte`, xterm over the PTY, unchanged)
+  and is what *New session* and a task's **Work on this in a terminal** (`lib/agents/TaskTerminal.svelte`) open; the terminal is
+  linked to the task and nothing is typed for the person. A structured **run** (started by the scheduler, a task's *Start agent* or
+  Salie) has no PTY, so it keeps its feed, questions and approvals, but its view is drawn like a terminal (`variant="terminal"`):
+  dark and monospaced, questions pinned above, a prompt to type at (Enter sends) and the same Finish and Stop. A terminal has no
+  protocol, so it can be shown as running or ended but never as "waiting for you". Salie's `start_agent_run` still starts a run.
 - **What is offered follows what the controller can do** (`controlsFor`): instructions, answers, Stop and terminal input appear
   only for a live session whose capabilities say so and while the controller is reachable. Otherwise the session is shown with a
   line that says why, and a terminal's input is disabled.

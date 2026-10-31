@@ -467,6 +467,7 @@ describe('Agents', () => {
   const target = { id: 'personal', kind: 'personal' as const, url: 'http://localhost/', origin: 'http://localhost' };
   const ready = async () => {
     const model = new Model();
+    model.wide = false; // a window too narrow for a list beside a detail: a session takes the page
     model.view = view([individual, team]);
     native.app.Overview = async () => ({ at: '', entries: [] });
     native.app.Workspaces = async () => view([individual, team]);
@@ -526,6 +527,7 @@ describe('Back and where a page was opened from', () => {
   const summary = { schema: '', workspace: individual, projects: [{ id: 'prj_a', name: 'A', href: '#/p/prj_a/work' }, { id: 'prj_b', name: 'B', href: '#/p/prj_b/work' }], work: [], attention: [], schedule: [], at: '' };
   const ready = () => {
     const model = new Model();
+    model.wide = false; // these are the full-page routes; the pane has its own tests
     model.view = view([individual, team]);
     model.overview = { at: '', entries: [{ workspace: individual, summary }, { workspace: team }] };
     native.app.Overview = async () => model.overview as Overview;
@@ -665,4 +667,102 @@ it('opens Settings on the workspaces list when something sends the person to Dev
   model.go('workspaces');
   expect(model.page).toBe('settings');
   expect(model.settingsShown.id).toBe('general/workspaces');
+});
+
+
+describe('Work beside a task or session', () => {
+  const target = { id: 'personal', kind: 'personal' as const, url: 'http://localhost/', origin: 'http://localhost' };
+  const summary = { schema: '', workspace: individual, projects: [{ id: 'prj_a', name: 'A', href: '#/p/prj_a/work' }, { id: 'prj_b', name: 'B', href: '#/p/prj_b/work' }], work: [], attention: [], schedule: [], at: '' };
+  const ready = () => {
+    const model = new Model();
+    model.wide = true;
+    model.page = 'inbox';
+    model.view = view([individual, team]);
+    model.overview = { at: '', entries: [{ workspace: individual, summary }, { workspace: team }] };
+    native.app.Overview = async () => model.overview as Overview;
+    native.app.Workspaces = async () => view([individual, team]);
+    native.app.OpenWorkspace = async () => target;
+    return model;
+  };
+
+  it('opens a task beside the list: Work stays the page, its project context does not move, and the task is what the window shows', async () => {
+    const model = ready();
+    model.selectedProject = null;
+    await model.openPane('personal', '#/p/prj_a/task/tsk_1');
+    expect(model.page).toBe('inbox');
+    expect(model.paneOpen).toBe(true);
+    expect(model.pane).toEqual({ workspace: 'personal', place: '#/p/prj_a/task/tsk_1' });
+    expect(model.selectedProject).toBeNull();
+    expect(model.shownWorkspace).toBe('personal');
+    expect(model.framePage).toBe(true);
+    // The task knows it was reached from Work, so its own Back says so.
+    expect(model.frames.personal.pending).toMatch(/^#\/p\/prj_a\/task\/tsk_1\?from=work/);
+  });
+
+  it('closing the pane is Back: the list alone, as it was', async () => {
+    const model = ready();
+    await model.openPane('personal', '#/p/prj_a/task/tsk_1');
+    model.closePane();
+    expect(model.pane).toBeNull();
+    expect(model.paneOpen).toBe(false);
+    expect(model.page).toBe('inbox');
+    expect(model.shownWorkspace).toBeUndefined();
+  });
+
+  it('moving to another page puts the pane away, and coming back finds the list alone', () => {
+    const model = ready();
+    model.pane = { workspace: 'personal', place: '#/p/prj_a/task/tsk_1' };
+    model.go('calendar');
+    expect(model.pane).toBeNull();
+    model.go('inbox');
+    expect(model.paneOpen).toBe(false);
+  });
+
+  it('opens a session from Work in the pane, marked as a pane, with Work as its way back', async () => {
+    const model = ready();
+    await model.openAgents('run:run_a', [], true);
+    expect(model.page).toBe('inbox');
+    expect(model.paneOpen).toBe(true);
+    const place = model.frames.personal.pending ?? '';
+    expect(place.startsWith('#/sessions/run%3Arun_a?')).toBe(true);
+    const query = new URLSearchParams(place.split('?')[1]);
+    expect(query.get('pane')).toBe('1');
+    expect(query.get('from')).toBe('work');
+  });
+
+  it('keeps a session reached from a task in the pane, with the task above it in its route', async () => {
+    const model = ready();
+    await model.openPane('personal', '#/p/prj_a/task/tsk_1');
+    await model.openAgents('run:run_a', [{ kind: 'task', projectId: 'prj_a', taskId: 'tsk_1' }, { kind: 'work' }]);
+    expect(model.page).toBe('inbox');
+    expect(model.paneOpen).toBe(true);
+    expect(new URLSearchParams((model.frames.personal.pending ?? '').split('?')[1]).get('from')).toBe('task:prj_a:tsk_1>work');
+  });
+
+  it('opens a session as the Agents page when it is asked for from somewhere else, such as Salie', async () => {
+    const model = ready();
+    await model.openAgents('run:run_a', [{ kind: 'salie', conversation: 'ast_1' }]);
+    expect(model.page).toBe('agents');
+    expect(model.pane).toBeNull();
+  });
+
+  it('gives the page back to a task when the window narrows past what two columns need', async () => {
+    const model = ready();
+    await model.openPane('personal', '#/p/prj_a/task/tsk_1');
+    model.setWide(false);
+    await vi.waitFor(() => expect(model.page).toBe('workspace'));
+    expect(model.pane).toBeNull();
+    expect(model.current).toBe('personal');
+  });
+
+  it('does not open beside the list on a narrow window, or from another page', async () => {
+    const narrow = ready();
+    narrow.wide = false;
+    await narrow.openPane('personal', '#/p/prj_a/task/tsk_1');
+    expect(narrow.page).toBe('workspace');
+    expect(narrow.pane).toBeNull();
+    const calendar = ready();
+    calendar.page = 'calendar';
+    expect(calendar.paneable).toBe(false);
+  });
 });

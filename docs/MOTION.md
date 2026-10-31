@@ -18,6 +18,17 @@ Question delivery keeps its existing pending and uncertain states. A confirmed a
 
 On the phone, a saved column change offers **View in Review/Done** through the existing notice action. Task details and sheets use 220 ms entrances and 180 ms exits while preserving their routes, focus restoration, list position and existing geometry. Planned-date changes use the saved dates rather than implying an agent start.
 
+## Attention on Work and Agents
+
+Work and Agents say where to look. The order is the person's order of attention: an agent waiting for an answer, then failures and
+blockers, then work ready for review, then high-priority tasks, then the rest of what is moving (`workqueue.ts`, `flagOf`). Each row
+carries one reason at its edge and in a word; chips above the queue count them and take you to the first. Needs-you cards and the
+decision panel breathe an amber ring slowly, markers of running work ping, and a live session carries a slow current along its foot.
+Pages arrive row by row once (`wb-rise`), cards lift on hover, the open session slides in from the side it lives on, and the Salie
+button sheens when pointed at or while she works. Nothing animates because a background refresh arrived: keyed rows are not
+re-created, and Analytics replaces its figures only when they changed. Every effect is under `prefers-reduced-motion: no-preference`;
+state is always also written in words and in the edge colour.
+
 ## Transfers
 
 Git Fetch and the confirmed Push sheet retain their existing API and approval paths. A bounded downward/upward arrow and thin indeterminate current acknowledge the pending request. No percentage or intermediate network stage is inferred. A successful fetch briefly reads Fetched before returning to Fetch; the existing result remains available. Only a successful result with any remote verification satisfied receives a drawn check. Unconfirmed remote outcomes use amber and retain their evidence; errors and refusals keep their own outcomes. No automatic retry is introduced.
@@ -28,7 +39,7 @@ Transfer loops pause offscreen and in hidden documents, including pseudo-element
 
 ## Analytics
 
-Labels, qualifiers and exact numbers are available immediately. Activity bars grow together from their baseline over 480 ms; comparison bars extend over 420 ms. Compatible user-selected scopes transition over 280 ms. Background snapshots update quietly instead of resetting the charts to zero.
+Labels, qualifiers and exact numbers are available immediately. Activity bars grow together from their baseline over 480 ms; comparison bars extend over 420 ms. Compatible user-selected scopes transition over 280 ms. Background snapshots update quietly instead of resetting the charts to zero. The window's own Analytics page refreshes silently every 30 seconds while it is open: no "Updating" state, no blanking, and a read whose figures are unchanged replaces nothing, so charts neither flash nor replay. It depends on the places it reads from as a stable key, not on the workspace list, which is rebuilt on every refresh.
 
 Individual's daily chart supports pointer inspection, phone taps and a keyboard date slider: Left/Right or Up/Down changes the selected date, Home/End chooses an endpoint and Escape clears inspection. The exact-value readout is an overlay, so it does not move the surrounding layout. Daily values remain available as a table. Team retains its own coordination figures and values table.
 

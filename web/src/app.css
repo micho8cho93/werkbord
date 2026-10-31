@@ -1024,3 +1024,21 @@ html.asst-open body {
 :root .pick.on {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
+
+/* Attention and arrival (Work, Agents). These say where to look: a page's rows arrive in order once, a thing that needs a person
+ * breathes, and a live thing shows it is live. Every effect is off for reduced motion; the state is always also written in words. */
+@media (prefers-reduced-motion: no-preference) {
+  .wb-rise { animation: wb-rise 380ms var(--ease) both; animation-delay: calc(min(var(--i, 0), 12) * 42ms); }
+  .wb-lift { transition: transform 180ms var(--ease), box-shadow 180ms var(--ease), border-color 140ms, background-color 140ms; }
+  .wb-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 22px -12px rgb(0 0 0 / .35); }
+  .wb-lift:active { transform: translateY(0) scale(.995); }
+  .wb-ping::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; border: 2px solid currentColor; opacity: 0; animation: wb-ping 2.2s ease-out infinite; pointer-events: none; }
+  .wb-breathe { animation: wb-breathe 2.6s ease-in-out infinite; }
+  .wb-live { background-image: linear-gradient(100deg, transparent 0 35%, color-mix(in srgb, var(--accent) 16%, transparent) 50%, transparent 65% 100%); background-size: 260% 100%; background-repeat: no-repeat; animation: wb-live 2.8s linear infinite; }
+  .wb-pop { animation: wb-pop 260ms var(--ease) both; }
+}
+@keyframes wb-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wb-ping { 0% { opacity: .55; transform: scale(1); } 80%, 100% { opacity: 0; transform: scale(1.9); } }
+@keyframes wb-breathe { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 4px var(--amber-ring); } }
+@keyframes wb-live { from { background-position: 160% 0; } to { background-position: -60% 0; } }
+@keyframes wb-pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }

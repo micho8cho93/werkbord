@@ -75,6 +75,16 @@ shows one **‹ Work** (or Calendar, Agents) line above it (`ReturnBar.svelte`) 
   project is the window's own project context, told to Agents in its address (`?project=`); Agents has no selector of its own
   there. Changing the window's context re-scopes the list and leaves the open session open.
 
+## Work beside a task
+
+On a window at least 1000 px wide, opening a task, plan or session from the window's **Work** page puts it in a **pane beside the
+list** (`model.pane`, `openPane`), not over it. The list is the same page, so its search, section, project context and scroll are
+untouched; **Back is closing the pane** (the crumb's *Work*, or the pane's close button). The pane shows the workspace's own page in
+its frame, so a task reached from a plan, and a session reached from that task, stay in the pane with their trail
+(`Work › plan › task › session`). The pane's bar can open what is shown as a full page. Narrowing the window below 1000 px turns an
+open pane into the full page it would have been. Sessions are opened beside the list only by Work's own controls or from inside the
+pane; asked for from elsewhere (Salie, the sidebar) they open as the Agents page. Calendar and Agents keep their full-page routes.
+
 ## One header, one trail
 
 - A page has one heading. Agents used to draw its own "Agents" under the app header's, and the window drew "Reported in this

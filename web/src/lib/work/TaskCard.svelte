@@ -77,6 +77,8 @@
   // What the card asks of the person has full buttons. What they could do but need not (start, run again, archive) is one quiet
   // text control in the footer, so a column of cards reads as titles and states, not a row of buttons.
   const attention = $derived(!!question || run?.state === 'blocked' || status.tone === 'idle' || task.state === 'review' || (task.state === 'doing' && run?.state === 'completed'));
+  /** Why the card stands out, in the order of how much it matters: a question for you, a block, a review. Quiet cards have none. */
+  const attn = $derived(task.state === 'done' ? undefined : question ? 'ask' : run?.state === 'blocked' ? 'blocked' : run?.state === 'failed' && task.state === 'doing' ? 'blocked' : task.state === 'review' || (task.state === 'doing' && run?.state === 'completed') ? 'review' : status.tone === 'idle' ? 'ask' : undefined);
   const demand = $derived(
     task.state === 'done' ? 'archive'
     : attention ? ''
@@ -133,6 +135,7 @@
 <li
   class="card task work-card"
   data-tone={status.tone}
+  data-attn={attn}
   data-task-id={task.id}
   class:live={status.live && !stale}
   class:settled={task.state === 'done'}
@@ -204,4 +207,17 @@
  .task{--work-border:var(--border);--work-surface:var(--surface);--work-muted:var(--text-2);display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 8px;position:relative;cursor:default;}.task:hover,.task.selected{background:color-mix(in srgb,var(--accent) 3%,var(--surface));}.task-marker{width:14px;height:14px;border:1px solid var(--text-2);border-radius:50%;display:grid;place-items:center;color:var(--surface);}.task-marker.finished{background:var(--ok);border-color:var(--ok);}.live .task-marker{border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--surface);background:var(--accent);}.task[data-tone=ask] .task-marker{border-color:var(--warn);background:var(--warn);}.task-content{min-width:0;}.title{font-weight:500;font-size:14px;line-height:1.5;color:var(--text);text-decoration:none;overflow-wrap:anywhere;}.title:hover{text-decoration:underline;}.title::after{content:'';position:absolute;inset:0;}.title:focus-visible{outline:none;}.title:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px;}.st,.detail,.work-detail,.meta,.dependency{font-size:12px;line-height:1.5;color:var(--text-2);margin:4px 0 0;overflow-wrap:anywhere;}.st{display:flex;align-items:center;gap:6px;}.st .dot{width:6px;height:6px;}.dependency{color:var(--block-text);position:relative;z-index:1;}.dependency a{color:inherit;}.detail,.work-detail{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}.meta{display:flex;gap:0;flex-wrap:wrap;}.meta span+span::before{content:'·';margin:0 6px;}.prio[data-p=high]{color:var(--danger-text);}.row-actions{position:relative;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:350px;}.acts,.foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}.row-actions :global(.btn){font-size:12px;}.settled .task-content{color:var(--text-2);}
  .task.sortable{grid-template-columns:20px 15px minmax(0,1fr) auto;padding-left:6px;}
  @media(max-width:800px){.task.sortable{grid-template-columns:20px 15px minmax(0,1fr);}.task.sortable .row-actions{grid-column:3;}.task{grid-template-columns:15px minmax(0,1fr);padding:14px 0;align-items:start;}.task-marker{margin-top:4px;}.row-actions{grid-column:2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
+ /* A card that needs you says so at the edge, and its marker breathes: what to look at first, in a page of quiet cards. */
+ .task[data-attn]{box-shadow:inset 3px 0 0 var(--attn);}
+ .task[data-attn=ask]{--attn:var(--amber);background:color-mix(in srgb,var(--amber) 7%,var(--surface));}
+ .task[data-attn=blocked]{--attn:var(--danger);}
+ .task[data-attn=review]{--attn:var(--ok);}
+ .task-marker{position:relative;transition:transform 200ms var(--ease);}
+ .task:hover .task-marker{transform:scale(1.15);}
+ .task .title{transition:transform 200ms var(--ease);}
+ @media(prefers-reduced-motion:no-preference){
+  .task:hover .title{transform:translateX(2px);}
+  .task[data-attn=ask] .task-marker::after,.task.live .task-marker::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--attn,var(--accent));opacity:0;animation:wb-ping 2.4s ease-out infinite;pointer-events:none;}
+  .task.live:not([data-attn]) .task-marker::after{animation-duration:3.2s;}
+ }
 </style>

@@ -108,7 +108,7 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 				if t.State == domain.TaskDone {
 					group = "done"
 				}
-				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail, Plan: planOf[t.ID]})
+				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail, Plan: planOf[t.ID], Priority: string(priority)})
 			}
 			for _, t := range tasks {
 				if t.ArchivedAt != nil || (t.Plan.Start == "" && t.Plan.End == "") {

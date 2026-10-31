@@ -31,7 +31,7 @@
   );
 </script>
 
-<a class="row card" href={taskHref(task.projectId, task.id)} data-testid="work-row" data-tone={status.tone}>
+<a class="row card wb-rise" href={taskHref(task.projectId, task.id)} data-testid="work-row" data-tone={status.tone}>
   <span class="dot" data-tone={status.tone} aria-hidden="true"></span>
   <span class="what">
     <span class="title">{task.title}</span>
@@ -43,6 +43,10 @@
 </a>
 
 <style>
+  @media (prefers-reduced-motion: no-preference) {
+    .row[data-tone='ask'] .dot { animation: wb-breathe 2.6s ease-in-out infinite; border-radius: 50%; }
+    .row:active { transform: scale(.99); transition: transform 120ms var(--ease); }
+  }
   .row {
     display: flex;
     gap: 12px;

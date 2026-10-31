@@ -172,7 +172,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.deepEqual((await sessions()).map(s => s.key), [key]);
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), true);
         await individual.getByRole('textbox', { name: 'Additional instructions' }).fill('commit');
-        await individual.getByRole('region', { name: 'Live task session' }).getByRole('button', { name: 'Send', exact: true }).click();
+        await individual.getByRole('textbox', { name: 'Additional instructions' }).press('Enter');
         await individual.getByText('Committed fixture work').first().waitFor();
         assert.equal((await runs()).length, 1, 'continuing does not start another');
         await page.screenshot({ path: path.join(artifacts, 'shell-agents-session.png') });
@@ -226,7 +226,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal((await runs()).length, 1); assert.equal((await sessions()).length, 1);
         ok('Back follows the route the person took (session → task → session → Salie) and the session is the same one throughout');
 
-        // Work → task → Back: Work as it was left, with the project context it had.
+        // Work → task beside the list → Back: the list is exactly as it was left, because it never went anywhere.
         const context = page.getByTestId('project-context');
         await side.getByRole('button', { name: 'Work', exact: true }).click(); await current('inbox');
         await context.selectOption('');
@@ -234,14 +234,19 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await context.inputValue(), '', 'All Projects');
         await page.locator('.queue-card button.task', { hasText: 'Fix the login' }).click();
         await individual.locator('section.panel').waitFor();
-        assert.notEqual(await context.inputValue(), '', 'opening a task moves the context to its project');
+        await page.getByTestId('work-pane-bar').waitFor();
+        assert.equal(await context.inputValue(), '', 'opening a task beside the list leaves the project context alone');
+        assert.equal(await page.getByRole('searchbox', { name: 'Search work' }).inputValue(), 'Fix', 'the list beside the task keeps its search');
+        assert.equal(await page.locator('.queue-card button.task[aria-current=true]').count(), 1, 'the open task is marked in the list');
         assert.match(await crumbs().innerText(), /Work/);
+        await page.screenshot({ path: path.join(artifacts, 'shell-work-pane.png') });
         await crumbs().getByRole('button', { name: /Work/ }).click();
+        await page.getByTestId('work-pane-bar').waitFor({ state: 'detached' });
         await current('inbox');
         assert.equal(await page.getByRole('searchbox', { name: 'Search work' }).inputValue(), 'Fix', 'the search is as it was left');
         assert.equal(await context.inputValue(), '', 'Back puts All Projects back');
         await page.screenshot({ path: path.join(artifacts, 'shell-work-back.png') });
-        ok('Work → task → Back returns to Work with its project context and search');
+        ok('Work → task beside the list → Back returns to the list as it was, with its project context and search');
 
         // Work → plan → task → session, and back down the same route.
         await page.getByRole('searchbox', { name: 'Search work' }).fill('');
@@ -251,9 +256,13 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.match(await crumbs().innerText(), /Work/);
         await individual.getByRole('link', { name: 'Fix the login' }).first().click();
         await individual.locator('section.panel').waitFor();
+        // The task's panel is drawn over the plan and its trail arrives a moment after the panel itself.
+        await individual.getByTestId('crumbs').filter({ hasText: /Launch plan/ }).last().waitFor();
         assert.match(await crumbs().innerText(), /Work[\s\S]*Launch plan/, 'Work › Launch plan above the task');
         await individual.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
-        await current('agents'); await onSession();
+        // The session opens in the same pane, so Work's list is still beside it.
+        await current('inbox'); await onSession();
+        assert.equal(await page.getByTestId('work-pane-bar').count(), 1, 'a session reached from a task in the pane stays in the pane');
         assert.match(await crumbs().innerText(), /Work[\s\S]*Launch plan[\s\S]*Fix the login/);
         await crumbs().getByRole('link', { name: /Fix the login/ }).click();
         await individual.locator('section.panel').waitFor();

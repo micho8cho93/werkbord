@@ -34,6 +34,13 @@ export interface Overview {
 const sinceNewest = (a: AgentSession, b: AgentSession) => b.updatedAt.localeCompare(a.updatedAt) || a.key.localeCompare(b.key);
 const trouble = (s: AgentSession) => (['failed', 'interrupted'] as Outcome[]).includes(outcomeOf(s));
 
+/** A session that ended badly (failed, or cut off by a restart): it is shown above the ones that finished well, with a way to try again. */
+export const isTrouble = (s: Pick<AgentSession, 'kind' | 'state' | 'live'>): boolean => !s.live && (['failed', 'interrupted'] as Outcome[]).includes(outcomeOf(s));
+
+/** Whether a session that is over can be run again from its task: only a task run that did not finish well. A terminal is opened afresh instead. */
+export const canRetry = (s: Pick<AgentSession, 'kind' | 'state' | 'live' | 'taskId'>): boolean =>
+  s.kind === 'run' && !!s.taskId && !s.live && (['failed', 'interrupted', 'stopped'] as Outcome[]).includes(outcomeOf(s));
+
 /** Whether a session passes the filter: the project, the provider (agent) and what kind of session. */
 export function matches(s: AgentSession, f: OverviewFilter): boolean {
   if (f.project && s.projectId !== f.project) return false;

@@ -7,13 +7,17 @@
   import { executionLabel, standing } from './aggregate';
   import { current, pending, type Decision } from './decisions';
   import { decisions } from './decisions.svelte';
-  import { needAction, readyCount, rowsOf, STATE_LABEL, urgentFirst, type Row } from './workqueue';
+  import { FLAG_LABEL, flagCounts, needAction, readyCount, rowsOf, STATE_LABEL, urgentFirst, type Flag, type Row } from './workqueue';
+  import QuestionCard from '../lib/QuestionCard.svelte';
+  import * as answering from './answering';
+  import type { Question } from '../lib/types';
   import { runKey } from '../lib/agent-sessions';
   import { timeAgo } from '../lib/format';
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview, QueueItem } from './types';
 
-  let { overview }: { overview: Overview | null } = $props();
+  // `compact`: the list sits beside an open task or session, so it is one column and the decisions come first.
+  let { overview, compact = false }: { overview: Overview | null; compact?: boolean } = $props();
   // The section, the search and whose work is shown are kept by the window, so Work is as it was left after a task and Back.
   let section = $state<string>(viewState.work.section);
   let search = $state(viewState.work.search);
@@ -41,17 +45,38 @@
   // Your next decision: the question that has waited longest, in the project context the window has. It is what an agent is blocked on,
   // so it is taken in the order it arrived; everything else on this page keeps its own order.
   const waiting = $derived(pending(decisions.list, model.selectedProject, new Set(Object.keys(decisions.answered))));
-  const decision = $derived<Decision | undefined>(waiting[0]);
-  const reachable = $derived(!!decision && current(decision, model.overview));
-  // Only where this person can act: their own Werkbord with the session to open, or a Team workspace that answered and named the place.
-  const canOpen = $derived(!!decision && reachable && (decision.workspace.kind === 'personal' ? !!decision.runId && model.personalReady : !!decision.href));
   // Back from the session lands here: ask once for the queue as it is now rather than wait for the next refresh.
   $effect(() => { void model.refreshOverview(); });
   function openDecision(d: Decision) {
     // The session lists its open questions itself, and Back returns to Work with its project context, search and section as left.
-    if (d.workspace.kind === 'personal' && d.runId) void model.openAgents(runKey(d.runId));
-    else if (d.href) void model.open(d.workspace.id, d.href);
+    if (d.workspace.kind === 'personal' && d.runId) void model.openAgents(runKey(d.runId), [], true);
+    else if (d.href) open(d.workspace.id, d.href);
   }
+
+  /** A task or session opens beside the list when the window is wide enough, so the list stays where it was; otherwise it takes the page. */
+  function open(workspace: string, href: string) {
+    if (model.paneable) void model.openPane(workspace, href);
+    else void model.goTo(workspace, href);
+  }
+  const openHere = (workspace: string, href: string) => model.pane?.workspace === workspace && model.pane.place === href;
+
+  // What most deserves a look, counted by why, above the queue: each says how many and takes you to the first.
+  const flags = $derived(flagCounts(queueRows));
+  function seek(flag: Flag) {
+    const el = document.querySelector<HTMLElement>(`.work-view [data-flag="${flag}"]`);
+    el?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    el?.querySelector<HTMLElement>('button.task')?.focus({ preventScroll: true });
+  }
+
+  // Questions are answered where they are listed, with the agent's own context in view, and the answer goes the same way it does from Inbox.
+  let tick = $state(Date.now());
+  $effect(() => { const timer = setInterval(() => (tick = Date.now()), 1000); return () => clearInterval(timer); });
+  const canAnswer = $derived(answering.reachable(model.overview, tick));
+  const askable = (d: Decision) => d.workspace.kind === 'personal' && !!d.question && canAnswer;
+  const SHOWN = 3;
+  const shownDecisions = $derived(waiting.slice(0, SHOWN));
+  const answerWith = (q: Question, answer: string) => answering.answerWith(q, answer, model.overview, tick);
+  const onSettled = (q: Question) => answering.settled(q);
 
   const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
   const plans = $derived(rows.filter(r => r.item.group === 'plan'));
@@ -72,7 +97,7 @@
   }
 </script>
 
-<section class="work work-view" aria-labelledby="work-h">
+<section class="work work-view" class:compact aria-labelledby="work-h">
   <header class="work-heading"><div><h1 id="work-h">Work</h1><p class="muted">Your tasks, plans and agent activity.</p></div><div class="actions work-actions">
     <label class="work-search"><Icon name="search" size={15} /><span class="visually-hidden">Search work</span><input type="search" bind:value={search} placeholder="Search work…" /></label>
     <button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
@@ -83,6 +108,11 @@
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
   {#if section === 'queue'}
+    {#if flags.length}
+      <ul class="flags" aria-label="What needs a look" data-testid="work-flags">
+        {#each flags as f (f.flag)}<li><button type="button" class="flag-chip" data-flag={f.flag} onclick={() => seek(f.flag)}><span class="flag-dot" aria-hidden="true"></span><strong>{f.count}</strong> {f.label.toLowerCase()}</button></li>{/each}
+      </ul>
+    {/if}
     <div class="work-grid">
     <div class="work-main">
     {#if othersHold}<div class="scope" role="group" aria-label="Whose work to show"><button type="button" aria-pressed={!everyone} onclick={() => everyone = false}>Mine and unclaimed</button><button type="button" aria-pressed={everyone} onclick={() => everyone = true}>Everyone</button></div>{/if}
@@ -90,30 +120,42 @@
       {#each sections as group (group.id)}
         <section class="queue-card" aria-labelledby="queue-{group.id}" data-section={group.id}>
           <header><h2 id="queue-{group.id}">{group.title}</h2>{#if group.id !== 'later'}<span class="queue-note">{note(group.id, group.rows)}</span>{/if}</header>
-          {#if group.rows.length}<ul>{#each group.rows as row (row.workspace + row.item.href)}{@render task(row)}{/each}</ul>
+          {#if group.rows.length}<ul>{#each group.rows as row, i (row.workspace + row.item.href)}{@render task(row, i)}{/each}</ul>
           {:else}<p class="queue-empty">{search ? 'No tasks match your search.' : group.id === 'now' ? 'Nothing needs your attention right now.' : group.id === 'next' ? 'No tasks ready to pick up.' : 'Nothing planned for later.'}</p>{/if}
         </section>
       {/each}
-      {#if completed.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{completed.length}</span></summary><ul>{#each completed as row (row.workspace + row.item.href)}{@render task(row)}{/each}</ul></details></section>{/if}
+      {#if completed.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{completed.length}</span></summary><ul>{#each completed as row, i (row.workspace + row.item.href)}{@render task(row, i)}{/each}</ul></details></section>{/if}
     </div>
     {#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}
     <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
     </div>
-    <aside class="decision" aria-labelledby="decision-h" data-testid="next-decision">
-      <h2 id="decision-h">Your next decision</h2>
-      <div aria-live="polite">
-      {#if decision}
+    <aside class="decision" class:urgent={waiting.length > 0} aria-labelledby="decision-h" data-testid="next-decision">
+      <h2 id="decision-h">{waiting.length ? 'Waiting for you' : 'Your next decision'}{#if waiting.length}<span class="pill wb-pop" aria-label="{waiting.length} waiting">{waiting.length}</span>{/if}</h2>
+      <div aria-live="polite" class="decision-list">
+      {#if shownDecisions.length}
         <p class="decision-count">{waiting.length === 1 ? '1 waiting' : `${waiting.length} waiting`}, oldest first</p>
-        <p class="decision-prompt">{decision.prompt}</p>
-        <dl class="decision-facts">
-          <div><dt>Task</dt><dd>{decision.task || 'Task'}</dd></div>
-          <div><dt>Project</dt><dd>{decision.project || 'Project'}{#if showWhere} <WorkspaceTag workspace={decision.workspace} />{/if}</dd></div>
-          {#if decision.agent}<div><dt>Agent</dt><dd>{decision.agent}</dd></div>{/if}
-          {#if decision.askedAt}<div><dt>Asked</dt><dd>{timeAgo(decision.askedAt, now)}</dd></div>{/if}
-        </dl>
-        {#if !reachable}<p class="decision-note" role="status">{decision.workspace.name} is not answering. This is as last reported; it stays here until the workspace confirms it was answered.</p>{/if}
-        <button class="btn primary" type="button" disabled={!canOpen} onclick={() => decision && openDecision(decision)}>{decision.workspace.kind === 'personal' ? 'Open session' : 'Open in ' + decision.workspace.name}</button>
-        {#if reachable && !canOpen}<p class="decision-note">{decision.workspace.kind === 'personal' ? 'Your own Werkbord is not ready to open this session.' : 'This workspace did not say where to answer. Open it to find the question.'}</p>{/if}
+        {#each shownDecisions as d, i (d.key)}
+          {@const here = current(d, model.overview)}
+          {@const openable = d.workspace.kind === 'personal' ? !!d.runId && model.personalReady : !!d.href}
+          <article class="decision-card wb-rise" style:--i={i} data-testid="decision" data-kind={d.question?.kind}>
+            {#if !(askable(d) && d.question)}<p class="decision-prompt">{d.prompt}</p>{/if}
+            <dl class="decision-facts">
+              <div><dt>Task</dt><dd>{d.task || 'Task'}</dd></div>
+              <div><dt>Project</dt><dd>{d.project || 'Project'}{#if showWhere} <WorkspaceTag workspace={d.workspace} />{/if}</dd></div>
+              {#if d.agent}<div><dt>Agent</dt><dd>{d.agent}</dd></div>{/if}
+              {#if d.askedAt}<div><dt>Asked</dt><dd>{timeAgo(d.askedAt, now)}</dd></div>{/if}
+            </dl>
+            {#if !here}<p class="decision-note" role="status">{d.workspace.name} is not answering. This is as last reported; it stays here until the workspace confirms it was answered.</p>{/if}
+            {#if askable(d) && d.question}
+              <QuestionCard question={{ ...d.question, state: 'pending' }} showMeta={false} revealContext={d.question.kind === 'approval'} {answerWith} {onSettled} notify={(message) => model.notice = message} />
+              {#if openable}<button class="btn quiet small" type="button" onclick={() => openDecision(d)}>{d.workspace.kind === 'personal' ? 'Open session' : 'Open in ' + d.workspace.name}</button>{/if}
+            {:else}
+              <button class="btn primary" type="button" disabled={!(here && openable)} onclick={() => openDecision(d)}>{d.workspace.kind === 'personal' ? 'Open session' : 'Open in ' + d.workspace.name}</button>
+              {#if here && !openable}<p class="decision-note">{d.workspace.kind === 'personal' ? 'Your own Werkbord is not ready to open this session.' : 'This workspace did not say where to answer. Open it to find the question.'}</p>{/if}
+            {/if}
+          </article>
+        {/each}
+        {#if waiting.length > SHOWN}<p class="decision-more">{waiting.length - SHOWN} more waiting, oldest first. Answer these and the next appears.</p>{/if}
       {:else}
         <p class="decision-empty">No agent is waiting on you.</p>
       {/if}
@@ -121,15 +163,15 @@
     </aside>
     </div>
   {:else}
-    <section aria-labelledby="plans-h"><h2 id="plans-h" class="visually-hidden">Plans</h2><p class="section-note muted">Related tasks, one shared objective.</p><ul class="plans">{#each plans as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => model.goTo(row.workspace.id, row.item.href)}><span class="plan-symbol"><Icon name="dependencies" size={18} /></span><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project} · {row.workspace.name}</span></span><span class="plan-progress">{row.item.detail}</span><Icon name="right" size={14} /></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul></section>
+    <section aria-labelledby="plans-h"><h2 id="plans-h" class="visually-hidden">Plans</h2><p class="section-note muted">Related tasks, one shared objective.</p><ul class="plans">{#each plans as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="plan-symbol"><Icon name="dependencies" size={18} /></span><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project} · {row.workspace.name}</span></span><span class="plan-progress">{row.item.detail}</span><Icon name="right" size={14} /></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul></section>
   {/if}
 </section>
-{#snippet task(row: Row)}
+{#snippet task(row: Row, index: number = 0)}
   {@const live = row.item.group === 'done' ? undefined : detail(row.workspace, row.item)}
-  <li><button class="task" data-state={row.state} onclick={() => model.goTo(row.workspace, row.item.href)}>
+  <li data-flag={row.flag} class="wb-rise" style:--i={index}><button class="task" data-state={row.state} data-flag={row.flag} aria-current={openHere(row.workspace, row.item.href) ? 'true' : undefined} onclick={() => open(row.workspace, row.item.href)}>
     <span class="task-marker" data-state={row.state} aria-hidden="true">{#if row.state === 'done'}<Icon name="check" size={10} />{/if}</span>
     <span class="task-content"><strong>{row.item.title}</strong><span class="context"><span class="proj">{row.item.project}</span>{#if row.item.plan}<span class="sep" aria-hidden="true">›</span><span class="plan">{row.item.plan}</span>{/if}{#if showWhere && entryOf(row.workspace)}<WorkspaceTag workspace={entryOf(row.workspace)!} />{/if}{#if live}<span class="detail" class:blocked={row.state === 'blocked'}>{live}</span>{/if}</span></span>
-    {#if row.asking}<span class="ask-chip">Decision</span>{/if}
+    {#if row.asking}<span class="ask-chip">Decision</span>{:else if row.flag}<span class="flag" data-flag={row.flag}>{FLAG_LABEL[row.flag]}</span>{/if}
     <span class="state" data-state={row.state}>{STATE_LABEL[row.state]}</span>
     {#if row.item.owner && row.item.group !== 'done'}<span class="owner-chip" data-me={row.item.mine ? '' : undefined} role="img" aria-label={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner} title={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner}>{initials(row.item.owner)}</span>{/if}
     <span class="open-icon"><Icon name="right" size={14} /></span>
@@ -150,4 +192,47 @@
  .decision-facts{margin:0;display:grid;gap:6px;font-size:12px;}.decision-facts div{display:grid;grid-template-columns:64px 1fr;gap:8px;}.decision-facts dt{color:var(--text-2);}.decision-facts dd{margin:0;overflow-wrap:anywhere;}
  .decision-note{margin:0;font-size:12px;color:var(--text-2);line-height:1.5;}.decision-empty{margin:0;font-size:13px;color:var(--text-2);}.decision .btn{justify-self:start;}
  @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.decision{position:static;order:-1;}}
+
+ /* Attention: the edge of a row says why it is worth a look; the chips above the queue count them and take you to the first. */
+ .flags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 18px;}
+ .flag-chip{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:4px 12px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text);font:inherit;font-size:13px;cursor:pointer;transition:transform 160ms var(--ease),border-color 140ms,background-color 140ms;}
+ .flag-chip:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--chip,var(--text-2)) 55%,var(--border));background:color-mix(in srgb,var(--chip,var(--text-2)) 7%,var(--surface));}
+ .flag-chip:focus-visible,.task:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+ .flag-dot{width:8px;height:8px;border-radius:50%;background:var(--chip,var(--text-2));}
+ [data-flag=ask]{--chip:var(--amber);}[data-flag=failed]{--chip:var(--danger);}[data-flag=review]{--chip:var(--ok);}[data-flag=high]{--chip:var(--block,var(--accent));}
+ li{position:relative;}
+ .flags li{border-top:0;}
+ .task{transition:background-color 140ms,box-shadow 200ms var(--ease);}
+ .task[data-flag]{box-shadow:inset 3px 0 0 var(--chip);}
+ .task[data-flag=ask]{background:color-mix(in srgb,var(--amber) 8%,var(--surface));}
+ .task:hover{background:color-mix(in srgb,var(--chip,var(--accent)) 6%,var(--surface));}
+ .task[aria-current=true]{background:color-mix(in srgb,var(--accent) 9%,var(--surface));box-shadow:inset 3px 0 0 var(--accent);}
+ .open-icon{transition:opacity 140ms,transform 200ms var(--ease);}
+ .task:hover .open-icon,.task:focus-visible .open-icon{transform:translateX(3px);}
+ .flag{font-size:11px;font-weight:500;padding:1px 8px;border-radius:99px;white-space:nowrap;color:var(--text);background:color-mix(in srgb,var(--chip) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--chip) 40%,var(--border));}
+ .ask-chip{color:var(--text);background:color-mix(in srgb,var(--amber) 20%,var(--surface));border-color:color-mix(in srgb,var(--amber) 55%,var(--border));font-weight:500;}
+ .decision{transition:border-color 200ms,box-shadow 300ms;}
+ .decision.urgent{border-color:color-mix(in srgb,var(--warn) 55%,var(--border));}
+ .decision h2{display:flex;align-items:center;gap:8px;}
+ .pill{min-width:22px;padding:1px 7px;border-radius:99px;background:var(--amber);color:#1d1b18;font-size:12px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;}
+ .decision-list{display:grid;gap:14px;}
+ .decision-card{display:grid;gap:10px;padding-top:14px;border-top:1px solid var(--border);}
+ .decision-card:first-of-type{padding-top:0;border-top:0;}
+ .decision-more{margin:0;font-size:12px;color:var(--text-2);}
+ .decision-card :global(.ask){margin:0;}
+ .decision-card .btn.quiet{justify-self:start;}
+ .compact .work-grid{grid-template-columns:minmax(0,1fr);gap:16px;}
+ .compact .decision{position:static;order:-1;}
+ .compact .work-heading{flex-direction:column;align-items:stretch;gap:12px;}
+ .compact .actions{flex-wrap:wrap;width:100%;}
+ .compact .work-search{flex:1 1 160px;min-width:0;}
+ .compact .task{padding:12px 8px;}
+ .compact .ask-chip,.compact .flag{display:none;}
+ @media(prefers-reduced-motion:no-preference){
+  .decision.urgent{animation:wb-breathe 2.6s ease-in-out infinite;}
+  .task-marker{position:relative;}
+  .task-marker[data-state=action]::after,.task-marker[data-state=running]::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid currentColor;opacity:0;animation:wb-ping 2.4s ease-out infinite;}
+  .task-marker[data-state=action]{color:var(--amber);}.task-marker[data-state=running]{color:var(--accent);}
+  .task-marker[data-state=running]::after{animation-duration:3.2s;}
+ }
 </style>

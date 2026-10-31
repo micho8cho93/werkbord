@@ -317,6 +317,11 @@ test-premium-console: cmd/werkbord-team/licensing/ui/node_modules
 test-project-context-browser: web-shell
 	node scripts/browser-project-context.cjs
 
+.PHONY: test-work-agents-ux-browser
+## test-work-agents-ux-browser: Salie and the foldable sidebar, Work's order, flags, in-place answers and side pane, and a steady Analytics page
+test-work-agents-ux-browser: web-shell
+	node scripts/browser-work-agents-ux.cjs
+
 .PHONY: test-work-browser
 ## test-work-browser: Work queues, plans and dependencies in Personal, Team and the shell, desktop and phone
 test-work-browser: web web-embed web-shell

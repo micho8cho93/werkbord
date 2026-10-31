@@ -20,7 +20,8 @@
   import SettingsNav from './SettingsNav.svelte';
   import SettingsNative from './SettingsNative.svelte';
   import SettingsPlan from './SettingsPlan.svelte';
-  import { model, type Page } from './model.svelte';
+  import Icon from '../lib/Icon.svelte';
+  import { model, PANE_MIN, type Page } from './model.svelte';
   import { onApp } from './native';
 
   // One project context and destination list surround the original workspace-owned detail screens.
@@ -50,8 +51,22 @@
     const stopCatchUp = catchUpSession.start();
     void model.start();
     const unsubscribe = onApp('shell:go', go);
-    return () => { stopCatchUp(); unsubscribe(); model.stop(); };
+    // Work shows a task or session beside its list only while the window is wide enough for both.
+    const wide = matchMedia(`(min-width: ${PANE_MIN}px)`);
+    const resized = () => model.setWide(wide.matches);
+    resized();
+    wide.addEventListener('change', resized);
+    return () => { stopCatchUp(); unsubscribe(); wide.removeEventListener('change', resized); model.stop(); };
   });
+  /** What the pane shows, named for the bar over it. */
+  const paneTitle = $derived(model.pane && model.pane.place.includes('/task/') ? 'Task' : model.pane && /sessions/.test(model.pane.place) ? 'Agent session' : 'Details');
+  function expandPane(): void {
+    const open = model.pane;
+    if (!open) return;
+    const where = model.places[open.workspace] || open.place;
+    model.pane = null;
+    void model.goTo(open.workspace, where.replace(/([?&])pane=1&?/, '$1').replace(/[?&]$/, ''));
+  }
   function key(e: KeyboardEvent): void {
     // ⌘K goes to a project, a place or a page; ⌘⇧K still does, for whoever learnt it when it switched workspace.
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -85,7 +100,17 @@
         <ReturnBar />
         <!-- Agents: what workspaces report sits above the person's own sessions, which are a page of their own Werkbord. -->
         {#if model.agentsInFrame}<Agents strip />{/if}
-        <FrameHost shown={(model.page === 'workspace' && !problem) || model.agentsInFrame || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
+        <div class="split-area" class:split={model.paneOpen}>
+          <div class="frame-slot" class:pane={model.paneOpen}>
+            {#if model.paneOpen}
+              <header class="pane-bar" data-testid="work-pane-bar">
+                <span class="pane-title">{paneTitle}</span>
+                <button class="pane-btn" type="button" onclick={expandPane} aria-label="Open {paneTitle.toLowerCase()} as a full page" title="Open as a full page"><Icon name="expand" size={14} /></button>
+                <button class="pane-btn" type="button" onclick={() => model.closePane()} aria-label="Close {paneTitle.toLowerCase()}" title="Close" data-testid="work-pane-close"><Icon name="close" size={14} /></button>
+              </header>
+            {/if}
+            <FrameHost shown={(model.page === 'workspace' && !problem) || model.agentsInFrame || model.paneOpen || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
+          </div>
         {#if model.page === 'workspace' && problem}
           <div class="page-area" use:remembered={model.page}><WorkspaceProblem /></div>
         {:else if hostedGone}
@@ -98,10 +123,11 @@
             {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />
             {:else if model.page === 'analytics'}<Analytics />
-            {:else if model.page === 'inbox'}<Hub overview={model.contextOverview} />
+            {:else if model.page === 'inbox'}<Hub overview={model.contextOverview} compact={model.paneOpen} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>
         {/if}
+        </div>
       </div>
     </main>
   </div>
@@ -175,6 +201,75 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+  }
+  /* The frame and the page it shows are one area. With a task or session open on Work the area is two columns: the list, then the open page. */
+  .split-area {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .split-area.split {
+    flex-direction: row;
+  }
+  .split-area.split .page-area {
+    order: -1;
+    flex: 0 0 clamp(360px, 38%, 520px);
+    border-right: 1px solid var(--border);
+  }
+  .frame-slot:not(.pane) {
+    display: contents;
+  }
+  .frame-slot.pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    animation: pane-in 280ms var(--ease) both;
+  }
+  .pane-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .pane-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .pane-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .pane-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .pane-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  @keyframes pane-in {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .frame-slot.pane { animation: none; }
   }
   .loading {
     padding: 20px;

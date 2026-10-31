@@ -119,7 +119,7 @@
     <iframe
       bind:this={elements[key]}
       class="frame"
-      hidden={model.shownWorkspace !== id || (model.page === 'workspace' || model.agentsInFrame) === hosted}
+      hidden={model.shownWorkspace !== id || model.framePage === hosted}
       title={(model.view?.items.find((i) => i.id === id)?.name ?? 'Workspace') + (hosted ? ' settings' : '')}
       src={hosted ? hostedUrl(f.target.url) : f.target.url}
       referrerpolicy="no-referrer"

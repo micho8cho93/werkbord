@@ -4,11 +4,8 @@
   import WorkspaceTag from './WorkspaceTag.svelte';
   import type { Overview, OverviewEntry } from './types';
   import QuestionCard from '../lib/QuestionCard.svelte';
-  import { ApiError } from '../lib/api';
   import type { Question } from '../lib/types';
-  import { ask } from './native';
-  import { decisionKey } from './decisions';
-  import { decisions } from './decisions.svelte';
+  import * as answering from './answering';
 
   let expanded = $state<Record<string, boolean>>({});
   let settled = $state<Record<string, boolean>>({});
@@ -19,18 +16,10 @@
     const e = source(id);
     return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < 30000;
   }
-  async function answerWith(q: Question, answer: string): Promise<Question> {
-    if (!available('personal')) throw new Error('Personal is offline or stale. Reconnect before answering.');
-    const result = await ask(a => a.Relay('personal', 'AnswerQuestion', [{ projectId: q.projectId, questionId: q.id, answer }])) as {
-      status: number; body: Question & { error?: {code: string; message: string}; question?: Question };
-    };
-    if (result.status >= 400) throw new ApiError(result.status, result.body.error?.code ?? 'unknown', result.body.error?.message ?? 'Could not save the answer.', result.body.question);
-    return result.body;
-  }
+  const answerWith = (q: Question, answer: string) => answering.answerWith(q, answer, overview, now);
   function onSettled(q: Question): void {
     settled[q.id] = true;
-    decisions.settle(decisionKey('personal', 'question-' + q.id));
-    void model.refreshOverview();
+    answering.settled(q);
   }
 
 

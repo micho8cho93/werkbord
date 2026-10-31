@@ -35,6 +35,9 @@ export interface OpenFrame {
 /** A page refused its sign-in again within this long of the app signing it in again: signing in again is not the answer. */
 const REAUTH_EVERY = 30000;
 
+/** The narrowest window (CSS px) in which a list and a detail fit side by side. */
+export const PANE_MIN = 1000;
+
 const VIEW_EVERY = 4000;
 const OVERVIEW_EVERY = 10000;
 
@@ -97,6 +100,13 @@ export class Model {
    * had there. Back to that page puts both as they were, even if opening the detail moved the context to its project.
    */
   departed = $state<{ page: Page; context: ProjectIdentity | null; workspace: string; place: string } | null>(null);
+  /**
+   * Work's detail pane: a task, plan or session shown beside the list rather than instead of it, so the list keeps its place, its search
+   * and its scroll, and Back is closing the pane. `place` is the queue's own address for what was opened, which is what the list marks.
+   */
+  pane = $state<{ workspace: string; place: string } | null>(null);
+  /** The window is wide enough for the list and a detail side by side; a narrower one gives the detail the whole page, as it always did. */
+  wide = $state(typeof window === 'undefined' ? true : window.innerWidth >= PANE_MIN);
   addOpen = $state(false);
   loaded = $state(false);
   setupRequired = $state(false);
@@ -152,11 +162,65 @@ export class Model {
 
   /** The workspace whose page is on screen now, in whichever frame shows it; undefined for the shell's own pages. */
   get shownWorkspace(): string | undefined {
+    if (this.paneOpen) return this.pane?.workspace;
     if (this.page === 'workspace') return this.current;
     if (this.agentsInFrame) return 'personal';
     if (this.page === 'help') return 'personal';
     if (this.page === 'settings') return frameOf(this.settingsShown);
     return undefined;
+  }
+
+  /** Work is showing a task or session beside its list. */
+  get paneOpen(): boolean {
+    return this.page === 'inbox' && !!this.pane && this.wide;
+  }
+  /** A workspace's page (not a hosted Settings or Help page) is what the window's main frame shows now. */
+  get framePage(): boolean {
+    return this.page === 'workspace' || this.agentsInFrame || this.paneOpen;
+  }
+  /** Whether Work can open something beside its list: the window is wide enough and Personal or a team can be asked for the page. */
+  get paneable(): boolean {
+    return this.page === 'inbox' && this.wide;
+  }
+
+  /**
+   * Opens a task, plan or session of a workspace beside Work's list. The workspace's page is made if it is not there and told where to
+   * go; nothing about the window's project context or page changes, so closing the pane is exactly Back.
+   */
+  async openPane(id: string, place: string): Promise<void> {
+    if (!this.paneable) return this.goTo(id, place);
+    const item = this.view?.items.find((i) => i.id === id);
+    if (!item || item.state === 'unavailable') return this.goTo(id, place);
+    this.error = '';
+    const where = this.stamped(id, place) ?? place;
+    try {
+      const target = await ask((a) => a.OpenWorkspace(id));
+      const existing = this.frames[id];
+      if (!existing) {
+        this.frames[id] = { target, ready: false, pending: where };
+      } else {
+        existing.pending = where;
+      }
+      this.places[id] = where;
+      this.pane = { workspace: id, place };
+    } catch (e) { this.error = (e as Error).message; }
+  }
+
+  /** Puts the pane away: Work is its list alone again, as it was left. */
+  closePane(): void {
+    this.pane = null;
+    this.departed = null;
+  }
+
+  /** The window was resized across the width a pane needs. A pane that no longer fits becomes the page it would have been. */
+  setWide(wide: boolean): void {
+    if (wide === this.wide) return;
+    this.wide = wide;
+    const open = this.pane;
+    if (!wide && open && this.page === 'inbox') {
+      this.pane = null;
+      void this.goTo(open.workspace, this.places[open.workspace] || open.place);
+    }
   }
 
   /** Records where a workspace's page says it is. */
@@ -197,9 +261,10 @@ export class Model {
   /**
    * Agents: every coding-agent session, and the one that is open. It is a page of the person's own Werkbord shown in its frame
    * (the one terminal and session views live there), so opening it, or opening a session in it, stops and starts nothing. A
-   * session is named by its key (agent-sessions.ts). With no key Agents comes back to where it was, a session still open.
+   * session is named by its key (agent-sessions.ts). With no key Agents comes back to where it was, a session still open. `beside` opens
+   * it next to Work's list (see `pane`) when the window is wide enough.
    */
-  async openAgents(key?: string, from: readonly Origin[] = []): Promise<void> {
+  async openAgents(key?: string, from: readonly Origin[] = [], beside = false): Promise<void> {
     if (!this.personalReady) {
       // Without the person's own Werkbord there are no sessions to open: the page lists what workspaces report.
       this.leaveAssistant();
@@ -211,6 +276,13 @@ export class Model {
     this.leaveAssistant();
     // A session opened from one of the window's own pages remembers it; one opened from a page that says where it is from does not guess.
     const origin = key && !from.length && this.here && this.here.kind !== 'agents' ? pushed(this.here, []) : [...from];
+    // From Work's own controls (`beside`), or from a page already open beside the list, on a window wide enough, the session opens beside
+    // the list and the person's place in Work is kept. Asked for from anywhere else (Salie, say) it is the Agents page.
+    if (key && this.paneable && (beside || this.pane)) {
+      const scoped = this.selectedProject?.workspace === 'personal' ? this.selectedProject.project : '';
+      const place = agentsPlace(key, scoped, origin);
+      return this.openPane('personal', place + (place.includes('?') ? '&' : '?') + 'pane=1');
+    }
     // The window is on Agents at once; its frame follows as soon as the person's own Werkbord has been asked for it.
     this.universal = true;
     this.page = 'agents';
@@ -554,6 +626,7 @@ export class Model {
   /** Shows a page of the shell's own. */
   go(p: Page): void {
     this.departed = null;
+    this.pane = null;
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
     if (p === 'workspaces') {

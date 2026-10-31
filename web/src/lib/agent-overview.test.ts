@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { controlsFor, hasTaskContext, matches, outcomeOf, overviewOf, providersOf, reportedLine, sessionState, summaryOf } from './agent-overview';
+import { canRetry, controlsFor, hasTaskContext, isTrouble, matches, outcomeOf, overviewOf, providersOf, reportedLine, sessionState, summaryOf } from './agent-overview';
 import { isSessionKey, runKey, terminalKey, unique, type AgentSession } from './agent-sessions';
 import { chainOf, pushed, withChain } from './origin';
 import { originHref } from './origin-nav';
@@ -122,5 +122,23 @@ describe('remote activity says how fresh it is, and when it is not available', (
   });
   it('is unavailable, not live, when the workspace cannot be reached', () => {
     expect(reportedLine({ recordedAt: '2026-10-31T11:59:50Z', stale: false }, now, false)).toEqual({ label: 'Unavailable · last known', freshness: 'unknown' });
+  });
+});
+
+describe('a session that ended badly is called out and can be tried again', () => {
+  it('treats failed and interrupted sessions as trouble, and nothing live or finished well', () => {
+    expect(isTrouble(s({ live: false, state: 'failed' }))).toBe(true);
+    expect(isTrouble(s({ live: false, state: 'interrupted' }))).toBe(true);
+    expect(isTrouble(s({ live: false, state: 'completed' }))).toBe(false);
+    expect(isTrouble(s({ live: true, state: 'running' }))).toBe(false);
+  });
+
+  it('offers a retry only for a task run that did not finish well', () => {
+    expect(canRetry(s({ live: false, state: 'failed' }))).toBe(true);
+    expect(canRetry(s({ live: false, state: 'stopped' }))).toBe(true);
+    expect(canRetry(s({ live: false, state: 'completed' }))).toBe(false);
+    expect(canRetry(s({ live: true, state: 'running' }))).toBe(false);
+    expect(canRetry(s({ live: false, state: 'failed', taskId: undefined }))).toBe(false);
+    expect(canRetry(s({ kind: 'terminal', live: false, state: 'interrupted' }))).toBe(false);
   });
 });

@@ -8,6 +8,7 @@
   import FeedView from '../lib/FeedView.svelte';
   import { agentName, runElapsed, runStatus, timeAgo } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
+  import TaskTerminal from '../lib/agents/TaskTerminal.svelte';
   import { blockerLine, interactionLabel, isNotable } from '../lib/policy';
   import { assistant } from '../lib/assistant/sessions.svelte';
   import QuestionCard from '../lib/QuestionCard.svelte';
@@ -553,6 +554,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       </section>
       <nav class="related" aria-label="Related">
         {#if parentPlan}<a class="rel" data-rel="plan" href={planHref}><span class="k">Plan</span>{parentPlan.title}</a>{/if}
+        <TaskTerminal projectId={project.id} taskId={task.id} repo={!!project.repoPath} from={here} disabled={!canStart || isDone} />
         {#if run}<span class="rel"><span class="k">Session</span><button class="btn small" type="button" onclick={() => assistant.openRun(project.id, run.id, here)}>Open Session</button><span class="mm">{status?.label}</span></span>{/if}
         {#if calendarHref}<a class="rel" data-rel="calendar" href={calendarHref}><span class="k">Calendar</span>{scheduledText}</a>{/if}
         {#if gitHref}<a class="rel" data-rel="git" href={gitHref}><span class="k">{task.state === 'review' ? 'Review' : 'Git'}</span><code>{run?.branch}</code></a>{/if}

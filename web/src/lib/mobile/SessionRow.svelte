@@ -42,7 +42,7 @@
   }
 </script>
 
-<li class="session" class:card={!bare} class:bare data-testid="session" data-tone={status.tone}>
+<li class="session wb-rise" class:card={!bare} class:bare data-testid="session" data-tone={status.tone}>
   <div class="top">
     {#if !bare}<span class="agent">{agentLabel(app.agents, run.agentId)}</span>{/if}
     <RunBadge {run} />
@@ -82,6 +82,11 @@
     box-shadow:
       var(--card-sh),
       0 0 0 3px var(--amber-ring);
+  }
+
+  /* What needs you breathes softly until you act on it; a running session shows a ping on its state. */
+  @media (prefers-reduced-motion: no-preference) {
+    .session[data-tone='ask']:not(.bare) { animation: wb-breathe 2.6s ease-in-out infinite; }
   }
 
   .session[data-tone='bad'] {

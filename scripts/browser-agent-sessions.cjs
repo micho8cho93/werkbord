@@ -105,14 +105,15 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   const live = page.getByRole('region', { name: 'Live task session' });
   await live.waitFor();
   await live.getByText('Fixture process ready').first().waitFor();
-  // One title, compact metadata, and the renderer's own header is not repeated; the open session is the page, not a list beside it.
+  // One title, compact metadata, and the renderer's own header is not repeated; the list stays beside the open session, with it marked.
   assert.equal(await page.locator('h2.session-title').count(), 1, 'the session title is shown once');
   assert.match(await page.getByTestId('session-meta').innerText(), /Fixture/i);
   assert.equal(await live.locator('header').count(), 0, 'the run view adds no second heading');
-  assert.equal(await page.locator('[data-session]').count(), 0, 'an open session is not a list');
+  assert.ok(await page.locator('[data-session]').count() >= 1, 'the list stays beside the open session');
+  assert.equal(await page.locator(`[data-session="${key}"] .open-card[aria-current="true"]`).count(), 1, 'the open session is marked in the list');
   assert.equal(await page.getByTestId('session-context').count(), 1, 'a session with a task shows its task context');
   await live.getByRole('textbox', { name: 'Additional instructions' }).fill('commit');
-  await live.getByRole('button', { name: 'Send', exact: true }).click();
+  await live.getByRole('textbox', { name: 'Additional instructions' }).press('Enter');
   await live.getByText('Committed fixture work').first().waitFor();
   assert.equal((await taskRuns()).length, 1, 'continuing the session does not start another');
   ok('Agents opens the same session with its feed and keeps taking instructions');
@@ -185,9 +186,9 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.screenshot({ path: path.join(artifacts, 'agents-overview.png') });
   // Switching sessions changes only which one is shown: nothing is started, stopped or duplicated.
   const runningBefore = (await api('GET', '/api/terminals')).filter(t => t.state === 'running').length;
-  await page.locator(`[data-session="${linked.key}"] button`).click();
+  await page.locator(`[data-session="${linked.key}"] .open-card`).click();
   await page.getByTestId('session-context').waitFor();
-  await page.getByTestId('session-switch').selectOption(standalone.key);
+  await page.locator(`[data-session="${standalone.key}"] .open-card`).click(); // the list stays beside the session, so switching is one click
   await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, standalone.key);
   await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
   assert.equal(await page.getByTestId('session-context').count(), 0, 'the standalone session gives the room back');
@@ -217,7 +218,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.getByRole('status').filter({ hasText: /Interrupted after device restart/ }).waitFor();
   await page.evaluate(() => { location.hash = '#/sessions'; });
   await until(async () => (await page.locator('[data-session]').count()) === 3, 'sessions listed after the restart');
-  await page.locator(`[data-session="${key}"] button`).click();
+  await page.locator(`[data-session="${key}"] .open-card`).click();
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   await page.getByRole('region', { name: 'Session output' }).getByText('Committed fixture work').first().waitFor();
   ok('after a restart the same sessions are there under the same keys, with their history, and nothing is relaunched or duplicated');

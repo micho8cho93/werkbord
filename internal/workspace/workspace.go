@@ -419,10 +419,14 @@ type QueueItem struct {
 	Owner string `json:"owner,omitempty"`
 	Mine  bool   `json:"mine,omitempty"`
 	Plan  string `json:"plan,omitempty"`
+	// Priority is the task's resolved priority ("low", "normal" or "high") where the source has one. It orders the queue for display and
+	// is never read as authority over what runs.
+	Priority string `json:"priority,omitempty"`
 }
 
 func (q QueueItem) valid() bool {
-	return ValidID(q.ID) && q.Title != "" && len(q.Title) <= MaxText && len(q.Project) <= MaxName && ValidHref(q.Href) && len(q.Detail) <= MaxText && (q.Group == "now" || q.Group == "next" || q.Group == "later" || q.Group == "done" || q.Group == "plan")
+	return ValidID(q.ID) && q.Title != "" && len(q.Title) <= MaxText && len(q.Project) <= MaxName && ValidHref(q.Href) && len(q.Detail) <= MaxText && (q.Group == "now" || q.Group == "next" || q.Group == "later" || q.Group == "done" || q.Group == "plan") &&
+		(q.Priority == "" || q.Priority == "low" || q.Priority == "normal" || q.Priority == "high")
 }
 
 type Summary struct {
