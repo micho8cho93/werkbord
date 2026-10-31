@@ -191,6 +191,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.locator(`[data-session="${standalone.key}"] .open-card`).click(); // the list stays beside the session, so switching is one click
   await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, standalone.key);
   await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
+  await page.getByTestId('session-context').waitFor({ state: 'detached' }); // the list stays beside the session, so the swap is one render
   assert.equal(await page.getByTestId('session-context').count(), 0, 'the standalone session gives the room back');
   assert.equal((await api('GET', '/api/terminals')).filter(t => t.state === 'running').length, runningBefore, 'switching stops and starts nothing');
   assert.equal((await taskRuns()).length, 1);

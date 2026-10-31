@@ -82,7 +82,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   sessions = await api('GET', '/api/terminals'); assert.equal(sessions.filter(s => s.state === 'running').length, 2);
   await page.goto(web + '/#/sessions');
   await page.waitForFunction(() => document.querySelectorAll('[data-session^="terminal:"]').length === 2);
-  await page.locator('[data-session^="terminal:"]').filter({ hasText: /codex/ }).locator('button').click();
+  await page.locator('[data-session^="terminal:"]').filter({ hasText: /codex/ }).locator('.open-card').click();
   await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 }); await delay(250); await page.screenshot({ path: path.join(artifacts, 'narrow.png') });
   await page.getByRole('button', { name: 'Terminate', exact: true }).click();
