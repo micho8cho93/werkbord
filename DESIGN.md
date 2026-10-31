@@ -6,8 +6,8 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 
 ## Character
 
-Three styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm ivory; **Graphite**, the
-same flat layer on cool blue-greys with an ink primary and a teal accent; **Classic**, the raised buttons and cards the app had before 4.84.
+Four styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm ivory; **Graphite**, the
+same flat layer on cool blue-greys with an ink primary and a teal accent; **Classic**, the raised buttons and cards the app had before 4.84; **Cloud**, the same flat layer on white surfaces over a very light cool grey with charcoal ink and a lavender accent.
 This sheet describes Paper and says where the others differ.
 
 Quiet technical. Paper and ink, one action colour, one attention colour. The tool disappears into the work:
@@ -51,7 +51,7 @@ Theme follows the OS unless the person picks one in Settings (stored per device 
 
 ### Styles
 
-A second choice beside light or dark: `data-style` on `<html>`, absent for Paper, `graphite` or `classic` otherwise. Chosen in
+A second choice beside light or dark: `data-style` on `<html>`, absent for Paper, `graphite`, `classic` or `cloud` otherwise. Chosen in
 Settings (Style), stored per device as `werkbord.style`, applied before first paint by the same `theme.js`. In the desktop window
 the window's Settings choice is told to every workspace (`werkbord.style`, frame event `style`), as the theme is.
 
@@ -63,11 +63,14 @@ the window's Settings choice is told to every workspace (`werkbord.style`, frame
   `#ECE4D4`, line `#DCD2BD`, ink `#1C1710`; dark espresso: `#15120E`, `#1E1A15`, `#28231C`, `#3A3329`, `#F2ECE0`) with cobalt for
   action; **Graphite** is cool blue-grey (light: `#F1F4F7`, `#FFFFFF`, `#E6EBF0`, `#D3DAE3`, `#0E1620`; dark slate: `#0D1218`, `#141B23`,
   `#1C2530`, `#2B3643`, `#E8EEF4`) with an ink primary (`--pri-fill`, `--pri-text`) and a teal accent (`#0A6280`, dark `#5CC8E0`).
-  Amber and the status colours are shared. Paper has no attribute, so its selectors exclude the other two. Every style writes
+  **Cloud** is white on a cool canvas (light: `#F7F7FB`, `#FFFFFF`, tray `#EEEFF7`, line `#E4E5F0`, ink `#292B38`; dark: `#12131A`, `#1A1B24`,
+  `#232430`, `#2F3140`, `#ECECF4`) with a lavender accent: `#5F56C9` in light, a step darker than the brand lavender `#7168D9`, which is 4.2:1
+  on the canvas and so cannot be used as text; `#A69FFF` in dark. It adds 12px/8px radii and a softer window shadow.
+  Amber and the status colours are shared. Paper has no attribute, so its selectors exclude the other three. Every style writes
   the same tokens in light, in OS dark and in a chosen dark; `contrast.test.ts` checks the three agree and every text pairing in all six.
 - Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
   that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
-- The Team console uses the same `tokens.css` and shared control styles, with `theme.js` storing its choice as `werkbord-team.style`: Paper, Graphite and Classic.
+- The Team console uses the same `tokens.css` and shared control styles, with `theme.js` storing its choice as `werkbord-team.style`: Paper, Graphite, Classic and Cloud.
   In a browser tab it offers the choice in its Settings, beside the light/dark button; in the desktop window the window's
   Settings choose it and tell the page.
 - Both choices can be changed at any time, from wherever Settings is: the window's Settings (every workspace, open or not yet

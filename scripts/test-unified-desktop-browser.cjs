@@ -155,18 +155,18 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await firstFrame.getByRole('button', { name: /^Project settings/ }).click();
  await firstFrame.getByRole('heading', { name: /^People on this project/ }).waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
- // The style (Paper, Graphite, Classic) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
+ // The style (Paper, Graphite, Classic, Cloud) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
  // at once, and one that was closed when the person went back to Paper when it is opened again. A workspace is on another origin and
  // keeps its own copy of the style, so the window has to say Paper too, not only the other two.
  const styleOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-style');
- const attribute = { Paper: null, Graphite: 'graphite', Classic: 'classic' };
+ const attribute = { Paper: null, Graphite: 'graphite', Classic: 'classic', Cloud: 'cloud' };
  const workspaces = ['personal', 'team:main'];
  const reaches = async label => {
    for (const id of workspaces) await wait(async () => (await styleOf(id)) === attribute[label], label + ' reaches ' + id);
    assert.equal(await page.locator('html').getAttribute('data-style'), attribute[label], 'the window shows ' + label);
  };
  await reaches('Paper');
- for (const label of ['Graphite', 'Classic', 'Graphite', 'Paper']) { await setStyle(label); await reaches(label); }
+ for (const label of ['Graphite', 'Classic', 'Cloud', 'Graphite', 'Paper']) { await setStyle(label); await reaches(label); }
  // Closed while the person goes back to Paper: a frame on about:blank cannot hear the window, and keeps Graphite in its own storage.
  await setStyle('Graphite'); await reaches('Graphite');
  const frameOf = async id => (await page.locator('iframe[data-workspace="' + id + '"]').elementHandle()).contentFrame();

@@ -156,10 +156,11 @@
  *   Classic  the tokens at the top of this file: cool paper, cobalt, raised.
  *   Paper    warm ivory and sand with brown ink (dark: espresso), cobalt for action, amber for what waits.
  *   Graphite cool blue-greys, an ink primary and a teal accent (dark: slate).
- * Paper has no attribute, so its selectors exclude the other two. Each style writes the same tokens in light, in OS dark and in a
+ *   Cloud    white surfaces on a very light cool grey, charcoal ink and a lavender accent (dark: deep indigo-grey).
+ * Paper has no attribute, so its selectors exclude the other three. Each style writes the same tokens in light, in OS dark and in a
  * chosen dark; lib/contrast.test.ts keeps them from drifting apart and checks every text pairing in all six. */
 
-:root:not([data-style='classic']):not([data-style='graphite']) {
+:root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud']) {
   --bg: #f6f1e7;
   --surface: #fffdf8;
   --surface-2: #ece4d4;
@@ -173,7 +174,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-style='classic']):not([data-style='graphite']):not([data-theme='light']) {
+  :root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud']):not([data-theme='light']) {
     --bg: #15120e;
     --surface: #1e1a15;
     --surface-2: #28231c;
@@ -187,7 +188,7 @@
   }
 }
 
-:root:not([data-style='classic']):not([data-style='graphite'])[data-theme='dark'] {
+:root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud'])[data-theme='dark'] {
   --bg: #15120e;
   --surface: #1e1a15;
   --surface-2: #28231c;
@@ -245,4 +246,60 @@
   --pri-text: #0d1218;
   --tint: #12303a;
   --ground: #080c10;
+}
+
+/* Cloud: the flat structure of Paper and Graphite, with white cards on a cool canvas and one soft lavender accent. The accent is
+ * darker than the brand lavender (#7168d9) because that is 4.2:1 on the canvas and these tokens are also used as text. */
+:root[data-style='cloud'] {
+  --bg: #f7f7fb;
+  --surface: #ffffff;
+  --surface-2: #eeeff7;
+  --border: #e4e5f0;
+  --text: #292b38;
+  --text-2: #5a5d70;
+  --accent: #5f56c9;
+  --accent-text: #ffffff;
+  --tint: #efeefc;
+  --ground: #eeeff6;
+  --scrim: rgba(41, 43, 56, 0.36);
+  --win-sh: 0 12px 32px -12px rgba(41, 43, 56, 0.18), 0 1px 2px rgba(41, 43, 56, 0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-tray: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='cloud']:not([data-theme='light']) {
+    --bg: #12131a;
+    --surface: #1a1b24;
+    --surface-2: #232430;
+    --border: #2f3140;
+    --text: #ececf4;
+    --text-2: #a2a5b8;
+    --accent: #a69fff;
+    --accent-text: #12131a;
+    --tint: #25244a;
+    --ground: #0d0e13;
+    --win-sh: 0 12px 32px -12px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-tray: 12px;
+  }
+}
+
+:root[data-style='cloud'][data-theme='dark'] {
+  --bg: #12131a;
+  --surface: #1a1b24;
+  --surface-2: #232430;
+  --border: #2f3140;
+  --text: #ececf4;
+  --text-2: #a2a5b8;
+  --accent: #a69fff;
+  --accent-text: #12131a;
+  --tint: #25244a;
+  --ground: #0d0e13;
+  --win-sh: 0 12px 32px -12px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-tray: 12px;
 }

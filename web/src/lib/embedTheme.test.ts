@@ -43,12 +43,12 @@ describe('the window telling a page the theme', () => {
 });
 
 describe('the window telling a page the style', () => {
-  it('passes Paper, Graphite and Classic', () => {
+  it('passes Paper, Graphite, Classic and Cloud', () => {
     const { w, say } = framed();
     const seen = vi.fn();
     onStyle(seen, w);
-    for (const style of ['paper', 'graphite', 'classic']) say({ type: 'werkbord.style', style });
-    expect(seen.mock.calls).toEqual([['paper'], ['graphite'], ['classic']]);
+    for (const style of ['paper', 'graphite', 'classic', 'cloud']) say({ type: 'werkbord.style', style });
+    expect(seen.mock.calls).toEqual([['paper'], ['graphite'], ['classic'], ['cloud']]);
   });
   it('ignores any other value, any other sender and any other message', () => {
     const { w, say } = framed();

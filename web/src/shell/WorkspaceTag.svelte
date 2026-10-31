@@ -31,7 +31,7 @@
   .tag[data-kind='team'] {
     --kind: var(--block);
   }
-  /* Paper and Graphite: the workspace is a dot and a name, not a tinted pill. Classic keeps the pill. */
+  /* Paper, Graphite and Cloud: the workspace is a dot and a name, not a tinted pill. Classic keeps the pill. */
   :global(:root:not([data-style='classic'])) .tag {
     padding: 0;
     border: 0;

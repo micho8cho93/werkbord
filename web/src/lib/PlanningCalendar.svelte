@@ -65,7 +65,7 @@
   small { display: block; font-size: 12px; color: var(--text); opacity: .85; margin-top: 4px; }
   .status { display: block; font-size: 12px; text-transform: capitalize; margin-bottom: 5px; font-weight: 600; }
   .event:hover { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 25%, var(--surface)); }
-  /* Paper and Graphite: an event is a hairline card with a thin edge in its tone, not a tinted block with a shadow. */
+  /* Paper, Graphite and Cloud: an event is a hairline card with a thin edge in its tone, not a tinted block with a shadow. */
   :global(:root:not([data-style='classic'])) .event {
     border: 1px solid var(--border);
     box-shadow: inset 3px 0 0 var(--tone);

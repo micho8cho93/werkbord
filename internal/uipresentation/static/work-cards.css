@@ -1,6 +1,6 @@
 /* Work queue cards. Shared presentation only: each product owns its rows, permissions and persistence.
    One card per queue (Now, Next, Later); inside it, projects and plans are quiet disclosures separated by hairlines, never
-   cards of their own. Only tokens: it follows Paper, Graphite and Classic and both themes. */
+   cards of their own. Only tokens: it follows Paper, Graphite, Classic and Cloud and both themes. */
 .queue-stack { display: grid; gap: 16px; }
 .queue-card {
   border: 1px solid var(--border);

@@ -45,8 +45,8 @@ export interface Deps {
   assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
   /** A page says the person chose a theme there. */
   theme(id: string, choice: 'light' | 'dark' | ''): void;
-  /** A page says the person chose a style there (Paper, Graphite or Classic). */
-  style?(id: string, choice: 'paper' | 'graphite' | 'classic'): void;
+  /** A page says the person chose a style there (Paper, Graphite, Classic or Cloud). */
+  style?(id: string, choice: 'paper' | 'graphite' | 'classic' | 'cloud'): void;
   /** Individual says something happened that the person asked to hear about while they are in another app. */
   notify(id: string, alert: Alert): void;
   /** A page asks for Settings at a place inside it, rather than showing settings of its own. */
@@ -149,7 +149,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // Where a frame that only shows Settings or Help is says nothing about where the person is: it is never remembered.
     else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});
     else if (m.event === 'theme' && (m.theme === 'light' || m.theme === 'dark' || m.theme === '') && !frame.surface) d.theme(frame.id, m.theme);
-    else if (m.event === 'style' && (m.style === 'paper' || m.style === 'graphite' || m.style === 'classic') && !frame.surface) d.style?.(frame.id, m.style);
+    else if (m.event === 'style' && (m.style === 'paper' || m.style === 'graphite' || m.style === 'classic' || m.style === 'cloud') && !frame.surface) d.style?.(frame.id, m.style);
     else if (m.event === 'notify' && frame.id === 'personal' && !frame.surface && typeof m.key === 'string' && KEY.test(m.key)) {
       const title = plain(m.title, 80);
       const body = plain(m.body, 200);

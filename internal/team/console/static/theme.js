@@ -26,13 +26,13 @@ window.teamTheme = (() => {
   window.teamStyle = (() => {
     const styleKey = 'werkbord-team.style';
     let current = 'paper';
-    try { const saved = localStorage.getItem(styleKey); if (saved === 'graphite' || saved === 'classic') current = saved; } catch (_) {}
+    try { const saved = localStorage.getItem(styleKey); if (saved === 'graphite' || saved === 'classic' || saved === 'cloud') current = saved; } catch (_) {}
     const show = () => { if (current === 'paper') delete document.documentElement.dataset.style; else document.documentElement.dataset.style = current; };
     show();
     return {
       get current() { return current; },
       set(next) {
-        if (next !== 'paper' && next !== 'graphite' && next !== 'classic') return;
+        if (next !== 'paper' && next !== 'graphite' && next !== 'classic' && next !== 'cloud') return;
         current = next;
         try { if (next === 'paper') localStorage.removeItem(styleKey); else localStorage.setItem(styleKey, next); } catch (_) {}
         show();

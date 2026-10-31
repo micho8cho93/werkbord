@@ -224,7 +224,7 @@
   .empty {
     color: var(--text-2);
   }
-  /* Paper and Graphite: rows are plain list rows and the tally is hairline tiles. The coloured edge, tinted fills and shadows
+  /* Paper, Graphite and Cloud: rows are plain list rows and the tally is hairline tiles. The coloured edge, tinted fills and shadows
      stay in Classic. */
   :global(:root:not([data-style='classic'])) .row { box-shadow: none; min-height: 56px; }
   :global(:root:not([data-style='classic'])) .tally li {

@@ -20,13 +20,16 @@ const light = block(':root');
 const dark = { ...light, ...block(":root[data-theme='dark']") };
 // Paper and Graphite each replace the neutrals and the accent; status colours and amber come from the base tokens in each mode.
 // The base tokens above are Classic's.
-const PAPER = ":root:not([data-style='classic']):not([data-style='graphite'])";
+const PAPER = ":root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud'])";
 const paperLight = { ...light, ...block(PAPER) };
 const paperDark = { ...dark, ...block(PAPER + "[data-theme='dark']") };
 const paperDarkByDevice = block(PAPER + ":not([data-theme='light'])");
 const graphiteLight = { ...light, ...block(":root[data-style='graphite']") };
 const graphiteDark = { ...dark, ...block(":root[data-style='graphite'][data-theme='dark']") };
 // The same dark palette is written again for a device that is dark without the person having chosen; the two must not drift apart.
+const cloudLight = { ...light, ...block(":root[data-style='cloud']") };
+const cloudDark = { ...dark, ...block(":root[data-style='cloud'][data-theme='dark']") };
+const cloudDarkByDevice = block(":root[data-style='cloud']:not([data-theme='light'])");
 const graphiteDarkByDevice = block(":root[data-style='graphite']:not([data-theme='light'])");
 
 const channel = (v: number) => {
@@ -49,6 +52,8 @@ describe.each([
   ['paper dark', paperDark],
   ['graphite light', graphiteLight],
   ['graphite dark', graphiteDark],
+  ['cloud light', cloudLight],
+  ['cloud dark', cloudDark],
 ])('%s tokens', (_name, tokens) => {
   it('read from shared tokens', () => {
     expect(tokens.text).toMatch(/^#/);
@@ -85,14 +90,22 @@ describe('the styles', () => {
   it('Paper sets the same tokens in light and in dark', () => {
     expect(Object.keys(block(PAPER)).sort()).toEqual(Object.keys(block(PAPER + "[data-theme='dark']")).sort());
   });
-  it('the three styles do not share a page colour in either mode, so switching style is seen at once', () => {
-    for (const mode of [[light, paperLight, graphiteLight], [dark, paperDark, graphiteDark]]) {
+  it('Cloud writes its dark palette the same way for a device that is dark and for a chosen dark', () => {
+    const chosen = block(":root[data-style='cloud'][data-theme='dark']");
+    expect(Object.keys(chosen).length).toBeGreaterThan(5);
+    expect(cloudDarkByDevice).toEqual(chosen);
+  });
+  it('Cloud sets the same tokens in light and in dark', () => {
+    expect(Object.keys(block(":root[data-style='cloud']")).sort()).toEqual(Object.keys(block(":root[data-style='cloud'][data-theme='dark']")).sort());
+  });
+  it('the four styles do not share a page colour in either mode, so switching style is seen at once', () => {
+    for (const mode of [[light, paperLight, graphiteLight, cloudLight], [dark, paperDark, graphiteDark, cloudDark]]) {
       const grounds = mode.map((t) => t.bg);
-      expect(new Set(grounds).size).toBe(3);
+      expect(new Set(grounds).size).toBe(4);
       expect(new Set(mode.map((t) => t.accent)).size).toBeGreaterThanOrEqual(2);
     }
   });
-  for (const [name, tokens] of [['Classic', light], ['Classic dark', dark], ['Paper', paperLight], ['Paper dark', paperDark], ['Graphite', graphiteLight], ['Graphite dark', graphiteDark]] as const)
+  for (const [name, tokens] of [['Classic', light], ['Classic dark', dark], ['Paper', paperLight], ['Paper dark', paperDark], ['Graphite', graphiteLight], ['Graphite dark', graphiteDark], ['Cloud', cloudLight], ['Cloud dark', cloudDark]] as const)
     it(`${name}: the label on the primary button reads on its fill`, () => {
       const fill = tokens['pri-fill'] ?? tokens.accent;
       const label = tokens['pri-text'] ?? tokens['accent-text'];
