@@ -660,7 +660,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                   <p class="note">
                     {latest ? 'The run uses' : 'The agent works in its own Git worktree, separate from your checkout. This run uses'}
                     <strong>{summaryLine(resolveFor(task.execution, project.execution, app.globalExecution, compact(runChoice)), app.agents, app.agentOptions) ||
-                      'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}<span> (chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
+                      'Lowest cost, selected when the run starts'}</strong>{#if !runChoice.agent && effective.agent}&nbsp;<span>(chosen by {sourceLabel(effective.sources.agent)})</span>{/if}.
                   </p>
                   <ExecutionFields bind:value={runChoice} inherited={effective} idPrefix="run" showPriority={false} dense />
                   {#if latest && nextMode === 'handoff'}
