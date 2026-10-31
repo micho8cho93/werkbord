@@ -495,7 +495,7 @@ jobs:
 
           Free includes all Personal work and teams of up to two people. Teams of three or more need Premium for every member. Premium uses a per-person key checked offline; a one-time purchase is planned but is not yet on sale. Both plans use the same download.
 
-          This preview fixes outdated background services surviving app updates, so Team can update to the current interface with verified backups for every local workspace. It also fixes Team dark mode and project archiving, groups Reviews, improves settings layouts, makes timeline dates readable, keeps Git tabs aligned and paginates Runs. Product Map uses connected model and branch dropdowns, the project overview shows ready or active agents, and project move arrows and Product Map shortcuts have been removed from the sidebar. Analytics is unchanged.
+          This preview introduces seven cohesive themes, each with light and dark modes: Paper (the default), Graphite, Classic, Cloud, Moss, Dune and Plum. Icons and the Werkbord mark stay consistent across themes. Guided setup uses the same appearance controls and keeps loading visible until pending checks finish, with explicit retry and optional-connection recovery. Work now uses Now, Next and Later queues with a next-decision panel; plans, tasks, sessions, Calendar and Salie share a Back route. Agents has a focused session view, Settings is regrouped with Help beside it, and Analytics no longer flickers while refreshing.
 
           ### Desktop downloads
 
