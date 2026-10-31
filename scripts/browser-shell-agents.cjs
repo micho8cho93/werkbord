@@ -161,7 +161,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const skipTour = async () => { const skip = individual.getByRole('button', { name: 'Skip tour', exact: true }); if (await skip.count()) await skip.click(); };
         await individual.getByRole('region', { name: 'Live task session' }).waitFor();
         await individual.getByText('Fixture process ready').first().waitFor();
-        assert.equal(await individual.locator('[data-session]').count(), 1, 'one execution, one entry');
+        assert.equal(await individual.locator('h2.session-title').count(), 1, 'one execution, one title');
         // One page header, one project selector: the window's context line is the only one, and Agents has no copy of its heading or of the
         // project filter. What the session was opened from is the one way back.
         assert.equal(await individual.getByRole('heading', { level: 1, name: 'Agents' }).count(), 1);
@@ -169,7 +169,6 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal(await individual.locator('#sessions-project').count(), 0, 'the window’s project context is the one selector');
         assert.match(await individual.getByTestId('crumbs').innerText(), /Salie/);
         assert.equal(await individual.getByTestId('session-salie').count(), 0, 'Salie is the breadcrumb, not a second control');
-        assert.equal(await individual.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true');
         assert.deepEqual((await sessions()).map(s => s.key), [key]);
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), true);
         await individual.getByRole('textbox', { name: 'Additional instructions' }).fill('commit');
@@ -195,7 +194,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.waitForFunction(() => document.querySelector('[data-testid=sidebar] [data-page=inbox]')?.getAttribute('aria-current') === 'page');
         await side.getByRole('button', { name: 'Agents', exact: true }).click();
         await individual.getByRole('region', { name: 'Live task session' }).waitFor();
-        assert.equal(await individual.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true');
+        assert.equal(await individual.locator('h2.session-title').count(), 1);
         // A task page asks for the session through the window too.
         await skipTour();
         await individual.getByTestId('session-task').click();
@@ -213,7 +212,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // The task's panel opens over its board (or plan), which stays where it was: the panel's trail is the last in the page.
         const crumbs = () => individual.getByTestId('crumbs').last();
         const current = name => page.waitForFunction(n => document.querySelector(`[data-testid=sidebar] [data-page=${n}]`)?.getAttribute('aria-current') === 'page', name);
-        const onSession = async () => { await individual.getByRole('region', { name: 'Live task session' }).waitFor(); assert.equal(await individual.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true'); };
+        const onSession = async () => { await individual.getByRole('region', { name: 'Live task session' }).waitFor(); assert.equal(await individual.locator('h2.session-title').count(), 1); };
         assert.match(await crumbs().innerText(), /Fix the login/, 'the nearest page above the session is its task');
         await crumbs().getByRole('link', { name: /Fix the login/ }).click();
         await individual.locator('section.panel').waitFor(); await current('inbox');

@@ -9,7 +9,9 @@
   import { isPhone } from '../phones/capability';
   import type { PhoneEntry } from '../types';
   import { app } from '../state.svelte';
-  let { session }: { session: TerminalSession } = $props();
+  // `identity` is off where the page names the session once (Agents). `interactive` is off for a session this controller may show but not
+  // operate: it is read, nothing typed reaches the process, and no stop is offered.
+  let { session, identity = true, interactive = true }: { session: TerminalSession; identity?: boolean; interactive?: boolean } = $props();
   let host: HTMLDivElement;
   let connection = $state('Connecting');
   let error = $state('');
@@ -21,6 +23,9 @@
   let sharing = $state(false);
   let ctrl = $state(false);
   let textSize = $state(13);
+  let xterm = $state.raw<Terminal | undefined>();
+  // Whether input reaches the process follows what this controller can do now, not what it could when the session was opened.
+  $effect(() => { if (xterm) xterm.options.disableStdin = !interactive; });
   let sendKey: (data: string) => void = () => {};
   let resumeInput = $state(() => {});
   let changeSize: () => void = () => {};
@@ -90,7 +95,8 @@
       terminal.parser.registerDcsHandler({ intermediates: '$', final: 'q' }, () => replaying),
       ...[4,10,11,12].map(id => terminal.parser.registerOscHandler(id, data => replaying && data.includes('?'))),
     ];
-    const input = terminal.onData(send);
+    xterm = terminal;
+    const input = terminal.onData(data => { if (interactive) send(data); });
     let resizeTimer: ReturnType<typeof setTimeout>;
     const resize = () => {
       clearTimeout(resizeTimer);
@@ -143,11 +149,11 @@
 </script>
 <div class="terminal-session">
   <div class="toolbar">
-    <span class="identity">{agentName(app.agents, session.agentId)} · {session.repository}</span>
+    {#if identity}<span class="identity">{agentName(app.agents, session.agentId)} · {session.repository}</span>{:else}<span class="identity"></span>{/if}
     <span role="status">{connection}</span>
     {#if connection === 'Disconnected'}<button class="btn small" onclick={() => reconnect++}>Reconnect</button>{/if}
     {#if !isPhone() && !app.remote && app.runners.some(r=>r.kind==='local' && r.id===session.device)}<button class="btn small" onclick={share}>Phone access</button>{/if}
-    <button class="btn small" disabled={busy || processState !== 'running'} onclick={stop}>Terminate</button>
+    {#if interactive}<button class="btn small" disabled={busy || processState !== 'running'} onclick={stop}>Terminate</button>{/if}
   </div>
   {#if sharing}<div class="sharing">Allow terminal control for this session. CLI permissions apply.
     {#each phones as phone (phone.id)}<label><input type="checkbox" checked={session.phones?.includes(phone.id) ?? false} onchange={e=>grant(phone.id,e.currentTarget)} />{phone.name}</label>{/each}
@@ -158,14 +164,14 @@
   </div>{/if}
   {#if error}<div class="error" role="alert">{error}</div>{/if}
   <div class="terminal" bind:this={host}></div>
-  <div class="terminal-keys" aria-label="Terminal controls">
+  {#if interactive}<div class="terminal-keys" aria-label="Terminal controls">
     <button class="btn small" onclick={()=>sendKey('')}>Keyboard</button>
     {#each [['Escape','\x1b'],['Tab','\t'],['Arrow up','\x1b[A'],['Arrow down','\x1b[B'],['Arrow left','\x1b[D'],['Arrow right','\x1b[C']] as [label,data] (label)}
       <button class="btn small" aria-label={label} onpointerdown={e=>e.preventDefault()} onclick={()=>sendKey(data)}>{label.replace('Arrow ','')}</button>
     {/each}
     <button class="btn small" aria-pressed={ctrl} onpointerdown={e=>e.preventDefault()} onclick={()=>{ctrl=!ctrl;sendKey('');}}>Ctrl</button>
     <label>Text <select aria-label="Terminal text size" bind:value={textSize} onchange={()=>changeSize()}>{#each [12,13,14,16,18] as size (size)}<option value={size}>{size}</option>{/each}</select></label>
-  </div>
+  </div>{/if}
 </div>
 <style>
   .sharing{padding:8px 12px;background:var(--surface);font-size:13px}.sharing label{display:flex;align-items:center;gap:8px;min-height:44px}

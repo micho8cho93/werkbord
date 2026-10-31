@@ -71,6 +71,25 @@ back and forth interrupts nothing.
 **Work** opens a task's session by the same key: *Open Session* on a task card, a task page or a plan goes to Agents instead of
 a second view in Salie. So does the **Calendar** (and Scheduling): a task's sheet offers *Open session* for its latest run.
 
+## The Agents screens
+
+- **Overview** (`#/sessions`, `routes/AgentSessions.svelte`, grouping in `lib/agent-overview.ts`): what needs the person (prominent),
+  what is running, what finished recently (failed and interrupted first), the runners, and the filters (kind, provider, project)
+  with *New session*. Only real sessions are listed; a task that is merely scheduled has none until it starts, and the Work queue
+  is not repeated. With nothing open there is no detail pane.
+- **A session** (`#/sessions/<key>`): Back and its trail, the title once, provider, repository and state as one line, the existing
+  run view or terminal as the page, a switcher to other sessions, and, only when the session belongs to a task, a small panel for
+  the task, its state and its plans. A standalone session has no panel and the conversation gets the room. The run view and the
+  terminal renderer are the ones Salie and the task page use; they only take `header`/`identity` (not repeating the title) and
+  `controls`/`interactive` (what may be done) as options, and keep their defaults everywhere else.
+- **What is offered follows what the controller can do** (`controlsFor`): instructions, answers, Stop and terminal input appear
+  only for a live session whose capabilities say so and while the controller is reachable. Otherwise the session is shown with a
+  line that says why, and a terminal's input is disabled.
+- **Reported activity** from a Team workspace (the window's strip and page) is labelled view-only, with when it was reported, or
+  *Last reported* / *Unavailable · last known*. It opens the workspace's own page and has no controls here.
+- Switching sessions, or going to a task, a plan, Work or Salie and back, changes only the address. It starts, stops and attaches
+  nothing; a session has one key and appears once.
+
 ## What Salie is not
 
 Salie is not a replacement for any provider's CLI. It does not render a terminal on a computer any more (Agents does), it does

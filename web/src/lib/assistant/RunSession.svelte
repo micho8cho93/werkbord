@@ -8,8 +8,12 @@
   import { embedded } from '../embed';
   import { assistant } from './sessions.svelte';
   import { RunSession, liveRun, messageableRun } from './run-session.svelte';
+  import type { Controls } from '../agent-overview';
   // `taskLink` is off where the page already has its own link to the task (Agents), which also carries the way back.
-  let { session, taskLink = true }: { session: RunSession; taskLink?: boolean } = $props();
+  // `header` is off where the page already names the session once (Agents). `controls` limits what is offered to what this controller can
+  // do to the session; without it the session is driven as it always was (Salie, the phone).
+  let { session, taskLink = true, header = true, controls }: { session: RunSession; taskLink?: boolean; header?: boolean; controls?: Controls } = $props();
+  const may = $derived({ message: controls?.message ?? true, stop: controls?.stop ?? true });
   let output: HTMLDivElement | undefined = $state();
   let following = $state(true);
   $effect(() => {
@@ -27,11 +31,11 @@
   }
 </script>
 <section class="console" aria-label="Live task session">
-  <header>
+  {#if header}<header>
     <strong>{run ? agentName(app.agents, run.agentId) : 'Loading agent…'}</strong>
     <span>{session.project?.name ?? session.projectId} · {run ? runStatus(run).label : 'Loading'}</span>
     {#if run && taskLink}<a href={taskHref(run.projectId, run.taskId)} onclick={ticket}>Return to task</a>{/if}
-  </header>
+  </header>{/if}
   <p class="context">{session.worktree?.path ?? session.project?.repoPath ?? 'Loading working context…'}{run?.branch || session.worktree?.branch ? ` · ${run?.branch ?? session.worktree?.branch}` : ''} · Run {session.runId}{run?.runnerId ? ` · Runner ${run.runnerId}` : ''}</p>
   <div bind:this={output} onscroll={() => { if (output) following = output.scrollTop + output.clientHeight >= output.scrollHeight - 100; }} class="output" tabindex="-1" role="region" aria-label="Session output">
     {#if session.feed.loading}<p>Loading activity…</p>{/if}
@@ -41,16 +45,17 @@
   </div>
   {#if session.error || session.feed.error}<p role="alert">{session.error || session.feed.error} <button class="btn small" onclick={() => session.refresh()}>Refresh session</button></p>{/if}
   <div class="controls">
-    {#each session.questions as question (question.id)}<QuestionCard {question} />{/each}
-    {#if run && liveRun(run)}
-      <form onsubmit={e => { e.preventDefault(); void session.act('send'); }}>
+    {#if may.message}{#each session.questions as question (question.id)}<QuestionCard {question} />{/each}{/if}
+    {#if run && liveRun(run) && !may.message && !may.stop}<p class="viewonly" role="status">{controls?.reason || 'This session is shown, not operated, from here.'}</p>
+    {:else if run && liveRun(run)}
+      {#if may.message}<form onsubmit={e => { e.preventDefault(); void session.act('send'); }}>
         <label class="visually-hidden" for="run-input-{session.runId}">Additional instructions</label>
         <textarea id="run-input-{session.runId}" class="input" rows="2" bind:value={session.draft} disabled={session.busy || !messageableRun(run)} placeholder={messageableRun(run) ? 'Send instructions to this agent' : 'Answer the pending request to continue'}></textarea>
         <button class="btn primary" disabled={session.busy || !messageableRun(run) || !session.draft.trim()}>Send</button>
-      </form>
+      </form>{/if}
       <div class="actions">
-        {#if !session.questions.length && (run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle'))}<button class="btn" disabled={session.busy} onclick={() => session.act('finish')}>Finish run</button>{/if}
-        <button class="btn danger" disabled={session.busy} onclick={() => session.act('stop')}>Stop run</button>
+        {#if may.message && !session.questions.length && (run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle'))}<button class="btn" disabled={session.busy} onclick={() => session.act('finish')}>Finish run</button>{/if}
+        {#if may.stop}<button class="btn danger" disabled={session.busy} onclick={() => session.act('stop')}>Stop run</button>{/if}
         {#if run.pendingRequests?.length}<span role="status">Waiting for runner acknowledgement: {run.pendingRequests.join(', ')}</span>{/if}
       </div>
     {:else if run}<p>This session has ended. Its activity remains available.</p>{/if}
@@ -67,5 +72,6 @@
   .controls { display: grid; gap: 12px; max-height: 45%; overflow: auto; }
   form, .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   textarea { flex: 1; min-width: 150px; }
+  .viewonly { margin: 0; font-size: 13px; color: var(--text-2); }
   .actions span { font-size: 12px; color: var(--text-2); }
 </style>

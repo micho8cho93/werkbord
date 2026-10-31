@@ -105,8 +105,12 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   const live = page.getByRole('region', { name: 'Live task session' });
   await live.waitFor();
   await live.getByText('Fixture process ready').first().waitFor();
-  assert.equal(await page.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true');
-  assert.equal(await page.locator('[data-session]').count(), 1, 'Agents lists the session once');
+  // One title, compact metadata, and the renderer's own header is not repeated; the open session is the page, not a list beside it.
+  assert.equal(await page.locator('h2.session-title').count(), 1, 'the session title is shown once');
+  assert.match(await page.getByTestId('session-meta').innerText(), /Fixture/i);
+  assert.equal(await live.locator('header').count(), 0, 'the run view adds no second heading');
+  assert.equal(await page.locator('[data-session]').count(), 0, 'an open session is not a list');
+  assert.equal(await page.getByTestId('session-context').count(), 1, 'a session with a task shows its task context');
   await live.getByRole('textbox', { name: 'Additional instructions' }).fill('commit');
   await live.getByRole('button', { name: 'Send', exact: true }).click();
   await live.getByText('Committed fixture work').first().waitFor();
@@ -132,8 +136,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   assert.equal((await taskRuns()).length, 1);
-  assert.equal(await page.locator('[data-session]').count(), 1);
-  ok('Open Session on a Work task opens the very same session; still one run, one list entry');
+  ok('Open Session on a Work task opens the very same session; still one run');
 
   // The Calendar reaches the same session through its task.
   const today = new Date().toISOString().slice(0, 10);
@@ -148,13 +151,14 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   ok('the Calendar opens the task’s session through the task sheet; still one run');
   await page.goto(web + '/#/sessions');
   async function openTerminal(taskTitle) {
-    await page.getByRole('button', { name: 'New terminal', exact: true }).click();
+    await page.evaluate(() => { location.hash = '#/sessions'; });
+    await page.getByRole('button', { name: 'New session', exact: true }).click();
     const form = page.locator('form.launch'), selects = form.locator('select');
     await selects.nth(0).selectOption({ label: 'codex' });
     await selects.nth(1).selectOption({ label: 'Sessions fixture' });
     if (taskTitle) await selects.nth(2).selectOption({ label: taskTitle });
     const was = await page.evaluate(() => location.hash);
-    await page.getByRole('button', { name: 'Open terminal', exact: true }).click();
+    await page.getByRole('button', { name: 'Open session', exact: true }).click();
     await page.waitForFunction(h => location.hash !== h && decodeURIComponent(location.hash).startsWith('#/sessions/terminal:'), was);
     await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
     await page.waitForFunction(() => document.querySelector('.terminal')?.textContent.includes('Native PTY ready'));
@@ -169,7 +173,28 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   const linked = list.find(s => s.kind === 'terminal' && s.taskId === task.id), standalone = list.find(s => s.kind === 'terminal' && !s.taskId);
   assert.ok(linked && standalone, JSON.stringify(list));
   assert.deepEqual((await sessions('?task=' + task.id)).map(s => s.key).sort(), [key, linked.key].sort(), 'the task shows its run and its terminal, not the standalone one');
-  assert.equal(await page.locator('[data-session]').count(), 3);
+  // A standalone terminal has no task context and gives the conversation the room; the one for a task shows it.
+  assert.equal(await page.getByTestId('session-context').count(), 0, 'a standalone session has no task panel');
+  assert.match(await page.getByTestId('session-meta').innerText(), /Standalone/);
+  await page.evaluate(() => { location.hash = '#/sessions'; });
+  await until(async () => (await page.locator('[data-session]').count()) === 3, 'every session listed once');
+  // The overview is the page: runners and sessions, no empty detail pane waiting for a choice.
+  assert.equal(await page.locator('section.open').count(), 0, 'no empty session pane');
+  await page.getByRole('heading', { name: 'Runners', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'New session', exact: true }).waitFor();
+  await page.screenshot({ path: path.join(artifacts, 'agents-overview.png') });
+  // Switching sessions changes only which one is shown: nothing is started, stopped or duplicated.
+  const runningBefore = (await api('GET', '/api/terminals')).filter(t => t.state === 'running').length;
+  await page.locator(`[data-session="${linked.key}"] button`).click();
+  await page.getByTestId('session-context').waitFor();
+  await page.getByTestId('session-switch').selectOption(standalone.key);
+  await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, standalone.key);
+  await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
+  assert.equal(await page.getByTestId('session-context').count(), 0, 'the standalone session gives the room back');
+  assert.equal((await api('GET', '/api/terminals')).filter(t => t.state === 'running').length, runningBefore, 'switching stops and starts nothing');
+  assert.equal((await taskRuns()).length, 1);
+  assert.equal((await sessions()).length, 3);
+  await page.evaluate(() => { location.hash = '#/sessions'; });
   ok('a terminal opens standalone or for a task, through the same terminal renderer, and is listed once');
   await page.screenshot({ path: path.join(artifacts, 'agents-terminal.png') });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -184,14 +209,15 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   controller = start(bin, [], root, env);
   await ready(base + '/api/health', controller);
   await page.goto(web + '/#/sessions/' + encodeURIComponent(linked.key));
-  await until(async () => (await page.locator('[data-session]').count()) === 3, 'sessions listed after the restart');
   const after = await sessions();
   assert.deepEqual(after.map(s => s.key).sort(), before, 'the same identities, none new, none lost');
   assert.equal(new Set(after.map(s => s.key)).size, after.length, 'no duplicates');
   assert.equal((await taskRuns()).length, 1, 'a restart starts no run');
   assert.equal(after.find(s => s.key === linked.key).state, 'interrupted', 'a restart never relaunches an agent');
   await page.getByRole('status').filter({ hasText: /Interrupted after device restart/ }).waitFor();
-  await page.locator(`[data-session="${key}"]`).click();
+  await page.evaluate(() => { location.hash = '#/sessions'; });
+  await until(async () => (await page.locator('[data-session]').count()) === 3, 'sessions listed after the restart');
+  await page.locator(`[data-session="${key}"] button`).click();
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   await page.getByRole('region', { name: 'Session output' }).getByText('Committed fixture work').first().waitFor();
   ok('after a restart the same sessions are there under the same keys, with their history, and nothing is relaunched or duplicated');

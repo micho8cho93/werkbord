@@ -52,12 +52,13 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   await api('POST', '/api/onboarding/tours/seen', { surface: 'desktop' });
   await page.goto(web + '/#/sessions');
   async function launch(agent) {
-    await page.getByRole('button', { name: 'New terminal', exact: true }).click();
+    await page.evaluate(() => { location.hash = '#/sessions'; });
+    await page.getByRole('button', { name: 'New session', exact: true }).click();
     await page.locator('form.launch select').nth(0).selectOption({ label: agent });
     const was = await page.evaluate(() => location.hash);
-    await page.getByRole('button', { name: 'Open terminal', exact: true }).click();
+    await page.getByRole('button', { name: 'Open session', exact: true }).click();
     await page.waitForFunction(h => location.hash !== h && decodeURIComponent(location.hash).startsWith('#/sessions/terminal:'), was);
-    await page.locator('.terminal-session .identity').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready'));
+    await page.getByTestId('session-meta').filter({ hasText: agent }).waitFor(); await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor(); await page.waitForFunction(()=>document.querySelector('.terminal')?.textContent.includes('Native PTY ready'));
   }
   await launch('claude-code'); await page.locator('.xterm-helper-textarea').pressSequentially('alpha'); await page.keyboard.press('Enter');
   await launch('codex'); await page.locator('.xterm-helper-textarea').pressSequentially('beta'); await page.keyboard.press('Enter');
@@ -81,7 +82,7 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   sessions = await api('GET', '/api/terminals'); assert.equal(sessions.filter(s => s.state === 'running').length, 2);
   await page.goto(web + '/#/sessions');
   await page.waitForFunction(() => document.querySelectorAll('[data-session^="terminal:"]').length === 2);
-  await page.locator('[data-session^="terminal:"]').filter({ hasText: /codex/ }).click();
+  await page.locator('[data-session^="terminal:"]').filter({ hasText: /codex/ }).locator('button').click();
   await page.getByRole('status').filter({ hasText: /^Connected$/ }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 }); await delay(250); await page.screenshot({ path: path.join(artifacts, 'narrow.png') });
   await page.getByRole('button', { name: 'Terminate', exact: true }).click();
