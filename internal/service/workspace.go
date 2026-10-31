@@ -218,11 +218,18 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	}
 
 	for _, q := range ov.Questions {
+		agent := ""
+		for _, r := range ov.Runs {
+			if r.Run.ID == q.Question.RunID {
+				agent = r.Run.AgentID
+				break
+			}
+		}
 		out.Attention = append(out.Attention, workspace.Attention{ID: "question-" + q.Question.ID, Kind: workspace.AttentionNeedsInput, Severity: workspace.SeverityWarning,
 			Title: "An agent is asking: " + q.Question.Prompt, Detail: q.TaskTitle, Project: q.ProjectName,
 			Href: taskHref(q.Question.ProjectID, q.Question.TaskID), At: q.Question.AskedAt,
 			Question: &workspace.Question{ID: q.Question.ID, RunID: q.Question.RunID, ProjectID: q.Question.ProjectID, TaskID: q.Question.TaskID,
-				Kind: string(q.Question.Kind), Prompt: q.Question.Prompt, Options: append([]string(nil), q.Question.Options...), AllowFreeText: q.Question.AllowFreeText, Context: q.Question.Context, AskedAt: q.Question.AskedAt}})
+				Kind: string(q.Question.Kind), Prompt: q.Question.Prompt, Options: append([]string(nil), q.Question.Options...), AllowFreeText: q.Question.AllowFreeText, Context: q.Question.Context, AskedAt: q.Question.AskedAt, Agent: agent}})
 	}
 	for _, r := range ov.Runs {
 		if r.Run.State == domain.RunWaitingForUser && r.Run.Waiting == domain.WaitIdle {

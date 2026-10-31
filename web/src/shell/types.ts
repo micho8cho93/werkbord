@@ -75,7 +75,7 @@ export interface ExecutionReport {
 export interface InboxQuestion {
   id: string; runId: string; projectId: string; taskId: string;
   kind: 'clarification' | 'decision' | 'approval' | 'selection' | 'instruction';
-  prompt: string; options?: string[]; allowFreeText: boolean; context?: string; askedAt: string;
+  prompt: string; options?: string[]; allowFreeText: boolean; context?: string; askedAt: string; agent?: string;
 }
 
 export interface Attention {

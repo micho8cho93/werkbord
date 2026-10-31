@@ -250,6 +250,8 @@ type Question struct {
 	AllowFreeText bool      `json:"allowFreeText"`
 	Context       string    `json:"context,omitempty"`
 	AskedAt       time.Time `json:"askedAt"`
+	// Agent is the coding agent that asked (its identifier), when known; it only labels the question.
+	Agent string `json:"agent,omitempty"`
 }
 
 func questionText(s string, max int) bool {
@@ -608,6 +610,9 @@ func (s Summary) Clean() (Summary, int) {
 	for _, a := range s.Attention {
 		if a.Question != nil && (s.Workspace.Kind != KindIndividual || a.Kind != AttentionNeedsInput || !a.Question.valid()) {
 			a.Question = nil
+		}
+		if a.Question != nil {
+			a.Question.Agent = clip(a.Question.Agent, MaxName)
 		}
 		a.Title, a.Detail, a.Project = clip(a.Title, MaxText), clip(a.Detail, MaxText), clip(a.Project, MaxName)
 		if ValidID(a.ID) && ValidID(a.Kind) && a.Severity.Valid() && a.Title != "" && (a.Href == "" || ValidHref(a.Href)) && len(out.Attention) < MaxAttention {

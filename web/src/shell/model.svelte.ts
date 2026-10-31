@@ -3,6 +3,7 @@
 // another workspace and back stops nothing in it. The model never starts, stops, approves or revokes anything in any
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
+import { decisions } from './decisions.svelte';
 import { ask } from './native';
 import { contextKey, parseContext, projectOptions, projectInHref, scopedOverview, type ProjectIdentity } from './project-context';
 import { surfaceUrl } from './frames';
@@ -397,6 +398,7 @@ export class Model {
       const overview = await ask((a) => a.Overview());
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
       this.overview = { ...overview, entries: this.accessibleEntries(overview) };
+      decisions.sync(this.overview);
       const selected = this.selectedProject;
       const source = selected && this.overview.entries.find(e => e.workspace.id === selected.workspace);
       if (selected && source?.summary && !source.error && this.view?.items.find(i => i.id === selected.workspace)?.state === 'ready' && !source.summary.projects.some(p => p.id === selected.project)) {
@@ -408,6 +410,7 @@ export class Model {
       // Keep project labels for recovery, but never present old records as a current authorised aggregate.
       const previous = this.overview ?? { at: '', entries: (this.view?.items ?? []).map(workspace => ({ workspace })) };
       this.overview = { ...previous, entries: previous.entries.map(e => ({ ...e, error: 'Workspace summaries could not be refreshed. Reconnect to try again.' })) };
+      decisions.sync(this.overview);
       return false;
     }
   }

@@ -7,6 +7,8 @@
   import { ApiError } from '../lib/api';
   import type { Question } from '../lib/types';
   import { ask } from './native';
+  import { decisionKey } from './decisions';
+  import { decisions } from './decisions.svelte';
 
   let expanded = $state<Record<string, boolean>>({});
   let settled = $state<Record<string, boolean>>({});
@@ -27,6 +29,7 @@
   }
   function onSettled(q: Question): void {
     settled[q.id] = true;
+    decisions.settle(decisionKey('personal', 'question-' + q.id));
     void model.refreshOverview();
   }
 
