@@ -31,7 +31,8 @@ let browser,shellServer;
  await page.getByRole('heading',{name:'Now',exact:true}).waitFor();
  assert.equal(await page.locator('[data-board-column], [data-drag-handle]').count(),0);
  await page.getByRole('region',{name:'Work queue'}).count();
- assert(await page.getByText('Blocked by',{exact:false}).isVisible());
+ // Section headings can appear while their task requests are still loading.
+ await page.getByText('Blocked by',{exact:false}).waitFor({state:'visible'});
  await page.getByRole('navigation',{name:'Work sections'}).getByRole('link',{name:'Plans',exact:true}).click();
  await page.getByRole('button',{name:'New plan',exact:true}).click();
  const form=page.getByRole('form',{name:'Plan editor'});
