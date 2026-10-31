@@ -69,10 +69,15 @@ const server = http.createServer(async (req, res) => {
       await page.getByTestId('sidebar').getByRole('button', { name: 'Work', exact: true }).click();
       await load(); assert.equal(await picker.inputValue(), selected);
       await page.getByRole('button', { name: 'Agents', exact: true }).click();
-      assert.ok((await page.locator('main').innerText()).includes(`${items.at(-1).name} two`));
-      assert.ok(!(await page.locator('main').innerText()).includes('one'));
+      // Agents lists the person's own sessions itself (their frame), so only what Team workspaces report is shown above them: Personal's
+      // own reports are not listed twice. The project context applies to what is shown either way.
+      const shown = async () => (await page.locator('main').innerText());
+      const reported = w => w.kind === 'team';
+      assert.equal((await shown()).includes(`${items.at(-1).name} two`), reported(items.at(-1)));
+      assert.ok(!(await shown()).includes('one'));
+      assert.equal(await page.getByText('Reported in this context').count(), 0, 'the strip has no heading of its own to repeat');
       await picker.selectOption('');
-      for (const w of items) assert.ok((await page.locator('main').innerText()).includes(`${w.name} one`));
+      for (const w of items) assert.equal((await shown()).includes(`${w.name} one`), reported(w));
       console.log('PASS ' + scenario.name + ': destinations, persistence, composite IDs and All Projects');
     }
     items = [workspace('personal'), workspace('team:Platform', 'team', 'offline')];

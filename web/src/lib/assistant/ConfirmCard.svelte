@@ -8,6 +8,7 @@
   import { openAgents } from '../agent-nav';
   import { isSessionKey } from '../agent-sessions';
   import { acknowledge, surface } from '../motion';
+  import { withChain, type Origin } from '../origin';
 
   // A change the assistant prepared. Nothing has happened: the words below were written by Werkbord from the exact arguments
   // that will be used, not by the model, and only the button here carries the change out.
@@ -24,6 +25,8 @@
     return { workspace: project[1], place: `?tab=work&project=${encodeURIComponent(project[2])}&ticket=${encodeURIComponent(ticket[2])}` };
   }
   const connected = $derived(connectedDestination());
+  // Where Back leads from what a card opens: to this conversation in Salie.
+  const here = $derived<Origin[]>([{ kind: 'salie', ...(assistant.session?.id ? { conversation: assistant.session.id } : {}) }]);
   function openConnectedTask() {
     if (!connected) return;
     window.parent.postMessage({ type: 'werkbord.frame', event: 'open', target: connected.workspace, place: connected.place }, '*');
@@ -53,11 +56,11 @@
     <p class="result ok"><Icon name="check" size={14} /> {item.operation === 'create_ticket' ? 'Added to Backlog.' : 'Done.'}{item.ticket ? ` ${item.ticket.title}` : item.outcome ? ` ${item.outcome}` : ''}</p>
     {#if item.session && isSessionKey(item.session.key)}
       <!-- The conversation holds only the reference; the session itself is opened in Agents, where it can be read and continued. -->
-      <button class="task-link" type="button" onclick={() => openAgents(item.session!.key)} data-testid="open-in-agents">Open in Agents</button>
+      <button class="task-link" type="button" onclick={() => openAgents(item.session!.key, here)} data-testid="open-in-agents">Open in Agents</button>
     {/if}
     {#if item.ticket}
       {#if connected}<button class="task-link" type="button" onclick={openConnectedTask}>Open task</button>
-      {:else}<a class="task-link" href={taskHref(item.ticket.projectId, item.ticket.id)}>Open task</a>{/if}
+      {:else}<a class="task-link" href={withChain(taskHref(item.ticket.projectId, item.ticket.id), here)}>Open task</a>{/if}
     {/if}
   {:else if item.state === 'declined'}
     <p class="result">Declined.</p>

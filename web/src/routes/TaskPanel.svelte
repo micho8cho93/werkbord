@@ -18,6 +18,10 @@
   import RunReviewSummary from '../lib/RunReviewSummary.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
 import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
+  import Crumbs from '../lib/Crumbs.svelte';
+  import { chainOf, pushed, type Names, type Origin } from '../lib/origin';
+  import { goOrigin, originHref } from '../lib/origin-nav';
+  import type { WorkPlan } from '../lib/work-queue';
   import { schedulingLabels, schedulingReason } from '../lib/scheduling';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -41,8 +45,29 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const below = $derived(resolveFor({}, project.execution, app.globalExecution));
   const boardHref = $derived(projectHref(project.id, 'work') + (new URLSearchParams(router.query).get('plan') ? '?plan=' + encodeURIComponent(new URLSearchParams(router.query).get('plan')!) : ''));
 
+  // Back goes where the person came from: the page the address names (Work, the Calendar, Agents, Salie, a session, a plan…), and
+  // otherwise the plan or the board this task is under. The address carries it, so a reload or a pasted link goes back the same way.
+  const planParam = $derived(new URLSearchParams(router.query).get('plan') ?? '');
+  const chain = $derived.by<Origin[]>(() => {
+    const given = chainOf(router.query);
+    if (given.length) return given;
+    return [planParam ? { kind: 'plan', projectId: project.id, planId: planParam } : { kind: 'board', projectId: project.id }];
+  });
+  const backHref = $derived(originHref(chain[0], chain.slice(1)));
+  let plans = $state<WorkPlan[]>([]);
+  $effect(() => {
+    const wanted = chain.some(o => o.kind === 'plan') ? project.id : '';
+    if (wanted) void api.workPlans(wanted).then(p => (plans = p), () => {});
+  });
+  const names: Names = {
+    task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title,
+    plan: (_p, id) => plans.find(x => x.id === id)?.title,
+  };
+  /** What this task is to a page it opens: a way back to it, then to wherever it was reached from. */
+  const here = $derived<Origin[]>(pushed({ kind: 'task', projectId: project.id, taskId: router.taskId }, chain));
+
   function close() {
-    location.hash = boardHref;
+    goOrigin(chain[0], chain.slice(1));
   }
 
   // ---- which run is shown: the latest, unless the user picked an earlier one ----
@@ -418,16 +443,22 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
 <svelte:window onkeydown={onWindowKey} />
 
-<a class="scrim" href={boardHref} aria-hidden="true" tabindex="-1"></a>
+{#snippet closer(titled = false)}
+  {#if backHref}<a class="btn quiet small icon" class:close={titled} href={backHref} aria-label="Close panel" title={titled ? 'Close (Esc)' : undefined}><Icon name="close" /></a>
+  {:else}<button class="btn quiet small icon" class:close={titled} type="button" aria-label="Close panel" title={titled ? 'Close (Esc)' : undefined} onclick={close}><Icon name="close" /></button>{/if}
+{/snippet}
+<a class="scrim" href={backHref ?? boardHref} onclick={(e) => { if (!backHref) { e.preventDefault(); close(); } }} aria-hidden="true" tabindex="-1"></a>
 <section class="panel" transition:surface={{ x: 20, y: 0 }} aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
   {#if !task}
     <header class="head">
-      <a class="btn quiet small icon" href={boardHref} aria-label="Close panel"><Icon name="close" /></a>
+      <Crumbs {chain} {names} />
+      {@render closer()}
     </header>
     {#if scope.loaded}<p class="empty">This task was not found in this project.</p>{:else}<Settling compact label="Opening the task…" />{/if}
   {:else}
     <header class="head" use:acknowledge={{ value: task.state, success: task.state === 'done' }}>
       <button class="skip" onclick={skipToContent}>Skip to task content</button>
+      <Crumbs {chain} {names} />
       <div class="top">
         <label class="state">
           <span class="visually-hidden">Task column</span>
@@ -443,7 +474,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           {#if canFinishRun}<button class="btn small ok" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>{/if}
           <button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>
         {/if}
-        <a class="btn quiet small icon close" href={boardHref} aria-label="Close panel" title="Close (Esc)"><Icon name="close" /></a>
+        {@render closer(true)}
       </div>
       <h2 class="title" id="task-title" tabindex="-1" bind:this={titleEl}>{task.title}</h2>
       {#if task.description}
@@ -513,7 +544,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                 <h3 id="run-h">This run</h3>
                 <div class="runbar">
                   <RunBadge {run} />
-                  <button class="btn small" onclick={() => assistant.openRun(project.id, run.id)}>Open Session</button>
+                  <button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open Session</button>
                   <span class="mm">
                     {agentName(app.agents, run.agentId)}{run.model ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.models, run.model)}` : ''}{run.reasoning
                       ? ` · ${optionLabel(app.agentOptions.get(run.agentId)?.reasoning, run.reasoning)}`

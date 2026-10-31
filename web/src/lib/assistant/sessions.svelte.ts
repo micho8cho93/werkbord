@@ -14,6 +14,7 @@ import { isPhone } from '../phones/capability';
 import { phone } from '../mobile/phone.svelte';
 import { openAgents } from '../agent-nav';
 import { runKey } from '../agent-sessions';
+import type { Origin as Route } from '../origin';
 
 const INDEX = 'werkbord.assistant.tabs.v1';
 const LEGACY = 'werkbord.assistant.v1';
@@ -42,9 +43,9 @@ export class AssistantSessions {
    * Agents is where a session is opened on a computer: Salie links to it and the Work pages link to it, by the session's key. Only
    * the phone, which has Salie and the Control Deck and no Agents, opens the run in a Salie tab of its own.
    */
-  openRun(projectId: string, runId: string): void {
+  openRun(projectId: string, runId: string, from: readonly Route[] = []): void {
     if (!isPhone() && !phone.on) {
-      openAgents(runKey(runId));
+      openAgents(runKey(runId), from);
       return;
     }
     let tab = this.tabs.find(t => t.run?.projectId === projectId && t.run.runId === runId);

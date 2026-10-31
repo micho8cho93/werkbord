@@ -1,14 +1,13 @@
 <script lang="ts">
   import PageFrame from './PageFrame.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
-  import { executionLabel, myWork } from './aggregate';
+  import { executionLabel, reportedActivity } from './aggregate';
   import { model } from './model.svelte';
-  // `strip`: shown above the person's own sessions (Agents). It is the activity workspaces report in the selected context, as before;
-  // the sessions below it are this computer's own, and a Team's members' sessions run on their computers and are not opened here.
+  // `strip`: shown above the person's own sessions (Agents). The sessions below it are this computer's own and are listed there, so the
+  // strip carries what is reported and shown nowhere else: the activity of Team workspaces in the selected context, whose members'
+  // sessions run on their computers and are not opened here. Without the sessions (the page below), everything reported is listed.
   let { strip = false }: { strip?: boolean } = $props();
-  const groups = $derived(model.contextOverview
-    ? myWork(model.contextOverview).map(g => ({ ...g, items: g.items.filter(w => !!w.execution) })).filter(g => g.items.length)
-    : []);
+  const groups = $derived(model.contextOverview ? reportedActivity(model.contextOverview, strip) : []);
 </script>
 {#snippet reported()}
   {#each groups as g (g.workspace.id)}
@@ -20,8 +19,7 @@
 {/snippet}
 {#if strip}
   {#if groups.length}
-    <div class="strip" role="region" aria-label="Reported activity">
-      <strong>Reported in this context</strong>
+    <div class="strip" role="region" aria-label="Team activity">
       {@render reported()}
     </div>
   {/if}

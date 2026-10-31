@@ -164,7 +164,7 @@ describe('coding-agent sessions and Salie', () => {
     m.openRun('project-one', 'run-one');
     m.openRun('project-one', 'run-one');
     expect(open).toHaveBeenCalledTimes(2);
-    expect(open).toHaveBeenCalledWith('run:run-one');
+    expect(open).toHaveBeenCalledWith('run:run-one', []);
     expect(m.tabs).toHaveLength(tabs);
     expect(m.tabs.some(t => t.run || t.terminal)).toBe(false);
   });

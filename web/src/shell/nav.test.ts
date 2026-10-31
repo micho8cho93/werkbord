@@ -71,3 +71,20 @@ describe('the go-to palette', () => {
     expect(matching(all, 'acme')[0].id).toBe('ws:team:main');
   });
 });
+
+import { agentsPlace, scopedAgentsPlace } from './nav';
+describe('the place Agents is shown at', () => {
+  it('names the session, the project context and the way back, and is a place the window accepts', () => {
+    const place = agentsPlace('run:run_a', 'prj_a', [{ kind: 'work' }]);
+    expect(place).toBe('#/sessions/run%3Arun_a?project=prj_a&from=work');
+    expect(isPlace(place)).toBe(true);
+    expect(agentsPlace('', 'prj_a')).toBe('#/sessions?project=prj_a');
+    expect(agentsPlace()).toBe('#/sessions');
+  });
+  it('is re-scoped to another project, or none, with the session and the way back kept', () => {
+    const place = agentsPlace('run:run_a', 'prj_a', [{ kind: 'work' }]);
+    expect(scopedAgentsPlace(place, 'prj_b')).toBe('#/sessions/run%3Arun_a?project=prj_b&from=work');
+    expect(scopedAgentsPlace(place, '')).toBe('#/sessions/run%3Arun_a?from=work');
+    expect(scopedAgentsPlace('#/sessions', '')).toBe('#/sessions');
+  });
+});

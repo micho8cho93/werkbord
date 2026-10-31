@@ -3,6 +3,7 @@
 // window of a frame the shell itself made, from the origin the app said that frame would be at; and it can only ask the app to
 // do something (the app then decides, by the kind of workspace the frame is) or say where in itself the person is.
 
+import { parseChain } from '../lib/origin';
 
 export interface FrameRef {
   /** The workspace the frame shows: the app's identity for it, never anything the page says. */
@@ -28,7 +29,9 @@ export interface MessageLike {
 export interface Deps {
   workSalie?(workspace: string, project: string, plan: string): void;
   /** A page of the person's own Werkbord, or Salie, asks to open a coding-agent session in Agents. The key is a validated session key. */
-  agentSession?(key?: string): void;
+  agentSession?(key?: string, from?: string): void;
+  /** A page of the person's own Werkbord goes back to one of the window's own pages (Work, Calendar), as it was left. */
+  page?(page: 'inbox' | 'calendar'): void;
   /** Agents asks to go back to Salie, to the conversation that started the session when it names one. */
   openSalie?(conversation?: string): void;
   onboarding?(required: boolean, paused: boolean): void;
@@ -130,7 +133,12 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     else if (m.event === 'work_salie' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && (m.planId === undefined || typeof m.planId === 'string' && /^[\w-]{1,120}$/.test(m.planId))) d.workSalie?.(frame.id, m.projectId, typeof m.planId === 'string' ? m.planId : '');
     // A session is opened by its key and nothing else: the key is what the controller derives from the owning record's ID, and the
     // shell shows the person's own Werkbord at it. Only Individual's pages and Salie may ask; a Team page has no session to open.
-    else if (m.event === 'agent_session' && frame.id === 'personal' && !frame.hosted && (m.key === undefined || SESSION_KEY.test(String(m.key)))) d.agentSession?.(m.key as string | undefined);
+    // `from` is where the person is coming from (origin.ts): kept only when it is exactly a chain of known origins.
+    else if (m.event === 'agent_session' && frame.id === 'personal' && !frame.hosted && (m.key === undefined || SESSION_KEY.test(String(m.key))) && (m.from === undefined || typeof m.from === 'string' && parseChain(m.from).length > 0)) {
+      if (m.from === undefined) d.agentSession?.(m.key as string | undefined);
+      else d.agentSession?.(m.key as string | undefined, m.from as string);
+    }
+    else if (m.event === 'page' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.page === 'inbox' || m.page === 'calendar')) d.page?.(m.page);
     else if (m.event === 'salie' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.conversation === undefined || typeof m.conversation === 'string' && /^[\w-]{1,80}$/.test(m.conversation))) d.openSalie?.(typeof m.conversation === 'string' ? m.conversation : undefined);
     else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
       const problem = await d.reauth?.(frame.id, m.manual === true);

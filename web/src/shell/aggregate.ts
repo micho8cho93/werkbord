@@ -21,6 +21,18 @@ export function myWork(o: Overview): { workspace: Entry; items: WorkItem[]; erro
     .filter((g) => g.items.length > 0 || g.error);
 }
 
+/**
+ * The work that workspaces report an execution for, grouped by workspace. `elsewhere` leaves out the person's own Werkbord: where the
+ * Agents page shows its sessions itself, they are listed there (from the records that own them), so the same runs are not listed twice;
+ * what Team workspaces report runs on their members' computers and is shown nowhere else.
+ */
+export function reportedActivity(o: Overview, elsewhere = false): { workspace: Entry; items: WorkItem[] }[] {
+  return myWork(o)
+    .filter((g) => !elsewhere || g.workspace.kind !== 'personal')
+    .map((g) => ({ workspace: g.workspace, items: g.items.filter((w) => !!w.execution) }))
+    .filter((g) => g.items.length > 0);
+}
+
 /** Only reports of running work; queued and starting work are separate. */
 export function running(o: Overview): number {
   return executionCounts(o).running;

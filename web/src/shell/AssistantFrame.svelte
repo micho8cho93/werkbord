@@ -12,6 +12,7 @@
   import { handle, type FrameRef } from './frames';
   import { model } from './model.svelte';
   import { look, theme } from '../lib/theme.svelte';
+  import { parseChain } from '../lib/origin';
 
   let el: HTMLIFrameElement | undefined = $state();
   let preparing = false;
@@ -56,7 +57,7 @@
         if (connectedTeam) void model.open(target, place);
       },
       // A card in a conversation leads to the session it started: the window shows it in Agents, and Salie folds away without stopping.
-      agentSession: key => { void model.openAgents(key); },
+      agentSession: (key, from) => { void model.openAgents(key, from ? parseChain(from) : []); },
       assistant: (_id, state) => {
         // The initial report follows registration of Salie's message listener.
         // The iframe's load event can precede its asynchronous device setup.

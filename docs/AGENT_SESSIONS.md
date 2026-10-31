@@ -63,7 +63,8 @@ task). It lists runs and terminals together, Needs you first, with runner status
 the same process: a run through its existing feed and run controls, a terminal through the one terminal renderer
 (`TerminalSession.svelte`, xterm over the PTY, unchanged). There is no second terminal implementation.
 
-**Back to Salie** (*Return to Salie* on a session Salie started, *Ask Salie* otherwise) opens Salie, on that conversation when
+**Back** on a session goes to the page it was opened from (a trail in its address; see [`NAVIGATION.md`](NAVIGATION.md)):
+Salie, a task, a plan, Work, the Calendar or the list. **Back to Salie** (the trail for a session Salie started, *Ask Salie* otherwise) opens Salie, on that conversation when
 this window has it. Salie's frame is kept alive while it is out of sight and a session does not depend on any screen, so going
 back and forth interrupts nothing.
 
@@ -93,7 +94,7 @@ says so and offers the list; it never creates anything.
 - `/api/agent-sessions` is for the local owner (and enrolled desktop clients). Phones and local programs are refused; a
   connection that may not list terminals still gets its runs, and `terminals: false` says terminals were not listed.
 - Team never executes. Team sessions run on their members' computers and are not listed here; what Teams report remains in
-  the activity strip above the sessions.
+  the activity strip above the sessions (the person's own reports are the sessions listed below it, so they are not repeated).
 
 ## Validation
 
@@ -103,5 +104,6 @@ says so and offers the list; it never creates anything.
 - `node scripts/browser-agent-sessions.cjs` (real controller, runner, scripted Salie, PTYs, Chromium): launch through Salie;
   open the same session in Agents; continue it; return to Salie; open it from a Work task; terminals standalone and for a
   task; restart the controller and reconnect, with no duplicates.
-- `node scripts/browser-shell-agents.cjs` (the same, through the desktop window's shell and frames).
+- `node scripts/browser-shell-agents.cjs` (the same, through the desktop window's shell and frames, and Back along every route:
+  [`NAVIGATION.md`](NAVIGATION.md)).
 - `node scripts/browser-salie-terminals.cjs` (terminals in Agents, and the phone's sessions in Salie).

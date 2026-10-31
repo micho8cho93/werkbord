@@ -247,3 +247,22 @@ it('preserves the actual combined pending count above 99', async () => {
   await handle([surface],say(assistantWindow,surface.origin,{event:'assistant',open:false,waiting:123,running:false}),d);
   expect(d.assistant).toHaveBeenCalledExactlyOnceWith('personal',{open:false,waiting:123,running:false});
 });
+
+it('takes where a session was opened from only as a chain of known origins, and only for a session or the window\'s own pages', async () => {
+  const d = {...deps(), agentSession: vi.fn(), page: vi.fn()};
+  const from = 'task:prj_a:tsk_1>calendar';
+  for (const bad of ['', 'nonsense', 'task:../x:y', 'work>work>work>work', 5, {}, 'javascript:alert(1)']) await handle(frames,say(individual,frames[0].origin,{event:'agent_session',key:'run:run_a',from:bad}),d);
+  expect(d.agentSession).not.toHaveBeenCalled();
+  await handle(frames,say(individual,frames[0].origin,{event:'agent_session',key:'run:run_a',from}),d);
+  expect(d.agentSession).toHaveBeenLastCalledWith('run:run_a', from);
+  await handle([surface],say(assistantWindow,surface.origin,{event:'agent_session',key:'run:run_a',from:'salie:ast_k3j9x2m4q7p1a8z5'}),d);
+  expect(d.agentSession).toHaveBeenLastCalledWith('run:run_a', 'salie:ast_k3j9x2m4q7p1a8z5');
+  // Back to Work or Calendar: from the main frame of the person's own Werkbord, to those two pages only.
+  for (const frame of [frames[1],hosted,surface]) await handle([frame],say(frame.window!,frame.origin,{event:'page',page:'inbox'}),d);
+  for (const page of ['settings','agents','workspace','','../x',5,undefined]) await handle(frames,say(individual,frames[0].origin,{event:'page',page}),d);
+  await handle(frames,say(individual,'https://other.example',{event:'page',page:'inbox'}),d);
+  expect(d.page).not.toHaveBeenCalled();
+  await handle(frames,say(individual,frames[0].origin,{event:'page',page:'inbox'}),d);
+  await handle(frames,say(individual,frames[0].origin,{event:'page',page:'calendar'}),d);
+  expect(d.page.mock.calls).toEqual([['inbox'],['calendar']]);
+});

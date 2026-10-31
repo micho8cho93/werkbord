@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { agenda, attention, attentionAction, attentionGroups, counts, executionCounts, executionLabel, myWork, running } from './aggregate';
+import { agenda, reportedActivity, attention, attentionAction, attentionGroups, counts, executionCounts, executionLabel, myWork, running } from './aggregate';
 import type { Overview, Summary } from './types';
 
 it('keeps workspace identity, permissions and failures in cross-workspace views', () => {
@@ -48,4 +48,18 @@ it('puts critical outages first, keeps idle turns and reviews actionable, and se
   expect(groups[2].rows.map(r => r.item.id)).toEqual(['host']);
   expect(counts(overview).needsYou).toBe(5);
   expect(attentionAction(summary.attention[3])).toBe('Answer');
+});
+
+it('lists reported execution once: the person\'s own is in the sessions list, Team\'s is shown nowhere else', () => {
+  const individual = { id: 'personal', kind: 'personal' as const, name: 'Universal', state: 'ready' as const };
+  const team = { id: 'team:main', kind: 'team' as const, name: 'Team', state: 'ready' as const };
+  const sum = (workspace: typeof individual | typeof team): Summary => ({ schema: 'workspace-v1', workspace, at: '', projects: [], attention: [], schedule: [], work: [
+    { id: 'run', title: 'Running', project: 'App', status: 'doing', execution: 'running', href: '#/task' },
+    { id: 'idle', title: 'Not executing', project: 'App', status: 'todo', href: '#/task' },
+  ] });
+  const o: Overview = { at: '', entries: [{ workspace: individual, summary: sum(individual) }, { workspace: team, summary: sum(team) }] };
+  expect(reportedActivity(o).map(g => g.workspace.id)).toEqual(['personal', 'team:main']);
+  expect(reportedActivity(o, true).map(g => g.workspace.id)).toEqual(['team:main']);
+  expect(reportedActivity(o, true)[0].items.map(w => w.id)).toEqual(['run']);
+  expect(reportedActivity({ at: '', entries: [{ workspace: individual, summary: sum(individual) }] }, true)).toEqual([]);
 });

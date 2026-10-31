@@ -8,7 +8,8 @@
   import { embedded } from '../embed';
   import { assistant } from './sessions.svelte';
   import { RunSession, liveRun, messageableRun } from './run-session.svelte';
-  let { session }: { session: RunSession } = $props();
+  // `taskLink` is off where the page already has its own link to the task (Agents), which also carries the way back.
+  let { session, taskLink = true }: { session: RunSession; taskLink?: boolean } = $props();
   let output: HTMLDivElement | undefined = $state();
   let following = $state(true);
   $effect(() => {
@@ -29,7 +30,7 @@
   <header>
     <strong>{run ? agentName(app.agents, run.agentId) : 'Loading agent…'}</strong>
     <span>{session.project?.name ?? session.projectId} · {run ? runStatus(run).label : 'Loading'}</span>
-    {#if run}<a href={taskHref(run.projectId, run.taskId)} onclick={ticket}>Return to task</a>{/if}
+    {#if run && taskLink}<a href={taskHref(run.projectId, run.taskId)} onclick={ticket}>Return to task</a>{/if}
   </header>
   <p class="context">{session.worktree?.path ?? session.project?.repoPath ?? 'Loading working context…'}{run?.branch || session.worktree?.branch ? ` · ${run?.branch ?? session.worktree?.branch}` : ''} · Run {session.runId}{run?.runnerId ? ` · Runner ${run.runnerId}` : ''}</p>
   <div bind:this={output} onscroll={() => { if (output) following = output.scrollTop + output.clientHeight >= output.scrollHeight - 100; }} class="output" tabindex="-1" role="region" aria-label="Session output">

@@ -195,7 +195,7 @@
     </div>
   {/if}
 {#if run}
-  <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id); }}>Open Session</button></div>
+  <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id, [{ kind: 'board', projectId: task.projectId }]); }}>Open Session</button></div>
 {/if}
   </div>
 </li>

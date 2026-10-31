@@ -9,6 +9,8 @@
   import Reviews from './Reviews.svelte';
   import Agents from './Agents.svelte';
   import ContextStatus from './ContextStatus.svelte';
+  import ReturnBar from './ReturnBar.svelte';
+  import { remembered } from './view-state.svelte';
   import Hub from './Hub.svelte';
   import { catchUpSession } from './catchup-session.svelte';
   $effect(() => { catchUpSession.ingest(model.overview); });
@@ -81,17 +83,18 @@
       {#if model.page === 'settings'}<SettingsNav />{/if}
       <div class="stage">
         <ContextStatus />
+        <ReturnBar />
         <!-- Agents: what workspaces report sits above the person's own sessions, which are a page of their own Werkbord. -->
         {#if model.agentsInFrame}<Agents strip />{/if}
         <FrameHost shown={(model.page === 'workspace' && !problem) || model.agentsInFrame || (!!hostedWorkspace && !hostedGone && !(native && 'native' in native))} />
         {#if model.page === 'workspace' && problem}
-          <div class="page-area"><WorkspaceProblem /></div>
+          <div class="page-area" use:remembered={model.page}><WorkspaceProblem /></div>
         {:else if hostedGone}
-          <div class="page-area"><WorkspaceProblem /></div>
+          <div class="page-area" use:remembered={model.page}><WorkspaceProblem /></div>
         {:else if native && 'native' in native}
-          <div class="page-area">{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
+          <div class="page-area" use:remembered={model.page}>{#if native.native === 'plan'}<SettingsPlan />{:else}<SettingsNative section={native.native} />{/if}</div>
         {:else if model.page !== 'workspace' && !model.agentsInFrame && !hostedWorkspace}
-          <div class="page-area">
+          <div class="page-area" use:remembered={model.page}>
             {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
             {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />

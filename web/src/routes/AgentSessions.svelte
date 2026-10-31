@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { app } from '../lib/state.svelte';
+  import { api } from '../lib/api';
+  import type { WorkPlan } from '../lib/work-queue';
   import { router, taskHref } from '../lib/router.svelte';
   import { agentSessionsApi, asTerminal, isSessionKey, ordered, stateLabel, unique, type AgentSession, type AgentSessionList } from '../lib/agent-sessions';
   import { backToSalie, openAgents } from '../lib/agent-nav';
@@ -12,6 +14,11 @@
   import { isPhone } from '../lib/phones/capability';
   import { agentName } from '../lib/format';
   import { terminalApi, type TerminalSession } from '../lib/assistant/terminal';
+  import { embedded } from '../lib/embed';
+  import Crumbs from '../lib/Crumbs.svelte';
+  import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
+  import { readAgentView, writeAgentView } from '../lib/agent-view';
+  import { tick } from 'svelte';
 
   // Agents: every coding-agent session in one list, and the one that is open. A session is listed from the record that owns it
   // (a task run from the runner, a terminal from the terminal service) and is named by its key; opening one here attaches to the
@@ -23,11 +30,39 @@
   let terminalsListed = $state(true);
   let loaded = $state(false);
   let error = $state('');
-  let filter = $state<'all' | 'live' | 'task' | 'standalone'>('all');
-  let projectFilter = $state('');
+  // The filter and the scroll of the list are kept for the tab, so Back from a session's task finds the list as it was left. In the
+  // window the project is the window's own project context (the one selector), told by the address; elsewhere the page has its own.
+  const kept = readAgentView();
+  let filter = $state(kept.filter);
+  const windowScoped = embedded();
+  let ownProject = $state(windowScoped ? '' : (new URLSearchParams(router.query).get('project') ?? kept.project));
+  const projectFilter = $derived(windowScoped ? (new URLSearchParams(router.query).get('project') ?? '') : ownProject);
+  let sideEl = $state<HTMLElement>();
+  let scrolled = kept.scroll;
+  $effect(() => { writeAgentView({ filter, project: windowScoped ? '' : ownProject, scroll: scrolled }); });
+  let restored = false;
+  $effect(() => {
+    if (!loaded || restored || !sideEl) return;
+    restored = true;
+    void tick().then(() => sideEl?.scrollTo({ top: kept.scroll, behavior: 'auto' }));
+  });
+
+  // Back from a session goes where the person came from; a session opened from the list itself goes back to the list.
+  const chain = $derived(chainOf(router.query));
+  const implied = $derived(chain.length === 0 || chain.length === 1 && chain[0].kind === 'agents');
+  const trailChain = $derived<Origin[]>(chain.length ? chain : [{ kind: 'agents' }]);
+  // A plan in the route is named by its title; its project's plans are read once, only when the route has a plan in it.
+  let plans = $state<WorkPlan[]>([]);
+  $effect(() => {
+    const plan = chain.find(o => o.kind === 'plan');
+    if (plan) void api.workPlans(plan.projectId).then(p => (plans = p), () => {});
+  });
+  const names: Names = { task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title, plan: (_p, id) => plans.find(x => x.id === id)?.title };
 
   const key = $derived(isSessionKey(router.sub) ? router.sub : '');
   const selected = $derived(key ? list.find(s => s.key === key) : undefined);
+  /** What the open session is to a page it opens: a way back to it, then to wherever it was reached from. */
+  const here = $derived<Origin[]>(key ? pushed({ kind: 'session', key }, trailChain) : []);
   const visible = $derived(ordered(unique(list)).filter(s =>
     (!projectFilter || s.projectId === projectFilter)
     && (filter === 'all' || (filter === 'live' ? s.live : filter === 'task' ? !!s.taskId : !s.taskId))));
@@ -130,13 +165,10 @@
 </script>
 
 <div class="agents" class:has-session={!!key}>
-  <header class="head">
-    <div>
-      <h1>Agents</h1>
-      <p class="muted">Every coding-agent session on this computer. Open one to read it and keep working with it; Salie and your tasks open the same sessions.</p>
-    </div>
-    {#if launchers.length}<button class="btn" type="button" aria-expanded={launchOpen} onclick={toggleLaunch}>New terminal</button>{/if}
-  </header>
+  <!-- The page's heading is the app header's ("Agents", above): this page adds no second one, only what it can do. -->
+  {#if launchers.length}
+    <div class="head"><button class="btn" type="button" aria-expanded={launchOpen} onclick={toggleLaunch}>New terminal</button></div>
+  {/if}
 
   {#if launchOpen}
     <form class="launch" onsubmit={e => { e.preventDefault(); void launch(); }}>
@@ -160,16 +192,16 @@
   {/if}
 
   <div class="layout">
-    <aside class="side" aria-label="Sessions">
+    <aside class="side" aria-label="Sessions" bind:this={sideEl} onscroll={() => { scrolled = sideEl?.scrollTop ?? 0; }}>
       <div class="filters">
         <label class="sr-only" for="sessions-filter">Show</label>
         <select id="sessions-filter" class="select" bind:value={filter}>
           <option value="all">All sessions</option><option value="live">Running now</option><option value="task">For a task</option><option value="standalone">Standalone</option>
         </select>
-        <label class="sr-only" for="sessions-project">Project</label>
-        <select id="sessions-project" class="select" bind:value={projectFilter}>
+        {#if !windowScoped}<label class="sr-only" for="sessions-project">Project</label>{/if}
+        {#if !windowScoped}<select id="sessions-project" class="select" bind:value={ownProject}>
           <option value="">All projects</option>{#each app.projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
-        </select>
+        </select>{/if}
       </div>
       {#if error}<p role="alert" class="bad">{error} <button class="btn small" onclick={() => refresh()}>Refresh</button></p>{/if}
       {#if !loaded}<p role="status" class="muted">Loading sessions…</p>
@@ -217,15 +249,15 @@
         {/if}
       {:else}
         {#key selected.key}
+          <div class="trail" class:implied><Crumbs chain={trailChain} {names} /></div>
           <div class="bar">
-            <button class="btn quiet small back" type="button" onclick={() => openAgents()}>← All sessions</button>
             <div class="who">
               <strong>{taskTitle(selected) || selected.title}</strong>
               <span class="muted">{agentName(app.agents, selected.agentId)} · {projectName(selected.projectId)} · {stateLabel(selected)}{selected.live ? '' : ' · Ended'}</span>
             </div>
             <div class="acts">
-              {#if selected.taskId}<a class="btn small" href={taskHref(selected.projectId, selected.taskId)} data-testid="session-task">Open task</a>{/if}
-              <button class="btn small" type="button" onclick={() => backToSalie(selected.launchedBy)} data-testid="session-salie">{selected.launchedBy ? 'Return to Salie' : 'Ask Salie'}</button>
+              {#if selected.taskId}<a class="btn small" href={withChain(taskHref(selected.projectId, selected.taskId), here)} data-testid="session-task">Open task</a>{/if}
+              {#if chain[0]?.kind !== 'salie'}<button class="btn small" type="button" onclick={() => backToSalie(selected.launchedBy)} data-testid="session-salie">{selected.launchedBy ? 'Return to Salie' : 'Ask Salie'}</button>{/if}
             </div>
           </div>
           {#if selected.kind === 'terminal' && (linkable.length || selected.taskId)}
@@ -241,7 +273,7 @@
             </div>
           {/if}
           <div class="session">
-            {#if selected.kind === 'run'}<RunSessionView session={runView(selected)} />
+            {#if selected.kind === 'run'}<RunSessionView session={runView(selected)} taskLink={false} />
             {:else}<TerminalSessionView session={terminalView(selected)} />{/if}
           </div>
         {/key}
@@ -252,10 +284,8 @@
 
 <style>
   .agents { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 20px 24px 0; gap: 12px; box-sizing: border-box; }
-  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  h1 { font-size: 20px; margin: 0; }
+  .head { display: flex; align-items: flex-start; justify-content: flex-end; gap: 16px; }
   h2 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 16px 0 6px; }
-  .head p { margin: 4px 0 0; max-width: 60ch; }
   .launch { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
   .launch label { display: grid; gap: 4px; font-size: 12px; }
   .launch p, .launch .row { grid-column: 1 / -1; margin: 0; }
@@ -276,7 +306,7 @@
   .who { display: grid; gap: 2px; min-width: 0; flex: 1; }
   .who span { font-size: 12px; overflow-wrap: anywhere; }
   .acts { display: flex; gap: 8px; }
-  .back { display: none; }
+  .trail { padding: 6px 12px 0; background: var(--surface); }
   .link { display: flex; align-items: center; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .link label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
   .session { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -284,12 +314,13 @@
   .fine { font-size: 12px; }
   .bad { color: var(--danger-text); }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  /* Beside the list, "Agents" is already on screen: the way back to it is only drawn where the list is out of sight (a phone, a narrow window). */
+  @media (min-width: 900px) { .trail.implied { display: none; } }
   @media (max-width: 899px) {
     .agents { padding: 12px 12px 0; }
     .layout { grid-template-columns: minmax(0, 1fr); }
     .agents.has-session .side { display: none; }
     .agents:not(.has-session) .open { display: none; }
-    .back { display: inline-flex; }
     .item, .btn { min-height: 44px; }
   }
 </style>

@@ -6,7 +6,8 @@
 import { ask } from './native';
 import { contextKey, parseContext, projectOptions, projectInHref, scopedOverview, type ProjectIdentity } from './project-context';
 import { surfaceUrl } from './frames';
-import { agentsPlace, isAgentsPlace } from './nav';
+import { agentsPlace, isAgentsPlace, scopedAgentsPlace } from './nav';
+import { chainOf, pushed, withChain, type Origin } from '../lib/origin';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { App, Overview, Target, WorkspaceView } from './types';
 import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
@@ -55,6 +56,9 @@ export class Model {
     try { localStorage.setItem('werkbord.shell.project', contextKey(selected)); } catch { /* Selection still works. */ }
     // Detail screens are contextual Work; switching projects returns to the shared Work surface.
     if (this.page === 'workspace') this.go('inbox');
+    // Agents lists the sessions of the project context: the list follows it, and an open session stays open.
+    else if (this.agentsInFrame && this.frames.personal) void this.openAgents();
+    this.departed = null;
   }
 
   /**
@@ -80,6 +84,11 @@ export class Model {
   paletteOpen = $state(false);
   /** Where each open workspace says it is, as a place inside it: what the sidebar marks as current. */
   places = $state<Record<string, string>>({});
+  /**
+   * Where the person left one of the window's own pages (Work, Calendar, Agents) for a detail page, and the project context they
+   * had there. Back to that page puts both as they were, even if opening the detail moved the context to its project.
+   */
+  departed = $state<{ page: Page; context: ProjectIdentity | null; workspace: string; place: string } | null>(null);
   addOpen = $state(false);
   loaded = $state(false);
   setupRequired = $state(false);
@@ -182,7 +191,7 @@ export class Model {
    * (the one terminal and session views live there), so opening it, or opening a session in it, stops and starts nothing. A
    * session is named by its key (agent-sessions.ts). With no key Agents comes back to where it was, a session still open.
    */
-  async openAgents(key?: string): Promise<void> {
+  async openAgents(key?: string, from: readonly Origin[] = []): Promise<void> {
     if (!this.personalReady) {
       // Without the person's own Werkbord there are no sessions to open: the page lists what workspaces report.
       this.leaveAssistant();
@@ -192,11 +201,15 @@ export class Model {
       return;
     }
     this.leaveAssistant();
+    // A session opened from one of the window's own pages remembers it; one opened from a page that says where it is from does not guess.
+    const origin = key && !from.length && this.here && this.here.kind !== 'agents' ? pushed(this.here, []) : [...from];
     // The window is on Agents at once; its frame follows as soon as the person's own Werkbord has been asked for it.
     this.universal = true;
     this.page = 'agents';
     const kept = this.places.personal;
-    await this.open('personal', key ? agentsPlace(key) : kept && isAgentsPlace(kept) ? kept : agentsPlace());
+    // Agents is scoped by the window's project context (a Personal project), so the list is not asked about twice.
+    const project = this.selectedProject?.workspace === 'personal' ? this.selectedProject.project : '';
+    await this.open('personal', key ? agentsPlace(key, project, origin) : kept && isAgentsPlace(kept) ? scopedAgentsPlace(kept, project) : agentsPlace('', project));
     this.universal = true;
     this.page = 'agents';
     void this.refreshOverview();
@@ -280,11 +293,46 @@ export class Model {
     this.page = 'workspace';
   }
 
+  /** The origin the window's own page the person is on gives to a detail page opened from it. */
+  private get here(): Origin | undefined {
+    return this.page === 'inbox' ? { kind: 'work' } : this.page === 'calendar' ? { kind: 'calendar' } : this.page === 'agents' ? { kind: 'agents' } : undefined;
+  }
+
+  /**
+   * A task, a plan or a session of the person's own Werkbord, opened from one of the window's pages, remembers that page, so that Back
+   * on it returns there (and a reload or a pasted address still knows). A place in a Team workspace cannot carry that in its address,
+   * so the window remembers it and offers the way back itself (ReturnBar). Anything else is opened as it is.
+   */
+  private stamped(id: string, place: string | undefined): string | undefined {
+    const here = this.here;
+    if (!here) this.departed = null; // moving about inside a workspace is not leaving one of the window's pages
+    if (!place || !here) return place;
+    if (id !== 'personal') {
+      if (place.startsWith('?')) this.departed = { page: this.page, context: this.selectedProject, workspace: id, place };
+      return place;
+    }
+    if (!/^#\/p\/[^/?]+\/task\/[^/?]+/.test(place) && !/^#\/p\/[^/?]+\/work\?(?:.*&)?plan=/.test(place)) return place;
+    if (chainOf(place).length) return place;
+    this.departed = { page: this.page, context: this.selectedProject, workspace: id, place };
+    return withChain(place, pushed(here, []));
+  }
+
+  /** Back to one of the window's own pages from a detail page: the page as it was left, with the project context it had. */
+  returnTo(page: 'inbox' | 'calendar' | 'agents'): void {
+    if (this.departed?.page === page) {
+      this.selectedProject = this.departed.context;
+      try { localStorage.setItem('werkbord.shell.project', contextKey(this.selectedProject)); } catch { /* Optional persistence. */ }
+    }
+    this.departed = null;
+    this.go(page);
+  }
+
   /**
    * Shows a place in a workspace, whichever one is open now: the sidebar's way of reaching a project or a team's people. A workspace
    * that already has a page keeps it (nothing in it restarts); otherwise it is opened.
    */
   async goTo(id: string, place?: string): Promise<void> {
+    place = this.stamped(id, place);
     if (place && id === this.current && this.frames[id]) return this.visit(place);
     return this.open(id, place);
   }
@@ -370,6 +418,7 @@ export class Model {
 
   /** Opens a workspace on the Workspace page, and optionally somewhere inside it. */
   async open(id: string, place?: string): Promise<void> {
+    if (this.departed && this.departed.workspace !== id) this.departed = null;
     const kind = this.view?.items.find(i => i.id === id)?.kind;
     const project = kind && place && projectInHref(kind, place);
     if (project && this.projects.some(p => p.workspace === id && p.project === project)) this.selectProjectFromRoute(id, project);
@@ -494,6 +543,7 @@ export class Model {
 
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    this.departed = null;
     if (p === 'settings') return this.openSettings();
     if (p === 'help') return this.openHelp();
     if (p === 'agents' && this.personalReady) return void this.openAgents();

@@ -100,7 +100,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
 
   // ---- 2. The same session, in Agents ----
   await card.getByTestId('open-in-agents').click();
-  await page.waitForFunction(k => decodeURIComponent(location.hash) === '#/sessions/' + k, key);
+  await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
   await page.getByTestId('assistant').waitFor({ state: 'detached' }); // Salie folds away; what it started goes on
   const live = page.getByRole('region', { name: 'Live task session' });
   await live.waitFor();
@@ -115,7 +115,9 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.screenshot({ path: path.join(artifacts, 'agents-run.png') });
 
   // ---- 3. Return to Salie without interrupting the execution ----
-  await page.getByTestId('session-salie').click();
+  // Salie started it, so Salie is the page above the session: the breadcrumb is the way back (there is no second control for it).
+  assert.equal(await page.getByTestId('session-salie').count(), 0);
+  await page.getByTestId('crumbs').getByRole('button', { name: /Salie/ }).click();
   await page.getByTestId('assistant').waitFor();
   await page.getByTestId('assistant-log').getByText(`start the agent on ${project.id} ${task.id}`).waitFor();
   assert.equal(await page.getByTestId('assistant').locator('section.confirm').count(), 1, 'the same conversation, not a new one');
@@ -127,7 +129,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   // ---- 4. A Work task opens the same session; terminals are standalone or for a task ----
   await page.goto(web + `/#/p/${project.id}/task/${task.id}`);
   await page.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
-  await page.waitForFunction(k => decodeURIComponent(location.hash) === '#/sessions/' + k, key);
+  await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   assert.equal((await taskRuns()).length, 1);
   assert.equal(await page.locator('[data-session]').count(), 1);
@@ -140,7 +142,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   await page.goto(web + `/#/p/${project.id}/calendar`);
   await page.locator('.planned-task', { hasText: 'Fix the login' }).first().click();
   await page.getByTestId('task-session').getByRole('button', { name: 'Open session' }).click();
-  await page.waitForFunction(k => decodeURIComponent(location.hash) === '#/sessions/' + k, key);
+  await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   assert.equal((await taskRuns()).length, 1);
   ok('the Calendar opens the task’s session through the task sheet; still one run');

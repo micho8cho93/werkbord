@@ -5,7 +5,9 @@
 //   - Salie starts an agent after the person confirms, and its card opens that session in the window's Agents destination;
 //   - Agents is the person's own Werkbord at the session, in the frame that was already there, and Salie folds away without stopping;
 //   - Return to Salie opens Salie on the conversation that started the session, and the sidebar's Agents comes back to the session;
-//   - a task's Open Session in the Individual page opens the same session in Agents, and there is still one run.
+//   - a task's Open Session in the Individual page opens the same session in Agents, and there is still one run;
+//   - Back follows where the person came from, the whole way (session → task → session → Salie; Work → task → Work, with the project
+//     context, search and section as they were left; Work → plan → task), and a pasted address with its route goes back with no history.
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
 const cp = require('node:child_process'), net = require('node:net');
 const { once } = require('node:events');
@@ -50,7 +52,8 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     const entry = (id, kind, name) => ({ id, kind, name, state: 'ready' });
     const items = [{ ...entry('personal', 'personal', 'Individual'), source: 'local' }, { ...entry('team:main', 'team', 'Northstar'), source: 'team', role: 'owner' }];
     const teamTickets = [], workspaceRequests = new Map();
-    const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/work` }] : [], work: [], attention: [], schedule: [], at: new Date().toISOString() });
+    const queueItems = [];
+    const summary = e => ({ schema: 'workspace-summary/v1', workspace: e, projects: e.kind === 'personal' ? [{ id: project.id, name: 'Window project', href: `#/p/${project.id}/work` }] : [], work: [], queue: e.kind === 'personal' ? queueItems : [], attention: [], schedule: [], at: new Date().toISOString() });
     const calls = {
         Premium: () => ({ active: false, canCheck: false, buyUrl: '' }),
         Info: () => ({ version: 'fixture', platform: 'darwin' }),
@@ -111,6 +114,10 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
     let page;
     try {
         const task = await api(ind, 'POST', `/api/projects/${project.id}/tasks`, { title: 'Fix the login', execution: { agent: 'fixture', mode: 'manual' } });
+        const plan = await api(ind, 'POST', `/api/projects/${project.id}/work-plans`, { id: '', projectId: project.id, title: 'Launch plan', description: '', taskIds: [task.id], decisions: '', questions: '', version: 0 });
+        queueItems.push(
+            { id: task.id, title: 'Fix the login', project: 'Window project', href: `#/p/${project.id}/task/${task.id}`, group: 'now' },
+            { id: plan.id, title: 'Launch plan', project: 'Window project', href: `#/p/${project.id}/work?plan=${plan.id}`, group: 'plan', detail: '0 of 1 complete' });
         const runs = async () => (await api(ind, 'GET', `/api/projects/${project.id}/tasks/${task.id}/runs`)).runs ?? [];
         const sessions = async () => (await api(ind, 'GET', '/api/agent-sessions')).sessions;
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -155,6 +162,13 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await individual.getByRole('region', { name: 'Live task session' }).waitFor();
         await individual.getByText('Fixture process ready').first().waitFor();
         assert.equal(await individual.locator('[data-session]').count(), 1, 'one execution, one entry');
+        // One page header, one project selector: the window's context line is the only one, and Agents has no copy of its heading or of the
+        // project filter. What the session was opened from is the one way back.
+        assert.equal(await individual.getByRole('heading', { level: 1, name: 'Agents' }).count(), 1);
+        assert.equal(await page.getByText('Reported in this context').count(), 0);
+        assert.equal(await individual.locator('#sessions-project').count(), 0, 'the window’s project context is the one selector');
+        assert.match(await individual.getByTestId('crumbs').innerText(), /Salie/);
+        assert.equal(await individual.getByTestId('session-salie').count(), 0, 'Salie is the breadcrumb, not a second control');
         assert.equal(await individual.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true');
         assert.deepEqual((await sessions()).map(s => s.key), [key]);
         assert.equal(await page.locator('iframe[data-workspace=personal]').isVisible(), true);
@@ -166,7 +180,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         ok('Agents shows the session in the person’s own Werkbord frame and keeps taking instructions');
 
         // Back to Salie, on the conversation that started it.
-        await individual.getByTestId('session-salie').click();
+        await individual.getByTestId('crumbs').getByRole('button', { name: /Salie/ }).click();
         await salie.getByTestId('assistant').waitFor();
         assert.equal(await salieFrame.evaluate(el => getComputedStyle(el).visibility), 'visible');
         await salie.getByTestId('assistant-log').getByText(`start the agent on ${project.id} ${task.id}`).waitFor();
@@ -194,6 +208,82 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         assert.equal((await runs()).length, 1);
         assert.equal((await sessions()).length, 1);
         ok('a task’s Open Session opens the same session in Agents; still one run and one session');
+
+        // Back, the whole way: Salie → session → task → session → Salie, each step the page it came from, nothing restarted.
+        // The task's panel opens over its board (or plan), which stays where it was: the panel's trail is the last in the page.
+        const crumbs = () => individual.getByTestId('crumbs').last();
+        const current = name => page.waitForFunction(n => document.querySelector(`[data-testid=sidebar] [data-page=${n}]`)?.getAttribute('aria-current') === 'page', name);
+        const onSession = async () => { await individual.getByRole('region', { name: 'Live task session' }).waitFor(); assert.equal(await individual.locator(`[data-session="${key}"]`).getAttribute('aria-current'), 'true'); };
+        assert.match(await crumbs().innerText(), /Fix the login/, 'the nearest page above the session is its task');
+        await crumbs().getByRole('link', { name: /Fix the login/ }).click();
+        await individual.locator('section.panel').waitFor(); await current('inbox');
+        assert.match(await crumbs().innerText(), /Session/);
+        await crumbs().getByRole('link', { name: /Session/ }).click();
+        await onSession(); await current('agents');
+        await crumbs().getByRole('button', { name: /Salie/ }).click();
+        await salie.getByTestId('assistant').waitFor();
+        await salie.getByTestId('assistant-close').click();
+        await hidden();
+        assert.equal((await runs()).length, 1); assert.equal((await sessions()).length, 1);
+        ok('Back follows the route the person took (session → task → session → Salie) and the session is the same one throughout');
+
+        // Work → task → Back: Work as it was left, with the project context it had.
+        const context = page.getByTestId('project-context');
+        await side.getByRole('button', { name: 'Work', exact: true }).click(); await current('inbox');
+        await context.selectOption('');
+        await page.getByRole('searchbox', { name: 'Search work' }).fill('Fix');
+        assert.equal(await context.inputValue(), '', 'All Projects');
+        await page.locator('.queue-card button.task', { hasText: 'Fix the login' }).click();
+        await individual.locator('section.panel').waitFor();
+        assert.notEqual(await context.inputValue(), '', 'opening a task moves the context to its project');
+        assert.match(await crumbs().innerText(), /Work/);
+        await crumbs().getByRole('button', { name: /Work/ }).click();
+        await current('inbox');
+        assert.equal(await page.getByRole('searchbox', { name: 'Search work' }).inputValue(), 'Fix', 'the search is as it was left');
+        assert.equal(await context.inputValue(), '', 'Back puts All Projects back');
+        await page.screenshot({ path: path.join(artifacts, 'shell-work-back.png') });
+        ok('Work → task → Back returns to Work with its project context and search');
+
+        // Work → plan → task → session, and back down the same route.
+        await page.getByRole('searchbox', { name: 'Search work' }).fill('');
+        await page.locator('.work-tabs').getByRole('button', { name: /^Plans/ }).click();
+        await page.locator('button.task', { hasText: 'Launch plan' }).click();
+        await individual.getByRole('heading', { level: 1, name: 'Launch plan' }).waitFor();
+        assert.match(await crumbs().innerText(), /Work/);
+        await individual.getByRole('link', { name: 'Fix the login' }).first().click();
+        await individual.locator('section.panel').waitFor();
+        assert.match(await crumbs().innerText(), /Work[\s\S]*Launch plan/, 'Work › Launch plan above the task');
+        await individual.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
+        await current('agents'); await onSession();
+        assert.match(await crumbs().innerText(), /Work[\s\S]*Launch plan[\s\S]*Fix the login/);
+        await crumbs().getByRole('link', { name: /Fix the login/ }).click();
+        await individual.locator('section.panel').waitFor();
+        await crumbs().getByRole('link', { name: /Launch plan/ }).click();
+        await individual.getByRole('heading', { level: 1, name: 'Launch plan' }).waitFor();
+        await crumbs().getByRole('button', { name: /Work/ }).click();
+        await current('inbox');
+        assert.equal(await page.locator('.work-tabs [aria-current=page]').innerText().then(t => t.replace(/\d+/g, '').trim()), 'Plans', 'the section is as it was left');
+        assert.equal((await runs()).length, 1); assert.equal((await sessions()).length, 1);
+        ok('Work → plan → task → session and back, step by step, to Work on its Plans section');
+
+        // A pasted address carries its route: no history is needed to go back, and a reload keeps it.
+        const direct = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        const lone = await direct.newPage(); lone.setDefaultTimeout(20000);
+        lone.on('pageerror', e => errors.push(e.message));
+        await lone.goto(ind + '/#token=' + token);
+        await lone.waitForFunction(() => !location.hash.includes('token='));
+        await lone.evaluate(h => { location.hash = h; }, `#/p/${project.id}/task/${task.id}?from=session%3Arun%253A${run.id}`);
+        const loneCrumbs = lone.getByTestId('crumbs');
+        await loneCrumbs.waitFor();
+        await lone.reload();
+        await loneCrumbs.waitFor();
+        assert.equal(await lone.evaluate(() => history.length) <= 3, true);
+        await loneCrumbs.getByRole('link', { name: /Session/ }).click();
+        await lone.waitForFunction(k => decodeURIComponent(location.hash).includes('#/sessions/' + k), key);
+        await lone.getByRole('region', { name: 'Live task session' }).waitFor();
+        assert.equal((await runs()).length, 1); assert.equal((await sessions()).length, 1);
+        await direct.close();
+        ok('a pasted address with its route goes back to the same session after a reload, with no history behind it');
         assert.deepEqual(errors, [], 'no page errors: ' + errors.join('\n'));
         console.log('PASS Agents and Salie from the desktop window’s sidebar');
     } catch (e) {

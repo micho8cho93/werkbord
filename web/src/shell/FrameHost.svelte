@@ -7,6 +7,7 @@
   import { handle, hostedUrl, type FrameRef } from './frames';
   import { model } from './model.svelte';
   import { alerts } from './alerts.svelte';
+  import { parseChain } from '../lib/origin';
   import { look, theme } from '../lib/theme.svelte';
   import ShareProductMap from './ShareProductMap.svelte';
   let mapShare = $state<{ workspace: string; project: string; name: string } | null>(null);
@@ -74,7 +75,8 @@
         const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;
         void model.explainCatchUp(plan ? `Help me edit Work plan ${plan} in project ${pid}. Read list_work_plans and the associated tasks first.` : `Help me organise work in project ${pid}. Read its tasks and plans first.`);
       },
-      agentSession: key => { void model.openAgents(key); },
+      agentSession: (key, from) => { void model.openAgents(key, from ? parseChain(from) : []); },
+      page: page => model.returnTo(page),
       openSalie: conversation => { void model.openSalie(conversation); },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),

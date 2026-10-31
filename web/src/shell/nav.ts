@@ -2,6 +2,7 @@
 // Primary navigation and project context live in Sidebar.svelte and project-context.ts.
 import type { IconName } from '../lib/Icon.svelte';
 import type { Item, Kind, Overview, Project } from './types';
+import { withChain, type Origin } from '../lib/origin';
 
 export type NavKey = '' | 'home' | 'projects' | 'reviews' | 'members' | 'analytics' | `project:${string}`;
 
@@ -116,7 +117,21 @@ export function matching(all: readonly Destination[], query: string): Destinatio
   return scored.sort((a, b) => a.rank - b.rank || a.order - b.order).map((x) => x.d);
 }
 
-/** The Individual page that holds Agents, with the session of this key open (agent-sessions.ts), or the list alone. */
-export const agentsPlace = (key = ''): string => (key ? `#/sessions/${encodeURIComponent(key)}` : '#/sessions');
+/**
+ * The Individual page that holds Agents, with the session of this key open (agent-sessions.ts), or the list alone. `project` limits the
+ * list to that project (the window's project context, which is the one place a project is chosen); `from` is where Back leads.
+ */
+export function agentsPlace(key = '', project = '', from: readonly Origin[] = []): string {
+  const path = key ? `#/sessions/${encodeURIComponent(key)}` : '#/sessions';
+  return project ? withChain(`${path}?project=${encodeURIComponent(project)}`, from) : withChain(path, from);
+}
+/** An Agents place with its project context set to this project (or none), the session and the way back it names kept as they were. */
+export function scopedAgentsPlace(place: string, project: string): string {
+  const i = place.indexOf('?');
+  const params = new URLSearchParams(i === -1 ? '' : place.slice(i + 1));
+  if (project) params.set('project', project); else params.delete('project');
+  const q = params.toString();
+  return (i === -1 ? place : place.slice(0, i)) + (q ? `?${q}` : '');
+}
 /** Whether a place inside the person's own Werkbord is Agents. */
 export const isAgentsPlace = (place: string): boolean => /^#\/sessions(?:[/?]|$)/.test(place);

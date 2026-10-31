@@ -3,12 +3,14 @@
   import Inbox from './Inbox.svelte';
   import CatchUp from './CatchUp.svelte';
   import { model } from './model.svelte';
+  import { viewState } from './view-state.svelte';
   import { executionLabel, standing } from './aggregate';
   import type { Overview, QueueItem } from './types';
 
   let { overview }: { overview: Overview | null } = $props();
-  let section = $state('queue');
-  let search = $state('');
+  // The section, the search and whose work is shown are kept by the window, so Work is as it was left after a task and Back.
+  let section = $state<string>(viewState.work.section);
+  let search = $state(viewState.work.search);
   let creating = $state<'task' | 'plan' | ''>('');
   const all = $derived(overview?.entries.flatMap(e => (e.summary?.queue ?? []).map(item => ({ workspace: e.workspace, item }))) ?? []);
   const rows = $derived(all.filter(r => `${r.item.title} ${r.item.project} ${r.item.detail ?? ''}`.toLowerCase().includes(search.toLowerCase())));
@@ -16,7 +18,8 @@
   type Row = (typeof all)[number];
   // Team work held by someone else is out of the way by default: this is where a person looks for what is theirs to do. Personal work and
   // unclaimed Team work have no holder, so they always show.
-  let everyone = $state(false);
+  let everyone = $state(viewState.work.everyone);
+  $effect(() => { viewState.work = { section: section === 'plans' ? 'plans' : 'queue', search, everyone }; });
   const othersHold = $derived(all.some(r => r.item.owner && !r.item.mine && r.item.group !== 'plan' && r.item.group !== 'done'));
   const queueRows = $derived(rows.filter(r => everyone || !r.item.owner || r.item.mine));
   // One section per project (with its workspace), a plan's tasks together beneath it.

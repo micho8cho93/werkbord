@@ -479,8 +479,9 @@ describe('Agents', () => {
     expect(model.page).toBe('agents');
     expect(model.agentsInFrame).toBe(true);
     expect(model.shownWorkspace).toBe('personal');
-    expect(model.places.personal).toBe('#/sessions/run%3Arun_a');
-    expect(model.frames.personal.pending).toBe('#/sessions/run%3Arun_a');
+    // The model starts on Work, so the session remembers that page for Back.
+    expect(model.places.personal).toBe('#/sessions/run%3Arun_a?from=work');
+    expect(model.frames.personal.pending).toBe('#/sessions/run%3Arun_a?from=work');
   });
   it('comes back to the session that was open, and to the list when none was', async () => {
     const model = await ready();
@@ -517,5 +518,133 @@ describe('Agents', () => {
     await model.openAgents('run:run_a');
     expect(model.page).toBe('agents');
     expect(model.agentsInFrame).toBe(false);
+  });
+});
+
+describe('Back and where a page was opened from', () => {
+  const target = { id: 'personal', kind: 'personal' as const, url: 'http://localhost/', origin: 'http://localhost' };
+  const summary = { schema: '', workspace: individual, projects: [{ id: 'prj_a', name: 'A', href: '#/p/prj_a/work' }, { id: 'prj_b', name: 'B', href: '#/p/prj_b/work' }], work: [], attention: [], schedule: [], at: '' };
+  const ready = () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    model.overview = { at: '', entries: [{ workspace: individual, summary }, { workspace: team }] };
+    native.app.Overview = async () => model.overview as Overview;
+    native.app.Workspaces = async () => view([individual, team]);
+    native.app.OpenWorkspace = async (id: string) => (id === 'personal' ? target : { id, kind: 'team', url: 'http://127.0.0.1:7431', origin: 'http://127.0.0.1:7431' });
+    return model;
+  };
+  const chain = (place: string | undefined) => new URLSearchParams((place ?? '').split('?')[1] ?? '').get('from');
+
+  it('a task or plan opened from Work, Calendar or Agents remembers that page in its address', async () => {
+    for (const [page, from] of [['inbox', 'work'], ['calendar', 'calendar'], ['agents', 'agents']] as const) {
+      const model = ready();
+      model.page = page;
+      await model.goTo('personal', '#/p/prj_a/task/tsk_1');
+      expect(chain(model.places.personal), page).toBe(from);
+      expect(model.places.personal.startsWith('#/p/prj_a/task/tsk_1?from=')).toBe(true);
+    }
+    const model = ready();
+    model.page = 'inbox';
+    await model.goTo('personal', '#/p/prj_a/work?plan=pln_1');
+    expect(chain(model.places.personal)).toBe('work');
+  });
+  it('leaves every other place as it was: a project, a place with a route already, and anything opened from a workspace page', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    await model.goTo('personal', '#/p/prj_a/work');
+    expect(model.places.personal).toBe('#/p/prj_a/work');
+    await model.goTo('personal', '#/p/prj_a/task/tsk_1?from=salie');
+    expect(chain(model.places.personal)).toBe('salie');
+    const other = ready();
+    other.page = 'workspace';
+    await other.goTo('personal', '#/p/prj_a/task/tsk_1');
+    expect(other.places.personal).toBe('#/p/prj_a/task/tsk_1');
+    expect(other.departed).toBeNull();
+  });
+  it('Back to Work puts the project context back, even though opening the task moved it to the task’s project', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    model.selectedProject = null;
+    await model.goTo('personal', '#/p/prj_a/task/tsk_1');
+    expect(model.selectedProject).toEqual({ workspace: 'personal', project: 'prj_a' });
+    model.returnTo('inbox');
+    expect(model.selectedProject).toBeNull();
+    expect(model.page).toBe('inbox');
+    expect(model.departed).toBeNull();
+    // A context chosen on purpose is kept: Back restores what it left, nothing more.
+    model.selectedProject = { workspace: 'personal', project: 'prj_b' };
+    await model.goTo('personal', '#/p/prj_b/task/tsk_2');
+    model.returnTo('inbox');
+    expect(model.selectedProject).toEqual({ workspace: 'personal', project: 'prj_b' });
+  });
+  it('does not restore a context for a page the person did not leave, and forgets the departure when they go somewhere else', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    await model.goTo('personal', '#/p/prj_a/task/tsk_1');
+    model.returnTo('calendar');
+    expect(model.selectedProject).toEqual({ workspace: 'personal', project: 'prj_a' });
+    await model.goTo('personal', '#/p/prj_a/task/tsk_1');
+    model.page = 'inbox';
+    model.go('calendar');
+    expect(model.departed).toBeNull();
+  });
+  it('a Team page opened from Work is left as it was and the window keeps the way back', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    await model.goTo('team:main', '?tab=work&project=p&ticket=t');
+    expect(model.places['team:main']).toBe('?tab=work&project=p&ticket=t');
+    expect(model.departed).toMatchObject({ page: 'inbox', workspace: 'team:main' });
+    model.returnTo('inbox');
+    expect(model.page).toBe('inbox');
+  });
+  it('forgets the way back to a window page once the person is moving about inside workspaces', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    await model.goTo('team:main', '?tab=work&project=p&ticket=t');
+    expect(model.departed).not.toBeNull();
+    await model.goTo('team:main', '?tab=work&project=p&ticket=u');
+    expect(model.departed).toBeNull();
+    model.page = 'inbox';
+    await model.goTo('team:main', '?tab=work&project=p&ticket=t');
+    await model.open('personal', '#/p/prj_a/work');
+    expect(model.departed).toBeNull();
+  });
+  it('a session opened from Work remembers it; from Agents, or with a route given, it uses that instead', async () => {
+    const model = ready();
+    model.page = 'inbox';
+    await model.openAgents('run:run_a');
+    expect(chain(model.places.personal)).toBe('work');
+    await model.openAgents('run:run_b');
+    expect(chain(model.places.personal)).toBeNull();
+    await model.openAgents('run:run_c', [{ kind: 'task', projectId: 'prj_a', taskId: 'tsk_1' }, { kind: 'calendar' }]);
+    expect(chain(model.places.personal)).toBe('task:prj_a:tsk_1>calendar');
+  });
+  it('lists the sessions of the window’s project context and follows it, an open session staying open', async () => {
+    const model = ready();
+    model.selectedProject = { workspace: 'personal', project: 'prj_a' };
+    await model.openAgents('run:run_a', [{ kind: 'salie', conversation: 'ast_k3j9x2m4q7p1a8z5' }]);
+    expect(model.places.personal).toBe('#/sessions/run%3Arun_a?project=prj_a&from=salie%3Aast_k3j9x2m4q7p1a8z5');
+    model.selectProject({ workspace: 'personal', project: 'prj_b' });
+    await vi.waitFor(() => expect(model.places.personal).toContain('project=prj_b'));
+    expect(model.places.personal).toContain('/run%3Arun_a');
+    expect(model.places.personal).toContain('from=salie');
+    model.selectProject({ workspace: 'team:main', project: 'p' });
+    await vi.waitFor(() => expect(model.places.personal).not.toContain('project='));
+    expect(model.page).toBe('agents');
+    model.selectProject(null);
+    await model.openAgents();
+    expect(model.places.personal).toBe('#/sessions/run%3Arun_a?from=salie%3Aast_k3j9x2m4q7p1a8z5');
+  });
+  it('going back to a page of the window never starts, stops or reloads anything', async () => {
+    const model = ready();
+    const asked: string[] = [];
+    native.app.OpenWorkspace = async (id: string) => { asked.push('open:' + id); return target; };
+    model.page = 'inbox';
+    await model.goTo('personal', '#/p/prj_a/task/tsk_1');
+    const frame = model.frames.personal;
+    model.returnTo('inbox');
+    expect(model.frames.personal).toBe(frame);
+    expect(frame.epoch).toBeUndefined();
+    expect(asked).toEqual(['open:personal']);
   });
 });

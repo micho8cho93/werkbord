@@ -9,6 +9,8 @@
   import { blockingTasks, type WorkPlan } from '../work-queue';
   import { TASK_STATE_LABELS, type Project } from '../types';
   import type { ProjectScope } from '../scope.svelte';
+  import Crumbs from '../Crumbs.svelte';
+  import { chainOf, pushed, withChain, type Origin } from '../origin';
 
   let { scope, project, search = '' }: { scope: ProjectScope; project: Project; search?: string } = $props();
   let plans = $state<WorkPlan[]>([]);
@@ -24,6 +26,11 @@
   const completed = $derived(current?.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length ?? 0);
   const blocked = $derived(current?.taskIds.filter(id => { const task = scope.tasks.find(t => t.id === id); return task && task.state !== 'done' && blockingTasks(task, scope.tasks, scope.latestRun).length; }).length ?? 0);
   const sessions = $derived(scope.history.filter(r => current?.taskIds.includes(r.taskId)));
+  // Back from a plan goes where the plan was opened from (Work in the window, a board…); a plan reached by a plain link goes to the board.
+  const chain = $derived.by<Origin[]>(() => { const given = chainOf(router.query); return given.length ? given : [{ kind: 'board', projectId: project.id }]; });
+  /** What this plan is to a page it opens: a way back to the plan, then to wherever the plan was reached from. */
+  const here = $derived<Origin[]>(pushed({ kind: 'plan', projectId: project.id, planId: selected }, chain));
+  const names = { plan: (_p: string, id: string) => plans.find(p => p.id === id)?.title };
   const listHref = $derived(projectHref(project.id, 'work') + '?section=plans');
   const tabs = [{ id: 'tasks', title: 'Tasks' }, { id: 'sessions', title: 'Sessions' }, { id: 'decisions', title: 'Decisions' }, { id: 'questions', title: 'Questions' }];
 
@@ -91,7 +98,7 @@
       <div class="actions"><button class="btn primary" disabled={busy || !draft.title.trim()}>{busy ? 'Saving…' : 'Save plan'}</button><button class="btn" type="button" disabled={busy} onclick={() => { draft = null; if (!current) location.hash = listHref; }}>Cancel</button></div>
     </form>
   {:else if current}
-    <a class="back" href={projectHref(project.id, 'work')}><Icon name="left" size={14} />Back to Work</a>
+    <Crumbs {chain} {names} />
     <div class="plan-layout">
       <div class="plan-main">
         <header class="plan-heading"><div class="title-line"><h1>{current.title}</h1><span class="standing" class:blocked={blocked > 0}>{completed === current.taskIds.length && completed > 0 ? 'Complete' : blocked ? `${blocked} blocked` : completed ? 'In progress' : 'Ready'}</span></div><p class="description muted">{current.description || 'Add a description to give this plan context.'}</p></header>
@@ -99,10 +106,10 @@
         <nav class="plan-tabs" aria-label="Plan sections">{#each tabs as item (item.id)}<button type="button" aria-current={tab === item.id ? 'page' : undefined} onclick={() => tab = item.id}>{item.title}{#if item.id === 'tasks'}<span>{current.taskIds.length}</span>{/if}</button>{/each}</nav>
         {#if tab === 'tasks'}
           <ol class="plan-tasks">{#each current.taskIds as id (id)}{@const task = scope.tasks.find(t => t.id === id)}
-            <li class:complete={task?.state === 'done'}><span class="task-mark" aria-label={task?.state === 'done' ? 'Complete' : 'Incomplete'}>{#if task?.state === 'done'}<Icon name="check" size={13} />{/if}</span><div>{#if task}<a class="task-title" href={taskHref(project.id, id) + '?plan=' + encodeURIComponent(current.id)}>{task.title}</a><div class="task-meta">{TASK_STATE_LABELS[task.state]}{task.archivedAt ? ' · Archived' : ''}{#if task.orchestration?.dependencies?.length}<span class="dependency">Depends on {task.orchestration.dependencies.map(dep => scope.tasks.find(t => t.id === dep)?.title ?? 'Unavailable task').join(', ')}</span>{/if}</div>{:else}<span class="muted">Unavailable task</span>{/if}</div>{#if scope.latestRun[id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[id].id)}>Open CLI session</button>{/if}</li>
+            <li class:complete={task?.state === 'done'}><span class="task-mark" aria-label={task?.state === 'done' ? 'Complete' : 'Incomplete'}>{#if task?.state === 'done'}<Icon name="check" size={13} />{/if}</span><div>{#if task}<a class="task-title" href={withChain(taskHref(project.id, id) + '?plan=' + encodeURIComponent(current.id), here)}>{task.title}</a><div class="task-meta">{TASK_STATE_LABELS[task.state]}{task.archivedAt ? ' · Archived' : ''}{#if task.orchestration?.dependencies?.length}<span class="dependency">Depends on {task.orchestration.dependencies.map(dep => scope.tasks.find(t => t.id === dep)?.title ?? 'Unavailable task').join(', ')}</span>{/if}</div>{:else}<span class="muted">Unavailable task</span>{/if}</div>{#if scope.latestRun[id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[id].id, here)}>Open CLI session</button>{/if}</li>
           {:else}<li class="empty">No tasks in this plan yet. Edit the plan to add existing tasks.</li>{/each}</ol>
         {:else if tab === 'sessions'}
-          <p class="section-note muted">Recent sessions associated with this plan’s tasks.</p><ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
+          <p class="section-note muted">Recent sessions associated with this plan’s tasks.</p><ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
         {:else if tab === 'decisions'}<h2>Decisions</h2><p class="description">{current.decisions || 'No decisions recorded yet.'}</p>
         {:else}<h2>Open questions</h2><p class="description">{current.questions || 'No open questions recorded.'}</p>{/if}
       </div>
