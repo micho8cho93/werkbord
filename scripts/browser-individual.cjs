@@ -119,7 +119,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('alert').filter({ hasText: 'Runner readiness unavailable' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Create your first task', exact: true }).count(), 0, 'failed readiness check cannot reuse a cached success');
     await page.unroute('**/api/runners');
-    await page.getByRole('button', { name: 'Check again', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry setup checks', exact: true }).click();
     await page.getByText(/3 of 3 requirements verified/).waitFor();
     // Completion ordering, optional decisions and failures are exercised in browser-onboarding.cjs.
     await page.goto(base + `/#/p/${p.id}/work`);
