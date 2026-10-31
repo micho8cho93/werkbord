@@ -6,9 +6,10 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 
 ## Character
 
-Four styles share one set of tokens (below, [Styles](#styles)): **Paper**, the default, flat on warm ivory; **Graphite**, the
-same flat layer on cool blue-greys with an ink primary and a teal accent; **Classic**, the raised buttons and cards the app had before 4.84; **Cloud**, the same flat layer on white surfaces over a very light cool grey with charcoal ink and a lavender accent.
-This sheet describes Paper and says where the others differ.
+Seven styles share a flat layout, icon set, spacing and motion: **Paper** (the default, warm white and charcoal with cobalt),
+**Graphite** (cool neutrals and teal), **Classic** (white and cobalt), **Cloud** (cool white and lavender),
+**Moss** (sage and forest), **Dune** (clay and warm mineral neutrals), and **Plum** (mauve and aubergine).
+Every style includes light and dark modes; Device follows the operating system. Theme changes never replace icons or the pixel mark.
 
 Quiet technical. Paper and ink, one action colour, one attention colour. The tool disappears into the work:
 density over decoration, every state readable at a glance, nothing hidden that you need weekly.
@@ -29,18 +30,17 @@ from the active board.
 
 ## Tokens (`internal/uipresentation/static/tokens.css`)
 
-The table is **Classic's** palette (and the base every style builds on). Paper and Graphite replace the neutrals and the accent; see
-[Styles](#styles).
+The table shows **Classic**. Every style defines its own neutrals and accent; see [Styles](#styles).
 
 | Role | Light | Dark |
 | --- | --- | --- |
-| Paper (`--bg`) | `#F5F5F2` | `#0B0B0C` |
-| Surface (`--surface`) | `#FFFFFF` | `#141415` |
-| Tray (`--surface-2`) | `#EDEDE8` | `#1D1D1F` |
-| Line (`--border`) | `#DAD9D3` | `#2A2A2D` |
-| Ink (`--text`) | `#0A0A0A` | `#F0F0EC` |
-| Secondary text (`--text-2`) | `#55554F` | `#A3A39D` |
-| Cobalt (`--accent`): actions, running work | `#2447FF` | `#7C93FF` |
+| Paper (`--bg`) | `#FFFFFF` | `#17191E` |
+| Surface (`--surface`) | `#FFFFFF` | `#1F2229` |
+| Tray (`--surface-2`) | `#F5F6F8` | `#282D36` |
+| Line (`--border`) | `#E5E7EB` | `#333844` |
+| Ink (`--text`) | `#202329` | `#ECEFF6` |
+| Secondary text (`--text-2`) | `#656B75` | `#ACB4C6` |
+| Cobalt (`--accent`): actions, running work | `#3458D4` | `#9AACFF` |
 | Amber (`--amber`): needs you, pending | `#F2A93B` | `#E0A84A` |
 
 Status: running = cobalt, needs you = amber (`--warn` `#B7791F` as a dot), blocked = purple `#7B4FC0`,
@@ -51,38 +51,20 @@ Theme follows the OS unless the person picks one in Settings (stored per device 
 
 ### Styles
 
-A second choice beside light or dark: `data-style` on `<html>`, absent for Paper, `graphite`, `classic` or `cloud` otherwise. Chosen in
-Settings (Style), stored per device as `werkbord.style`, applied before first paint by the same `theme.js`. In the desktop window
-the window's Settings choice is told to every workspace (`werkbord.style`, frame event `style`), as the theme is.
+The shared palettes live in `internal/uipresentation/static/tokens.css`. Paper has no `data-style` attribute; the other choices
+use their lower-case names. Each palette defines identical token roles in light, chosen dark and device dark. Primary fills
+are independent of the activity accent, and status text remains legible on all three surfaces. `contrast.test.ts` checks all
+fourteen palettes, primary button labels and device-dark parity.
 
-- The `:root` tokens above are Classic's. Paper and Graphite add one flat layer on `:root:not([data-style='classic'])`: no gradient
-  faces, shadow tokens are `0 0 0 0 transparent` (never `none`, they sit in comma lists), `--radius` 10px, `--radius-sm` 6px, solid
-  chart bars. One shadow stays, `--win-sh`, for what floats (menus, dialogs, toasts).
-- Each style has its own palette in light and in dark, so switching style changes the whole page (`tokens.css`, "The palettes"):
-  Classic is the token table above; **Paper** is warm ivory and sand with brown ink (light: paper `#F6F1E7`, surface `#FFFDF8`, tray
-  `#ECE4D4`, line `#DCD2BD`, ink `#1C1710`; dark espresso: `#15120E`, `#1E1A15`, `#28231C`, `#3A3329`, `#F2ECE0`) with cobalt for
-  action; **Graphite** is cool blue-grey (light: `#F1F4F7`, `#FFFFFF`, `#E6EBF0`, `#D3DAE3`, `#0E1620`; dark slate: `#0D1218`, `#141B23`,
-  `#1C2530`, `#2B3643`, `#E8EEF4`) with an ink primary (`--pri-fill`, `--pri-text`) and a teal accent (`#0A6280`, dark `#5CC8E0`).
-  **Cloud** is white on a cool canvas (light: `#F7F7FB`, `#FFFFFF`, tray `#EEEFF7`, line `#E4E5F0`, ink `#292B38`; dark: `#12131A`, `#1A1B24`,
-  `#232430`, `#2F3140`, `#ECECF4`) with a lavender accent: `#5F56C9` in light, a step darker than the brand lavender `#7168D9`, which is 4.2:1
-  on the canvas and so cannot be used as text; `#A69FFF` in dark. It adds 12px/8px radii and a softer window shadow.
-  Amber and the status colours are shared. Paper has no attribute, so its selectors exclude the other three. Every style writes
-  the same tokens in light, in OS dark and in a chosen dark; `contrast.test.ts` checks the three agree and every text pairing in all six.
-- Classic keeps the old materials and colours but takes the new structure (task card anatomy, type and radius scales). Components
-  that were redrawn flat keep their old look under `:root[data-style='classic']` (stat tiles, panels, Settings headings).
-- The Team console uses the same `tokens.css` and shared control styles, with `theme.js` storing its choice as `werkbord-team.style`: Paper, Graphite, Classic and Cloud.
-  In a browser tab it offers the choice in its Settings, beside the light/dark button; in the desktop window the window's
-  Settings choose it and tell the page.
-- Both choices can be changed at any time, from wherever Settings is: the window's Settings (every workspace, open or not yet
-  opened, follows: the window tells a workspace its style each time the workspace says it is ready, Paper included, and tells
-  an open one the moment it changes; going back to "Device" for the theme reaches open workspaces too), the Settings page in a
-  browser or on a phone ("Alerts and display"), and the Team console's Settings.
+All styles use flat surfaces, hairline dividers, 8px panels and 7px controls. Shadows are reserved for floating surfaces.
+Classic now uses this same material. Settings and onboarding offer all seven palettes and Device/Light/Dark controls.
+The shell propagates both choices to every workspace on opening and on change. Personal and Team retain independent browser
+preferences; the desktop window owns the choice when embedded. Before-paint scripts restore it without flashing another style.
 
 ## Type
 
 Geist for the interface (400/500/600), Geist Mono for machine text: paths, branches, IDs, counts, times,
-commands, keys, and (Classic only) the uppercase section labels (`.lab`, 12px, `letter-spacing: .14em`; in Paper and Graphite
-section labels are sentence case, 12px/500, in Geist). Both are bundled (`@fontsource-variable/*`), never loaded from a CDN.
+commands and keys. Section labels are sentence case, 12px/500, in Geist in every style. Both are bundled (`@fontsource-variable/*`), never loaded from a CDN.
 The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px. Shared desktop page and Work titles are 24px/600,
 with −.025em tracking; other existing page titles use 20px/600. Card titles are 14px/500; body 13–14px.
 The wordmark is `werkbord`, lowercase, Geist Mono 600, tracking −6%.
@@ -94,7 +76,7 @@ checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([d
 
 ## Material
 
-Paper and Graphite are flat: surfaces are separated by a hairline (`--border`), not a shadow, and lists use dividers instead of
+Every style is flat: surfaces are separated by a hairline (`--border`), not a shadow, and lists use dividers instead of
 nested cards.
 
 - Buttons (`.btn`) are outlined on `--surface`; the primary is filled (cobalt in Paper, ink in Graphite). Fields are bordered on
@@ -104,7 +86,7 @@ nested cards.
 - State is a thin left edge or a dot (cobalt = running, amber = needs you), not a coloured border or glow.
 - Machine text sits in a `.well` (tray, mono 12px).
 
-Classic keeps the earlier material: raised buttons and cards (gradient face, light top edge, soft drop), inset trays and fields.
+Classic shares the flat controls and divided lists used by every theme.
 
 ## Mark and icons
 
@@ -537,3 +519,10 @@ Photos 2 and 3 lead Work: a light surface, compact task rows, quiet metadata, re
 Keep the established theme tokens and product behaviour. The source sheets are composition references, not authority to
 add their example accounts, metrics, login systems or a different assistant name. Work and plan details are the first scope;
 other destinations can follow this direction in subsequent work.
+
+### Onboarding readiness and theme selection
+
+Guided setup uses the same surfaces, controls and theme choices as the workspace. Its Appearance disclosure keeps styling
+optional. Slow checks remain pending beyond eight seconds, with retry and pause recovery; elapsed time never resolves a check.
+Readiness requests share in-flight work. Related GitHub onboarding writes are serialised. Required capabilities are verified
+again before completion. Grouped initial/project requests wait for every sibling to settle even when one fails early.

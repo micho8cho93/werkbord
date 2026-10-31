@@ -66,16 +66,16 @@
   .status { display: block; font-size: 12px; text-transform: capitalize; margin-bottom: 5px; font-weight: 600; }
   .event:hover { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 25%, var(--surface)); }
   /* Paper, Graphite and Cloud: an event is a hairline card with a thin edge in its tone, not a tinted block with a shadow. */
-  :global(:root:not([data-style='classic'])) .event {
+  :global(:root) .event {
     border: 1px solid var(--border);
     box-shadow: inset 3px 0 0 var(--tone);
     background: var(--surface);
   }
-  :global(:root:not([data-style='classic'])) .event { margin-bottom: 8px; }
-  :global(:root:not([data-style='classic'])) .event:hover { border-color: var(--border); background: var(--surface-2); }
-  :global(:root:not([data-style='classic'])) .day { background: var(--surface); }
-  :global(:root:not([data-style='classic'])) .status { font-weight: 500; color: var(--text-2); }
-  :global(:root:not([data-style='classic'])) small { opacity: 1; color: var(--text-2); }
+  :global(:root) .event { margin-bottom: 8px; }
+  :global(:root) .event:hover { border-color: var(--border); background: var(--surface-2); }
+  :global(:root) .day { background: var(--surface); }
+  :global(:root) .status { font-weight: 500; color: var(--text-2); }
+  :global(:root) small { opacity: 1; color: var(--text-2); }
   @media (max-width: 1000px) { .dense .week { grid-template-columns: repeat(7, minmax(150px, 1fr)); } }
   @media (max-width: 899px) { .planning-calendar { padding: 16px; min-height: 480px; } .tools button { min-height: 44px; } }
 </style>

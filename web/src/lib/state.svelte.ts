@@ -1,3 +1,4 @@
+import { awaitAll } from './loading';
 // Application state shared by all views. The controller is the source of
 // truth: this module holds a cache that is filled over HTTP and kept current
 // by the event stream.
@@ -250,7 +251,7 @@ class AppState {
     try {
       const sync = this.book.beginSync();
       await this.loadDevice();
-      const [projects, agents, overview, execution, onboarding, labels] = await Promise.all([
+      const [projects, agents, overview, execution, onboarding, labels] = await awaitAll([
         api.listProjects(),
         api.listAgents(),
         api.controlCenter(),
@@ -270,7 +271,7 @@ class AppState {
       this.error = '';
       void this.checkUpdate();
       // Projects already open catch up on what they missed.
-      await Promise.all([...this.scopes.values()].map((s) => s.load()));
+      await awaitAll([...this.scopes.values()].map((s) => s.load()));
       this.lastSyncedAt = new Date().toISOString();
       return true;
     } catch (err) {
@@ -357,7 +358,7 @@ class AppState {
   private async loadOverview(): Promise<void> {
     try {
       const sync = this.book.beginSync();
-      const [overview, waiting] = await Promise.all([api.controlCenter(), this.loadWaiting()]);
+      const [overview, waiting] = await awaitAll([api.controlCenter(), this.loadWaiting()]);
       this.overview = overview;
       this.waiting = waiting;
  this.runners=overview.runners??[];

@@ -32,7 +32,7 @@
     --kind: var(--block);
   }
   /* Paper, Graphite and Cloud: the workspace is a dot and a name, not a tinted pill. Classic keeps the pill. */
-  :global(:root:not([data-style='classic'])) .tag {
+  :global(:root) .tag {
     padding: 0;
     border: 0;
     background: none;

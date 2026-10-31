@@ -1,3 +1,4 @@
+import { awaitAll } from './loading';
 // One project's data: its tasks, the latest run of each, its run history and its
 // open questions. A ProjectScope is the only place the board, the Git view and the
 // Activity view read from, and it holds one project and nothing else.
@@ -58,7 +59,7 @@ export class ProjectScope {
     this.loading = true;
     try {
       const sync = this.book.beginSync();
-      const [tasks, latest, history, questions] = await Promise.all([
+      const [tasks, latest, history, questions] = await awaitAll([
         api.listTasks(this.projectId),
         api.listProjectRuns(this.projectId),
         api.listActivity(this.projectId, HISTORY_LIMIT),

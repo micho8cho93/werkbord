@@ -1,6 +1,8 @@
 /* Segmented control: one choice among a few, pressed in. */
 .seg {
   display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -34,9 +36,9 @@
 }
 
 
-:root:not([data-style='classic']) .seg [aria-pressed='true'],
-:root:not([data-style='classic']) .seg [aria-selected='true'],
-:root:not([data-style='classic']) .seg [aria-current='page'] {
+:root .seg [aria-pressed='true'],
+:root .seg [aria-selected='true'],
+:root .seg [aria-current='page'] {
   background: var(--surface);
   box-shadow: 0 0 0 1px var(--border);
 }

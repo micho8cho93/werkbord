@@ -29,9 +29,7 @@
   }
   header { display: flex; align-items: flex-start; gap: 10px; padding: 16px 16px 0; }
   .swatch { display: none; flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 3px; background: var(--tone); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 22%, transparent); }
-  :global(:root[data-style='classic']) .panel { border: 1px solid color-mix(in srgb, var(--tone) 38%, var(--border)); border-top: 3px solid var(--tone); border-radius: var(--radius-tray); }
-  :global(:root[data-style='classic']) header { padding: 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border)); background: color-mix(in srgb, var(--tone) 7%, var(--surface-2)); }
-  :global(:root[data-style='classic']) .swatch { display: block; }
+
   .head { flex: 1; min-width: 0; }
   h2 { margin: 0; font-family: var(--font); font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); }
   p { margin: 2px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.5; }

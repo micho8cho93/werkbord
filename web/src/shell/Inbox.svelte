@@ -229,16 +229,16 @@
   }
   /* Paper, Graphite and Cloud: rows are plain list rows and the tally is hairline tiles. The coloured edge, tinted fills and shadows
      stay in Classic. */
-  :global(:root:not([data-style='classic'])) .row { box-shadow: none; min-height: 56px; }
-  :global(:root:not([data-style='classic'])) .tally li {
+  :global(:root) .row { box-shadow: none; min-height: 56px; }
+  :global(:root) .tally li {
     border: 1px solid var(--border);
     background: var(--surface);
     box-shadow: none;
   }
-  :global(:root:not([data-style='classic'])) .tally li + li { border-top: 1px solid var(--border); }
-  :global(:root:not([data-style='classic'])) .swatch { width: 8px; height: 8px; border-radius: 50%; }
-  :global(:root:not([data-style='classic'])) .n { font-family: var(--font); }
-  :global(:root:not([data-style='classic'])) ul { box-shadow: none; }
+  :global(:root) .tally li + li { border-top: 1px solid var(--border); }
+  :global(:root) .swatch { width: 8px; height: 8px; border-radius: 50%; }
+  :global(:root) .n { font-family: var(--font); }
+  :global(:root) ul { box-shadow: none; }
   @media (max-width: 720px) {
     .row { grid-template-columns: 10px minmax(0, 1fr); align-items: start; }
     .sev { margin-top: 6px; }

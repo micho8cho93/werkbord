@@ -36,9 +36,9 @@ describe('what a frame may say about the window', () => {
   });
   it('may say which style the person chose, and nothing else about it', async () => {
     const d = { ...deps(), style: vi.fn() };
-    for (const style of ['paper', 'graphite', 'classic', 'cloud']) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
+    for (const style of ['paper', 'graphite', 'classic', 'cloud', 'moss', 'dune', 'plum']) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
     for (const style of ['', 'neon', 1, null, undefined]) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
-    expect(vi.mocked(d.style).mock.calls).toEqual([['personal', 'paper'], ['personal', 'graphite'], ['personal', 'classic'], ['personal', 'cloud']]);
+    expect(vi.mocked(d.style).mock.calls).toEqual([['personal', 'paper'], ['personal', 'graphite'], ['personal', 'classic'], ['personal', 'cloud'], ['personal', 'moss'], ['personal', 'dune'], ['personal', 'plum']]);
   });
   it('lets Individual say something happened, in plain short words, and no one else', async () => {
     const d = deps();

@@ -6,7 +6,7 @@
     var t = localStorage.getItem('werkbord.theme');
     if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
     var s = localStorage.getItem('werkbord.style');
-    if (s === 'graphite' || s === 'classic' || s === 'cloud') document.documentElement.dataset.style = s;
+    if (s === 'graphite' || s === 'classic' || s === 'cloud' || s === 'moss' || s === 'dune' || s === 'plum') document.documentElement.dataset.style = s;
   } catch {
     // Storage unavailable: follow the operating system, and use Paper.
   }

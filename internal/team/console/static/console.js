@@ -174,7 +174,7 @@ function updateThemeButton(button) {
 }
 // The style (Paper, Graphite, Classic, Cloud) is chosen next to the theme wherever this page offers the theme. In the desktop window it is
 // chosen in the window's own Settings and told to this page, so only a browser tab shows this.
-const STYLE_CHOICES = [['paper', 'Paper'], ['graphite', 'Graphite'], ['classic', 'Classic'], ['cloud', 'Cloud']];
+const STYLE_CHOICES = [['paper', 'Paper'], ['graphite', 'Graphite'], ['classic', 'Classic'], ['cloud', 'Cloud'], ['moss', 'Moss'], ['dune', 'Dune'], ['plum', 'Plum']];
 function styleChoice() {
   return h('div', { class: 'style-choice', role: 'group', 'aria-label': 'Style', 'data-style-choice': true },
     h('span', { class: 'muted small' }, 'Style'),

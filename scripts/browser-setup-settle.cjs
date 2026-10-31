@@ -47,6 +47,7 @@ const OBSERVE = () => {
         const scenarios = {
             'no delay': {},
             'slow GitHub': { github: 900 },
+            'GitHub beyond former eight-second cutoff': { github: 10000 },
             'slow phones': { phones: 900 },
             'slow agents': { agents: 1200 },
             'slow runners': { runners: 1200 },
@@ -62,8 +63,50 @@ const OBSERVE = () => {
             await intro.waitFor();
             if (name === 'no delay') await page.waitForTimeout(500);
             await intro.getByRole('button', { name: 'Start guided setup', exact: true }).click();
-            await page.waitForFunction(() => document.querySelector('.step-intro h2') && !document.querySelector('[data-testid="setup-loading"]'), null, { timeout: 15000 });
+            if (name === 'GitHub beyond former eight-second cutoff') {
+                await page.waitForTimeout(8500);
+                assert(await page.getByTestId('setup-loading').isVisible(), 'slow setup must still be loading beyond eight seconds');
+                assert.equal(await page.locator('.step-intro h2').count(), 0, 'no unresolved setup step is exposed');
+            }
+            await page.waitForFunction(() => document.querySelector('.step-intro h2') && !document.querySelector('[data-testid="setup-loading"]'), null, { timeout: 15000 }).catch(async error => {
+                console.log(await page.locator('body').innerText());
+                console.log(JSON.stringify(await page.evaluate(() => window.__timeline)));
+                await page.screenshot({path:'/tmp/werkbord-setup-failure.png', fullPage:true});
+                throw error;
+            });
             await page.waitForTimeout(1500);
+            if (name === 'no delay') {
+                const captures = process.env.BROWSER_ARTIFACT_DIR;
+                if (captures) fs.mkdirSync(captures, { recursive: true });
+                await page.locator('.appearance summary').click();
+                for (const style of ['Paper', 'Graphite', 'Classic', 'Cloud', 'Moss', 'Dune', 'Plum']) {
+                    await page.getByRole('group', {name:'Style', exact:true}).getByRole('button', {name:style, exact:true}).click();
+                    for (const mode of ['Light', 'Dark']) {
+                        await page.getByRole('group', {name:'Theme', exact:true}).getByRole('button', {name:mode, exact:true}).click();
+                        assert.equal(await page.locator('html').getAttribute('data-style'), style === 'Paper' ? null : style.toLowerCase());
+                        assert.equal(await page.locator('html').getAttribute('data-theme'), mode.toLowerCase());
+                        await page.waitForTimeout(160); // Let the intentional colour transition settle before measuring.
+                        const material = await page.locator('.onboarding .actions .btn').first().evaluate(el => {
+                            const css = getComputedStyle(el), root = getComputedStyle(document.documentElement);
+                            const swatch = document.createElement('span');
+                            swatch.style.backgroundColor = root.getPropertyValue('--surface');
+                            document.body.append(swatch);
+                            const surface = getComputedStyle(swatch).backgroundColor;
+                            swatch.remove();
+                            return { background:css.backgroundColor, surface, image:css.backgroundImage };
+                        });
+                        assert.equal(material.background, material.surface, style + ' ' + mode + ': neutral button uses the theme surface');
+                        assert.equal(material.image, 'none', 'flat controls in every theme');
+                        for (const width of [1440, 390]) {
+                            await page.setViewportSize({width, height:1000});
+                            assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), style + ' ' + mode + ': no horizontal overflow');
+                            if (captures) await page.screenshot({path:path.join(captures, `${style}-${mode}-${width}.png`), fullPage:true});
+                        }
+                    }
+                }
+                await page.setViewportSize({width:1440, height:1000});
+                await page.locator('.appearance summary').click();
+            }
             const timeline = await page.evaluate(() => window.__timeline);
             // Everything a person could read while the screen was not saying it is loading.
             const shown = timeline.filter(s => !s.loading && s.heading);

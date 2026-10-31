@@ -130,7 +130,7 @@
   color-scheme: dark;
 }
 
-:root:not([data-style='classic']) {
+:root:root {
   --btn-bg: var(--surface);
   --btn-bg-hover: var(--surface-2);
   --btn-sh: 0 0 0 0 transparent;
@@ -145,161 +145,459 @@
   --key-sh: 0 0 0 0 transparent;
   --live-ring: 0 0 0 0 transparent;
   --win-sh: 0 12px 32px -12px rgba(10, 10, 10, 0.3), 0 1px 2px rgba(10, 10, 10, 0.08);
-  --radius: 10px;
-  --radius-sm: 6px;
-  --radius-tray: 10px;
+  --radius: 8px;
+  --radius-sm: 7px;
+  --radius-tray: 8px;
   --bar-fade: 100%;
 }
 
 
-/* The palettes. Each style is its own, in both colour modes, so that switching style changes the whole page and not just the buttons:
- *   Classic  the tokens at the top of this file: cool paper, cobalt, raised.
- *   Paper    warm ivory and sand with brown ink (dark: espresso), cobalt for action, amber for what waits.
- *   Graphite cool blue-greys, an ink primary and a teal accent (dark: slate).
- *   Cloud    white surfaces on a very light cool grey, charcoal ink and a lavender accent (dark: deep indigo-grey).
- * Paper has no attribute, so its selectors exclude the other three. Each style writes the same tokens in light, in OS dark and in a
- * chosen dark; lib/contrast.test.ts keeps them from drifting apart and checks every text pairing in all six. */
+/* Seven palettes; Paper is the fallback. Geometry, iconography and motion are shared. */
 
-:root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud']) {
-  --bg: #f6f1e7;
-  --surface: #fffdf8;
-  --surface-2: #ece4d4;
-  --border: #dcd2bd;
-  --text: #1c1710;
-  --text-2: #5c5346;
-  --accent: #2447ff;
+:root:not([data-style]) {
+  --bg: #fbf9f4;
+  --surface: #fffdf9;
+  --surface-2: #f2efe8;
+  --border: #e7e2d8;
+  --text: #25231f;
+  --text-2: #68645d;
+  --accent: #375dd6;
+  --pri-fill: #292824;
+  --pri-text: #ffffff;
   --accent-text: #ffffff;
-  --tint: #e6e9fb;
-  --ground: #e8e0cf;
+  --tint: #f2efe8;
+  --ground: #fbf9f4;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud']):not([data-theme='light']) {
-    --bg: #15120e;
-    --surface: #1e1a15;
-    --surface-2: #28231c;
-    --border: #3a3329;
-    --text: #f2ece0;
-    --text-2: #b0a692;
-    --accent: #8fa3ff;
-    --accent-text: #0a0a0a;
-    --tint: #212548;
-    --ground: #0d0b08;
-  }
+  :root:not([data-style]):not([data-theme='light']) {
+  --bg: #1d1b18;
+  --surface: #23211d;
+  --surface-2: #292620;
+  --border: #38342d;
+  --text: #eee9df;
+  --text-2: #b7b0a3;
+  --accent: #9aabf2;
+  --pri-fill: #eee9df;
+  --pri-text: #1d1b18;
+  --accent-text: #17191e;
+  --tint: #292620;
+  --ground: #1d1b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
 }
 
-:root:not([data-style='classic']):not([data-style='graphite']):not([data-style='cloud'])[data-theme='dark'] {
-  --bg: #15120e;
-  --surface: #1e1a15;
-  --surface-2: #28231c;
-  --border: #3a3329;
-  --text: #f2ece0;
-  --text-2: #b0a692;
-  --accent: #8fa3ff;
-  --accent-text: #0a0a0a;
-  --tint: #212548;
-  --ground: #0d0b08;
+:root:not([data-style])[data-theme='dark'] {
+  --bg: #1d1b18;
+  --surface: #23211d;
+  --surface-2: #292620;
+  --border: #38342d;
+  --text: #eee9df;
+  --text-2: #b7b0a3;
+  --accent: #9aabf2;
+  --pri-fill: #eee9df;
+  --pri-text: #1d1b18;
+  --accent-text: #17191e;
+  --tint: #292620;
+  --ground: #1d1b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+
+:root[data-style='paper'] {
+  --bg: #fbf9f4;
+  --surface: #fffdf9;
+  --surface-2: #f2efe8;
+  --border: #e7e2d8;
+  --text: #25231f;
+  --text-2: #68645d;
+  --accent: #375dd6;
+  --pri-fill: #292824;
+  --pri-text: #ffffff;
+  --accent-text: #ffffff;
+  --tint: #f2efe8;
+  --ground: #fbf9f4;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='paper']:not([data-theme='light']) {
+  --bg: #1d1b18;
+  --surface: #23211d;
+  --surface-2: #292620;
+  --border: #38342d;
+  --text: #eee9df;
+  --text-2: #b7b0a3;
+  --accent: #9aabf2;
+  --pri-fill: #eee9df;
+  --pri-text: #1d1b18;
+  --accent-text: #17191e;
+  --tint: #292620;
+  --ground: #1d1b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+}
+
+:root[data-style='paper'][data-theme='dark'] {
+  --bg: #1d1b18;
+  --surface: #23211d;
+  --surface-2: #292620;
+  --border: #38342d;
+  --text: #eee9df;
+  --text-2: #b7b0a3;
+  --accent: #9aabf2;
+  --pri-fill: #eee9df;
+  --pri-text: #1d1b18;
+  --accent-text: #17191e;
+  --tint: #292620;
+  --ground: #1d1b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
 }
 
 :root[data-style='graphite'] {
-  --bg: #f1f4f7;
+  --bg: #f5f7f8;
   --surface: #ffffff;
-  --surface-2: #e6ebf0;
-  --border: #d3dae3;
-  --text: #0e1620;
-  --text-2: #4b5866;
-  --accent: #0a6280;
+  --surface-2: #eaeff1;
+  --border: #dce2e5;
+  --text: #22292d;
+  --text-2: #606d73;
+  --accent: #237868;
+  --pri-fill: #252d31;
+  --pri-text: #ffffff;
   --accent-text: #ffffff;
-  --pri-fill: #111a24;
-  --pri-text: #f4f7fa;
-  --tint: #e0eef3;
-  --ground: #e8edf2;
+  --tint: #eaeff1;
+  --ground: #f5f7f8;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-style='graphite']:not([data-theme='light']) {
-    --bg: #0d1218;
-    --surface: #141b23;
-    --surface-2: #1c2530;
-    --border: #2b3643;
-    --text: #e8eef4;
-    --text-2: #9aa8b8;
-    --accent: #5cc8e0;
-    --accent-text: #08121a;
-    --pri-fill: #eaf0f6;
-    --pri-text: #0d1218;
-    --tint: #12303a;
-    --ground: #080c10;
-  }
+  --bg: #191d20;
+  --surface: #1f2528;
+  --surface-2: #282f33;
+  --border: #343d42;
+  --text: #e9eef0;
+  --text-2: #aab6bc;
+  --accent: #79cab8;
+  --pri-fill: #e9eef0;
+  --pri-text: #191d20;
+  --accent-text: #17191e;
+  --tint: #282f33;
+  --ground: #191d20;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
 }
 
 :root[data-style='graphite'][data-theme='dark'] {
-  --bg: #0d1218;
-  --surface: #141b23;
-  --surface-2: #1c2530;
-  --border: #2b3643;
-  --text: #e8eef4;
-  --text-2: #9aa8b8;
-  --accent: #5cc8e0;
-  --accent-text: #08121a;
-  --pri-fill: #eaf0f6;
-  --pri-text: #0d1218;
-  --tint: #12303a;
-  --ground: #080c10;
+  --bg: #191d20;
+  --surface: #1f2528;
+  --surface-2: #282f33;
+  --border: #343d42;
+  --text: #e9eef0;
+  --text-2: #aab6bc;
+  --accent: #79cab8;
+  --pri-fill: #e9eef0;
+  --pri-text: #191d20;
+  --accent-text: #17191e;
+  --tint: #282f33;
+  --ground: #191d20;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
 }
 
-/* Cloud: the flat structure of Paper and Graphite, with white cards on a cool canvas and one soft lavender accent. The accent is
- * darker than the brand lavender (#7168d9) because that is 4.2:1 on the canvas and these tokens are also used as text. */
-:root[data-style='cloud'] {
-  --bg: #f7f7fb;
+:root[data-style='classic'] {
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #eeeff7;
-  --border: #e4e5f0;
-  --text: #292b38;
-  --text-2: #5a5d70;
-  --accent: #5f56c9;
+  --surface-2: #f5f6f8;
+  --border: #e5e7eb;
+  --text: #202329;
+  --text-2: #656b75;
+  --accent: #3458d4;
+  --pri-fill: #3458d4;
+  --pri-text: #ffffff;
   --accent-text: #ffffff;
-  --tint: #efeefc;
-  --ground: #eeeff6;
-  --scrim: rgba(41, 43, 56, 0.36);
-  --win-sh: 0 12px 32px -12px rgba(41, 43, 56, 0.18), 0 1px 2px rgba(41, 43, 56, 0.06);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-tray: 12px;
+  --tint: #f5f6f8;
+  --ground: #ffffff;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='classic']:not([data-theme='light']) {
+  --bg: #17191e;
+  --surface: #1f2229;
+  --surface-2: #282d36;
+  --border: #333844;
+  --text: #eceff6;
+  --text-2: #acb4c6;
+  --accent: #9aacff;
+  --pri-fill: #a4b3ff;
+  --pri-text: #17191e;
+  --accent-text: #17191e;
+  --tint: #282d36;
+  --ground: #17191e;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+}
+
+:root[data-style='classic'][data-theme='dark'] {
+  --bg: #17191e;
+  --surface: #1f2229;
+  --surface-2: #282d36;
+  --border: #333844;
+  --text: #eceff6;
+  --text-2: #acb4c6;
+  --accent: #9aacff;
+  --pri-fill: #a4b3ff;
+  --pri-text: #17191e;
+  --accent-text: #17191e;
+  --tint: #282d36;
+  --ground: #17191e;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+
+:root[data-style='cloud'] {
+  --bg: #fafafd;
+  --surface: #ffffff;
+  --surface-2: #f0f0f7;
+  --border: #e5e4ef;
+  --text: #2a2935;
+  --text-2: #6a6779;
+  --accent: #6858b8;
+  --pri-fill: #34303f;
+  --pri-text: #ffffff;
+  --accent-text: #ffffff;
+  --tint: #f0f0f7;
+  --ground: #fafafd;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-style='cloud']:not([data-theme='light']) {
-    --bg: #12131a;
-    --surface: #1a1b24;
-    --surface-2: #232430;
-    --border: #2f3140;
-    --text: #ececf4;
-    --text-2: #a2a5b8;
-    --accent: #a69fff;
-    --accent-text: #12131a;
-    --tint: #25244a;
-    --ground: #0d0e13;
-    --win-sh: 0 12px 32px -12px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --radius: 12px;
-    --radius-sm: 8px;
-    --radius-tray: 12px;
-  }
+  --bg: #191820;
+  --surface: #211f2b;
+  --surface-2: #2c2938;
+  --border: #383444;
+  --text: #f0edf8;
+  --text-2: #b8b0ca;
+  --accent: #b9a6f0;
+  --pri-fill: #d3c5f1;
+  --pri-text: #191820;
+  --accent-text: #17191e;
+  --tint: #2c2938;
+  --ground: #191820;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
 }
 
 :root[data-style='cloud'][data-theme='dark'] {
-  --bg: #12131a;
-  --surface: #1a1b24;
-  --surface-2: #232430;
-  --border: #2f3140;
-  --text: #ececf4;
-  --text-2: #a2a5b8;
-  --accent: #a69fff;
-  --accent-text: #12131a;
-  --tint: #25244a;
-  --ground: #0d0e13;
-  --win-sh: 0 12px 32px -12px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-tray: 12px;
+  --bg: #191820;
+  --surface: #211f2b;
+  --surface-2: #2c2938;
+  --border: #383444;
+  --text: #f0edf8;
+  --text-2: #b8b0ca;
+  --accent: #b9a6f0;
+  --pri-fill: #d3c5f1;
+  --pri-text: #191820;
+  --accent-text: #17191e;
+  --tint: #2c2938;
+  --ground: #191820;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+
+:root[data-style='moss'] {
+  --bg: #f7f8f2;
+  --surface: #fcfdf8;
+  --surface-2: #edf0e6;
+  --border: #dde3d4;
+  --text: #252d25;
+  --text-2: #62705e;
+  --accent: #426c45;
+  --pri-fill: #34523a;
+  --pri-text: #ffffff;
+  --accent-text: #ffffff;
+  --tint: #edf0e6;
+  --ground: #f7f8f2;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='moss']:not([data-theme='light']) {
+  --bg: #191f1b;
+  --surface: #212a23;
+  --surface-2: #2a352c;
+  --border: #354438;
+  --text: #e9f0e5;
+  --text-2: #a9bba5;
+  --accent: #a8c59d;
+  --pri-fill: #b8cdaf;
+  --pri-text: #191f1b;
+  --accent-text: #17191e;
+  --tint: #2a352c;
+  --ground: #191f1b;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+}
+
+:root[data-style='moss'][data-theme='dark'] {
+  --bg: #191f1b;
+  --surface: #212a23;
+  --surface-2: #2a352c;
+  --border: #354438;
+  --text: #e9f0e5;
+  --text-2: #a9bba5;
+  --accent: #a8c59d;
+  --pri-fill: #b8cdaf;
+  --pri-text: #191f1b;
+  --accent-text: #17191e;
+  --tint: #2a352c;
+  --ground: #191f1b;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+
+:root[data-style='dune'] {
+  --bg: #fbf7f3;
+  --surface: #fffcf9;
+  --surface-2: #f3eae3;
+  --border: #e7dcd2;
+  --text: #382a24;
+  --text-2: #79675d;
+  --accent: #a14f35;
+  --pri-fill: #50372b;
+  --pri-text: #ffffff;
+  --accent-text: #ffffff;
+  --tint: #f3eae3;
+  --ground: #fbf7f3;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='dune']:not([data-theme='light']) {
+  --bg: #241b18;
+  --surface: #2d221d;
+  --surface-2: #382a23;
+  --border: #49362c;
+  --text: #f5e9de;
+  --text-2: #c5ad9e;
+  --accent: #e4a184;
+  --pri-fill: #e7b59a;
+  --pri-text: #241b18;
+  --accent-text: #17191e;
+  --tint: #382a23;
+  --ground: #241b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+}
+
+:root[data-style='dune'][data-theme='dark'] {
+  --bg: #241b18;
+  --surface: #2d221d;
+  --surface-2: #382a23;
+  --border: #49362c;
+  --text: #f5e9de;
+  --text-2: #c5ad9e;
+  --accent: #e4a184;
+  --pri-fill: #e7b59a;
+  --pri-text: #241b18;
+  --accent-text: #17191e;
+  --tint: #382a23;
+  --ground: #241b18;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+
+:root[data-style='plum'] {
+  --bg: #faf7fa;
+  --surface: #fffcff;
+  --surface-2: #f0eaf1;
+  --border: #e6dce7;
+  --text: #332735;
+  --text-2: #766378;
+  --accent: #83547d;
+  --pri-fill: #51334d;
+  --pri-text: #ffffff;
+  --accent-text: #ffffff;
+  --tint: #f0eaf1;
+  --ground: #faf7fa;
+  --ok-text: #1f6e3e;
+  --warn-text: #86580e;
+  --danger-text: #a8322c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-style='plum']:not([data-theme='light']) {
+  --bg: #211923;
+  --surface: #2b202d;
+  --surface-2: #362939;
+  --border: #443147;
+  --text: #f3e8f3;
+  --text-2: #c3abc4;
+  --accent: #ce9ec6;
+  --pri-fill: #dcbdd5;
+  --pri-text: #211923;
+  --accent-text: #17191e;
+  --tint: #362939;
+  --ground: #211923;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
+}
+}
+
+:root[data-style='plum'][data-theme='dark'] {
+  --bg: #211923;
+  --surface: #2b202d;
+  --surface-2: #362939;
+  --border: #443147;
+  --text: #f3e8f3;
+  --text-2: #c3abc4;
+  --accent: #ce9ec6;
+  --pri-fill: #dcbdd5;
+  --pri-text: #211923;
+  --accent-text: #17191e;
+  --tint: #362939;
+  --ground: #211923;
+  --ok-text: #8acba0;
+  --warn-text: #e4b976;
+  --danger-text: #ffaaa4;
 }

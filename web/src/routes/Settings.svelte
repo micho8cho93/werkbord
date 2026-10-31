@@ -130,7 +130,6 @@
 </script>
 <svelte:window onfocus={syncAlerts} />
 
-
 <div class="settings" class:framed>
   <Tour surface="settings" enabled={!isPhone() && !framed} />
   <label class="mobile-section">
@@ -318,7 +317,7 @@
   .section-group + .section-group { margin-top: 24px; }
   /* A group heading names what is under it and is not pressable; its sections are indented beneath it on a rule. */
   .section-group h2 { margin: 0 12px 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font: 600 13px var(--font); letter-spacing: 0; text-transform: none; color: var(--text); }
-  :global(:root[data-style='classic']) .section-group h2 { border-bottom: 2px solid color-mix(in srgb, var(--text) 55%, var(--border)); font: 700 12px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; }
+
   .section-links { display: flex; flex-direction: column; gap: 2px; }
   .settings {
     height: 100%;

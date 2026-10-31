@@ -903,69 +903,61 @@ html.asst-open body {
 }
 @keyframes transfer-current { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
-/* ---- styles: Paper (default), Graphite, Classic ----
- *
- * The tokens above are Classic: raised buttons and cards, inset trays. Paper and Graphite are one flat structure that every
- * style but Classic shares (`:root:not([data-style='classic'])`): hairline borders instead of raised faces, one shadow reserved
- * for what floats (menus, sheets, the assistant), four button looks (primary, default, quiet, danger), section labels in the
- * interface voice rather than tracked capitals. Each has its own palette (below): Paper is warm ivory with cobalt and amber, Graphite
- * cool blue-greys with an ink primary and a teal accent. A shadow token is never `none`: it sits in comma lists, and `none, …` would drop them.
- * Each style is checked in both colour modes (lib/contrast.test.ts).
- */
+/* All seven palettes share flat controls, aligned typography and quiet list dividers.
+ * Palette and primary action colours come from shared tokens; icons and motion do not vary by theme. */
 
-
-:root:not([data-style='classic']) .btn:hover:not(:disabled) {
+:root .btn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--text-2) 40%, var(--border));
 }
 
 /* The tones other than danger lose their coloured edge, label and glow: the label and the icon say what the button does. */
-:root:not([data-style='classic']) .btn.add,
-:root:not([data-style='classic']) .btn.open,
-:root:not([data-style='classic']) .btn.ok,
-:root:not([data-style='classic']) .btn.warn {
+:root .btn.add,
+:root .btn.open,
+:root .btn.ok,
+:root .btn.warn {
   border-color: var(--border);
   color: var(--text);
 }
 
-:root:not([data-style='classic']) .btn.add:hover:not(:disabled),
-:root:not([data-style='classic']) .btn.open:hover:not(:disabled),
-:root:not([data-style='classic']) .btn.ok:hover:not(:disabled),
-:root:not([data-style='classic']) .btn.warn:hover:not(:disabled) {
+:root .btn.add:hover:not(:disabled),
+:root .btn.open:hover:not(:disabled),
+:root .btn.ok:hover:not(:disabled),
+:root .btn.warn:hover:not(:disabled) {
   background: var(--surface-2);
   box-shadow: none;
 }
 
-:root:not([data-style='classic']) .btn.danger {
+:root .btn.danger {
   border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
 }
 
-:root:not([data-style='classic']) .btn.danger:hover:not(:disabled) {
+:root .btn.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
   box-shadow: none;
 }
 
-:root:not([data-style='classic']) .btn.primary:hover:not(:disabled) {
+:root .btn.primary:hover:not(:disabled) {
   filter: none;
   background: color-mix(in srgb, var(--pri-bg) 88%, var(--text));
 }
 
-:root:not([data-style='classic']) .btn.quiet,
-:root:not([data-style='classic']) .btn.quiet:hover:not(:disabled) {
+:root .btn.quiet,
+:root .btn.quiet:hover:not(:disabled) {
   border-color: transparent;
 }
 
-:root:not([data-style='classic']) .input,
-:root:not([data-style='classic']) .select {
+:root .input,
+:root .select {
   border-color: var(--border);
   background-color: var(--surface);
 }
 
-:root:not([data-style='classic']) .num.pend {
+:root .num.pend {
   box-shadow: none;
 }
 
-:root:not([data-style='classic']) h2,
-:root:not([data-style='classic']) .lab {
+:root h2,
+:root .lab {
   font-family: var(--font);
   font-size: 12px;
   font-weight: 500;
@@ -975,16 +967,16 @@ html.asst-open body {
 }
 
 /* Panels and lists: one hairline and no weight of their own. A panel's rows are a divided list, not a stack of cards inside a card. */
-:root:not([data-style='classic']) .pn {
+:root .pn {
   border-color: var(--border);
   border-radius: var(--radius);
 }
 
-:root:not([data-style='classic']) .card-list {
+:root .card-list {
   gap: 0;
 }
 
-:root:not([data-style='classic']) .card-row {
+:root .card-row {
   padding: 12px 0;
   border: 0;
   border-top: 1px solid var(--border);
@@ -992,23 +984,23 @@ html.asst-open body {
   background: transparent;
 }
 
-:root:not([data-style='classic']) .card-row:first-child {
+:root .card-row:first-child {
   padding-top: 0;
   border-top: 0;
 }
 
-:root:not([data-style='classic']) .card-row .title {
+:root .card-row .title {
   font-size: 14px;
   font-weight: 500;
 }
 
-:root:not([data-style='classic']) .card-row .actions {
+:root .card-row .actions {
   padding-top: 0;
   border-top: 0;
 }
 
-:root:not([data-style='classic']) .pn > h2.band,
-:root:not([data-style='classic']) .pn > h3.band {
+:root .pn > h2.band,
+:root .pn > h3.band {
   margin: 0;
   padding: 0;
   border-bottom: 0;
@@ -1019,16 +1011,16 @@ html.asst-open body {
   text-transform: none;
 }
 
-:root:not([data-style='classic']) .slot {
+:root .slot {
   border-radius: var(--radius-sm);
 }
 
-:root:not([data-style='classic']) .tag {
+:root .tag {
   font: 500 12px/18px var(--font);
   letter-spacing: 0;
 }
 
 
-:root:not([data-style='classic']) .pick.on {
+:root .pick.on {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }

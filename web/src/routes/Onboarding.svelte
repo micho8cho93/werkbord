@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { awaitAll } from '../lib/loading';
   import { acknowledge, milestone, surface } from '../lib/motion';
   import Sheet from '../lib/Sheet.svelte';
   import { onMount } from 'svelte';
@@ -12,6 +13,8 @@
   import PhoneStepCard from '../lib/setup/PhoneStepCard.svelte';
   import ReposCard from '../lib/setup/ReposCard.svelte';
   import SetupCard from '../lib/setup/SetupCard.svelte';
+  import { singleFlight } from '../lib/setup/check';
+  import { look, STYLES, theme } from '../lib/theme.svelte';
   import { localReadiness, setupCurrent, setupResolved } from '../lib/setup/readiness';
   import { app } from '../lib/state.svelte';
   import type { GitHubStatusInfo } from '../lib/types';
@@ -35,7 +38,10 @@
   let githubChecked = $state(false);
   let phonesChecked = $state(false);
   let wasLive = $state(false);
-  let waitedLongEnough = $state(false);
+  let takingLonger = $state(false);
+  let githubFailed = $state(false);
+  let phonesFailed = $state(false);
+  const initialError = $derived(githubFailed || phonesFailed ? 'An optional connection could not be checked. Retry the check, or explicitly leave it for later.' : '');
   $effect(() => { if (app.connection === 'live') wasLive = true; });
   /** Connecting and syncing are the passing states between two live ones; they do not make a verified computer unverified. */
   const liveForReadiness = $derived(app.connection === 'live' || (wasLive && (app.connection === 'connecting' || app.connection === 'syncing')));
@@ -46,9 +52,9 @@
   const example = $derived(app.onboarding?.example);
   const exampleScope = $derived(example ? app.scope(example.projectId) : undefined);
   $effect(() => { if (example) app.warm(example.projectId); });
-  const exampleKnown = $derived(!example || (!!exampleScope && (exampleScope.loaded || !!exampleScope.error)));
+  const exampleKnown = $derived(!example || (!!exampleScope && exampleScope.loaded));
   const computerKnown = $derived(checked && connectionKnown);
-  const settled = $derived((computerKnown && githubChecked && phonesChecked && exampleKnown) || waitedLongEnough);
+  const settled = $derived(computerKnown && githubChecked && phonesChecked && exampleKnown);
   const checklist = $derived([
     { label: 'This computer and its coding agents', done: computerKnown },
     { label: 'GitHub', done: githubChecked },
@@ -93,25 +99,32 @@
   const previous = $derived(steps.slice(0, currentIndex).reverse().find(s => !(s.done && ['computer', 'agents', 'repository'].includes(s.id))));
 
   let quietFailures = 0;
-  async function recheck(quiet = false) {
+  let computerPending = false;
+  const checkComputer = singleFlight(async (refreshAgentOptions: boolean) => {
+    computerPending = true;
+    try {
+      const [runners, agents] = await awaitAll([api.listRunners(), api.listAgents()]);
+      if (refreshAgentOptions) await Promise.all(agents.filter(a => a.available).map(a => app.loadAgentOptions(a.id, true)));
+      app.runners = runners;
+      app.agents = agents;
+    } finally { computerPending = false; }
+  });
+  async function recheck(quiet = false): Promise<boolean> {
     const refreshAgentOptions = !quiet && current === 'agents';
     if (!quiet) { checking = true; error = ''; }
     try {
-      const [runners, agents] = await Promise.all([api.listRunners(), api.listAgents()]);
-      app.runners = runners;
-      app.agents = agents;
-      if (refreshAgentOptions) {
-        // A newly installed or updated agent may offer different models.
-        await Promise.all(agents.filter(a => a.available).map(a => app.loadAgentOptions(a.id, true)));
-      }
+      await checkComputer(!quiet && refreshAgentOptions);
+      checked = true;
       readinessUnavailable = false;
       quietFailures = 0;
+      return true;
     } catch (err) {
       // Asked for by the person: say so at once. The background check every five seconds must fail twice running before the screen
       // says this computer cannot be verified; one slow answer is not an outage and is not worth a notice that the next answer retracts.
       if (!quiet || ++quietFailures >= 2) readinessUnavailable = true;
       if (!quiet) error = err instanceof Error ? err.message : String(err);
-    } finally { if (!quiet) checking = false; checked = true; }
+      return false;
+    } finally { if (!quiet) checking = false; }
   }
 
   function go(id: string) {
@@ -132,6 +145,7 @@
   async function phoneEnrolled() {
     chosen = 'phone';
     phonePaired = true;
+    phonesFailed = false;
     try { app.onboarding = await api.setOnboardingStep('phone', 'done'); } catch { /* the phone is paired either way */ }
   }
 
@@ -168,11 +182,18 @@
     } catch (err) { error = err instanceof Error ? err.message : String(err); } finally { saving = false; }
   }
 
-  // Connecting GitHub (or undoing a skip) puts the example back on the GitHub path.
+  // Serialise related writes so a slower variant response cannot restore a skipped step.
+  let githubSyncing = false;
   $effect(() => {
-    if (githubDone && app.onboarding && app.onboarding.variant !== 'github') {
-      void api.setOnboardingVariant('github').then((o) => (app.onboarding = o), () => {});
-      if (stepStates.github) void api.setOnboardingStep('github', '').then((o) => (app.onboarding = o), () => {});
+    if (githubDone && app.onboarding && app.onboarding.variant !== 'github' && !githubSyncing) {
+      githubSyncing = true;
+      void (async () => {
+        try {
+          app.onboarding = await api.setOnboardingVariant('github');
+          if (app.onboarding.steps?.github) app.onboarding = await api.setOnboardingStep('github', '');
+        } catch (err) { error = err instanceof Error ? err.message : String(err); }
+        finally { githubSyncing = false; }
+      })();
     }
   });
 
@@ -184,13 +205,23 @@
     }
   });
 
+  const checkConnections = singleFlight(async () => {
+    await Promise.allSettled([
+      api.github().then(g => { github = g; githubFailed = false; }, err => { githubFailed = true; throw err; }).finally(() => { githubChecked = true; }),
+      api.phones().then(p => { phonePaired = p.length > 0; phonesFailed = false; }, err => { phonesFailed = true; throw err; }).finally(() => { phonesChecked = true; }),
+    ]);
+  });
+
+  async function reloadSetup() {
+    await awaitAll([recheck(), checkConnections(), exampleScope?.error ? exampleScope.load().catch(() => {}) : Promise.resolve()]);
+  }
+
   onMount(() => {
     app.onboardingPaused = false;
-    void recheck();
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') void recheck(true); }, 5000);
-    api.github().then((g) => (github = g), () => {}).finally(() => (githubChecked = true));
-    api.phones().then((p) => (phonePaired = p.length > 0), () => {}).finally(() => (phonesChecked = true));
-    const patience = setTimeout(() => (waitedLongEnough = true), 8000);
+    void reloadSetup();
+    const timer = setInterval(() => { if (document.visibilityState === 'visible' && !computerPending && !checking) void recheck(true); }, 5000);
+    // A slow response is still pending, never evidence that setup is ready.
+    const patience = setTimeout(() => (takingLonger = true), 8000);
     return () => { clearInterval(timer); clearTimeout(patience); };
   });
 
@@ -200,8 +231,8 @@
     error = '';
     try {
       // Recheck required capabilities immediately before recording completion.
-      await recheck();
-      if (!local.ready) { chosen = null; return; }
+      const verified = await recheck();
+      if (!verified || !local.ready) { chosen = null; return; }
       const skipped: string[] = [];
       if (!phonePaired) skipped.push('network');
       if (!githubDone) skipped.push('github');
@@ -240,7 +271,7 @@
   </Sheet>
 {/if}
 
-<div class="onboarding" inert={dialog !== null}>
+<div class="onboarding" inert={dialog !== null} aria-busy={!settled || checking || finishing}>
   <header class="welcome">
     <h2 class="title">Welcome to Werkbord</h2>
     {#if settled}
@@ -256,10 +287,28 @@
     </ol>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if initialError}<p class="error" role="alert">{initialError} <button class="btn small" onclick={() => void checkConnections()}>Retry connection checks</button></p>{/if}
   </header>
 
+  <details class="appearance">
+    <summary>Appearance · {STYLES.find(s => s.id === look.choice)?.label}</summary>
+    <div class="appearance-options">
+      <div class="seg" role="group" aria-label="Style">{#each STYLES as s (s.id)}<button type="button" aria-pressed={look.choice === s.id} onclick={() => look.set(s.id)}>{s.label}</button>{/each}</div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button type="button" aria-pressed={theme.choice === ''} onclick={() => theme.set('')}>Device</button>
+        <button type="button" aria-pressed={theme.choice === 'light'} onclick={() => theme.set('light')}>Light</button>
+        <button type="button" aria-pressed={theme.choice === 'dark'} onclick={() => theme.set('dark')}>Dark</button>
+      </div>
+    </div>
+  </details>
   {#if !settled}
-    <Settling label="Checking this computer…" items={checklist} testid="setup-loading" />
+    {#if (error || exampleScope?.error) && !checking}
+      <p role="alert">Setup could not be verified. Retry the checks to continue.</p>
+    {:else}
+    <Settling label={initialError || error || exampleScope?.error ? 'Setup checks need attention' : takingLonger ? 'Still checking this computer…' : 'Checking this computer…'} items={checklist} testid="setup-loading" />
+    {/if}
+    {#if exampleScope?.error}<p class="error" role="alert">{exampleScope.error}</p>{/if}
+    {#if takingLonger || initialError || error || exampleScope?.error}<div class="actions"><button class="btn" disabled={checking} onclick={() => void reloadSetup()}>Retry setup checks</button><button class="btn quiet" onclick={() => (dialog = 'pause')}>Pause setup…</button></div>{/if}
   {:else if completed}
     <section class="step-intro" use:acknowledge={{ value: completed, success: completed, fresh: true }} in:surface={{ duration: 180 }} aria-labelledby="setup-complete">
       <h2 id="setup-complete">You’re ready to use Werkbord</h2>
@@ -293,7 +342,7 @@
   <AgentsCard />
   {:else if current === 'github'}
   <p>Don’t have an account? <a href="https://github.com/signup" target="_blank" rel="noopener noreferrer">Create a GitHub account</a>, then return here to connect it.</p>
-  <GitHubCard known={github} skipped={stepStates.github === 'skipped'} onchange={(s) => (github = s)} />
+  <GitHubCard known={github} skipped={stepStates.github === 'skipped'} onchange={(s) => { github = s; githubFailed = false; }} />
   {:else if current === 'repository'}
   {#if githubDone}<CreateRepoCard {github} onadded={madeRepo} />{/if}
   <ReposCard {github} />
@@ -303,6 +352,7 @@
   <HelloFlow step={current as 'ticket' | 'assistant' | 'publish'} {variant} onstep={go} ondone={() => go('phone')} />
   {/if}
 
+  {#if settled && checking}<p class="muted" role="status">Checking this computer…</p>{/if}
   {#if settled && !completed}
   <nav class="actions" aria-label="Setup navigation">
     {#if previous}<button class="btn big" onclick={() => go(previous.id)}>Back</button>{/if}
@@ -328,6 +378,9 @@
 </div>
 
 <style>
+  .appearance { border-bottom: 1px solid var(--border); padding-block: 10px; }
+  .appearance summary { color: var(--text-2); font-size: 13px; }
+  .appearance-options { display: flex; flex-wrap: wrap; gap: 12px; padding-block: 12px; }
   .step-intro { display: grid; gap: 8px; padding-block: 12px; }
   .step-intro h2 { font-family: var(--font); font-size: 20px; font-weight: 600; text-transform: none; letter-spacing: -0.02em; color: var(--text); }
   .step-intro p { max-width: 68ch; }
@@ -340,7 +393,10 @@
     gap: 16px;
     max-width: 760px;
     margin: 0 auto;
-    padding-top: 12px;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
   }
 
   .welcome {
@@ -368,14 +424,16 @@
   .progress-label { font-size: 13px; font-weight: 500; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-  .progress .chip { cursor: pointer; min-height: 36px; }
-  .progress .chip[aria-current='step'] { border-color: var(--accent); }
+  .progress .chip { cursor: pointer; min-height: 36px; height: auto; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; font-family: var(--font); transition: background 120ms, border-color 120ms; }
+  .progress .chip[aria-current='step'] { border-color: var(--accent); background: var(--tint); color: var(--text); }
   .progress .chip[data-done='true'] { color: var(--text); }
   .progress .chip:disabled { opacity: 1; cursor: default; }
 
   .progress .dot[data-tone='neutral'] {
     opacity: 0.5;
   }
+
+  @media (max-width: 600px) { .onboarding { padding: 16px; } .actions .btn { flex: 1 1 auto; } }
 
   .big {
     min-height: 44px;

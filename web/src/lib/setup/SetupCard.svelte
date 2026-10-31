@@ -70,9 +70,9 @@
   }
 
   [data-status='done'] .mark {
-    background: var(--ok-text);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    color: var(--accent-text);
+    background: var(--surface-2);
+    box-shadow: none;
+    color: var(--ok-text);
   }
 
   [data-status='wait'] .pip {
@@ -82,7 +82,6 @@
   }
 
   .summary {
-    font-family: var(--mono);
     font-size: 12px;
     color: var(--text-2);
     overflow-wrap: anywhere;
@@ -94,4 +93,5 @@
     min-width: 0;
     font-size: 13px;
   }
+  @media (prefers-reduced-motion: reduce) { [data-status='wait'] .pip { animation: none; } }
 </style>

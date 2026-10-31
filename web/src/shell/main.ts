@@ -8,7 +8,7 @@ try {
   const choice = localStorage.getItem('werkbord.theme');
   if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
   const style = localStorage.getItem('werkbord.style');
-  if (style === 'graphite' || style === 'classic' || style === 'cloud') document.documentElement.dataset.style = style;
+  if (style === 'graphite' || style === 'classic' || style === 'cloud' || style === 'moss' || style === 'dune' || style === 'plum') document.documentElement.dataset.style = style;
 } catch { /* The operating system supplies the default theme. */ }
 // Salie once had a floating button and a choice of where to put it. It is in the sidebar only now; what they left here is of no use.
 try { for (const key of ['werkbord.shell.salie-placement', 'werkbord.shell.salie']) localStorage.removeItem(key); } catch { /* Nothing to remove. */ }

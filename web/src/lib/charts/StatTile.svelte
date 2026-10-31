@@ -16,9 +16,7 @@
   dt { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-2); font-size: 12px; font-weight: 500; }
   .tone { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
   dd { margin: 6px 0 0; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; overflow-wrap: anywhere; }
-  :global(:root[data-style='classic']) .tile { border-color: color-mix(in srgb, var(--tone) 38%, var(--border)); border-radius: var(--radius-tray); background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 11%, var(--surface)), var(--surface) 62%); }
-  :global(:root[data-style='classic']) .tone { display: none; }
-  :global(:root[data-style='classic']) dd { font-family: var(--mono); font-size: 26px; letter-spacing: 0; }
+
   small { margin-top: 2px; color: var(--text-2); font-size: 12px; line-height: 1.4; }
   .line { margin-top: auto; padding-top: 8px; }
 </style>

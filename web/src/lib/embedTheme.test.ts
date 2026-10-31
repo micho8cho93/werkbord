@@ -47,8 +47,8 @@ describe('the window telling a page the style', () => {
     const { w, say } = framed();
     const seen = vi.fn();
     onStyle(seen, w);
-    for (const style of ['paper', 'graphite', 'classic', 'cloud']) say({ type: 'werkbord.style', style });
-    expect(seen.mock.calls).toEqual([['paper'], ['graphite'], ['classic'], ['cloud']]);
+    for (const style of ['paper', 'graphite', 'classic', 'cloud', 'moss', 'dune', 'plum']) say({ type: 'werkbord.style', style });
+    expect(seen.mock.calls).toEqual([['paper'], ['graphite'], ['classic'], ['cloud'], ['moss'], ['dune'], ['plum']]);
   });
   it('ignores any other value, any other sender and any other message', () => {
     const { w, say } = framed();

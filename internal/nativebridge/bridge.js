@@ -151,7 +151,7 @@ export function onTheme(handler, w = globalThis.window) {
 }
 
 /**
- * Calls handler('paper' | 'graphite' | 'classic' | 'cloud') when the shell that framed this page says which style the person chose (the
+ * Calls handler('paper' | 'graphite' | 'classic' | 'cloud' | 'moss' | 'dune' | 'plum') when the shell that framed this page says which style the person chose (the
  * window's one sidebar is where it is chosen). Only the parent window is believed, and only those three words.
  */
 export function onStyle(handler, w = globalThis.window) {
@@ -159,7 +159,7 @@ export function onStyle(handler, w = globalThis.window) {
   const listener = (event) => {
     if (event.source !== w.parent) return;
     const m = event.data;
-    if (!m || m.type !== 'werkbord.style' || (m.style !== 'paper' && m.style !== 'graphite' && m.style !== 'classic' && m.style !== 'cloud')) return;
+    if (!m || m.type !== 'werkbord.style' || (m.style !== 'paper' && m.style !== 'graphite' && m.style !== 'classic' && m.style !== 'cloud' && m.style !== 'moss' && m.style !== 'dune' && m.style !== 'plum')) return;
     handler(m.style);
   };
   w.addEventListener('message', listener);

@@ -54,26 +54,29 @@ export const theme = new Theme();
 
 // The style is a second choice beside light or dark: how the interface is drawn, not which of its two colour modes shows.
 // Paper is the default (flat, warm ivory, cobalt and amber); Graphite is cool blue-grey with an ink primary and a teal accent;
-// Classic keeps the earlier raised buttons and cards; Cloud is white surfaces on a cool grey with a lavender accent. Each has its own palette in light and in dark. Remembered per device (public/theme.js applies it before the first paint), and in the
+// All styles share flat controls and unchanged icons. Each has a light and dark palette, remembered per device; in the
 // desktop window it is the window's, chosen in one place and told to every workspace, as the theme is.
 
 const STYLE_KEY = 'werkbord.style';
-export type StyleChoice = 'paper' | 'graphite' | 'classic' | 'cloud';
+export type StyleChoice = 'paper' | 'graphite' | 'classic' | 'cloud' | 'moss' | 'dune' | 'plum';
 export const STYLES: readonly { id: StyleChoice; label: string; about: string }[] = [
-  { id: 'paper', label: 'Paper', about: 'Flat and calm, on warm ivory with brown ink. The default.' },
-  { id: 'graphite', label: 'Graphite', about: 'Cool blue-greys, an ink primary and a teal accent.' },
-  { id: 'classic', label: 'Classic', about: 'The earlier raised buttons and cards, on cool paper.' },
+  { id: 'paper', label: 'Paper', about: 'Warm white and charcoal with restrained cobalt. The default.' },
+  { id: 'graphite', label: 'Graphite', about: 'Cool neutrals, an ink primary and a muted teal accent.' },
+  { id: 'classic', label: 'Classic', about: 'Clean white and cobalt, with flat controls.' },
+  { id: 'moss', label: 'Moss', about: 'Sage and forest green, calm and grounded.' },
+  { id: 'dune', label: 'Dune', about: 'Warm mineral neutrals and a clay accent.' },
+  { id: 'plum', label: 'Plum', about: 'Soft mauve and aubergine, with a restrained orchid accent.' },
   { id: 'cloud', label: 'Cloud', about: 'Clean white surfaces on a light cool grey, with a soft lavender accent.' },
 ];
 
 export function isStyle(value: unknown): value is StyleChoice {
-  return value === 'paper' || value === 'graphite' || value === 'classic' || value === 'cloud';
+  return value === 'paper' || value === 'graphite' || value === 'classic' || value === 'cloud' || value === 'moss' || value === 'dune' || value === 'plum';
 }
 
 function storedStyle(): StyleChoice {
   try {
     const s = localStorage.getItem(STYLE_KEY);
-    return s === 'graphite' || s === 'classic' || s === 'cloud' ? s : 'paper';
+    return s === 'graphite' || s === 'classic' || s === 'cloud' || s === 'moss' || s === 'dune' || s === 'plum' ? s : 'paper';
   } catch {
     return 'paper';
   }
