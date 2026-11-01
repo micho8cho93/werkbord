@@ -1,5 +1,6 @@
 <script lang="ts">
   import { blockingTasks } from '../lib/work-queue';
+  import { reworkBefore } from '../lib/work-steps';
   import ScheduleSheet from '../lib/task/ScheduleSheet.svelte';
   import { tick, untrack } from 'svelte';
   import Crumbs from '../lib/Crumbs.svelte';
@@ -382,8 +383,13 @@
           <h3>Waiting on</h3>
           <ul class="queue">
             {#each waiting as t (t.id)}
+              {@const rework = reworkBefore(t, scope.tasks, scope.latestRun)}
               <li>
                 <a href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}>{t.title}</a>
+                {#if rework.length}
+                  <p class="why risk" data-testid="at-risk"><Icon name="lock" size={12} /> At risk: held until {rework.map(r => `“${r.title}”`).join(', ')} {rework.length === 1 ? 'is' : 'are'} reworked. Its time does not move.</p>
+                  {#each rework as r (r.id)}<button class="dependency-link" onclick={() => editing = scope.tasks.find(d => d.id === r.id) ?? null}>Rework {r.title}</button>{/each}
+                {/if}
                 <p class="mm">Waits for successful completion:</p>
                 {#each blockingTasks(t, scope.tasks, scope.latestRun) as dep (dep.id)}
                   <button class="dependency-link" onclick={() => editing = scope.tasks.find(d => d.id === dep.id) ?? null}>{dep.title}</button>
@@ -801,6 +807,7 @@
     font-size: 12px;
     color: var(--text-2);
   }
+  .why.risk { display: flex; align-items: center; gap: 6px; color: var(--danger-text); font-weight: 600; }
 
   .empty-s {
     font-size: 13px;

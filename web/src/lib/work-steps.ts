@@ -20,6 +20,24 @@ export interface Step {
   next: string;
 }
 
+/**
+ * The tasks whose failed or stopped run is what keeps this task from starting, however far back along its dependencies they are.
+ * Such a task is held: nothing about it is stored, and it goes on by itself once the one before it has been run again and finished.
+ */
+export function reworkBefore(task: Task, tasks: readonly Task[], latest: Record<string, Run> = {}, seen = new Set<string>()): Task[] {
+  if (seen.has(task.id)) return [];
+  seen.add(task.id);
+  const out: Task[] = [];
+  for (const wait of blockingTasks(task, tasks as Task[], latest)) {
+    const upstream = tasks.find(t => t.id === wait.id);
+    if (!upstream) continue;
+    const r = latest[upstream.id];
+    if (r?.state === 'failed' || r?.state === 'stopped') out.push(upstream);
+    else for (const deeper of reworkBefore(upstream, tasks, latest, seen)) if (!out.includes(deeper)) out.push(deeper);
+  }
+  return out;
+}
+
 const clip = (s: string, n = 160) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
 /** The state of one task, for a plan's list or a task's own page. `tasks` is every task of the project; `latest` its latest runs. */
@@ -39,7 +57,12 @@ export function stepOf(task: Task | undefined, tasks: readonly Task[], latest: R
 
   if (run?.state === 'failed' || run?.state === 'stopped') {
     const why = run.reason ? clip(run.reason) : run.state === 'failed' ? 'The last run failed.' : 'The last run was stopped.';
-    return { kind: 'blocked', label: run.state === 'failed' ? 'Failed' : 'Stopped', reason: why, blockedBy: [], next: 'Look at the run' };
+    return { kind: 'blocked', label: run.state === 'failed' ? 'Failed' : 'Stopped', reason: `${why} Run it again to let the tasks after it go on.`, blockedBy: [], next: 'Look at the run' };
+  }
+  const rework = waits.length ? reworkBefore(task, tasks, latest) : [];
+  if (rework.length) {
+    const names = rework.map(t => `“${t.title}”`).join(', ');
+    return { kind: 'blocked', label: 'Held', reason: `Held until ${names} ${rework.length === 1 ? 'is' : 'are'} reworked and finished.`, blockedBy: waits, next: 'Open the task that needs rework' };
   }
   if (waits.length) {
     // A task a dependency cannot unblock (it failed, stopped, or is gone) is blocked; one whose dependencies are simply still in
@@ -85,7 +108,12 @@ export function progressOf(plan: Pick<WorkPlan, 'taskIds'>, tasks: readonly Task
   if (!total) { standing = 'empty'; label = 'No tasks yet'; }
   else if (done === total) { standing = 'complete'; label = 'Complete'; }
   else if (attention) { standing = 'attention'; label = attention === 1 ? 'Needs you' : `${attention} need you`; }
-  else if (blocked) { standing = 'blocked'; label = `${blocked} blocked`; }
+  else if (blocked) {
+    standing = 'blocked';
+    const held = steps.filter(s => s.step.label === 'Held').length;
+    const rework = steps.filter(s => s.step.label === 'Failed' || s.step.label === 'Stopped').length;
+    label = rework ? `${rework} need${rework === 1 ? 's' : ''} rework${held ? `, ${held} held` : ''}` : held ? `${held} held` : `${blocked} blocked`;
+  }
   else if (count('running')) { standing = 'running'; label = 'In progress'; }
   else { standing = 'ready'; label = done ? 'In progress' : 'Ready'; }
   return { total, done, standing, label, upNext };

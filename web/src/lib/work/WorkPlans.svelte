@@ -78,6 +78,17 @@
     assistant.draft = `Continue Work plan ${current.id} in project ${project.id}: ${current.title}. Read the plan and its tasks first${at ? `, then pick up at “${at}”` : ''}.`;
     assistant.show();
   }
+  /** A plan lists its tasks in order, but nothing makes a task wait for the one before it: each could start on its own. */
+  const unchained = $derived(!!current && current.taskIds.length > 1 && current.taskIds.slice(1).some((id, i) => {
+    const t = scope.tasks.find(x => x.id === id);
+    return !!t && t.state !== 'done' && !(t.orchestration?.dependencies ?? []).includes(current!.taskIds[i]);
+  }));
+  function chainWithSalie() {
+    if (!current) return;
+    if (window.parent !== window) { window.parent.postMessage({ type: 'werkbord.frame', event: 'work_salie', projectId: project.id, planId: current.id, ask: 'chain' }, '*'); return; }
+    assistant.draft = `Put the tasks of Work plan ${current.id} in project ${project.id} (${current.title}) in order, so each waits for the one before it.`;
+    assistant.show();
+  }
   const date = (at?: string) => at ? new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not recorded';
 </script>
 
@@ -113,6 +124,7 @@
         {@const next = progress.upNext}
         <p class="up-next"><span class="k">Up next</span><a href={taskHrefFor(next.id)}>{scope.tasks.find(t => t.id === next.id)?.title}</a><span class="muted">{next.step.label}{next.step.reason ? ` · ${next.step.reason}` : ''}</span></p>
       {/if}
+      {#if unchained}<p class="up-next unchained" data-testid="plan-unchained"><span class="k">Not in order</span><span>Each task here can start on its own. A failure would not hold up the ones after it.</span><button class="btn small" type="button" onclick={chainWithSalie}>Ask Salie to chain them</button></p>{/if}
       <div class="actions plan-actions">
         <button class="btn primary" onclick={continueWithSalie}>Continue with Salie</button>
         <button class="btn" onclick={() => edit(current)}><Icon name="edit" size={14} />Edit plan</button>

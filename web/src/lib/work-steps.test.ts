@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextAction, planOfTask, progressOf, stepOf } from './work-steps';
+import { nextAction, planOfTask, progressOf, reworkBefore, stepOf } from './work-steps';
 import { chainOf, pushed, withChain } from './origin';
 import { originHref } from './origin-nav';
 import type { Run, Task } from './types';
@@ -20,13 +20,22 @@ describe('a task says whether it is complete, running, ready, blocked or waiting
     expect(stepOf(tasks[3], tasks, latest)).toMatchObject({ kind: 'waiting', blockedBy: [{ id: 'b', title: 'Task b' }] });
     expect(stepOf(tasks[3], tasks, latest).reason).toContain('Task b');
     expect(stepOf(tasks[4], tasks, latest)).toMatchObject({ kind: 'review', next: 'Review' });
-    expect(stepOf(tasks[5], tasks, latest)).toMatchObject({ kind: 'blocked', label: 'Failed', reason: 'tests failed' });
+    expect(stepOf(tasks[5], tasks, latest)).toMatchObject({ kind: 'blocked', label: 'Failed', reason: expect.stringContaining('tests failed') });
+  });
+
+  it('holds every task after a failed one, however far along the chain, and lets go once it is reworked', () => {
+    const tasks = [task('a'), task('b', after('a')), task('c', after('b'))];
+    const failed = latestOf(run('a', { state: 'failed' }));
+    expect(stepOf(tasks[2], tasks, failed)).toMatchObject({ label: 'Held', blockedBy: [{ id: 'b', title: 'Task b' }] });
+    expect(stepOf(tasks[2], tasks, failed).reason).toContain('Task a');
+    expect(reworkBefore(tasks[2], tasks, failed).map(t => t.id)).toEqual(['a']);
+    expect(stepOf(tasks[2], tasks, latestOf(run('a', { state: 'running' }))).label).toBe('Waiting');
   });
 
   it('treats a dependency that failed, was stopped or is gone as a block, not a wait', () => {
     const tasks = [task('a', { state: 'doing' }), task('b', after('a')), task('c', after('missing'))];
     const failed = stepOf(tasks[1], tasks, latestOf(run('a', { state: 'failed' })));
-    expect(failed).toMatchObject({ kind: 'blocked', label: 'Blocked', next: 'Open the blocking task' });
+    expect(failed).toMatchObject({ kind: 'blocked', label: 'Held', next: 'Open the task that needs rework' });
     expect(failed.reason).toContain('Task a');
     expect(stepOf(tasks[2], tasks, {})).toMatchObject({ kind: 'blocked', blockedBy: [{ id: 'missing', title: 'Unavailable task' }] });
   });
@@ -67,7 +76,7 @@ describe('a plan shows its progress and where it stands', () => {
     const tasks = [task('a', { state: 'doing' }), task('b', { state: 'review' }), task('c', after('a'))];
     expect(progressOf(plan('a', 'b', 'c'), tasks, latestOf(run('a')))).toMatchObject({ standing: 'attention', label: 'Needs you' });
     const stuck = [task('a'), task('b', after('a'))];
-    expect(progressOf(plan('a', 'b'), stuck, latestOf(run('a', { state: 'failed' })))).toMatchObject({ standing: 'blocked', label: '2 blocked' });
+    expect(progressOf(plan('a', 'b'), stuck, latestOf(run('a', { state: 'failed' })))).toMatchObject({ standing: 'blocked', label: '1 needs rework, 1 held' });
   });
 
   it('finds the plan of a task, and a task with no plan has none', () => {

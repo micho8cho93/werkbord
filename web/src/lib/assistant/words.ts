@@ -88,6 +88,8 @@ export function operationTitle(op: string): string {
       return 'Start an agent';
     case 'import_work_batch':
       return 'Import into Work';
+    case 'chain_work_plan':
+      return 'Put tasks in order';
     case 'save_work_plan':
       return 'Save a plan';
     default:
@@ -111,6 +113,7 @@ export function operationFailureTitle(op: string): string {
     case 'answer_question': return 'Could not save the answer';
     case 'start_agent_run': return 'Could not start the agent';
     case 'import_work_batch': return 'Could not import into Work';
+    case 'chain_work_plan': return 'Could not put the tasks in order';
     default: return 'Could not complete this Salie step';
   }
 }

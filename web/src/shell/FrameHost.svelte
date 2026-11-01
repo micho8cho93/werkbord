@@ -69,8 +69,9 @@
       },
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
-      workSalie: (workspace, project, plan) => {
+      workSalie: (workspace, project, plan, ask) => {
         const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;
+        if (plan && ask === 'chain') return void model.explainCatchUp(`Put the tasks of Work plan ${plan} in project ${pid} in order, so each waits for the one before it. Read list_work_plans first, then use chain_work_plan.`);
         void model.explainCatchUp(plan ? `Help me edit Work plan ${plan} in project ${pid}. Read list_work_plans and the associated tasks first.` : `Help me organise work in project ${pid}. Read its tasks and plans first.`);
       },
       agentSession: (key, from) => { void model.openAgents(key, from ? parseChain(from) : []); },

@@ -715,3 +715,18 @@ The desktop shell keeps the assistant frame alive independently of its full-wind
 ## Native terminal tabs
 
 Native Claude Code and Codex terminals are opened and managed in **Agents**, no longer from Salie's New tab on a computer: Salie links to sessions and does not host a second terminal. They are independent of task execution and restricted assistant conversations, and a terminal can be standalone or for a task. See [Agent sessions](AGENT_SESSIONS.md) and [Native terminal sessions](NATIVE_TERMINALS.md) for execution boundaries, reconnection, PTY support, authentication and limits.
+
+## Importing and ordering work
+
+Three operations let Salie turn a planning conversation into structure in Work. All are Personal-board only and none starts an agent.
+
+- `import_work_batch`: several plans and all their tasks in one confirmation. With `chain` each task waits for the one before it in its
+  plan, and a plan with `after` waits for that plan's last task (plan order is carried by task dependencies; a plan stores none of its
+  own). Only earlier plans can be named, so nothing cycles. The same batch from the same session has the same idempotency key, so
+  confirming twice cannot make it twice. Work opens on the first new plan from the card.
+- `chain_work_plan`: puts an existing plan's tasks in order, adding only the missing links and keeping existing ones.
+- `check_work_structure` (read): tasks outside any plan, plans listed in order but not chained, undated tasks, failed tasks and the work
+  they hold. Salie calls it after plans or tasks are discussed or created and offers the fix it names, once.
+
+A failed or stopped task is shown as needing rework and the tasks after it as *Held* (`work-steps.ts`, derived, nothing stored). Their
+calendar times do not move; the Calendar marks them at risk. Running the failed task again and finishing it lets the held work go on.

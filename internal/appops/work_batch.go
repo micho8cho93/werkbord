@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"werkbord/internal/domain"
@@ -51,6 +52,10 @@ type BatchResult struct {
 }
 
 func workBatchOps() []*operation {
+	return append(append(workStructureOps(), importOp()...), chainOps()...)
+}
+
+func importOp() []*operation {
 	task := Object(map[string]*Schema{
 		"title":        Str("The task's title.", titleMax),
 		"description":  Str("What needs doing: the prompt or brief the task carries.", descMax),
@@ -258,4 +263,220 @@ func runWorkBatch(ctx context.Context, e *env, args map[string]any) (any, error)
 	}
 	out.Message = fmt.Sprintf("Imported %d %s with %d %s into Work.", len(out.PlanIDs), plural(len(out.PlanIDs), "plan", "plans"), len(out.TaskIDs), plural(len(out.TaskIDs), "task", "tasks"))
 	return &Changed{Message: out.Message, Batch: &out}, nil
+}
+
+// StructureFinding is one thing about how a project's work is organised that the person may want to settle.
+type StructureFinding struct {
+	Kind  string   `json:"kind"`
+	Count int      `json:"count"`
+	Tasks []string `json:"tasks,omitempty"`
+	Offer string   `json:"offer"`
+}
+
+func workStructureOps() []*operation {
+	return []*operation{{
+		Spec: Spec{Name: "check_work_structure", Title: "Check how the work is organised", Kind: KindRead, Permission: PermTicketsRead,
+			Description: "Look for loose ends in a project: tasks that belong to no plan, plans whose tasks are not in order, tasks with no dates, and failed tasks that hold up others. Call it when plans or tasks have just been discussed or created, and offer the person the fix it names. It changes nothing.",
+			Input:       Object(map[string]*Schema{"projectId": projectID}, "projectId")},
+		run: opCheckStructure,
+	}}
+}
+
+func opCheckStructure(ctx context.Context, e *env, a map[string]any) (any, error) {
+	pid := str(a, "projectId")
+	if _, err := e.b.Project(ctx, pid); err != nil {
+		return nil, err
+	}
+	tickets, err := e.b.Tickets(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	var plans []domain.WorkPlan
+	if b, ok := e.b.(WorkPlanBackend); ok {
+		if plans, err = b.WorkPlans(ctx, pid); err != nil {
+			return nil, err
+		}
+	}
+	active := map[string]domain.Task{}
+	for _, t := range tickets {
+		if t.ArchivedAt == nil && t.State != domain.TaskDone {
+			active[t.ID] = t
+		}
+	}
+	inPlan := map[string]bool{}
+	for _, p := range plans {
+		for _, id := range p.TaskIDs {
+			inPlan[id] = true
+		}
+	}
+	findings := []StructureFinding{}
+	add := func(f StructureFinding) {
+		if f.Count > 0 {
+			if len(f.Tasks) > 10 {
+				f.Tasks = f.Tasks[:10]
+			}
+			findings = append(findings, f)
+		}
+	}
+	var loose []string
+	for _, t := range active {
+		if !inPlan[t.ID] {
+			loose = append(loose, t.Title)
+		}
+	}
+	if len(plans) > 0 || len(loose) >= 3 {
+		sort.Strings(loose)
+		add(StructureFinding{Kind: "tasks_outside_plans", Count: len(loose), Tasks: loose, Offer: "Group them into a plan with save_work_plan, or leave them standing alone."})
+	}
+	var unchained []string
+	for _, p := range plans {
+		for i := 1; i < len(p.TaskIDs); i++ {
+			t, ok := active[p.TaskIDs[i]]
+			if ok && len(t.Orchestration.Dependencies) == 0 {
+				unchained = append(unchained, p.Title)
+				break
+			}
+		}
+	}
+	add(StructureFinding{Kind: "plans_without_order", Count: len(unchained), Tasks: unchained, Offer: "These plans list tasks in order but no task waits for the one before it. Offer to chain them (update the tasks' dependencies in Work, or import a fresh batch with chain true)."})
+	var undated []string
+	for _, t := range active {
+		if t.Plan.Start == "" && t.Plan.End == "" && t.Orchestration.ScheduledAt == nil {
+			undated = append(undated, t.Title)
+		}
+	}
+	sort.Strings(undated)
+	if len(inPlan) > 0 {
+		add(StructureFinding{Kind: "tasks_without_dates", Count: len(undated), Tasks: undated, Offer: "Ask whether to give them planned dates (update_ticket) or leave them undated; some people want to start right away."})
+	}
+	failedTask := map[string]bool{}
+	if ov, err := e.b.Overview(ctx); err == nil {
+		for _, r := range ov.Failed {
+			if r.Run.ProjectID == pid {
+				failedTask[r.Run.TaskID] = true
+			}
+		}
+	}
+	var held []string
+	for _, t := range active {
+		for _, d := range t.Orchestration.Dependencies {
+			if failedTask[d] {
+				held = append(held, t.Title)
+				break
+			}
+		}
+	}
+	sort.Strings(held)
+	var rework []string
+	for id := range failedTask {
+		if t, ok := active[id]; ok {
+			rework = append(rework, t.Title)
+		}
+	}
+	sort.Strings(rework)
+	add(StructureFinding{Kind: "needs_rework", Count: len(rework), Tasks: rework, Offer: "The last run of each failed or stopped. Offer to look at why, then to run it again (start_agent_run); work after it resumes by itself once it finishes."})
+	add(StructureFinding{Kind: "held_by_failure", Count: len(held), Tasks: held, Offer: "These wait on a task that failed. Their calendar times do not move; say so."})
+	return map[string]any{"projectId": pid, "findings": findings, "observedAt": e.now}, nil
+}
+
+func chainOps() []*operation {
+	return []*operation{{
+		Spec: Spec{Name: "chain_work_plan", Title: "Put a plan's tasks in order", Kind: KindMutation, Permission: PermTicketsUpdate, RequiresConfirmation: true,
+			Description: "Make each task in a Work plan wait for the one before it, in the plan's order, so a failed task holds up the ones after it. Existing dependencies are kept. The person confirms first. Read list_work_plans for the plan's id.",
+			Input:       Object(map[string]*Schema{"projectId": projectID, "planId": Str("The plan's id (from list_work_plans).", idMax)}, "projectId", "planId")},
+		AssistantOnly: true, plan: planChain, run: runChain,
+	}}
+}
+
+// chainChanges are the task edits that put a plan's tasks in order: only the links that are missing.
+func chainChanges(ctx context.Context, e *env, pid, planID string) (domain.WorkPlan, mcpplan.Plan, []string, error) {
+	b, ok := e.b.(WorkPlanBackend)
+	if !ok {
+		return domain.WorkPlan{}, mcpplan.Plan{}, nil, errorf(CodeUnavailable, "Work plans unavailable")
+	}
+	plans, err := b.WorkPlans(ctx, pid)
+	if err != nil {
+		return domain.WorkPlan{}, mcpplan.Plan{}, nil, err
+	}
+	var found *domain.WorkPlan
+	for i := range plans {
+		if plans[i].ID == planID {
+			found = &plans[i]
+		}
+	}
+	if found == nil {
+		return domain.WorkPlan{}, mcpplan.Plan{}, nil, domain.ErrNotFound
+	}
+	tickets, err := e.b.Tickets(ctx, pid)
+	if err != nil {
+		return domain.WorkPlan{}, mcpplan.Plan{}, nil, err
+	}
+	byID := map[string]domain.Task{}
+	for _, t := range tickets {
+		byID[t.ID] = t
+	}
+	out := mcpplan.Plan{ProjectID: pid}
+	var titles []string
+	for i := 1; i < len(found.TaskIDs); i++ {
+		t, okT := byID[found.TaskIDs[i]]
+		prev, okP := byID[found.TaskIDs[i-1]]
+		if !okT || !okP || t.ArchivedAt != nil || prev.ArchivedAt != nil {
+			continue
+		}
+		have := false
+		for _, d := range t.Orchestration.Dependencies {
+			have = have || d == prev.ID
+		}
+		if have {
+			continue
+		}
+		deps := append(append([]string{}, t.Orchestration.Dependencies...), prev.ID)
+		out.Tasks = append(out.Tasks, mcpplan.Change{TaskID: t.ID, Version: t.Version, Dependencies: &deps})
+		titles = append(titles, fmt.Sprintf("%q waits for %q", clip(t.Title, 60), clip(prev.Title, 60)))
+	}
+	return *found, out, titles, nil
+}
+
+func planChain(ctx context.Context, e *env, a map[string]any) (*plan, error) {
+	pid := str(a, "projectId")
+	if _, err := e.b.Project(ctx, pid); err != nil {
+		return nil, err
+	}
+	backend, ok := e.b.(TaskPlanBackend)
+	if !ok {
+		return nil, errorf(CodeUnavailable, "ordering tasks is not available here")
+	}
+	found, change, titles, err := chainChanges(ctx, e, pid, str(a, "planId"))
+	if err != nil {
+		return nil, err
+	}
+	if len(titles) == 0 {
+		return nil, fmt.Errorf("%w: every task in %q already waits for the one before it", domain.ErrConflict, found.Title)
+	}
+	change.IdempotencyKey = "chain_probe"
+	if _, err := backend.PreviewMCPTaskPlan(ctx, change); err != nil {
+		return nil, err
+	}
+	return &plan{Args: map[string]any{"projectId": pid, "planId": found.ID}, Summary: "Put the tasks of " + found.Title + " in order:\n  " + strings.Join(titles, "\n  ")}, nil
+}
+
+func runChain(ctx context.Context, e *env, a map[string]any) (any, error) {
+	backend, ok := e.b.(TaskPlanBackend)
+	if !ok {
+		return nil, errorf(CodeUnavailable, "ordering tasks is not available here")
+	}
+	pid := str(a, "projectId")
+	found, change, titles, err := chainChanges(ctx, e, pid, str(a, "planId"))
+	if err != nil {
+		return nil, err
+	}
+	if len(titles) == 0 {
+		return &Changed{Message: "Already in order."}, nil
+	}
+	sum := sha256.Sum256([]byte(e.p.ID + "|chain|" + found.ID + "|" + strings.Join(titles, "|")))
+	change.IdempotencyKey = "chain_" + hex.EncodeToString(sum[:12])
+	if _, err := backend.ApplyMCPTaskPlan(ctx, e.p.ID, change); err != nil {
+		return nil, err
+	}
+	return &Changed{Message: fmt.Sprintf("Put %d tasks of %q in order.", len(titles), found.Title)}, nil
 }

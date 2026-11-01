@@ -77,7 +77,14 @@ func TestSalieImportsAChainedBatchWithOneConfirmation(t *testing.T) {
 		t.Fatal(err)
 	}
 	plans, _ := f.tasks.WorkPlans(bg, project.ID)
-	if len(plans) != 2 || len(plans[0].TaskIDs) != 3 || len(plans[1].TaskIDs) != 2 {
+	if len(plans) != 2 {
+		t.Fatalf("plans: %+v", plans)
+	}
+	// Plans made in the same instant come back in no promised order.
+	if plans[0].Title != "UI" {
+		plans[0], plans[1] = plans[1], plans[0]
+	}
+	if len(plans[0].TaskIDs) != 3 || len(plans[1].TaskIDs) != 2 {
 		t.Fatalf("plans: %+v", plans)
 	}
 	byID := map[string]domain.Task{}
@@ -97,5 +104,61 @@ func TestSalieImportsAChainedBatchWithOneConfirmation(t *testing.T) {
 	if _, err := f.call(p, "import_work_batch", map[string]any{"projectId": project.ID, "chain": true, "plans": []any{
 		map[string]any{"title": "A", "after": "B", "tasks": []any{map[string]any{"title": "x"}}}, map[string]any{"title": "B", "tasks": []any{map[string]any{"title": "y"}}}}}); err == nil {
 		t.Fatal("a plan was allowed to come after one that follows it")
+	}
+}
+
+func TestCheckWorkStructureNamesLooseEnds(t *testing.T) {
+	f := newFx(t)
+	project := f.project("Delivery")
+	p := f.session("ast_structure")
+	a, _ := f.tasks.Create(bg, project.ID, "Design", "")
+	b, _ := f.tasks.Create(bg, project.ID, "Build", "")
+	if _, err := f.tasks.Create(bg, project.ID, "Stray", ""); err != nil {
+		t.Fatal(err)
+	}
+	pending := f.mustCall(p, "save_work_plan", map[string]any{"projectId": project.ID, "title": "Ship", "description": "", "taskIds": []string{a.ID, b.ID}, "decisions": "", "questions": "", "version": 0})
+	if _, err := f.confirm(p, pending.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	res := f.mustCall(p, "check_work_structure", map[string]any{"projectId": project.ID})
+	raw, _ := json.Marshal(res.Data)
+	for _, want := range []string{"tasks_outside_plans", "Stray", "plans_without_order", "tasks_without_dates"} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}
+
+func TestSalieChainsAnExistingPlan(t *testing.T) {
+	f := newFx(t)
+	project := f.project("Delivery")
+	p := f.session("ast_chain")
+	a, _ := f.tasks.Create(bg, project.ID, "One", "")
+	b, _ := f.tasks.Create(bg, project.ID, "Two", "")
+	c, _ := f.tasks.Create(bg, project.ID, "Three", "")
+	saved := f.mustCall(p, "save_work_plan", map[string]any{"projectId": project.ID, "title": "Ship", "description": "", "taskIds": []string{a.ID, b.ID, c.ID}, "decisions": "", "questions": "", "version": 0})
+	if _, err := f.confirm(p, saved.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	plans, _ := f.tasks.WorkPlans(bg, project.ID)
+	pending := f.mustCall(p, "chain_work_plan", map[string]any{"projectId": project.ID, "planId": plans[0].ID})
+	if pending.Pending == nil || !strings.Contains(pending.Pending.Summary, `"Two" waits for "One"`) {
+		t.Fatalf("%+v", pending)
+	}
+	if _, err := f.confirm(p, pending.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]domain.Task{}
+	for _, task := range f.tickets(project.ID) {
+		byID[task.ID] = task
+	}
+	if d := byID[b.ID].Orchestration.Dependencies; len(d) != 1 || d[0] != a.ID {
+		t.Fatalf("two: %v", d)
+	}
+	if d := byID[c.ID].Orchestration.Dependencies; len(d) != 1 || d[0] != b.ID {
+		t.Fatalf("three: %v", d)
+	}
+	if _, err := f.call(p, "chain_work_plan", map[string]any{"projectId": project.ID, "planId": plans[0].ID}); err == nil {
+		t.Fatal("offered to chain a plan that is already in order")
 	}
 }
