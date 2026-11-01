@@ -23,7 +23,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     summary: 'Connect Werkbord to an external MCP server so Salie or coding agents can use its tools.',
     example: 'A notes service supplies an MCP URL. Add it in Settings, test it, then choose who may use its tools.',
     steps: [
-      'Open Settings → Connections → MCP services. Paste the service’s single-server MCP JSON configuration, or choose Add connection and enter its URL or local executable. Use the authentication method that service documents.',
+      'Open Settings → Connections → MCP services. Paste the service’s single-server MCP JSON configuration, or choose Add connection and pick a service from the list (Linear, Jira and Confluence, Notion, Sentry, Figma, Trello, Supabase, GitHub), or choose Add your own and enter its URL or local executable. Use the authentication method that service documents.',
       'Review the imported fields and save. Test and discover checks the server and lists its tools; OAuth opens sign-in if required.',
       'Enable the connection and choose Salie or Coding agents. Review each tool’s permission before use.',
     ],

@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { api } from './api';
   import { importConnection } from './mcp-setup';
+  import { CONNECTOR_REQUEST_URL, isAdded, MCP_CATALOG, type CatalogService } from './mcp-catalog';
+  import Sheet from './Sheet.svelte';
   import type { MCPConnection, MCPContextPolicy } from './types';
 
   type Draft = {
@@ -27,6 +29,9 @@
   let connections = $state<MCPConnection[]>([]);
   let loading = $state(true);
   let editing = $state(false);
+  // Choosing what to connect: a catalog of services, then the same form every connection goes through.
+  let picking = $state(false);
+  let presetNote = $state('');
   let draft = $state<Draft>(emptyDraft());
   let busy = $state(false);
   let testing = $state('');
@@ -44,14 +49,20 @@
     finally { loading = false; }
   }
 
-  function startNew() { draft = emptyDraft(); editing = true; error = ''; notice = ''; }
+  function startNew() { draft = emptyDraft(); editing = true; picking = false; presetNote = ''; error = ''; notice = ''; }
+  /** A service from the catalog fills the form in; nothing is saved, signed in to or enabled until the person goes on. */
+  function pick(service: CatalogService) {
+    draft = { ...emptyDraft(), name: service.name, transport: 'streamable_http', url: service.url, authMode: service.auth };
+    presetNote = service.note ?? (service.auth === 'oauth' ? `Save it, then choose Test and discover: ${service.name}’s own sign-in page opens.` : '');
+    editing = true; picking = false; error = ''; notice = '';
+  }
   function edit(c: MCPConnection) {
     draft = {
       id: c.id, name: c.name, transport: c.transport, command: c.command ?? '', args: (c.args ?? []).join('\n'), url: c.url ?? '',
       environment: Object.entries(c.environment ?? {}).map(([child, source]) => `${child}=${source}`).join('\n'),
       authMode: c.authMode ?? 'none', authEnv: c.authEnv ?? '', bearerToken: '',
     };
-    editing = true; error = ''; notice = '';
+    editing = true; presetNote = ''; error = ''; notice = '';
   }
 
   async function save(e: SubmitEvent) {
@@ -70,7 +81,7 @@
         args: draft.args.split(/\r?\n/).filter((x) => x.length > 0), url: draft.url.trim(), environment,
         authMode: draft.authMode, authEnv: draft.authEnv.trim(), bearerToken: draft.bearerToken,
       });
-      put(c); editing = false; notice = 'Connection saved. It is disabled until you enable it.';
+      put(c); editing = false; presetNote = ''; notice = c.authMode === 'oauth' ? 'Connection saved. Choose Test and discover to sign in; it stays disabled until you enable it.' : 'Connection saved. It is disabled until you enable it.';
     } catch (err) { error = err instanceof Error ? err.message : String(err); }
     finally { busy = false; }
   }
@@ -160,6 +171,7 @@
   {#if editing}
     <form class="editor" onsubmit={save}>
       <h4>{draft.id ? 'Edit connection' : 'Add an MCP connection'}</h4>
+      {#if presetNote}<p class="note preset" data-testid="catalog-note">{presetNote}</p>{/if}
       <label><span>Name</span><input class="input" bind:value={draft.name} maxlength="100" required /></label>
       <label><span>Connection type</span>
         <select class="select" value={draft.transport} onchange={(e) => transportChanged(e.currentTarget.value as Draft['transport'])}>
@@ -202,7 +214,7 @@
       </div>
     </form>
   {:else}
-    <div class="row"><button class="btn primary" onclick={startNew}>Add connection</button></div>
+    <div class="row"><button class="btn primary" onclick={() => (picking = true)} aria-haspopup="dialog">Add connection</button></div>
   {/if}
 
   {#if loading}
@@ -269,7 +281,48 @@
   {/if}
 </section>
 
+{#if picking}
+  <Sheet title="Connect a service" onclose={() => (picking = false)} width="44rem">
+    <p class="muted catalog-lede">Choose a service. Werkbord fills in the connection for you to review: nothing is saved, signed in to or turned on until you say so, and the first time an agent wants to change something it asks you.</p>
+    <ul class="catalog" aria-label="Services">
+      {#each MCP_CATALOG as service (service.id)}
+        {@const added = isAdded(service, connections.map(c => c.url))}
+        <li>
+          <button type="button" class="tile" data-catalog={service.id} disabled={added} onclick={() => pick(service)}>
+            <span class="mono-mark" aria-hidden="true">{service.name.slice(0, 1)}</span>
+            <strong>{service.name}</strong>
+            <span class="about">{service.about}</span>
+            <span class="how" data-added={added || undefined}>{added ? 'Already added' : service.auth === 'oauth' ? 'Sign in with its own page' : 'Access token'}</span>
+          </button>
+        </li>
+      {/each}
+      <li>
+        <button type="button" class="tile own" data-catalog="custom" onclick={startNew}>
+          <span class="mono-mark" aria-hidden="true">+</span>
+          <strong>Add your own</strong>
+          <span class="about">Any MCP server: a hosted service by its address, or one on this computer by its command.</span>
+          <span class="how">Enter details</span>
+        </button>
+      </li>
+    </ul>
+    <p class="note">Don’t see yours? <a href={CONNECTOR_REQUEST_URL} target="_blank" rel="noopener noreferrer">Request a connector</a> (opens a public page you write yourself; Werkbord sends nothing on its own).</p>
+  </Sheet>
+{/if}
+
 <style>
+  .catalog-lede { margin: 0 0 14px; font-size: 13px; line-height: 1.5; }
+  .catalog { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: 10px; }
+  .tile { display: grid; grid-template-rows: auto auto 1fr auto; justify-items: start; gap: 4px; width: 100%; height: 100%; padding: 14px; border: 1px solid var(--edge-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background-color 120ms; }
+  .tile:hover:not(:disabled) { background: var(--hover); }
+  .tile:disabled { opacity: .6; cursor: default; }
+  .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tile strong { font-size: 14px; font-weight: 600; }
+  .tile .about { font-size: 12px; line-height: 1.45; color: var(--text-2); }
+  .tile .how { margin-top: 6px; font-size: 12px; color: var(--text-2); }
+  .tile .how[data-added] { color: var(--ok-text); }
+  .mono-mark { display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 6px; border-radius: 8px; background: var(--tray); border: 1px solid var(--tray-edge); font-size: 16px; font-weight: 600; }
+  .tile.own { border-style: dashed; }
+  .preset { margin: 0; }
   h4 { margin: 0; font-size: 14px; font-weight: 600; }
   .setup-help { margin-block: 12px; }
   .setup-help summary { cursor: pointer; min-height: 44px; }

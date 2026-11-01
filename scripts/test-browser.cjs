@@ -82,7 +82,7 @@ async function cleanup() {
     // One script, for working on a single screen: BROWSER_SCRIPT=scripts/browser-phone-fit.cjs node scripts/test-browser.cjs
     if (process.env.BROWSER_SCRIPT) { run(process.execPath, [process.env.BROWSER_SCRIPT], testEnv); return; }
     if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv); return; }
-    if (process.env.BROWSER_MCP_ONLY === '1') { run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv); return; }
+    if (process.env.BROWSER_MCP_ONLY === '1') { run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv); run(process.execPath, ['scripts/browser-connections-catalog.cjs'], testEnv); return; }
     if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); run(process.execPath, ['scripts/browser-plan-time.cjs'], testEnv); return; }
     if (process.env.BROWSER_CONTROLS_ONLY === '1') { run(process.execPath, ['scripts/browser-controls.cjs'], testEnv); return; }
     if (process.env.BROWSER_INITIATIVES_ONLY === '1') { run(process.execPath, ['scripts/browser-initiatives.cjs'], testEnv); return; }

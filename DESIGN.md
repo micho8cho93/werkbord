@@ -165,6 +165,12 @@ A native project dropdown above the destinations offers All Projects, then Perso
 by ownership. Team options include their workspace name; offline and unavailable contexts remain explicit.
 Scope persists across destinations, and All Projects includes only accessible workspace projections.
 
+**Connections** (Settings → MCP services): *Add connection* opens a catalog of hosted MCP servers (`lib/mcp-catalog.ts`), as tiles, plus *Add your
+own*. Choosing one only fills in the connection form: it is saved disabled, its tools start at "ask first", sign-in happens on the service's
+own page when it is tested, and credentials stay with the controller. The list holds only servers each company runs itself and whose
+address was checked; one that needs an app of your own (Slack) or limits which programs may connect (Vercel) is added by hand. A
+service that is not listed is requested through a public issue the person writes: Werkbord reports nothing about which services are wanted.
+
 **Calendar** (across projects, and a work project's own) opens on the month: whole weeks, a day's items as chips with a bar in
 their project's colour, the time of day first when there is one, items with no time above those with one, and "N more" for a
 crowded day. Week and List are the other views; a window narrower than 700px opens on List, where a month is too cramped to
