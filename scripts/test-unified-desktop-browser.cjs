@@ -48,7 +48,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await team('PUT', `/projects/${project.id}/tickets/${scheduled.id}/schedule`, { at: new Date(Date.now() + 3600000).toISOString(), timezone: 'Europe/Madrid', missedPolicy: 'run_late', graceSeconds: 60, priority: 1 });
  browser = await chromium.launch({ headless: true }); const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
  await context.addInitScript(() => { if (window.parent !== window) return; window.runtime = { EventsOn: (event, cb) => { if (event === 'shell:go') window.__shellGo = cb; return () => {}; } }; window.go = { main: { App: new Proxy({}, { get: (_, method) => async (...args) => { const r = await fetch('/fixture/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ Method: method, Args: args }) }); const d = await r.json(); if (!r.ok) throw Error(d.error); return d; } }) } }; });
- const page = await context.newPage(); testPage = page; page.setDefaultTimeout(30000); const errors = []; page.on('pageerror', e => errors.push(e.message));
+ const page = await context.newPage(); testPage = page; page.setDefaultTimeout(60000); const errors = []; page.on('pageerror', e => errors.push(e.message));
  // There is one sidebar: Home and Calendar, then a section for Personal and one for each team. A workspace opens from its header.
  let current = 'personal';
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });

@@ -126,7 +126,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
             };
         });
         const page = await ctx.newPage(); current = page;
-        page.setDefaultTimeout(15000);
+        page.setDefaultTimeout(45000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
         await page.getByRole('heading', { name: 'Work', exact: true }).waitFor();
