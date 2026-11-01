@@ -37,5 +37,10 @@ export function isAdded(service: CatalogService, urls: readonly (string | undefi
   return urls.some(u => !!u && key(u) === key(service.url));
 }
 
+/** The catalog service a saved connection is, by its address, if it is one (so its mark can be shown beside it). */
+export function serviceFor(url: string | undefined): CatalogService | undefined {
+  return url ? MCP_CATALOG.find(s => isAdded(s, [url])) : undefined;
+}
+
 /** Where a request for a service that is not listed goes: a public issue the person writes themselves, so nothing is sent for them. */
 export const CONNECTOR_REQUEST_URL = 'https://github.com/micho8cho93/werkbord/issues/new?title=' + encodeURIComponent('Connector request: ');

@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { api } from './api';
   import { importConnection } from './mcp-setup';
-  import { CONNECTOR_REQUEST_URL, isAdded, MCP_CATALOG, type CatalogService } from './mcp-catalog';
+  import { CONNECTOR_REQUEST_URL, isAdded, MCP_CATALOG, serviceFor, type CatalogService } from './mcp-catalog';
+  import BrandMark from './BrandMark.svelte';
   import Sheet from './Sheet.svelte';
   import type { MCPConnection, MCPContextPolicy } from './types';
 
@@ -171,7 +172,7 @@
   {#if editing}
     <form class="editor" onsubmit={save}>
       <h4>{draft.id ? 'Edit connection' : 'Add an MCP connection'}</h4>
-      {#if presetNote}<p class="note preset" data-testid="catalog-note">{presetNote}</p>{/if}
+      {#if presetNote}<p class="note preset" data-testid="catalog-note">{#if serviceFor(draft.url)}<BrandMark id={serviceFor(draft.url)!.id} name={serviceFor(draft.url)!.name} size={22} />{/if}{presetNote}</p>{/if}
       <label><span>Name</span><input class="input" bind:value={draft.name} maxlength="100" required /></label>
       <label><span>Connection type</span>
         <select class="select" value={draft.transport} onchange={(e) => transportChanged(e.currentTarget.value as Draft['transport'])}>
@@ -227,7 +228,7 @@
         <li>
           <div class="connection-head">
             <div class="name-block">
-              <h4>{c.name}</h4>
+              <h4>{#if serviceFor(c.url)}<BrandMark id={serviceFor(c.url)!.id} name={serviceFor(c.url)!.name} size={22} />{/if}{c.name}</h4>
               <span class="mono muted">{c.transport === 'stdio' ? `${c.command ?? ''} ${(c.args ?? []).join(' ')}` : c.url}</span>
               <span class="status" data-tone={c.enabled ? 'ok' : 'neutral'}>{c.enabled ? 'Enabled' : 'Disabled'}</span>
             </div>
@@ -289,7 +290,7 @@
         {@const added = isAdded(service, connections.map(c => c.url))}
         <li>
           <button type="button" class="tile" data-catalog={service.id} disabled={added} onclick={() => pick(service)}>
-            <span class="mono-mark" aria-hidden="true">{service.name.slice(0, 1)}</span>
+            <BrandMark id={service.id} name={service.name} />
             <strong>{service.name}</strong>
             <span class="about">{service.about}</span>
             <span class="how" data-added={added || undefined}>{added ? 'Already added' : service.auth === 'oauth' ? 'Sign in with its own page' : 'Access token'}</span>
@@ -322,8 +323,8 @@
   .tile .how[data-added] { color: var(--ok-text); }
   .mono-mark { display: grid; place-items: center; width: 34px; height: 34px; margin-bottom: 6px; border-radius: 8px; background: var(--tray); border: 1px solid var(--tray-edge); font-size: 16px; font-weight: 600; }
   .tile.own { border-style: dashed; }
-  .preset { margin: 0; }
-  h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .preset { margin: 0; display: flex; align-items: center; gap: 10px; }
+  h4 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .setup-help { margin-block: 12px; }
   .setup-help summary { cursor: pointer; min-height: 44px; }
   .import-field { display: grid; gap: 6px; margin-bottom: 10px; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONNECTOR_REQUEST_URL, isAdded, MCP_CATALOG } from './mcp-catalog';
+import { CONNECTOR_REQUEST_URL, isAdded, MCP_CATALOG, serviceFor } from './mcp-catalog';
 
 describe('the connection catalog', () => {
   it('lists five to ten services, each once', () => {
@@ -31,5 +31,11 @@ describe('the connection catalog', () => {
   });
   it('asks for a request through a public page the person writes', () => {
     expect(new URL(CONNECTOR_REQUEST_URL).hostname).toBe('github.com');
+  });
+  it('names the service a saved connection is, so its mark can be shown, and nothing for one of the person\'s own', () => {
+    expect(serviceFor('https://mcp.notion.com/mcp')?.id).toBe('notion');
+    expect(serviceFor('https://mcp.supabase.com/mcp?read_only=false')?.id).toBe('supabase');
+    expect(serviceFor('https://mine.example/mcp')).toBeUndefined();
+    expect(serviceFor(undefined)).toBeUndefined();
   });
 });
