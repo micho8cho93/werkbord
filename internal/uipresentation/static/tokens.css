@@ -152,21 +152,21 @@
 }
 
 
-/* Seven palettes; Paper is the fallback. Geometry, iconography and motion are shared. */
+/* Seven palettes; Classic is the fallback (no data-style). Geometry, iconography and motion are shared. */
 
 :root:not([data-style]) {
-  --bg: #fbf9f4;
-  --surface: #fffdf9;
-  --surface-2: #f2efe8;
-  --border: #e7e2d8;
-  --text: #25231f;
-  --text-2: #68645d;
-  --accent: #375dd6;
-  --pri-fill: #292824;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f6f8;
+  --border: #e5e7eb;
+  --text: #202329;
+  --text-2: #656b75;
+  --accent: #3458d4;
+  --pri-fill: #3458d4;
   --pri-text: #ffffff;
   --accent-text: #ffffff;
-  --tint: #f2efe8;
-  --ground: #fbf9f4;
+  --tint: #f5f6f8;
+  --ground: #ffffff;
   --ok-text: #1f6e3e;
   --warn-text: #86580e;
   --danger-text: #a8322c;
@@ -174,18 +174,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-style]):not([data-theme='light']) {
-  --bg: #1d1b18;
-  --surface: #23211d;
-  --surface-2: #292620;
-  --border: #38342d;
-  --text: #eee9df;
-  --text-2: #b7b0a3;
-  --accent: #9aabf2;
-  --pri-fill: #eee9df;
-  --pri-text: #1d1b18;
+  --bg: #17191e;
+  --surface: #1f2229;
+  --surface-2: #282d36;
+  --border: #333844;
+  --text: #eceff6;
+  --text-2: #acb4c6;
+  --accent: #9aacff;
+  --pri-fill: #a4b3ff;
+  --pri-text: #17191e;
   --accent-text: #17191e;
-  --tint: #292620;
-  --ground: #1d1b18;
+  --tint: #282d36;
+  --ground: #17191e;
   --ok-text: #8acba0;
   --warn-text: #e4b976;
   --danger-text: #ffaaa4;
@@ -193,18 +193,18 @@
 }
 
 :root:not([data-style])[data-theme='dark'] {
-  --bg: #1d1b18;
-  --surface: #23211d;
-  --surface-2: #292620;
-  --border: #38342d;
-  --text: #eee9df;
-  --text-2: #b7b0a3;
-  --accent: #9aabf2;
-  --pri-fill: #eee9df;
-  --pri-text: #1d1b18;
+  --bg: #17191e;
+  --surface: #1f2229;
+  --surface-2: #282d36;
+  --border: #333844;
+  --text: #eceff6;
+  --text-2: #acb4c6;
+  --accent: #9aacff;
+  --pri-fill: #a4b3ff;
+  --pri-text: #17191e;
   --accent-text: #17191e;
-  --tint: #292620;
-  --ground: #1d1b18;
+  --tint: #282d36;
+  --ground: #17191e;
   --ok-text: #8acba0;
   --warn-text: #e4b976;
   --danger-text: #ffaaa4;
@@ -601,3 +601,66 @@
   --warn-text: #e4b976;
   --danger-text: #ffaaa4;
 }
+
+/*
+ * The surface ladder and the type scale. Derived from each palette's own colours, so every style, light and dark, gets it
+ * and a new palette needs nothing extra. web/src/lib/contrast.test.ts mixes these the same way and checks text on every rung.
+ *
+ *   frame    the window around the work: the sidebar and the edge of the page
+ *   bg       the page
+ *   tray     a recessed ground that holds a group of cards; cards on it read as one group
+ *   surface  a card or a panel, on the page or on a tray
+ *
+ * Recess is mixed toward --shade: ink in light, black in dark. A tray tinted by what it holds (work, ask, block, ok) is for
+ * what deserves attention; a plain tray only groups. Trays do not nest.
+ */
+:root {
+  --shade: var(--text);
+  --depth-frame: 96%;
+  --depth-tray: 97.5%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --shade: #000000;
+    --depth-frame: 50%;
+    --depth-tray: 72%;
+  }
+}
+
+:root[data-theme='dark'] {
+  --shade: #000000;
+  --depth-frame: 50%;
+  --depth-tray: 72%;
+}
+
+:root {
+  --frame: color-mix(in srgb, var(--bg) var(--depth-frame), var(--shade));
+  --tray: color-mix(in srgb, var(--bg) var(--depth-tray), var(--shade));
+  --tray-edge: color-mix(in srgb, var(--border) 82%, var(--shade));
+  --tray-work: color-mix(in srgb, var(--accent) 6%, var(--bg));
+  --tray-ask: color-mix(in srgb, var(--amber) 11%, var(--bg));
+  --tray-block: color-mix(in srgb, var(--block) 6%, var(--bg));
+  --tray-ok: color-mix(in srgb, var(--ok) 7%, var(--bg));
+  --tray-work-edge: color-mix(in srgb, var(--accent) 28%, var(--border));
+  --tray-ask-edge: color-mix(in srgb, var(--amber) 42%, var(--border));
+  --tray-block-edge: color-mix(in srgb, var(--block) 30%, var(--border));
+  --tray-ok-edge: color-mix(in srgb, var(--ok) 30%, var(--border));
+  /* Controls and cards that must read as objects, not as a faint hairline. */
+  --edge-strong: color-mix(in srgb, var(--border) 62%, var(--text));
+  --hover: color-mix(in srgb, var(--text) 5.5%, var(--surface));
+  --selected: color-mix(in srgb, var(--accent) 11%, var(--surface));
+  --panel-sh: -14px 0 28px -18px rgba(10, 12, 20, 0.28);
+
+  /* Six steps of the scale; a page title, a section, an item, and the small print. */
+  --fs-page: 24px;
+  --fs-section: 16px;
+  --fs-item: 14px;
+  --fs-body: 13px;
+  --fs-meta: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --panel-sh: -14px 0 28px -18px rgba(0, 0, 0, 0.7); }
+}
+:root[data-theme='dark'] { --panel-sh: -14px 0 28px -18px rgba(0, 0, 0, 0.7); }

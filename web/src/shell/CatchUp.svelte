@@ -24,7 +24,7 @@
 </script>
 
 <section class="catchup" aria-labelledby="catchup-title">
-  <div class="heading"><h2 id="catchup-title">Since you were last here</h2>{#if previous}<span class="muted">{elapsed === 0 ? 'Earlier today' : `${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}</span>{/if}</div>
+  <div class="heading"><h2 id="catchup-title" class="section-title">Since you were last here</h2>{#if previous}<span class="muted">{elapsed === 0 ? 'Earlier today' : `${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}</span>{/if}</div>
   {#if explanationError}<p role="alert">{explanationError}</p>{/if}
   {#if !previous}<p class="muted">Your next visit will show what changed while you were away.</p>
   {:else if result}

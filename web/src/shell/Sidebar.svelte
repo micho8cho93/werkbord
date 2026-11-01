@@ -95,12 +95,12 @@
 </nav>
 
 <style>
-  .side { width: 224px; flex: none; height: 100%; display: flex; flex-direction: column; gap: 20px; padding: 20px 14px 16px; background: var(--bg); border-right: 1px solid var(--border); overflow: hidden auto; transition: width 220ms var(--ease), padding 220ms var(--ease); }
+  .side { width: 224px; flex: none; height: 100%; display: flex; flex-direction: column; gap: 20px; padding: 20px 14px 16px; background: var(--frame); overflow: hidden auto; transition: width 220ms var(--ease), padding 220ms var(--ease); }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 32px; }
   .body { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px; border: 0; background: transparent; color: var(--text); cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; }
   .fold { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); cursor: pointer; transition: background 120ms, color 120ms; }
-  .fold:hover { background: var(--surface-2); color: var(--text); }
+  .fold:hover { background: color-mix(in srgb, var(--text) 6%, var(--frame)); color: var(--text); }
   .project-picker { display: block; min-width: 0; position: relative; }
   .picker-icon { display: none; }
   select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; text-overflow: ellipsis; transition: border-color 120ms; }
@@ -108,10 +108,10 @@
   .destinations { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .nav { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; white-space: nowrap; transition: background 120ms, color 120ms, transform 160ms var(--ease); }
   .nav :global(svg) { transition: transform 200ms var(--ease); }
-  .nav:hover { background: var(--surface-2); color: var(--text); }
+  .nav:hover { background: color-mix(in srgb, var(--text) 6%, var(--frame)); color: var(--text); }
   .nav:hover :global(svg) { transform: scale(1.1); }
   .nav:active { transform: scale(.98); }
-  .nav[aria-current='page'] { background: var(--surface); color: var(--text); font-weight: 600; }
+  .nav[aria-current='page'] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--tray-edge); }
   /* The place you are is marked by a bar that grows in from the edge, not just a change of fill. */
   .nav::before { content: ''; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--accent); transform: translateY(-50%); transition: height 200ms var(--ease); }
   .nav[aria-current='page']::before { height: 20px; }

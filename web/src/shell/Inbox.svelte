@@ -65,7 +65,7 @@
 
   {#each groups as group (group.id)}
   <section class="group" aria-labelledby="attention-{group.id}">
-    <h2 id="attention-{group.id}">{group.label}<span class="count">{group.rows.length}</span></h2>
+    <h2 id="attention-{group.id}" class="section-title">{group.label}<span class="count">{group.rows.length}</span></h2>
     <ul>
     {#each group.rows as r, i (r.workspace.id + r.item.id)}
       {@const answering = expanded[r.item.id] && r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question}

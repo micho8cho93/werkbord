@@ -25,16 +25,16 @@ window.teamTheme = (() => {
   apply();
   window.teamStyle = (() => {
     const styleKey = 'werkbord-team.style';
-    let current = 'paper';
-    try { const saved = localStorage.getItem(styleKey); if (saved === 'graphite' || saved === 'classic' || saved === 'cloud' || saved === 'moss' || saved === 'dune' || saved === 'plum') current = saved; } catch (_) {}
-    const show = () => { if (current === 'paper') delete document.documentElement.dataset.style; else document.documentElement.dataset.style = current; };
+    let current = 'classic';
+    try { const saved = localStorage.getItem(styleKey); if (saved === 'paper' || saved === 'graphite' || saved === 'cloud' || saved === 'moss' || saved === 'dune' || saved === 'plum') current = saved; } catch (_) {}
+    const show = () => { if (current === 'classic') delete document.documentElement.dataset.style; else document.documentElement.dataset.style = current; };
     show();
     return {
       get current() { return current; },
       set(next) {
         if (next !== 'paper' && next !== 'graphite' && next !== 'classic' && next !== 'cloud' && next !== 'moss' && next !== 'dune' && next !== 'plum') return;
         current = next;
-        try { if (next === 'paper') localStorage.removeItem(styleKey); else localStorage.setItem(styleKey, next); } catch (_) {}
+        try { if (next === 'classic') localStorage.removeItem(styleKey); else localStorage.setItem(styleKey, next); } catch (_) {}
         show();
         window.dispatchEvent(new Event('teamstylechange'));
       },

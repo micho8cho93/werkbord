@@ -6,8 +6,8 @@ identity sheet "Werkbord · Identity — Quiet technical · v1" made into code. 
 
 ## Character
 
-Seven styles share a flat layout, icon set, spacing and motion: **Paper** (the default, warm white and charcoal with cobalt),
-**Graphite** (cool neutrals and teal), **Classic** (white and cobalt), **Cloud** (cool white and lavender),
+Seven styles share a flat layout, icon set, spacing and motion: **Classic** (the default, white and cobalt), **Paper** (warm white
+and charcoal with cobalt), **Graphite** (cool neutrals and teal), **Cloud** (cool white and lavender),
 **Moss** (sage and forest), **Dune** (clay and warm mineral neutrals), and **Plum** (mauve and aubergine).
 Every style includes light and dark modes; Device follows the operating system. Theme changes never replace icons or the pixel mark.
 
@@ -51,8 +51,8 @@ Theme follows the OS unless the person picks one in Settings (stored per device 
 
 ### Styles
 
-The shared palettes live in `internal/uipresentation/static/tokens.css`. Paper has no `data-style` attribute; the other choices
-use their lower-case names. Each palette defines identical token roles in light, chosen dark and device dark. Primary fills
+The shared palettes live in `internal/uipresentation/static/tokens.css`. Classic has no `data-style` attribute; the other choices
+use their lower-case names (Paper is `data-style='paper'`, remembered like the others). Each palette defines identical token roles in light, chosen dark and device dark. Primary fills
 are independent of the activity accent, and status text remains legible on all three surfaces. `contrast.test.ts` checks all
 fourteen palettes, primary button labels and device-dark parity.
 
@@ -65,8 +65,8 @@ preferences; the desktop window owns the choice when embedded. Before-paint scri
 
 Geist for the interface (400/500/600), Geist Mono for machine text: paths, branches, IDs, counts, times,
 commands and keys. Section labels are sentence case, 12px/500, in Geist in every style. Both are bundled (`@fontsource-variable/*`), never loaded from a CDN.
-The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px. Shared desktop page and Work titles are 24px/600,
-with −.025em tracking; other existing page titles use 20px/600. Card titles are 14px/500; body 13–14px.
+The scale has six steps: 12 / 13 / 14 / 16 / 20 / 24px (`--fs-meta`, `--fs-body`, `--fs-item`, `--fs-section`, 20, `--fs-page`). Shared desktop page and Work titles are 24px/600,
+with −.025em tracking; other existing page titles use 20px/600. A **section** inside a page (Now, Next, Later, Waiting for you, Plans) is 16px/600 in ink: give its `h2` the `.section-title` class. Global `h2` stays the quiet 12px label, so only a heading that opts in is a section. Item titles are 14px/500; body 13–14px; the small print 12px.
 The wordmark is `werkbord`, lowercase, Geist Mono 600, tracking −6%.
 
 **The legibility floor:** no text is smaller than 12px, and all text is at least 4.5:1 against what is behind it (3:1
@@ -76,8 +76,21 @@ checks the tokens and `scripts/measure-legibility.cjs` every rendered screen ([d
 
 ## Material
 
-Every style is flat: surfaces are separated by a hairline (`--border`), not a shadow, and lists use dividers instead of
-nested cards.
+Every style is flat: surfaces are separated by a hairline, not a shadow, and lists use dividers instead of
+nested cards. What groups are the **surface ladder**, derived in `tokens.css` from each palette so every style gets it:
+
+| Rung | Token | Used for |
+| --- | --- | --- |
+| Frame | `--frame` | the window around the work: the sidebar, and the margin the page is inset into |
+| Page | `--bg` | the page |
+| Tray | `--tray` | a recessed ground that holds a group of cards; a task's panel sits on one |
+| Card | `--surface` | a card or panel, on the page or on a tray |
+
+Tinted trays (`--tray-work`, `--tray-ask`, `--tray-block`, `--tray-ok`) are for what deserves attention; a plain tray only groups.
+A card on a tray uses `--edge-strong`, so it reads as an object. Trays do not nest (one level: tray, then cards). Controls use
+`--edge-strong` too; hover is `--hover`, a selected row `--selected`. `contrast.test.ts` mixes the ladder as the CSS does and
+checks text on every rung in all fourteen palettes. A raised side panel (a task beside Work) takes `--panel-sh`, the one shadow a
+flat page allows besides floating surfaces.
 
 - Buttons (`.btn`) are outlined on `--surface`; the primary is filled (cobalt in Paper, ink in Graphite). Fields are bordered on
   `--surface`. Trays (board columns, wells) are `--surface-2`.

@@ -15,7 +15,7 @@
 
 {#if !model.remotePersonal}
   <section class="brief" aria-labelledby="brief-h" data-testid="work-brief">
-    <h2 id="brief-h">Catch up</h2>
+    <h2 id="brief-h" class="section-title">Catch up</h2>
     <p class="note">A short brief from Salie on {scope}: what needs you, what is blocked, what was done, what is ahead. She is asked only when you press one.</p>
     <div class="ranges" role="group" aria-label="Summarize recent work">
       {#each ranges as r (r.label)}
@@ -28,8 +28,7 @@
 
 <style>
   .brief { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px; display: grid; gap: 10px; }
-  h2 { margin: 0; font-size: 14px; }
-  .note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); }
+    .note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); }
   .ranges { display: flex; flex-wrap: wrap; gap: 8px; }
   .plan { justify-self: start; }
 </style>

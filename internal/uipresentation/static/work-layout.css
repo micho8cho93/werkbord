@@ -59,7 +59,7 @@
   min-height: 44px;
   padding: 10px 0 13px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -76,6 +76,8 @@
   font-weight: 600;
 }
 .work-tabs > :is(a, button):hover, .plan-tabs > button:hover { color: var(--text); }
+.work-tabs > :is(a, button), .plan-tabs > button { padding-inline: 4px; border-radius: 6px 6px 0 0; }
+.work-tabs > :is(a, button):hover, .plan-tabs > button:hover { background: var(--hover); }
 .work-tabs > :focus-visible, .plan-tabs > :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .work-tabs > :is(a, button) > span, .plan-tabs > button > span { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
 @media (max-width: 899px) {

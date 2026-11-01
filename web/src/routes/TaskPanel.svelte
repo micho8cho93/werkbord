@@ -563,8 +563,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       </nav>
       {#if !task.archivedAt}
         <div class="task-actions" aria-label="Task actions">
-          <button class="btn quiet small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
-          <button class="btn quiet small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive</button>
+          <button class="btn small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
+          <button class="btn small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive</button>
         </div>
       {/if}
     </header>
@@ -842,8 +842,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     width: min(760px, calc(100vw - var(--rail-w) - 120px));
     display: flex;
     flex-direction: column;
-    background: var(--bg);
-    border-left: 1px solid var(--border);
+    background: var(--tray);
+    border-left: 1px solid var(--edge-strong);
     box-shadow: var(--win-sh);
   }
 
@@ -855,13 +855,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     padding: 12px 20px 14px 24px;
     display: grid;
     gap: 10px;
+    background: var(--surface);
   }
 
   .top { display: flex; align-items: center; gap: 8px; }
   .spacer { flex: 1; }
 
   /* The head and the views are separated by the tab row's own hairline (shared .section-tabs). */
-  .tabs { padding: 0 12px; border-top: 1px solid var(--border); }
+  .tabs { padding: 0 12px; border-top: 1px solid var(--border); background: var(--surface); border-bottom-color: var(--edge-strong); }
 
   .task-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 

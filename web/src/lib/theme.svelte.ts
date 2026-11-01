@@ -53,16 +53,16 @@ class Theme {
 export const theme = new Theme();
 
 // The style is a second choice beside light or dark: how the interface is drawn, not which of its two colour modes shows.
-// Paper is the default (flat, warm ivory, cobalt and amber); Graphite is cool blue-grey with an ink primary and a teal accent;
+// Classic is the default (clean white and cobalt); Paper is warm ivory with cobalt and amber; Graphite is cool blue-grey with an ink primary and a teal accent;
 // All styles share flat controls and unchanged icons. Each has a light and dark palette, remembered per device; in the
 // desktop window it is the window's, chosen in one place and told to every workspace, as the theme is.
 
 const STYLE_KEY = 'werkbord.style';
 export type StyleChoice = 'paper' | 'graphite' | 'classic' | 'cloud' | 'moss' | 'dune' | 'plum';
 export const STYLES: readonly { id: StyleChoice; label: string; about: string }[] = [
-  { id: 'paper', label: 'Paper', about: 'Warm white and charcoal with restrained cobalt. The default.' },
+  { id: 'classic', label: 'Classic', about: 'Clean white and cobalt, with flat controls. The default.' },
+  { id: 'paper', label: 'Paper', about: 'Warm white and charcoal with restrained cobalt.' },
   { id: 'graphite', label: 'Graphite', about: 'Cool neutrals, an ink primary and a muted teal accent.' },
-  { id: 'classic', label: 'Classic', about: 'Clean white and cobalt, with flat controls.' },
   { id: 'moss', label: 'Moss', about: 'Sage and forest green, calm and grounded.' },
   { id: 'dune', label: 'Dune', about: 'Warm mineral neutrals and a clay accent.' },
   { id: 'plum', label: 'Plum', about: 'Soft mauve and aubergine, with a restrained orchid accent.' },
@@ -76,9 +76,9 @@ export function isStyle(value: unknown): value is StyleChoice {
 function storedStyle(): StyleChoice {
   try {
     const s = localStorage.getItem(STYLE_KEY);
-    return s === 'graphite' || s === 'classic' || s === 'cloud' || s === 'moss' || s === 'dune' || s === 'plum' ? s : 'paper';
+    return s === 'paper' || s === 'graphite' || s === 'cloud' || s === 'moss' || s === 'dune' || s === 'plum' ? s : 'classic';
   } catch {
-    return 'paper';
+    return 'classic';
   }
 }
 
@@ -89,10 +89,10 @@ class Look {
   set(choice: StyleChoice, fromShell = false): void {
     this.choice = choice;
     if (!fromShell && isEmbedded()) window.parent.postMessage({ type: 'werkbord.frame', event: 'style', style: choice }, '*');
-    if (choice === 'paper') delete document.documentElement.dataset.style;
+    if (choice === 'classic') delete document.documentElement.dataset.style;
     else document.documentElement.dataset.style = choice;
     try {
-      if (choice === 'paper') localStorage.removeItem(STYLE_KEY);
+      if (choice === 'classic') localStorage.removeItem(STYLE_KEY);
       else localStorage.setItem(STYLE_KEY, choice);
     } catch {
       // Not remembered in private mode; it still applies to this page.

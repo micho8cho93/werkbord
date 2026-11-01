@@ -132,7 +132,7 @@
       </div>
     </header>
     <section aria-labelledby="plan-tasks-h">
-      <h2 id="plan-tasks-h">Tasks in order</h2>
+      <h2 id="plan-tasks-h" class="section-title">Tasks in order</h2>
       <ol class="plan-tasks">{#each current.taskIds as id, i (id)}{@const task = scope.tasks.find(t => t.id === id)}{@const step = stepOf(task, scope.tasks, scope.latestRun)}
         <li data-step={step.kind} data-task-id={id}>
           <span class="task-mark" data-tone={tone[step.kind]} aria-hidden="true">{#if step.kind === 'done'}<Icon name="check" size={13} />{:else}{i + 1}{/if}</span>
@@ -158,7 +158,7 @@
     </section>
   {:else if selected && loaded}<p role="status">This plan is unavailable. <a href={listHref}>Back to plans</a></p>
   {:else}
-    <header class="list-heading"><div><h2>Plans</h2><p class="muted">Related tasks, one shared objective.</p></div><button class="btn primary small" onclick={() => edit()}><Icon name="plus" size={14} />New plan</button></header>
+    <header class="list-heading"><div><h2 class="section-title">Plans</h2><p class="muted">Related tasks, one shared objective.</p></div><button class="btn primary small" onclick={() => edit()}><Icon name="plus" size={14} />New plan</button></header>
     <ul class="plan-list">{#each visible as plan (plan.id)}{@const count = plan.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length}<li><a class="plan-link" href={projectHref(project.id, 'work') + '?plan=' + encodeURIComponent(plan.id)}><span class="plan-symbol"><Icon name="dependencies" size={17} /></span><span class="plan-text"><strong>{plan.title}</strong><span class="muted">{plan.description || `${plan.taskIds.length} related tasks`}</span></span><span class="plan-count">{count} / {plan.taskIds.length}<progress max={plan.taskIds.length || 1} value={count} aria-label="{plan.title} progress"></progress></span><Icon name="right" size={14} /></a></li>{:else}<li class="empty">{!loaded ? 'Loading plans…' : search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
   {/if}
 </section>

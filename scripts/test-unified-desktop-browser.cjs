@@ -155,19 +155,19 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await firstFrame.getByRole('button', { name: /^Project settings/ }).click();
  await firstFrame.getByRole('heading', { name: /^People on this project/ }).waitFor();
  console.log('PASS Team: the same sidebar lists its places, theme follows Settings, no rail of its own');
- // The style (Paper, Graphite, Classic, Cloud) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
- // at once, and one that was closed when the person went back to Paper when it is opened again. A workspace is on another origin and
- // keeps its own copy of the style, so the window has to say Paper too, not only the other two.
+ // The style (Classic, Paper, Graphite, Cloud) is chosen in the window's Settings beside the theme and reaches every workspace: an open one
+ // at once, and one that was closed when the person went back to Classic when it is opened again. A workspace is on another origin and
+ // keeps its own copy of the style, so the window has to say Classic too, not only the other two.
  const styleOf = id => page.frameLocator('iframe[data-workspace="' + id + '"]').locator('html').getAttribute('data-style');
- const attribute = { Paper: null, Graphite: 'graphite', Classic: 'classic', Cloud: 'cloud' };
+ const attribute = { Classic: null, Graphite: 'graphite', Paper: 'paper', Cloud: 'cloud' };
  const workspaces = ['personal', 'team:main'];
  const reaches = async label => {
    for (const id of workspaces) await wait(async () => (await styleOf(id)) === attribute[label], label + ' reaches ' + id);
    assert.equal(await page.locator('html').getAttribute('data-style'), attribute[label], 'the window shows ' + label);
  };
- await reaches('Paper');
- for (const label of ['Graphite', 'Classic', 'Cloud', 'Graphite', 'Paper']) { await setStyle(label); await reaches(label); }
- // Closed while the person goes back to Paper: a frame on about:blank cannot hear the window, and keeps Graphite in its own storage.
+ await reaches('Classic');
+ for (const label of ['Graphite', 'Paper', 'Cloud', 'Graphite', 'Classic']) { await setStyle(label); await reaches(label); }
+ // Closed while the person goes back to Classic: a frame on about:blank cannot hear the window, and keeps Graphite in its own storage.
  await setStyle('Graphite'); await reaches('Graphite');
  const frameOf = async id => (await page.locator('iframe[data-workspace="' + id + '"]').elementHandle()).contentFrame();
  const sources = {};
@@ -175,18 +175,18 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    const element = page.locator('iframe[data-workspace="' + id + '"]'); sources[id] = await element.getAttribute('src');
    await element.evaluate(f => { f.src = 'about:blank'; }); await (await frameOf(id)).waitForURL(u => u.protocol === 'about:');
  }
- await setStyle('Paper'); assert.equal(await page.locator('html').getAttribute('data-style'), null);
+ await setStyle('Classic'); assert.equal(await page.locator('html').getAttribute('data-style'), null);
  for (const id of workspaces) {
    await page.locator('iframe[data-workspace="' + id + '"]').evaluate((f, src) => { f.src = src; }, sources[id]);
    const frame = await frameOf(id); await frame.waitForURL(u => u.protocol.startsWith('http')); await frame.waitForLoadState('load');
  }
- await reaches('Paper');
+ await reaches('Classic');
  // Device is a choice too: a workspace that was told Dark follows the device again, which is light in this browser.
  await setTheme('dark'); for (const id of workspaces) await wait(async () => (await themeOf(id)) === 'dark', 'Dark reaches ' + id);
  await chooseInAppearance('Theme', 'Device');
  for (const id of workspaces) await wait(async () => (await themeOf(id)) !== 'dark', 'Device reaches ' + id);
  await setTheme('dark');
- console.log('PASS style: each style chosen in Settings reaches Individual and Team, Paper too after a Team frame was closed on Graphite; Device reaches both');
+ console.log('PASS style: each style chosen in Settings reaches Individual and Team, Classic too after a Team frame was closed on Graphite; Device reaches both');
  // The same Settings, with the same Appearance, from Individual and from Universal; the theme is the window's and the sidebar follows it.
  const sections = page.getByTestId('settings-sections');
  await switchTo('personal'); await side.locator('[data-page=settings]').click(); await sections.waitFor();

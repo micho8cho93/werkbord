@@ -180,7 +180,7 @@ textarea::placeholder {
   gap: 8px;
   min-height: 34px;
   padding: 0 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--edge-strong);
   border-radius: var(--radius-sm);
   background: var(--btn-bg);
   box-shadow: var(--btn-sh);
@@ -198,6 +198,7 @@ textarea::placeholder {
 
 .btn:hover:not(:disabled) {
   background: var(--btn-bg-hover);
+  border-color: color-mix(in srgb, var(--text) 40%, var(--border));
 }
 
 .btn:active:not(:disabled) {

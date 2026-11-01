@@ -18,7 +18,7 @@
   }
 </script>
 <section class="archive" aria-label="Task archive">
-  <div class="heading"><div><h2>Archived work</h2><p class="muted">Archived tasks and cleared Done cards. Their conversations, runs and Git evidence are kept.</p></div><label class="field">Search archive<input class="input" type="search" bind:value={search} placeholder="Title or task details" /></label></div>
+  <div class="heading"><div><h2 class="section-title">Archived work</h2><p class="muted">Archived tasks and cleared Done cards. Their conversations, runs and Git evidence are kept.</p></div><label class="field">Search archive<input class="input" type="search" bind:value={search} placeholder="Title or task details" /></label></div>
   <ul class="tasks">
     {#each tasks as task (task.id)}
       <li><div><a href={taskHref(task.projectId, task.id)}>{task.title}</a><p class="muted">{TASK_STATE_LABELS[task.state]} · Archived {timeAgo(task.archivedAt!, app.now)}</p></div><button class="btn small" disabled={!!busy} onclick={() => restore(task)}>{busy === task.id ? 'Restoring…' : 'Restore'}</button></li>

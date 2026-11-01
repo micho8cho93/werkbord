@@ -194,13 +194,23 @@
     height: 100dvh;
     display: flex;
     overflow: hidden;
-    background: var(--bg);
+    background: var(--frame);
   }
   .content {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    background: var(--bg);
+  }
+  /* On a desktop window the page is an inset panel on the frame, so the sidebar, the page and a task beside it are three different things. */
+  @media (min-width: 900px) {
+    .content {
+      margin: 8px 8px 8px 0;
+      border: 1px solid var(--tray-edge);
+      border-radius: 12px;
+      overflow: hidden;
+    }
   }
   main {
     position: relative;
@@ -242,7 +252,7 @@
   .split-area.split .page-area {
     order: -1;
     flex: 0 0 clamp(360px, 38%, 520px);
-    border-right: 1px solid var(--border);
+    border-right: 1px solid var(--edge-strong);
   }
   .frame-slot:not(.pane) {
     display: contents;
@@ -252,6 +262,8 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+    background: var(--tray);
+    box-shadow: var(--panel-sh);
     animation: pane-in 280ms var(--ease) both;
   }
   .pane-bar {

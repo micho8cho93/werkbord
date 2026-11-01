@@ -42,7 +42,7 @@
       {@const items = rows.filter(r => r.kind === group)}
       {#if items.length}
       <section class="review-group" aria-label={KIND_LABEL[group]}>
-      <h2>{KIND_LABEL[group]} <span class="count">{items.length}</span></h2>
+      <h2 class="section-title">{KIND_LABEL[group]} <span class="count">{items.length}</span></h2>
       <ul class="list">
       {#each items as r (r.workspace.id + r.id)}
         <li class="row" data-kind={r.kind} data-testid="review-item">

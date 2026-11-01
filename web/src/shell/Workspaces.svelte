@@ -36,7 +36,7 @@
 
   <section class="service" aria-label="Team service" data-state={teamState?.state}>
     <div>
-      <h2>Team on this computer</h2>
+      <h2 class="section-title">Team on this computer</h2>
       <p>{teamState?.detail || serviceWords[teamState?.state ?? 'not_installed']}</p>
     </div>
     <div class="actions">

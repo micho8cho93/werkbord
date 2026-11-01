@@ -79,11 +79,11 @@ const OBSERVE = () => {
                 const captures = process.env.BROWSER_ARTIFACT_DIR;
                 if (captures) fs.mkdirSync(captures, { recursive: true });
                 await page.locator('.appearance summary').click();
-                for (const style of ['Paper', 'Graphite', 'Classic', 'Cloud', 'Moss', 'Dune', 'Plum']) {
+                for (const style of ['Classic', 'Paper', 'Graphite', 'Cloud', 'Moss', 'Dune', 'Plum']) {
                     await page.getByRole('group', {name:'Style', exact:true}).getByRole('button', {name:style, exact:true}).click();
                     for (const mode of ['Light', 'Dark']) {
                         await page.getByRole('group', {name:'Theme', exact:true}).getByRole('button', {name:mode, exact:true}).click();
-                        assert.equal(await page.locator('html').getAttribute('data-style'), style === 'Paper' ? null : style.toLowerCase());
+                        assert.equal(await page.locator('html').getAttribute('data-style'), style === 'Classic' ? null : style.toLowerCase());
                         assert.equal(await page.locator('html').getAttribute('data-theme'), mode.toLowerCase());
                         await page.waitForTimeout(160); // Let the intentional colour transition settle before measuring.
                         const material = await page.locator('.onboarding .actions .btn').first().evaluate(el => {
