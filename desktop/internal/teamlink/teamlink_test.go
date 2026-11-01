@@ -355,3 +355,32 @@ func TestNewAppRefusesAnOlderEmbeddedTeamInterface(t *testing.T) {
 		})
 	}
 }
+
+// An interrupted installation fences every change with a 503 while the service still answers reads. The window must not
+// call that service healthy: it says it needs recovering, which activating Team again does.
+func TestAnInterruptedInstallationIsNotReportedAsHealthy(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Werkbord-Installation-Pending", "1")
+		if r.URL.Path == "/api/device/v1/state" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"version": "v5.5.0", "daemon": true})
+			return
+		}
+		_, _ = w.Write([]byte(`{"schema":"werkbord.workspace/v1","workspaces":[]}`))
+	}))
+	defer srv.Close()
+	link, err := New(srv.URL, writeKey(t, 0o600, key), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"5.5.0", "dev"} {
+		link.RequireVersion(version)
+		err := link.Source.Check(bg)
+		if !errors.Is(err, ErrInstallInterrupted) || !errors.Is(err, workspaces.ErrOutdated) {
+			t.Fatalf("%s: %v", version, err)
+		}
+		if st := link.StatusOf(err); st.State != "outdated" || !strings.Contains(st.Detail, "interrupted") {
+			t.Fatalf("%s: %+v", version, st)
+		}
+	}
+}

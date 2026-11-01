@@ -23,7 +23,7 @@ func (h *Hub) installationFence(next http.Handler) http.Handler {
 			// activation if the installer crashed before committing its marker.
 			w.Header().Set("X-Werkbord-Installation-Pending", "1")
 			if r.Method != http.MethodGet && r.Method != http.MethodHead {
-				httpkit.WriteError(w, http.StatusServiceUnavailable, "maintenance", "Team installation is being verified; retry after maintenance finishes")
+				httpkit.WriteError(w, http.StatusServiceUnavailable, "maintenance", "Team installation is being verified or was interrupted; if this does not clear, set up Team again from Werkbord to recover it")
 				return
 			}
 		}

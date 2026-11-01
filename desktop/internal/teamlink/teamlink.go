@@ -104,15 +104,22 @@ func New(base, keyPath string, installed func() bool) (*Link, error) {
 // RequireVersion prevents a newly updated app from silently serving an older Team interface.
 // Development builds can talk to development services without a release version fence.
 func (l *Link) RequireVersion(version string) {
-	if version == "" || version == "dev" {
-		return
-	}
 	l.Source.Check = func(ctx context.Context) error {
 		var state struct {
 			Version string `json:"version"`
 		}
-		if err := l.call(ctx, http.MethodGet, "/api/device/v1/state", nil, &state); err != nil {
+		var header http.Header
+		if err := l.callWith(ctx, http.MethodGet, "/api/device/v1/state", nil, &state, &header); err != nil {
 			return err
+		}
+		// An interrupted installation leaves a marker that makes the service refuse every change (a 503 "being verified") while it
+		// still answers reads, so it would look healthy and then fail the first thing the person did. Say so now: activating Team
+		// again is what recovers it.
+		if header.Get(installPendingHeader) != "" {
+			return ErrInstallInterrupted
+		}
+		if version == "" || version == "dev" {
+			return nil
 		}
 		if strings.TrimPrefix(state.Version, "v") != strings.TrimPrefix(version, "v") {
 			return workspaces.ErrOutdated
@@ -120,6 +127,13 @@ func (l *Link) RequireVersion(version string) {
 		return nil
 	}
 }
+
+// installPendingHeader is how the service says an installation was interrupted and has not been recovered.
+const installPendingHeader = "X-Werkbord-Installation-Pending"
+
+// ErrInstallInterrupted: the service answers, but an interrupted installation fences every change until it is recovered.
+// It is a kind of outdated service, which the window already knows how to repair (by activating Team again).
+var ErrInstallInterrupted = fmt.Errorf("%w: its installation was interrupted", workspaces.ErrOutdated)
 
 // Status is the state of Team's service for the person.
 type Status struct {
@@ -134,6 +148,8 @@ func (l *Link) StatusOf(err error) Status {
 	switch {
 	case err == nil:
 		return Status{State: "ready"}
+	case errors.Is(err, ErrInstallInterrupted):
+		return Status{State: "outdated", Detail: "Team's installation was interrupted, so its service refuses changes such as creating a team. Set up Team again to recover it."}
 	case errors.Is(err, workspaces.ErrOutdated):
 		return Status{State: "outdated", Detail: "Team's background service does not match this app. Update it in Devices & Hosting to load the current Team interface."}
 	case errors.Is(err, workspaces.ErrRefused):
@@ -148,6 +164,11 @@ func (l *Link) StatusOf(err error) Status {
 }
 
 func (l *Link) call(ctx context.Context, method, path string, in, out any) error {
+	return l.callWith(ctx, method, path, in, out, nil)
+}
+
+// callWith is call that also hands back the response's headers, for the few places that read one.
+func (l *Link) callWith(ctx context.Context, method, path string, in, out any, header *http.Header) error {
 	key, err := l.key()
 	if err != nil {
 		return workspaces.ErrNoCredential
@@ -173,6 +194,9 @@ func (l *Link) call(ctx context.Context, method, path string, in, out any) error
 		return workspaces.ErrNotRunning
 	}
 	defer res.Body.Close()
+	if header != nil {
+		*header = res.Header
+	}
 	limit := int64(1 << 20)
 	if strings.Contains(path, "/product-map") {
 		limit = 16 << 20

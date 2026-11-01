@@ -61,6 +61,24 @@
 }
 
 /*
+ * Working: a ring that turns, not a dot that pulses. Placed at the right of a row, where state is read. Under reduced motion it
+ * stops, and stays as an open ring so it still says "working".
+ */
+@keyframes wb-turn { to { transform: rotate(360deg); } }
+.spin {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 2px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wb-turn 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; border-right-color: var(--accent); } }
+
+/*
  * Hierarchy. A page title is 24px; a section inside a page is 16px/600 in ink, so it reads above the 14px items under it; the
  * small print is 12px. Global h2 is still the quiet 12px label, so a section heading opts in with .section-title.
  */

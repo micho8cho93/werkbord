@@ -2,7 +2,7 @@ import '../../../internal/uipresentation/static/work-queue.js';
 import '../../../internal/uipresentation/static/work-order.js';
 
 /** A completed move in a Work list: the ids that now sit directly above and below the item ('' at an edge), and the list it was in. */
-export interface OrderDrop { id: string; before: string; after: string; from: number; to: number; scope: string }
+export interface OrderDrop { id: string; before: string; after: string; from: number; to: number; scope: string; /** Set when it was dropped into a different place in its group: that place's scope. */ toScope?: string }
 
 /** Reports each completed drag or Alt+Arrow move inside the node. The product checks permission and persists the new order. */
 export function orderDrops(node: HTMLElement, handler: (drop: OrderDrop) => void) {

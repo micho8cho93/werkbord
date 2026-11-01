@@ -12,7 +12,7 @@
   import { gitStore } from '../lib/git/store.svelte';
   import Icon from '../lib/Icon.svelte';
   import WorkPlans from '../lib/work/WorkPlans.svelte';
-  import { WORK_GROUPS, workGroup, type WorkPlan } from '../lib/work-queue';
+  import { WORK_GROUPS, blockingTasks, workGroup, type WorkPlan } from '../lib/work-queue';
   import { isPhone } from '../lib/phones/capability';
   import { orderDrops, positionBetween, reorderedIds, spreadPositions, type OrderDrop } from '../lib/orderGestures';
   import { projectHref } from '../lib/location';
@@ -98,7 +98,40 @@
   let pendingTasks = $state<Record<string, boolean>>({});
 
   // ---- ordering: a person's drag (or Alt+Arrow) becomes a stored position, or a new order of a plan's tasks ----
+  // Now, Next and Later are worked out from the task, never stored, so a task is put in one by changing what puts it there: its
+  // priority (high is Now, low is Later). What would still hold it elsewhere (running, waiting on another task, a later date) is said.
+  const SECTION_PRIORITY = { now: 'high', next: 'normal', later: 'low' } as const;
+  const SECTION_NAME = { now: 'Now', next: 'Next', later: 'Later' } as const;
+  function whyStays(task: Task, to: 'now' | 'next' | 'later', stays: string): string {
+    if (stays === 'now') return `“${task.title}” stays in Now while an agent is working on it, it needs you, or it is in review.`;
+    const waiting = blockingTasks(task, scope.tasks, scope.latestRun);
+    if (waiting.length) return `“${task.title}” waits for ${waiting.map(t => `“${t.title}”`).join(', ')}, so it stays in Later until that is done.`;
+    if (task.plan?.start || task.orchestration?.scheduledAt) return `“${task.title}” is planned or scheduled for later, so it stays in Later until then. Change its dates to move it.`;
+    return `“${task.title}” cannot move to ${SECTION_NAME[to]} right now.`;
+  }
+  async function moveToSection(drop: OrderDrop) {
+    const to = drop.toScope?.split(':')[1] as 'now' | 'next' | 'later' | undefined;
+    if (!to || !(to in SECTION_PRIORITY)) return;
+    if (drop.scope.split(':')[0] !== 'tasks') { app.notify('A task in a plan is ordered within its plan. Take it out of the plan to move it between Now, Next and Later.'); return; }
+    const task = scope.activeTasks.find(t => t.id === drop.id);
+    if (!task || pendingTasks[task.id]) return;
+    const priority = SECTION_PRIORITY[to];
+    const lands = workGroup(task, scope.tasks, scope.latestRun[task.id], priority, app.now, scope.latestRun);
+    if (lands !== to) { app.notify(whyStays(task, to, lands)); return; }
+    const list = groups.find(g => g.id === to)?.standalone ?? [];
+    const position = positionBetween(list.find(t => t.id === drop.before)?.position, list.find(t => t.id === drop.after)?.position);
+    pendingTasks[task.id] = true;
+    try {
+      scope.upsertTask(await api.editTask(task, { execution: { ...task.execution, priority }, ...(position !== null ? { position } : {}) }));
+      app.notify(`“${task.title}” moved to ${SECTION_NAME[to]}${priority === 'normal' ? '' : ` (${priority} priority)`}.`, 5000);
+    } catch (err) {
+      app.notify(err instanceof ApiError && err.code === 'conflict' ? 'This changed on another device. The queue has been refreshed.' : err instanceof Error ? err.message : String(err));
+      await scope.load().catch(e => app.handleError(e));
+    } finally { pendingTasks[task.id] = false; }
+  }
+
   async function reorder(drop: OrderDrop) {
+    if (drop.toScope && drop.toScope !== drop.scope) { await moveToSection(drop); return; }
     const [kind, key] = drop.scope.split(':');
     try {
       if (kind === 'plan') {
@@ -204,10 +237,10 @@
       {#if viewingArchive}<Archive {scope} />{:else}
         <div class="queue-stack" use:orderDrops={reorder}>
         {#each groups as group (group.id)}
-          <section class="queue-card" aria-labelledby="work-{group.id}">
+          <section class="queue-card" aria-labelledby="work-{group.id}" data-order-group="queue" data-order-drop="tasks:{group.id}" data-order-name={group.title}>
             <header><h2 id="work-{group.id}">{group.title}</h2><span class="queue-count">{group.tasks.length}</span><span class="queue-detail">{group.detail}</span></header>
             {#if !group.tasks.length}<p class="queue-empty">{!scope.loaded ? 'Loading tasks…' : filtering || search ? 'No tasks match your filters.' : group.id === 'now' ? 'Nothing needs your attention right now.' : group.id === 'next' ? 'No tasks ready to pick up.' : 'Nothing planned for later.'}</p>{/if}
-            {#if group.standalone.length}<ul data-order-list data-order-scope="tasks:{group.id}" aria-label="{group.title} tasks">{#each group.standalone as task (task.id)}{@render taskRow(task, true)}{/each}</ul>{/if}
+            {#if group.standalone.length}<ul data-order-list data-order-group="queue" data-order-scope="tasks:{group.id}" aria-label="{group.title} tasks">{#each group.standalone as task (task.id)}{@render taskRow(task, true)}{/each}</ul>{/if}
             {#each group.sections as section (section.plan.id)}
               <details class="queue-section" open>
                 <summary>{section.plan.title}<span class="progress">{progressOf(section.plan)}</span></summary>

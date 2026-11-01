@@ -99,6 +99,46 @@ let browser;
   assert.equal(new Set(stored.map(t => t.position)).size, 4, 'positions are distinct again');
   console.log('PASS Work: a list with no room left is numbered again');
 
+  // A row can be dropped into another of Now, Next and Later. Those are worked out from the task, so what is stored is its priority
+  // (high is Now, low is Later); the keyboard way is Alt+Shift+Arrow.
+  await open();
+  const priorityOf = async id => (await fresh(id)).execution?.priority ?? '';
+  const later = page.locator('section.queue-card[data-order-drop="tasks:later"]');
+  const h = await row('tasks:next', 'Alpha').hover().then(() => row('tasks:next', 'Alpha').locator('[data-order-handle]').boundingBox());
+  const l = await later.boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
+  await page.mouse.move(l.x + l.width / 2, l.y + l.height / 2, { steps: 14 });
+  assert.equal(await page.locator('.order-drop-over').count(), 1, 'the section it would land in is shown');
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector('ul[data-order-scope="tasks:later"] a.title')?.textContent === 'Alpha');
+  assert.equal(await priorityOf(standalone.Alpha.id), 'low', 'Later is low priority');
+  assert.deepEqual(await shown('tasks:next'), ['Delta', 'Bravo', 'Charlie']);
+  await open(); assert.deepEqual(await shown('tasks:later'), ['Alpha'], 'it stays in Later after a reload');
+  console.log('PASS Work: dragging a row into another section sets its priority');
+
+  await row('tasks:later', 'Alpha').locator('[data-order-handle]').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await page.waitForFunction(() => [...document.querySelectorAll('ul[data-order-scope="tasks:next"] a.title')].map(a => a.textContent).join() === 'Delta,Bravo,Charlie,Alpha');
+  assert.equal(await priorityOf(standalone.Alpha.id), 'normal');
+  await row('tasks:next', 'Alpha').locator('[data-order-handle]').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await page.waitForFunction(() => document.querySelector('ul[data-order-scope="tasks:now"] a.title')?.textContent === 'Alpha');
+  assert.equal(await priorityOf(standalone.Alpha.id), 'high');
+  await row('tasks:now', 'Alpha').locator('[data-order-handle]').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await said(/Alpha is already in the first place/);
+  console.log('PASS Work: Alt+Shift+Arrow moves a row between sections');
+
+  // What would still hold a task elsewhere is said, and nothing is stored.
+  await call('PATCH', `/projects/${project.id}/tasks/${standalone.Delta.id}`, { version: (await fresh(standalone.Delta.id)).version, orchestration: { enabled: false, dependencies: [standalone.Charlie.id], expectedPaths: [] } });
+  await open();
+  assert.deepEqual(await shown('tasks:later'), ['Delta'], 'a task that waits on another is in Later');
+  await row('tasks:later', 'Delta').locator('[data-order-handle]').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await page.getByRole('status').getByText(/waits for “Charlie”/).waitFor();
+  assert.equal(await priorityOf(standalone.Delta.id), '', 'a refused move stores nothing');
+  console.log('PASS Work: a move that cannot hold is refused with the reason');
+
   // Narrow window: cards stay inside the screen and the handles stay reachable.
   await page.setViewportSize({ width: 390, height: 844 }); await open();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal scrolling');
