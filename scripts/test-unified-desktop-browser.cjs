@@ -58,8 +58,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const chooseInAppearance = async (group, button) => {
    const size = page.viewportSize();
    await page.setViewportSize({ width: 1440, height: 1000 });
-   const workspace = await page.locator('iframe[data-workspace]:visible').first().getAttribute('data-workspace').catch(() => null);
-   const place = await side.locator('[data-page][aria-current=page]').first().getAttribute('data-page').catch(() => 'inbox');
+   const workspace = await page.locator('iframe[data-workspace]:visible').first().getAttribute('data-workspace', { timeout: 500 }).catch(() => null);
+   const place = await side.locator('[data-page][aria-current=page]').first().getAttribute('data-page', { timeout: 500 }).catch(() => 'inbox');
    await side.locator('[data-page=settings]').click();
    await page.getByTestId('settings-sections').getByRole('button', { name: 'Appearance', exact: true }).click();
    await page.getByRole('group', { name: group }).getByRole('button', { name: button, exact: true }).click();
