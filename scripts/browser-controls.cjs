@@ -76,6 +76,8 @@ let browser, activePage;
  await edit.getByRole('textbox',{name:'Title',exact:true}).fill(t.title+' changed');
  assert(await edit.getByRole('button',{name:'Save',exact:true}).isEnabled());
  await page.keyboard.press('Escape');
+ await page.getByRole('dialog',{name:'Discard changes?',exact:true}).waitFor(); // unsaved typing is asked about, not dropped
+ await page.getByTestId('confirm-ok').click();
  await edit.waitFor({ state: 'detached' });
  await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/work`);
  await page.getByRole('button',{name:'Switch project, current: '+p.name,exact:true}).waitFor();

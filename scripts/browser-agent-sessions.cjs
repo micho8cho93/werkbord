@@ -133,7 +133,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
 
   // ---- 4. A Work task opens the same session; terminals are standalone or for a task ----
   await page.goto(web + `/#/p/${project.id}/task/${task.id}`);
-  await page.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
+  await page.locator('section.panel').getByRole('button', { name: 'Open session', exact: true }).first().click();
   await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
   await page.getByRole('region', { name: 'Live task session' }).waitFor();
   assert.equal((await taskRuns()).length, 1);

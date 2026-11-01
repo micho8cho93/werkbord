@@ -254,13 +254,13 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         const answerResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/answer'));
         await answer.press('Enter');
         assert((await answerResponse).ok());
-        await page.getByRole('button', { name: 'Stop agent', exact: true }).click();
+        await page.getByRole('button', { name: 'Stop run', exact: true }).click();
         const stopResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/stop'));
         await page.getByRole('button', { name: 'Confirm stop', exact: true }).click();
         assert.equal((await stopResponse).status(), 200);
         await page.getByTestId('pending-requests').filter({ hasText: 'stop requested' }).waitFor();
         await sync([{ runId: run.id, observations: [{ seq: 5, kind: 'ended', result: { state: 'stopped', exitCode: 0 }, headCommit: 'b'.repeat(40), uncommitted: false }] }]);
-        await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor({ state: 'visible' });
+        await page.getByRole('button', { name: 'Archive', exact: true }).waitFor({ state: 'visible' });
         await page.getByRole('tab', { name: 'Overview', exact: true }).click();
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
         await page.getByTestId('pending-requests').waitFor({ state: 'hidden' });
@@ -295,7 +295,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(!!stoppedTask.archivedAt, false, 'stopping an agent does not archive its task');
         assert.notEqual(stoppedTask.state, 'done', 'stopping an agent does not complete its task');
         const closeResponse = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith('/tasks/' + task.id));
-        await page.getByRole('button', { name: 'Archive task', exact: true }).click();
+        await page.getByRole('button', { name: 'Archive', exact: true }).click();
         assert.equal((await closeResponse).status(), 200);
         await page.getByRole('button', { name: 'Undo', exact: true }).waitFor();
         await page.getByRole('button', { name: /^Archive \(\d+\)$/ }).click();
@@ -317,7 +317,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.waitForTimeout(400);
         await page.screenshot({ path: path.join(artifacts, 'individual-task-desktop.png') });
         await page.getByRole('button', { name: 'Restore task', exact: true }).click();
-        await page.getByRole('button', { name: 'Archive task', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Archive', exact: true }).waitFor();
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
 
         await page.goto(base + `/#/p/${p.id}/work`);
@@ -442,8 +442,8 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('textbox', {name:'Message to the agent',exact:true}).waitFor();
         await api('POST', `/api/projects/${p.id}/runs/${localRun.id}/input`, { text:'commit' });
         await page.locator('.panel').getByText('Committed fixture work', {exact:true}).waitFor();
-        await page.getByRole('button', {name:'Finish',exact:true}).waitFor();
-        await page.getByRole('button', {name:'Finish',exact:true}).click();
+        await page.getByRole('button', {name:'Finish run',exact:true}).waitFor();
+        await page.getByRole('button', {name:'Finish run',exact:true}).click();
         let finishedRun = false;
         for (let attempt = 0; attempt < 40; attempt++) {
           const runList = await api('GET', `/api/projects/${p.id}/tasks/${localTask.id}/runs`);
@@ -690,7 +690,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await mergeSheet.getByRole('button',{name:'Done',exact:true}).waitFor();
         await page.waitForFunction(() => document.querySelector('.panel .state select')?.value === 'done');
         await mergeSheet.getByRole('button',{name:'Done',exact:true}).click();
-        await page.locator('.panel').getByRole('button',{name:'Archive task',exact:true}).click();
+        await page.locator('.panel').getByRole('button',{name:'Archive',exact:true}).click();
         const undo = page.getByRole('button',{name:'Undo',exact:true});
         await undo.waitFor();
         await undo.click();

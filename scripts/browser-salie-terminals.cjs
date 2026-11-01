@@ -170,13 +170,13 @@ async function ready(url, child) { for (let i = 0; i < 200; i++) { if (child.exi
   const task = await api('POST',`/api/projects/${project.id}/tasks`,{title:'Mobile task session',execution:{agent:'fixture',mode:'manual'}});
   await api('POST',`/api/projects/${project.id}/tasks/${task.id}/runs`,{});
   await phone.getByTestId('nav-deck').click(); await phone.getByTestId('assistant').waitFor({state:'detached'}); await phone.goto(web+`/#/p/${project.id}/task/${task.id}`);
-  await phone.getByRole('region',{name:'Mobile task session',exact:true}).getByRole('button',{name:'Open Session',exact:true}).click();
+  await phone.getByRole('region',{name:'Mobile task session',exact:true}).getByRole('button',{name:'Open session',exact:true}).click();
   await phone.getByRole('region',{name:'Live task session'}).waitFor();
   await phone.getByRole('textbox',{name:'Additional instructions'}).fill('phone task instruction');
   await phone.getByRole('region',{name:'Live task session'}).getByRole('button',{name:'Send',exact:true}).click();
   await phone.getByRole('region',{name:'Session output'}).getByText('phone task instruction',{exact:false}).waitFor();
   assert.ok(await selector().locator('option').filter({hasText:' · Task · '}).count());
-  await phone.getByRole('button',{name:'Stop run',exact:true}).click();
+  await phone.getByTestId('assistant').getByRole('button',{name:'Stop run',exact:true}).click();
   await selectTerminal('codex'); await phone.getByRole('button',{name:'Terminate',exact:true}).click();
   await phone.getByRole('status').filter({hasText:/Process ended/}).waitFor();
   await selectTerminal('claude-code');

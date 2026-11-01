@@ -513,8 +513,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         {#if task.archivedAt}
           <span class="chip">Archived</span><button class="btn small ok" disabled={busy} onclick={() => archive(false)}>Restore task</button>
         {:else if latest && runStatus(latest).active}
-          <button class="btn small ok waits" use:readyCue disabled={busy || !canFinishRun} title={canFinishRun ? 'Finish this run and keep its work' : 'Available when the agent has finished its turn'} onclick={finish}><Icon name="check" size={14} />Finish</button>
-          <button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>
+          <button class="btn small ok waits" use:readyCue disabled={busy || !canFinishRun} title={canFinishRun ? 'Finish this run and keep its work' : 'Available when the agent has finished its turn'} onclick={finish}><Icon name="check" size={14} />Finish run</button>
+          <button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop run'}</button>
         {/if}
         {@render closer(true)}
       </div>
@@ -538,7 +538,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <div class="next">
             <span class="k">Next</span>
             {#if next.kind !== 'none'}
-              <button class="btn primary" data-testid="task-next" use:readyCue disabled={busy} aria-busy={busy} onclick={doNext}>{next.label}</button>
+              <button class="btn" class:primary={!(next.kind === 'again' && setupOpen)} data-testid="task-next" use:readyCue disabled={busy} aria-busy={busy} onclick={doNext}>{next.label}</button>
             {:else if step.blockedBy.length}
               <p class="why">Finish {step.blockedBy.length > 1 ? 'the blocking tasks' : 'the blocking task'} first.</p>
             {:else if step.kind === 'running'}
@@ -555,14 +555,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
       <nav class="related" aria-label="Related">
         {#if parentPlan}<a class="rel" data-rel="plan" href={planHref}><span class="k">Plan</span>{parentPlan.title}</a>{/if}
         <TaskTerminal projectId={project.id} taskId={task.id} repo={!!project.repoPath} from={here} disabled={!canStart || isDone} />
-        {#if run}<span class="rel"><span class="k">Session</span><button class="btn small" type="button" onclick={() => assistant.openRun(project.id, run.id, here)}>Open Session</button><span class="mm">{status?.label}</span></span>{/if}
+        {#if run}<span class="rel"><span class="k">Session</span><button class="btn small" type="button" onclick={() => assistant.openRun(project.id, run.id, here)}>Open session</button><span class="mm">{status?.label}</span></span>{/if}
         {#if calendarHref}<a class="rel" data-rel="calendar" href={calendarHref}><span class="k">Calendar</span>{scheduledText}</a>{/if}
         {#if gitHref}<a class="rel" data-rel="git" href={gitHref}><span class="k">{task.state === 'review' ? 'Review' : 'Git'}</span><code>{run?.branch}</code></a>{/if}
       </nav>
       {#if !task.archivedAt}
         <div class="task-actions" aria-label="Task actions">
           <button class="btn quiet small" aria-label="Edit task" onclick={() => (editing = true)}>Edit</button>
-          <button class="btn quiet small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive task</button>
+          <button class="btn quiet small" disabled={busy || !!latest && runStatus(latest).active} onclick={() => archive(true)} title="Move this task to the Archive. Its history is kept, and you can undo it.">Archive</button>
         </div>
       {/if}
     </header>
@@ -718,7 +718,6 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
             {:else}
               <div class="quiet-state">
                 <p>No agent has worked on this task yet.</p>
-                {#if canStart && !isDone}<button class="btn small" type="button" onclick={() => (tab = 'overview')}>Set up a run</button>{/if}
               </div>
             {/if}
             <div class="feed-end" bind:this={feedEnd} aria-hidden="true"></div>

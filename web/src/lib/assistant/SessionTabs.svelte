@@ -6,7 +6,6 @@
   import Icon from '../Icon.svelte';
   import { embedded, openSettingsInShell } from '../embed';
   import { modeLabel } from '../selection';
-  import { openAgents } from '../agent-nav';
   import { assistant, type SalieTab } from './sessions.svelte';
 
   let menu = $state(false);
@@ -69,7 +68,6 @@
       <div class="menu" role="dialog" aria-label="New tab">
         <span class="group">Salie</span>
         <button onclick={()=>{assistant.newTab();menu=false;}}>New Salie Conversation</button>
-        {#if !isPhone()}<button onclick={()=>{menu=false;assistant.hide();openAgents();}}>Coding agent sessions in Agents →</button>{/if}
         {#if !isPhone()}<a href="#/settings?agents" onclick={manage}>Manage Coding Agents →</a>{/if}
         <div class="separator"></div>
         <button onclick={()=>{rename(assistant.openTabs.find(t=>t.id===assistant.activeId)!);menu=false;}}>Rename current tab</button>

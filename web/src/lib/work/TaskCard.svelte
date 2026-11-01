@@ -2,7 +2,7 @@
   import '../../../../internal/uipresentation/static/work.css';
   import { readyCue } from '../motion';
   import { blockingTasks } from '../work-queue';
-  import { runReportStale } from '../format';
+  import { runReportStale, runStatus } from '../format';
   import { assistant } from '../assistant/sessions.svelte';
   import { api } from '../api';
   import { cardStatus, quickChoices, type CardStatus } from '../task-presentation';
@@ -198,8 +198,8 @@
       {/if}
     </div>
   {/if}
-{#if run}
-  <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id, [{ kind: 'board', projectId: task.projectId }]); }}>Open Session</button></div>
+{#if run && runStatus(run).active}
+  <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id, [{ kind: 'board', projectId: task.projectId }]); }}>Open session</button></div>
 {/if}
   </div>
 </li>

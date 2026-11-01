@@ -143,7 +143,7 @@
           </div>
           <div class="task-acts">
             {#if task && step.next}<a class="btn small" class:primary={step.kind === 'attention' || step.kind === 'review'} href={taskHrefFor(id)}>{step.next}</a>{/if}
-            {#if scope.latestRun[id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[id].id, here)}>Open CLI session</button>{/if}
+            {#if scope.latestRun[id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[id].id, here)}>Open session</button>{/if}
           </div>
         </li>
       {:else}<li class="empty">No tasks in this plan yet. Edit the plan to add existing tasks.</li>{/each}</ol>

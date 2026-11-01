@@ -317,7 +317,7 @@
               </p>
             </div>
             <div class="acts">
-              {#if !selected.live && selected.kind === 'run' && selected.taskId}<a class="btn small" href={withChain(taskHref(selected.projectId, selected.taskId), here)} data-testid="session-resume">Resume from task</a>{/if}
+              
               {#if chain[0]?.kind !== 'salie'}<button class="btn small" type="button" onclick={() => backToSalie(selected.launchedBy)} data-testid="session-salie">{selected.launchedBy ? 'Return to Salie' : 'Ask Salie'}</button>{/if}
               {#if paneMode && others.length}<label class="sr-only" for="session-switch">Switch session</label>
               <select id="session-switch" class="select switch" data-testid="session-switch" value="" onchange={e => { const k = e.currentTarget.value; e.currentTarget.value = ''; if (k) location.hash = sessionsHref(k) + (router.query ? `?${router.query}` : ''); }}>
@@ -353,7 +353,7 @@
                   <span class="k">Plan</span>
                   <a class="ctitle" href={withChain(`${projectHref(selected.projectId, 'work')}?plan=${encodeURIComponent(plan.id)}`, here)} data-testid="session-plan">{plan.title}</a>
                 {/each}
-                <a class="btn small" href={withChain(taskHref(selected.projectId, selected.taskId!), here)}>Open task</a>
+                <a class="btn small" class:primary={!selected.live && selected.kind === 'run'} href={withChain(taskHref(selected.projectId, selected.taskId!), here)} data-testid={!selected.live && selected.kind === 'run' ? 'session-resume' : undefined}>{!selected.live && selected.kind === 'run' ? 'Resume from task' : 'Open task'}</a>
               </aside>
             {/if}
           </div>

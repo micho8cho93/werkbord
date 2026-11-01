@@ -137,6 +137,7 @@ class AppState {
   noticeAction = $state<{ label: string; run: () => void } | null>(null);
   noticeTone = $state<'info' | 'ok'>('info');
   private noticeMs = 9000;
+  private noticeCap = 0;
   /** The project last visited: where a link that names none goes, and what the tabs point at on a global page. */
   lastProjectId = $state<string>(loadLastProject());
   /** Whether the Jump to palette (projects, sections, tasks) is open. */
@@ -404,13 +405,17 @@ class AppState {
     this.noticeAction = action;
     this.noticeTone = tone;
     this.noticeMs = ms;
+    this.noticeCap = Date.now() + ms * 2;
     this.holdNotice(false);
   }
 
-  /** Keeps a message up while the pointer is on it, and gives it its time again once the pointer leaves. */
+  /** Keeps a message up while something in it has keyboard focus, up to twice its time, and gives it its time again once focus leaves. A pointer resting on it does not hold it: it floats over the page and must not get in the way. */
   holdNotice(hold: boolean): void {
     clearTimeout(this.noticeTimer);
-    if (!hold && this.notice) this.noticeTimer = setTimeout(() => this.dismissNotice(), this.noticeMs);
+    if (!this.notice) return;
+    // Held, a message still goes at twice its time: a pointer left resting on it must not keep it up for good.
+    const left = hold ? Math.max(0, this.noticeCap - Date.now()) : Math.min(this.noticeMs, Math.max(0, this.noticeCap - Date.now()));
+    this.noticeTimer = setTimeout(() => this.dismissNotice(), left);
   }
 
   dismissNotice(): void {

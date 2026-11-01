@@ -257,17 +257,6 @@
           {/each}
         </div>
       </section>
-      <section class="pn">
-        <div class="head">
-          <h3>Clock</h3>
-          <p class="muted">How times are written everywhere: {formatTime(app.now)} now. “Device” uses your system format. Kept on this device.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Clock">
-          <button aria-pressed={clock.choice === ''} onclick={() => clock.set('')}>Device</button>
-          <button aria-pressed={clock.choice === '12'} onclick={() => clock.set('12')}>12-hour</button>
-          <button aria-pressed={clock.choice === '24'} onclick={() => clock.set('24')}>24-hour</button>
-        </div>
-      </section>
     {:else if section === 'computer'}
       <section class="pn">
         <div class="head">

@@ -15,7 +15,6 @@
   import { WORK_GROUPS, workGroup, type WorkPlan } from '../lib/work-queue';
   import { isPhone } from '../lib/phones/capability';
   import { orderDrops, positionBetween, reorderedIds, spreadPositions, type OrderDrop } from '../lib/orderGestures';
-  import { assistant } from '../lib/assistant/sessions.svelte';
   import { projectHref } from '../lib/location';
   import { router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
@@ -29,7 +28,6 @@
   $effect(() => git.watch());
 
   $effect(() => { if (new URLSearchParams(router.query).get('new') === 'task') app.newTaskOpen = true; });
-  function openSalie() {if(window.parent!==window) window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId:project.id},'*');else assistant.show();}
   // ---- filters ----
   let search = $state('');
   const params = $derived(new URLSearchParams(router.query));
@@ -220,7 +218,6 @@
         {/each}
         {#if done.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{done.length}</span></summary><ul>{#each done as task (task.id)}{@render taskRow(task, false)}{/each}</ul></details></section>{/if}
         </div>
-        <footer class="queue-footer"><button class="btn quiet small" onclick={openSalie}>Plan your next step with Salie <Icon name="right" size={14} /></button></footer>
       {/if}
     </section>
   {/if}
@@ -233,6 +230,6 @@
 <GitSheets projectId={project.id} store={git} />
 <style>
  .work-new{display:none;}.archive{margin-left:auto;font-size:12px;color:var(--text-2);background:transparent;border:0;cursor:pointer;}.queue-filters{font-size:12px;color:var(--text-2);margin-bottom:20px;}.queue-filters summary{cursor:pointer;}.filters{display:flex;gap:14px;flex-wrap:wrap;padding:14px 0 0;}.filters label{display:flex;align-items:center;gap:8px;}.filters select{min-height:32px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);background:var(--surface);font:inherit;max-width:180px;}
- .queue-card :global(.work-card){border-inline-width:0;border-bottom-width:0;border-radius:0;box-shadow:none;background:transparent;}.queue-footer{margin-top:20px;padding-top:4px;}
+ .queue-card :global(.work-card){border-inline-width:0;border-bottom-width:0;border-radius:0;box-shadow:none;background:transparent;}
  @media(max-width:899px){.work-new{display:inline-flex;}.archive{min-height:44px;}.filters select{min-height:44px;}}
 </style>

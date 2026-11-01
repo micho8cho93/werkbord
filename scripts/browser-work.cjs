@@ -88,7 +88,7 @@ let browser,shellServer;
  const run=await p('POST',`/projects/${project.id}/tasks/${sessionTask.id}/runs`,{agentId:'fixture'});
  await page.goto(`${personal}/#/p/${project.id}/work?plan=${savedPlan.id}`);
  await page.getByRole('heading',{name:'Deliver the adapter',exact:true}).waitFor();
- await page.getByRole('button',{name:'Open CLI session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
  await page.locator('.assistant').first().waitFor({state:'visible'}).catch(()=>{});
  assert((await p('GET',`/projects/${project.id}/runs/${run.id}`)).taskId===sessionTask.id);
  // Task → Calendar → Task: the scheduled entry is marked, each page's trail leads back, and a task needs no plan.

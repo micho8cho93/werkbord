@@ -201,7 +201,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.waitForFunction(() => document.querySelector('[data-testid=sidebar] [data-page=inbox]')?.getAttribute('aria-current') === 'page');
         await individual.locator('section.panel').waitFor();
         await skipTour();
-        await individual.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
+        await individual.locator('section.panel').getByRole('button', { name: 'Open session', exact: true }).first().click();
         await page.waitForFunction(() => document.querySelector('[data-testid=sidebar] [data-page=agents]')?.getAttribute('aria-current') === 'page');
         await individual.getByRole('region', { name: 'Live task session' }).waitFor();
         assert.equal((await runs()).length, 1);
@@ -259,7 +259,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // The task's panel is drawn over the plan and its trail arrives a moment after the panel itself.
         await individual.getByTestId('crumbs').filter({ hasText: /Launch plan/ }).last().waitFor();
         assert.match(await crumbs().innerText(), /Work[\s\S]*Launch plan/, 'Work › Launch plan above the task');
-        await individual.locator('section.panel').getByRole('button', { name: 'Open Session', exact: true }).first().click();
+        await individual.locator('section.panel').getByRole('button', { name: 'Open session', exact: true }).first().click();
         // The session opens in the same pane, so Work's list is still beside it.
         await current('inbox'); await onSession();
         assert.equal(await page.getByTestId('work-pane-bar').count(), 1, 'a session reached from a task in the pane stays in the pane');

@@ -85,7 +85,7 @@ async function captureMatrix(page, name) {
     const touchHeader = touchReview.locator('.panel .head');
     const titleBox = await touchHeader.getByRole('heading', { name: task.title, exact: true }).boundingBox();
     const reviewBox = await touchHeader.getByRole('link', { name: 'Review changes', exact: true }).boundingBox();
-    const archiveBox = await touchHeader.getByRole('button', { name: 'Archive task', exact: true }).boundingBox();
+    const archiveBox = await touchHeader.getByRole('button', { name: 'Archive', exact: true }).boundingBox();
     const editBox = await touchHeader.getByRole('button', { name: 'Edit task', exact: true }).boundingBox();
     assert(titleBox && reviewBox && archiveBox && editBox && titleBox.y < reviewBox.y && reviewBox.y + reviewBox.height <= archiveBox.y && reviewBox.y + reviewBox.height <= editBox.y, 'phone task title and review decision precede Archive and Edit');
     assert(archiveBox.height >= 44 && editBox.height >= 44, 'secondary task actions retain 44px touch targets');
