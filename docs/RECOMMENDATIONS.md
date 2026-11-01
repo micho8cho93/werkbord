@@ -6,7 +6,7 @@ each with the evidence it stands on and the rules that shaped it. A suggestion i
 exists and asks the person itself; it starts nothing, approves nothing, creates no branch, pushes no commit and merges no
 pull request.
 
-This is the second half of the assistant's memory work ([Phase 3A](ASSISTANT.md#phase-3a-salies-memory-context) gave Salie
+This is the second half of the assistant's memory work ([Phase 3A](ASSISTANT.md#salies-memory-context) gave Salie
 controlled access to memory; this decides what to do with it). There is no second agent system: no new process, runner,
 model or approval flow. The decision is a pure function of facts the application already has; a model, where one is
 involved, only narrates the answer.

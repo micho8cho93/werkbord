@@ -14,7 +14,7 @@
     "cleanMacLifecycle": {
       "status": "pending",
       "evidence": "docs/PRODUCTION_ACCEPTANCE.md",
-      "notes": "Published 4.83.5-preview.1 trust/feed baseline verified only. New exact candidate, installation and update on clean hardware remain pending."
+      "notes": "Exact candidate signature, installation, update and recovery on clean hardware remain pending; earlier preview validation does not accept current artifacts."
     },
     "cleanLinuxLifecycle": {
       "status": "pending",
@@ -41,7 +41,7 @@
     "unifiedPlatform": {
       "status": "pending",
       "evidence": "docs/unified-platform/ACCEPTANCE.md",
-      "notes": "One build with Personal/Team projects and Free/Premium plans. Exact-candidate admission, read-only transitions, unified navigation, create/join and project-move checks remain required; stage 5 Salie read-only policy and Home polish remain unfinished."
+      "notes": "One build with Personal/Team projects and Free/Premium plans. Exact-candidate admission, read-only transitions, project-context navigation, Work, sessions, create/join and retained project-transfer contracts need acceptance. The proposed Salie Team read-only restriction remains unimplemented."
     }
   }
 }

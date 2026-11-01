@@ -1,5 +1,8 @@
 # ADR 0001: The production architecture of Werkbord Team
 
+> Accepted decision record: the original context below predates later implementation changes. For current behaviour,
+> use [STRUCTURE.md](../STRUCTURE.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md) and [PLANS.md](../PLANS.md).
+
 - **Status:** accepted. Phase 1 (the foundation), phase 2 (the customer-owned network: [ADR 0002](0002-customer-owned-network.md)) and phase 3 (the replicated workspace storage: [ADR 0003](0003-replicated-workspace-storage.md)) are implemented; the runner message path is not.
 - **Applies to:** Werkbord Team. The individual product shares the packages named below and is otherwise unchanged.
 - **Read with:** [STRUCTURE.md](../STRUCTURE.md), [TEAM.md](../TEAM.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).

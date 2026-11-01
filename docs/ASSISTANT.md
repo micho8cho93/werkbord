@@ -4,8 +4,9 @@ The assistant lets you talk to Claude Code, Codex, Gemini CLI or OpenCode, signe
 what is blocked, what an agent is asking, what is planned for next week. It can **look** at the board and **propose**
 changes; you confirm each change before anything happens.
 
-It has a screen ([The screen](#the-screen)): a full-window conversation that opens out of the Assistant button in the sidebar.
-Everything the screen does is the HTTP API on this computer ([the API](#the-api)), so it, and later an MCP server, have one foundation.
+It has a screen ([The screen](#the-screen)): a full-window conversation that opens from the Salie destination in the sidebar.
+The screen uses the HTTP API on this computer ([the API](#the-api)). It shares the application-operation foundation
+with the MCP server; each uses its own principal and permissions. See [MCP.md](MCP.md).
 
 ```
  you ──▶ API (loopback, your token only)
@@ -423,7 +424,7 @@ You can show the assistant a text file with a message: notes, a spec, a CSV, a l
   in its own storage, and **Werkbord cannot delete that**; the question says so before you agree.
 - **Bounded.** 256 KB a file, 4 files and 512 KB a message, 8 waiting in a conversation and 8 MB waiting in all. Plain text only (UTF-8, no control
   characters): a PDF or a picture is refused, saying so. The assistant runs with no tools, so there would be nothing to read one with;
-  PDFs, Markdown libraries and images are the resources library's work (stage 4).
+  Binary resource libraries are not part of this attachment interface.
 - **Data, not instructions.** The content is escaped (`<`, `>`, `&` and backticks) inside `<werkbord-attachment>`, so a file cannot
   close its wrapper, forge a notice or write a tool call, and the assistant is told the file is yours to read, not to obey
   (`TestAFileCannotBreakOutOfItsWrapperOrOpenACall`). Names are cleaned the same way.
@@ -618,13 +619,7 @@ this adapter.
 | The screen in a real browser, with the real engine and API and a scripted provider: the animation frame by frame (light, dark, reduced motion), the workspace left untouched, streaming, generated OpenUI local controls and forms, invalid form values, duplicate submissions, task proposal approval/rejection/expiry, denied writes, malformed-output recovery, tool progress, confirmations that survive closing/reload/restart, files, dictation, keyboard and screen-reader behaviour, a phone | `make test-assistant-browser` (`scripts/browser-assistant.cjs`) |
 | The same from the desktop window's sidebar, in a real frame | `make test-assistant-browser` (`scripts/browser-shell-assistant.cjs`) |
 
-## Not in this stage
-
-PDFs, images and other resources, and reading them (the resources library, stage 4); analytics on model usage and cost (5); the MCP
-server and external clients (6; it will use `appops.Service` with a principal of its own); native voice and communication
-integrations (7). The screen has no keyboard shortcut of its own yet, and keeps no history on purpose.
-
-## Phase 3A: Salie's memory context
+## Salie's memory context
 
 Salie uses the existing provider engine and operation boundary. `retrieve_memory` is a read-only,
 `memory:read` operation. It never proposes, edits, verifies or publishes a memory. Read-only assistant
@@ -680,7 +675,7 @@ verification, freshness and source references. It uses escaped UI text and does 
 These sources travel only with the session's ordinary tool-result events and existing bounded tab transcript;
 no new global source browser or controller transcript store is introduced.
 
-## Phase 3B: suggested next steps
+## Suggested next steps
 
 Salie can recommend what to do next from policies, permissions, the repository, pull requests, tasks and saved preferences.
 `recommend_next_actions` is a read operation that needs only `memory:read`; the evidence it gathers is limited by the principal's
@@ -717,6 +712,6 @@ One attention queue combines pending run questions across projects with confirma
 
 The desktop shell keeps the assistant frame alive independently of its full-window surface. Only the authenticated Individual workspace frame, and Salie's own frame, may ask the shell to open a session in Agents, and only by a validated session key (`run:<id>` or `terminal:<id>`); Agents may ask the shell to go back to Salie, naming at most an opaque conversation ID. Answers and proposal contents are never relayed through the shell.
 
-## Native terminal tabs (Phase 3)
+## Native terminal tabs
 
 Native Claude Code and Codex terminals are opened and managed in **Agents**, no longer from Salie's New tab on a computer: Salie links to sessions and does not host a second terminal. They are independent of task execution and restricted assistant conversations, and a terminal can be standalone or for a task. See [Agent sessions](AGENT_SESSIONS.md) and [Native terminal sessions](NATIVE_TERMINALS.md) for execution boundaries, reconnection, PTY support, authentication and limits.

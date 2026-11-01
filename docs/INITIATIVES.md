@@ -1,4 +1,4 @@
-# Team Initiatives (Phase 4B)
+# Team Initiatives
 
 An Initiative links existing Team projects and tickets around an objective. Projects keep their boards,
 repositories, ticket ownership, claims, reviews and runner assignments. A ticket may appear in several

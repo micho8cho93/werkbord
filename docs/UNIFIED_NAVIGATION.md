@@ -38,7 +38,7 @@ All Projects, destination/reload persistence, offline workspaces, permission-fil
 context propagation. Existing service authorisation and architecture tests run in `make check`. Screenshots are written
 to ignored `output/playwright/project-context/`.
 
-Phase 8 shares Work title, search and Queue/Plans geometry through `ui/work-layout.css`, keeps a 224px
+The shell shares Work title, search and Queue/Plans geometry through `ui/work-layout.css`, keeps a 224px
 sidebar (64px at narrow widths) and uses 44px destination targets. Narrow search takes a full row.
 All Projects → Work retains “Since you were last here”; its attention link expands the questions and
 workspace notices directly. Project detail routes remain in the command palette.

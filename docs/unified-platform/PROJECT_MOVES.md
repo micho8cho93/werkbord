@@ -1,8 +1,9 @@
-# Project moves (stage 5a)
+# Native project-transfer contract
 
-Implemented in 5.4.0-preview.1. In the app's sidebar, the arrow beside a project opens **Move project**. Choose a connected
-Team for a Personal project, or Personal for a Team project. Moving out of Team requires the workspace's project-management
-permission, the same permission used to archive a project. Team's existing Premium/read-only gate still applies.
+The native project-transfer APIs and their tests remain in the codebase, but the former sidebar Move project dialog
+has been removed. This document describes the retained contract, not an available sidebar workflow. Any caller must
+retain exact-content review, native confirmation and the existing permission checks. Moving out of Team requires
+project-management permission; Team Premium/read-only rules still apply.
 
 The review displays every field that crosses the boundary: project name, credential-free remote repository reference, and
 unarchived task/ticket titles and descriptions. Team ticket requirements are appended to the description under
@@ -29,6 +30,3 @@ and reviewed text inside that archive transaction; intervening edits refuse the 
 with all their history. If import has an unknown outcome, the source stays active and the same review can be retried. If the
 archive fails or has an unknown outcome, the app names the saved destination and asks the person to check both projects.
 There is no distributed transaction between computers, and an uncertain archive is never presented as a completed move.
-
-Stage 5's Salie read-only Team policy and remaining Home polish are separate follow-up work; this slice implements project
-moves only.

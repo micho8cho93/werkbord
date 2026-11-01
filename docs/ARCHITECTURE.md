@@ -500,18 +500,12 @@ the HTTP API is treated as a remote-execution surface from day one.
 ## 11. Frontend
 
 - Svelte 5 (runes) + TypeScript + Vite, built to static files and embedded into the Go
-  binary with `go:embed`. ~41 KB gzipped JS.
-- **Project is the scope** (§16). Two kinds of page, hash-routed: global (`#/control` Needs you,
-  `#/projects` the list of repositories and registering one) and in a project (`#/p/<id>/board`, `git`,
-  `activity`, and `#/p/<id>/task/<id>`, which belongs to the board). The list of a project's sections lives in
-  one place (`PROJECT_SECTIONS` in `src/lib/location.ts`); the side rail, the tab bar and the switcher are
-  built from it, so Calendar (V1) is one more entry, not a navigation rewrite.
-- **Phone first.** (A phone in a browser or installed from its home screen now opens on the Control Deck, with a two-place bottom bar and the
-  pages below as drill-downs: [MOBILE.md](MOBILE.md). What follows is the layout the desktop app's narrow window keeps.) Under 900 px: sticky top bar with the project's name as its heading (tap to switch), bottom
-  tab bar within thumb reach (Needs you, then the project's sections, with safe-area insets), and the board
-  shows one column at a time behind a four-way segmented control. From 900 px: a side rail replaces the tab
-  bar, with the project switcher at its head, the global pages, and the current project's sections under its
-  name, and all four columns sit side by side. Inputs use 16 px text on touch devices to stop iOS zooming.
+  binary with `go:embed`. The desktop shell is built separately from the PWA.
+- **Project is the scope** (§16). Hash routes identify a project and its Work, Calendar, Git, activity or task
+  detail view. Legacy Board and Timeline links resolve to Work and Calendar. [WORK.md](WORK.md) defines the queues
+  and plans; [UNIFIED_NAVIGATION.md](UNIFIED_NAVIGATION.md) defines the desktop's cross-service project selection.
+- **Phone.** The Control Deck has dedicated navigation and workflow controls; see [MOBILE.md](MOBILE.md).
+  Desktop narrow layouts retain the project selector and an icon rail. Touch inputs use 16px text to avoid iOS zooming.
 - **PWA**: web manifest, PNG + SVG icons, and a service worker that caches the shell
   (network-first for navigation, cache-first for content-hashed assets) and never caches
   `/api/*`. State always comes from the controller.
@@ -543,48 +537,12 @@ the HTTP API is treated as a remote-execution surface from day one.
   and stream events so a question seen closed never comes back. Types in `src/lib/types.ts` mirror the Go JSON by hand. *Deferred*: generating them from
   the Go structs (e.g. with `tygo`).
 
-## 12. Intentionally deferred
+## 12. Feature scope and limits
 
-| Area | Not built yet | Hook already in place |
-| --- | --- | --- |
-| Agent execution | More agents; an "interrupt this turn" action that keeps the session; token/cost reporting; policies such as "completed run → Review" | `agent.Adapter`; the runner and adapters are built (§8, §14) |
-| Worktrees | Garbage-collecting worktrees of finished tasks automatically | `service.Worktrees` records and `gitrepo.Worktrees` engine; a worktree is kept until a person cleans it in the Git Control Center (§18) |
-| Git | Committing, stashing or discarding for the user; pulling or fast-forwarding the target; merging a pull request on GitHub; rebasing; conflict resolution; force pushes of any kind; tags; submodules (see `docs/GIT.md` §7) | `gitrepo.Operator` is the place a new guarded operation goes, and `service.GitControl` the place its checks go |
-| Board interactions | Drag and drop, reordering within a column, delete | `Position` and `PATCH /api/projects/{pid}/tasks/{id}` already accept title, description, state, position and policy; the task page edits title, description and interaction |
-| Projects | Unregistering, renaming | — |
-| Calendar | Everything | `PROJECT_SECTIONS` in the web app: one more section of a project |
-| Task permissions | What an agent may do to the filesystem, Git or network, per task | `ExecutionPolicy` is a struct stored as JSON on tasks and runs, so fields can be added without a migration (§17) |
-| Interrupting an agent | Forcing a turn to stop (Claude `interrupt`, Codex `turn/interrupt`); today a blocked run's agent is *told* to stop and the controller records and shows the block either way | `agent.Session` |
-| Notifications | Web Push for "needs you" | Event log + SSE |
-| Pairing UX | QR code for phones | Token file, `werkbord token [--url]`, `/#token=` adoption |
-| Multi-user / accounts | None in this product, by design. Teams use **Werkbord Team**, a separate product that coordinates people and never executes anything ([TEAM.md](TEAM.md)) | — |
-| Windows | Data-dir locking is a no-op on non-Unix | `lock_other.go` |
-| Event log retention | Compaction or pruning | `seq`-based resume makes it safe to add |
-| Type generation | Go → TS types | Single source in `internal/domain` |
-
-## 13. Relationship to the earlier hosted plan
-
-> **Superseded; kept as history.** The hosted design below (an API server that sends signed jobs to a runner) was never
-> built, and it is not the design of Werkbord Team either. Team, the multi-person product, coordinates people and
-> executes nothing: no server hands work to anyone's runner, no machine is reachable by another member, and no credential
-> is shared (see [TEAM.md](TEAM.md) and [TEAM_SECURITY.md](TEAM_SECURITY.md)). Do not revive this plan for a team.
-
-An earlier plan (`PLAN.md`, since removed) described a **hosted** product (Postgres, GitHub App sign-in, a
-cloud API server that sends signed jobs to a runner). This foundation follows the newer,
-local-first brief instead, and diverges deliberately:
-
-| Earlier plan | This foundation | Why |
-| --- | --- | --- |
-| Hosted Go API + Postgres | The controller on your machine + SQLite | The user's computer owns all state; no SaaS |
-| GitHub App sign-in, devices, signed jobs | No accounts; loopback + bearer token | Single user, single machine |
-| Columns: Backlog, Up next, Working, Review (+ Shipped) | Backlog, Doing, Review, Done | Exactly the four states required by the brief |
-| Runner as a separate process talking to a server | Agent adapters inside the controller | Modular monolith; no network hop to start a run |
-| Tauri desktop shell | PWA served by the controller | No Electron; a desktop shell is not needed yet |
-
-Ideas from the earlier plan that carry over unchanged: compare-and-swap writes, a worktree per
-run, trust rules (agents never move tasks to Done or merge), untrusted text treated as
-data, the phone layout (one column at a time, bottom navigation), and Svelte 5 for the UI.
-
+The current feature contracts live in [WORK.md](WORK.md), [EXECUTION.md](EXECUTION.md), [GIT.md](GIT.md),
+[RUNNERS.md](RUNNERS.md), [MCP.md](MCP.md) and [PHONE.md](PHONE.md). These guides describe supported operations
+and their limits. The controller owns Personal state locally; the Team service coordinates shared records without
+executing developer work. Neither depends on a hosted customer workspace backend.
 
 ## 14. Running a task
 
@@ -676,17 +634,9 @@ where free text is allowed. Failures are explained, not shown as 409s.
 
 ## 16. Projects are the scope
 
-A user may register many repositories, but when they enter one they see that project's information and
-nothing else. There is no global board with filters: each project has its own board, Git view, activity
-(run history), tasks, runs, questions and repository state, and the boundary is drawn in the API and the
-domain, not left to the frontend.
-
-```
-Global                      Needs you (aggregates actionable state across every project)
-                            Projects (every repository; registering one)
-Project A                   Board · Calendar · Git · Runs
-Project B (work project)    Board · Calendar             (planned dates only; no agent execution)
-```
+Each project owns its tasks, runs, questions, Git and repository state. The API and domain enforce the boundary.
+All Projects is a permission-filtered presentation of summaries, not a new project or authority boundary. Work presents
+queues and plans; Calendar displays dates and schedules. Git and execution remain available only for repository projects.
 
 **API.** Everything that belongs to a project is reached *through* it:
 
@@ -716,17 +666,9 @@ or worse), each naming its project and task so a client needs nothing else to sh
 so drawing it runs no Git. Answering from the
 Needs you goes through the question's own project.
 
-**Frontend.** A project's data lives in its own `ProjectScope`, filled only from the scoped endpoints, and the
-scope refuses events and entities that name another project. Switching is therefore looking at another scope:
-no page reload, nothing filtered, and a project already visited is there at once (the switcher fetches the
-others ahead of time). The switcher (the project's name in the top bar on a phone; the head of the rail, or
-Ctrl/⌘ K, on a computer) lists projects with what each asks of the user and filters as you type; it keeps the
-section you are in (Board, Git or Activity), leaves a task page for the new project's board, and from a global
-page enters the new project at its board. The active project is unmistakable: its name is the page heading, the
-top of the page is its colour (derived from its ID), and its section links hang off a bar in that colour. What
-needs the user in *other* projects is never hidden: the banner, the tab title and badge, and Needs you
-all count every project, and a badge on the switcher says how much waits elsewhere.
-
+**Frontend.** Each project's `ProjectScope` is filled from scoped endpoints and refuses events/entities belonging to
+another project. The desktop's project-context adapter selects the owning service and project without merging their
+stores or credentials. See [UNIFIED_NAVIGATION.md](UNIFIED_NAVIGATION.md) and [NAVIGATION.md](NAVIGATION.md).
 
 ## 17. Execution policy
 
@@ -877,7 +819,8 @@ executable if the new one does not come up.
 
 **Runner.** `runners` records computers that can run agents. The controller registers *this* computer, as the one
 `local` runner, every time it starts (`Settings.RegisterRunner`), with nothing to configure; a unique index keeps it
-one. Runs do not yet name a runner: multi-runner execution is deferred.
+one. Runs record their owning runner; remote execution, pairing, routing and recovery are described in
+[RUNNERS.md](RUNNERS.md).
 
 **Private network** (`internal/netprivate`). Phones do not use it (they come in through the relay, §21 and
 [RELAY.md](RELAY.md)); it is the way another computer joins as a runner. The controller embeds a Tailscale node (`tsnet`,
@@ -915,7 +858,7 @@ and policy on the run, and passes them to the adapter. See [EXECUTION.md](EXECUT
 and network; the CLI adds the service, version and PATH-parity checks, and runs what it can when the controller is
 down. Checks report states, never values: the token, the sign-in link and GitHub's code cannot reach a report.
 
-## 21. V1 orchestration
+## 21. Orchestration
 
 Task.Orchestration is the shared source of truth for Board and Calendar, stored
 as JSON in the existing SQLite tasks table. The controller starts ScheduleLoop
@@ -988,7 +931,7 @@ Werkbord on a Mac is one window with the person's **Personal** projects (their o
 **teams**. A project is one or the other: Personal, or a team's. Each keeps its own backend, database, credentials and design, isolated
 from the others; the window is a user-scoped frontend and launcher around them. The controller (which runs the person's own agents)
 and the Team service stay independent services, because that boundary is what keeps credentials safe. There is no mode to choose and no
-switcher: one sidebar shows both.
+workspace-mode switcher: one project dropdown selects Personal, Team or All Projects.
 
 Build with `make desktop` or run with `make desktop-dev`. `make web-shell` builds
 the desktop Svelte entry separately from the Personal PWA. The shell shares
@@ -997,16 +940,10 @@ Team backend imports. Team continues serving its existing console, including
 `?tab=…&project=…&ticket=…` routes. Personal keeps its `#/p/…` routes, CLI
 and every `WERKBORD_*` variable.
 
-The window has one sidebar and nothing else to navigate by. Top to bottom it holds: the product name (which goes Home); **Salie**
-(the sidebar destination, the one way in); **Home**, which gathers what
-needs you from Personal and every team, each in its own colour (Personal blue, a team another hue), and **Calendar**,
-**Reviews** and **Analytics**; then **a section for Personal and one for each team the person belongs to**, each listing what
-belongs to that workspace alone (its projects, and for Personal New personal project), and foldable (remembered on this computer); and last, pinned, New team or join…, Devices & Hosting, Settings and the
-plan chip (Free or Premium; [PLANS.md](PLANS.md)). **Go to…** (⌘K, or the Workspace menu) reaches any project, place or page by typing.
-Choosing a place asks the workspace to show it (`werkbord.navigate`, a place inside the page); the workspace says where it is
-(`werkbord.frame`/`place`) and the sidebar marks that entry. The projects are the ones each workspace reports in its summary. There
-is no connection-status indicator anywhere. Where the shell needs to say whether a page is a workspace's or the window's own it
-keeps one flag (`model.universal`); it is not a mode the person sets.
+The sidebar has a native project dropdown, then **Work**, **Calendar**, **Agents**, **Analytics** and **Salie**,
+with **Settings** separate. All Projects aggregates accessible summaries without creating a stored project. The current
+selection persists across destinations; each service still checks permissions and owns its detail pages. **Go to…**
+(⌘K, or the Workspace menu) retains project and workspace detail routes. See [UNIFIED_NAVIGATION.md](UNIFIED_NAVIGATION.md).
 
 **New team or join…** opens one dialog, the only way to make or join a team. *Create a team* asks for a name; *Join with a link*
 asks for the invitation (an invitation the app was opened with is filled in and read first), shows which team it is for, and asks
@@ -1021,8 +958,7 @@ once, when the team has loaded. A wish made while waiting for an administrator i
 
 The workspaces themselves keep their design and their pages, but inside the window they carry no navigation of their own:
 Personal does not show its rail, and Team does not show its rail; a project's own sections stay with the project
-(Personal's Overview, Board, Calendar, Git and Runs in its header; Team's Board, Git, Activity and People as tabs above
-the project). The theme is chosen in the sidebar and told to the open workspaces (`werkbord.theme`, `light` or `dark`),
+(Work, Calendar, Git and other contextual sections). The theme is chosen in Settings and told to the open workspaces (`werkbord.theme`, `light` or `dark`),
 so a Team opened later starts in the same theme. Outside the desktop app (Personal in a browser or as a phone app,
 Team's own console) both pages keep their own sidebars exactly as they were, apart from the status indicator, which is gone
 there too.
@@ -1033,12 +969,12 @@ mounted underneath. Closing Salie hides its frame; it does not interrupt a reply
 accepts bounded state reports for its badges and exact bridge requests from that assistant frame. It checks the frame's window
 and origin; ordinary Team frames cannot call the assistant bridge. Conversations and attachments remain on the controller's origin.
 
-The stage 5 goal of Personal write / Team read-only is **not yet enforced**: the reviewed `create_ticket` bridge remains available
+The proposed Personal write / Team read-only restriction is **not yet enforced**: the reviewed `create_ticket` bridge remains available
 after a stored proposal is approved, bound to the controller's live request. Documentation and acceptance must retain this
 limitation until the bridge policy changes. See [platform acceptance](unified-platform/ACCEPTANCE.md).
 
-On narrow windows the sidebar folds to icons below about 1110px of window width so a workspace keeps its full layout;
-the person's choice is remembered per device. Personal’s runners are under Devices & Hosting → Runners.
+At 640px and below the sidebar becomes a 64px icon rail while retaining the project context.
+Personal’s runners are under Devices & Hosting → Runners.
 Creating and joining use the single shell dialog and Team’s administrator-approved enrolment APIs. Installation is an explicit action, followed by a native confirmation and macOS administrator authorization.
 The app carries Team’s service and its installer (the app’s own executable in an installer mode). There is no separate
 Team app. No Team installation or activation happens on startup.
@@ -1051,15 +987,15 @@ showing a blank page and offers **Update Team** (Devices & Hosting), which repla
 authorization, unless it belongs to a workspace (that takes coordinated administrator maintenance). What decides is whether
 the service answers, never a table of version numbers.
 
-Home and Calendar read a bounded neutral summary from each accessible service. Reviews and Analytics each have one shell entry
-with a scope picker. Links open the owning workspace and project in the same window. Member management, agent controls and
-project views remain in their engine's existing screens. Aggregation does not copy Personal content into Team.
+Work and Calendar read bounded neutral summaries from each accessible service. Analytics uses the owning service's
+report adapter and selected project context. Links open the owning workspace and project. Member management, agent controls,
+reviews and project views retain their engine's permissions. Aggregation does not copy Personal content into Team.
 
-#### Moving a project between Personal and Team
+#### Retained project-transfer contract
 
-The sidebar's **Move project** arrow opens a destination choice and a review of the exact project name, credential-free remote
-reference and unarchived ticket text. Team requirements become part of the reviewed description. Native memory retains that
-snapshot for 15 minutes; confirmation takes only its opaque token and always asks in a native dialog. No frame or Salie relay
+The former sidebar Move project dialog is removed. The native APIs retain exact-content review of the project name,
+credential-free remote reference and unarchived ticket text for any caller. Team requirements become part of the reviewed
+description. Native memory retains that snapshot for 15 minutes; confirmation takes only its opaque token and always asks in a native dialog. No frame or Salie relay
 exposes project moves.
 
 The shell calls each engine's fixed authenticated routes (`project-transfer` under its own API prefix). A stable ID based on
@@ -1086,7 +1022,8 @@ is a clone of that repository) and, for GitHub repositories, **Clone from GitHub
 the repository is added.
 
 Workspace places are saved in the user’s `werkbord-desktop/shell.json` configuration file (mode 0600). The window starts on
-Home; Personal is selected in the background for setup checks, and saved places remain available when explicitly opened. No credential or workspace content is saved there. Open workspace frames
+Work with All Projects selected; saved project context is restored when available, and workspace detail places remain
+available when explicitly opened. No credential or workspace content is saved there. Open workspace frames
 remain mounted while switching; removed, leaving or unavailable workspaces are
 removed from the UI. Personal runner failure does not prevent the Team UI opening.
 
@@ -1238,7 +1175,7 @@ runner failover. Team setup uses the app's own installer; release publication is
 - `make test-desktop-sign`, `make test-desktop-update`: how the app is signed and how it updates itself, against fakes of Apple's tools and a real Sparkle.
 
 
-### Phase 8 presentation consolidation
+### Shared desktop presentation
 
 The desktop shell has one project context and five destinations (Work, Calendar, Agents, Analytics, Salie),
 with Settings separate. Its summary projections and workspace-local frames keep the trust boundaries described
@@ -1251,4 +1188,6 @@ the existing session cursor store inside All Projects → Work, with attention d
 Infrastructure publication stages outputs in private temporary directories and serialises writers per target
 before replacing the helper and provenance files. This prevents simultaneous validation and packaging jobs
 from deleting each other's staging file. Each source build still verifies the pinned commit and module graph.
-See [the Phase 8 audit](SIMPLIFICATION_PHASE8.md) for retained compatibility APIs and validation limits.
+Older Board and Timeline links remain compatibility aliases to Work and Calendar. Native project-transfer APIs remain
+without a project-move dialog; see [the transfer contract](unified-platform/PROJECT_MOVES.md).
+Independent-device and release validation requirements are in [PRODUCTION_ACCEPTANCE.md](PRODUCTION_ACCEPTANCE.md).

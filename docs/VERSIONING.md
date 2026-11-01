@@ -1,8 +1,7 @@
 # Versioning and tags
 
-Werkbord is **one product with one version and one release** (see [STRUCTURE.md](STRUCTURE.md) and
-[UNIFICATION.md](UNIFICATION.md)). The Mac app, the `werkbord` controller and command line, and the Werkbord Team
-service (`werkbord-team`) are built, versioned, tagged and released together. The same policy is in
+Werkbord is **one product with one version and one release** (see [STRUCTURE.md](STRUCTURE.md)). The Mac app,
+the `werkbord` controller and command line, and the Werkbord Team service (`werkbord-team`) are built, versioned, tagged and released together. The same policy is in
 [AGENTS.md](../AGENTS.md) so that every coding agent follows it.
 
 | | |
@@ -79,7 +78,7 @@ packaging remains available in source but public downloads are deferred (see [Re
 `internal/archtest` fails the tests if `VERSION` is malformed, or if a second `VERSION` file for Team comes back.
 
 Werkbord Team's service and the installer in the app are stamped with this same version; see
-[UNIFICATION.md](UNIFICATION.md) for what remains of the old separation.
+[STRUCTURE.md](STRUCTURE.md) for the process and trust boundaries.
 
 ## Releases
 

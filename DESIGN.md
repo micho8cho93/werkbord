@@ -170,11 +170,9 @@ controller and Team console retain their service-specific navigation: the shared
 desktop shell. See [Unified desktop navigation](docs/UNIFIED_NAVIGATION.md) for context behaviour and verification.
 Generated workspaces, their creation actions and Data Library are removed. Calendar has no Timeline presentation.
 
-The [Phase 8 finish review](docs/SIMPLIFICATION_PHASE8.md) disposition is **SHIP** for this bounded unified desktop scope,
-with no blocking findings.
-Physical-device behaviour and contrast across every theme were not independently tested in this finish pass.
-The change extends the approved Buffer-inspired Work direction; it preserves Paper, Graphite, Classic, bundled Geist,
-the pixel mark and cobalt/amber roles, without a replacement visual world or generated raster assets.
+The desktop follows the approved Buffer-inspired Work direction while preserving Paper, Graphite, Classic, bundled Geist,
+the pixel mark and cobalt/amber roles. Physical-device acceptance remains part of the
+[production gate](docs/PRODUCTION_ACCEPTANCE.md).
 
 ### Team console
 

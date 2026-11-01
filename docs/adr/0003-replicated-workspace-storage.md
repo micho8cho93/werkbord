@@ -1,5 +1,8 @@
 # ADR 0003: Replicated workspace storage
 
+> Accepted decision record: the original context below predates later implementation changes. For current behaviour,
+> use [STRUCTURE.md](../STRUCTURE.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md) and [PLANS.md](../PLANS.md).
+
 - **Status:** accepted and implemented in Team 2.6.1 (2.6.0 was tagged, but its release failed in CI before anything was published; phase 3 of the architecture in [ADR 0001](0001-team-production-architecture.md)). The runner message path and licensing are not part of it.
 - **Applies to:** Werkbord Team. The individual product shares `internal/sqlitekit` (two options it does not use) and is otherwise unchanged.
 - **Read with:** [TEAM_STORAGE.md](../TEAM_STORAGE.md) (how to run it), [TEAM_NETWORK.md](../TEAM_NETWORK.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md).

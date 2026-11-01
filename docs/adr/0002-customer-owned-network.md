@@ -1,5 +1,8 @@
 # ADR 0002: The customer-owned private network
 
+> Accepted decision record: the original context below predates later implementation changes. For current behaviour,
+> use [STRUCTURE.md](../STRUCTURE.md), [TEAM_SECURITY.md](../TEAM_SECURITY.md) and [PLANS.md](../PLANS.md).
+
 - **Status:** accepted and implemented in Team 2.5.0 (phase 2 of the architecture in [ADR 0001](0001-team-production-architecture.md)). Replicating the workspace's *data* across hosts is not part of it.
 - **Applies to:** Werkbord Team. The individual product keeps its Tailscale transport and gains no behaviour; it shares the new `internal/enrollment` package, which it does not yet use.
 - **Read with:** [TEAM_NETWORK.md](../TEAM_NETWORK.md) (how it works and how to run it), [TEAM_SECURITY.md](../TEAM_SECURITY.md).

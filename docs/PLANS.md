@@ -100,5 +100,5 @@ old per-workspace issuing UI. The existing hosted operator authentication and hi
 written; it stays in the schema, because migrations only move forward and hosts of different versions can share a database
 during maintenance.
 
-`cmd/werkbord-team/vendor` signs unlock keys and a release's Team archive checksums. Design and order of work:
-[unified-platform/PLAN.md](unified-platform/PLAN.md).
+`cmd/werkbord-team/vendor` signs unlock keys and a release's Team archive checksums. See
+[PREMIUM_OPERATIONS.md](PREMIUM_OPERATIONS.md) for current issuer custody and recovery procedures.
