@@ -61,6 +61,8 @@ type Event struct {
 	Ticket   *appops.TicketView `json:"ticket,omitempty"`
 	// Session points at the agent session a confirmed start_agent_run started. The conversation keeps only this reference.
 	Session *appops.SessionView `json:"session,omitempty"`
+	// Batch points at what a confirmed import_work_batch made, for the card's way into Work.
+	Batch *appops.BatchResult `json:"batch,omitempty"`
 	// Error is set on EventFailed.
 	Error *ErrorInfo `json:"error,omitempty"`
 	// Usage is set on EventCompleted when the provider said.

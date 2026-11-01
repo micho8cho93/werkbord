@@ -2,7 +2,10 @@ package appops
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+
+	"werkbord/internal/domain"
 )
 
 func TestSalieWorkPlanRequiresConfirmationAndKeepsTaskIdentity(t *testing.T) {
@@ -52,5 +55,47 @@ func TestSalieWorkPlanRequiresConfirmationAndKeepsTaskIdentity(t *testing.T) {
 	readonly := f.session("ast_plans_ro", PermTicketsRead)
 	if _, err = f.call(readonly, "save_work_plan", args); err == nil {
 		t.Fatal("read-only mutation")
+	}
+}
+
+func TestSalieImportsAChainedBatchWithOneConfirmation(t *testing.T) {
+	f := newFx(t)
+	project := f.project("Delivery")
+	p := f.session("ast_batch")
+	args := map[string]any{"projectId": project.ID, "chain": true, "plans": []any{
+		map[string]any{"title": "UI", "tasks": []any{map[string]any{"title": "Tokens"}, map[string]any{"title": "Buttons"}, map[string]any{"title": "Forms"}}},
+		map[string]any{"title": "UX", "after": "UI", "tasks": []any{map[string]any{"title": "Flows"}, map[string]any{"title": "Copy"}}},
+	}}
+	pending := f.mustCall(p, "import_work_batch", args)
+	if pending.Pending == nil || len(f.tickets(project.ID)) != 0 {
+		t.Fatalf("created before confirmation: %+v", pending)
+	}
+	if !strings.Contains(pending.Pending.Summary, "2 plans with 5 tasks") || !strings.Contains(pending.Pending.Summary, "starts after UI") {
+		t.Fatal(pending.Pending.Summary)
+	}
+	if _, err := f.confirm(p, pending.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	plans, _ := f.tasks.WorkPlans(bg, project.ID)
+	if len(plans) != 2 || len(plans[0].TaskIDs) != 3 || len(plans[1].TaskIDs) != 2 {
+		t.Fatalf("plans: %+v", plans)
+	}
+	byID := map[string]domain.Task{}
+	for _, task := range f.tickets(project.ID) {
+		byID[task.ID] = task
+	}
+	deps := func(id string) []string {
+		return byID[id].Orchestration.Dependencies
+	}
+	ui, ux := plans[0].TaskIDs, plans[1].TaskIDs
+	if len(deps(ui[0])) != 0 || deps(ui[1])[0] != ui[0] || deps(ui[2])[0] != ui[1] {
+		t.Fatal("tasks within a plan are not chained")
+	}
+	if deps(ux[0])[0] != ui[2] || deps(ux[1])[0] != ux[0] {
+		t.Fatal("the second plan does not wait for the first")
+	}
+	if _, err := f.call(p, "import_work_batch", map[string]any{"projectId": project.ID, "chain": true, "plans": []any{
+		map[string]any{"title": "A", "after": "B", "tasks": []any{map[string]any{"title": "x"}}}, map[string]any{"title": "B", "tasks": []any{map[string]any{"title": "y"}}}}}); err == nil {
+		t.Fatal("a plan was allowed to come after one that follows it")
 	}
 }

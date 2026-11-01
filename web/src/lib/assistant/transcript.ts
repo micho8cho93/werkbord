@@ -56,6 +56,8 @@ export interface ConfirmItem {
   outcome?: string;
   ticket?: { id: string; projectId: string; title: string; state: string };
   session?: { key: string; kind: 'run' | 'terminal'; id: string; projectId: string; taskId: string; agentId: string; state: string };
+  /** What a confirmed import made: the card's way into Work. */
+  batch?: { projectId: string; planIds: string[]; taskIds: string[]; chained: boolean };
 }
 
 export interface NoticeItem {
@@ -175,6 +177,7 @@ export function apply(t: Transcript, e: AssistantEvent): Applied {
       if (e.outcome) c.outcome = e.outcome;
       if (e.ticket) c.ticket = e.ticket;
       if (e.session) c.session = e.session;
+      if (e.batch) c.batch = e.batch;
       break;
     }
     case 'notice': {

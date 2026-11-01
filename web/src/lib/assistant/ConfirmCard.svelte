@@ -5,6 +5,7 @@
   import type { ConfirmItem } from './transcript';
   import { clock, operationFailureTitle, operationTitle } from './words';
   import { taskHref } from '../router.svelte';
+  import { projectHref } from '../location';
   import { openAgents } from '../agent-nav';
   import { isSessionKey } from '../agent-sessions';
   import { acknowledge, surface } from '../motion';
@@ -47,7 +48,7 @@
   {#if item.state === 'waiting' || item.state === 'working'}
     <div class="acts">
       <button class="btn primary" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'approve')}>
-        {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : item.operation === 'start_agent_run' ? 'Starting…' : 'Saving…') : item.operation === 'start_agent_run' ? 'Confirm and start' : 'Confirm'}
+        {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : item.operation === 'start_agent_run' ? 'Starting…' : item.operation === 'import_work_batch' ? 'Importing…' : 'Saving…') : item.operation === 'start_agent_run' ? 'Confirm and start' : item.operation === 'import_work_batch' ? 'Import into Work' : 'Confirm'}
       </button>
       <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Decline</button>
     </div>
@@ -57,6 +58,9 @@
     {#if item.session && isSessionKey(item.session.key)}
       <!-- The conversation holds only the reference; the session itself is opened in Agents, where it can be read and continued. -->
       <button class="task-link" type="button" onclick={() => openAgents(item.session!.key, here)} data-testid="open-in-agents">Open in Agents</button>
+    {/if}
+    {#if item.batch?.planIds.length}
+      <a class="task-link" data-testid="open-in-work" href={withChain(`${projectHref(item.batch.projectId, 'work')}?plan=${encodeURIComponent(item.batch.planIds[0])}`, here)}>Open in Work{item.batch.planIds.length > 1 ? ` · ${item.batch.planIds.length} plans` : ''}</a>
     {/if}
     {#if item.ticket}
       {#if connected}<button class="task-link" type="button" onclick={openConnectedTask}>Open task</button>
@@ -99,6 +103,7 @@
     --status-word: var(--danger-text);
   }
   .sum {
+    white-space: pre-line;
     font-size: 14px;
     overflow-wrap: anywhere;
   }

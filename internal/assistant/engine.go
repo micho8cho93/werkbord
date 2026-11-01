@@ -728,6 +728,7 @@ func (e *Engine) Resolve(ctx context.Context, sessionID, actionID string, approv
 				ev.Outcome = ch.Message
 				ev.Ticket = ch.Ticket
 				ev.Session = ch.Session
+				ev.Batch = ch.Batch
 			}
 			ev.Text = "confirmed"
 		} else {

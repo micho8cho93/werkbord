@@ -86,6 +86,10 @@ export function operationTitle(op: string): string {
       return 'Answer an agent’s question';
     case 'start_agent_run':
       return 'Start an agent';
+    case 'import_work_batch':
+      return 'Import into Work';
+    case 'save_work_plan':
+      return 'Save a plan';
     default:
       return 'Change';
   }
@@ -106,6 +110,7 @@ export function operationFailureTitle(op: string): string {
     case 'update_ticket': return 'Could not update the task';
     case 'answer_question': return 'Could not save the answer';
     case 'start_agent_run': return 'Could not start the agent';
+    case 'import_work_batch': return 'Could not import into Work';
     default: return 'Could not complete this Salie step';
   }
 }
