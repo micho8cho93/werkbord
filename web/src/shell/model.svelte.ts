@@ -265,6 +265,13 @@ export class Model {
     const target = await ask(a => a.LoadWorkspace('personal'));
     this.assistantFrame = { url: surfaceUrl(target.url), origin: target.origin };
   }
+  /** Where the brief's frame loads from: the person's own Werkbord, as the page that shows one write-up and nothing else. */
+  briefFrame = $state<{ url: string; origin: string } | null>(null);
+  async prepareBrief(): Promise<void> {
+    if (this.remotePersonal || this.briefFrame || !this.personalReady) return;
+    const target = await ask(a => a.LoadWorkspace('personal'));
+    this.briefFrame = { url: surfaceUrl(target.url, 'brief'), origin: target.origin };
+  }
   /** Whether the person's own Werkbord is there to show Agents in. */
   get personalReady(): boolean {
     return this.view?.items.find(i => i.id === 'personal')?.state === 'ready';

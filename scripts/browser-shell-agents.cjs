@@ -230,6 +230,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         const context = page.getByTestId('project-context');
         await side.getByRole('button', { name: 'Work', exact: true }).click(); await current('inbox');
         await context.selectOption('');
+        await page.locator('.work-tabs').getByRole('button', { name: /^Queue/ }).click(); // Work opens on its Overview; the queue is the next tab
         await page.getByRole('searchbox', { name: 'Search work' }).fill('Fix');
         assert.equal(await context.inputValue(), '', 'All Projects');
         await page.locator('.queue-card button.task', { hasText: 'Fix the login' }).click();
@@ -250,7 +251,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
 
         // Work → plan → task → session, and back down the same route.
         await page.getByRole('searchbox', { name: 'Search work' }).fill('');
-        await page.locator('.work-tabs').getByRole('button', { name: /^Plans/ }).click();
+        await page.locator('.work-tabs').getByRole('button', { name: /^Queue/ }).click();
         await page.locator('button.task', { hasText: 'Launch plan' }).click();
         await individual.getByRole('heading', { level: 1, name: 'Launch plan' }).waitFor();
         assert.match(await crumbs().innerText(), /Work/);
@@ -270,7 +271,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await individual.getByRole('heading', { level: 1, name: 'Launch plan' }).waitFor();
         await crumbs().getByRole('button', { name: /Work/ }).click();
         await current('inbox');
-        assert.equal(await page.locator('.work-tabs [aria-current=page]').innerText().then(t => t.replace(/\d+/g, '').trim()), 'Plans', 'the section is as it was left');
+        assert.equal(await page.locator('.work-tabs [aria-current=page]').innerText().then(t => t.replace(/\d+/g, '').trim()), 'Queue & Plans', 'the section is as it was left');
         assert.equal((await runs()).length, 1); assert.equal((await sessions()).length, 1);
         ok('Work → plan → task → session and back, step by step, to Work on its Plans section');
 

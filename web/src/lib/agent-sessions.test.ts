@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { asTerminal, isSessionKey, ordered, parseSessionKey, runKey, stateLabel, terminalKey, unique, type AgentSession } from './agent-sessions';
 import { hrefOf, parse, sessionsHref } from './location';
-import { parseAssistantRequest } from './embed';
+import { parseAssistantRequest, parseBriefRequest } from './embed';
 import { agentsPlace, isAgentsPlace } from '../shell/nav';
 
 const session = (over: Partial<AgentSession>): AgentSession => ({
@@ -65,5 +65,22 @@ describe('Salie can be asked to open a conversation by its ID and nothing else',
     for (const bad of [{ action: 'close', conversation: 'ast_a' }, { action: 'open', conversation: 'a b' }, { action: 'open', conversation: '' }, { action: 'open', conversation: 5 }, { action: 'open', conversation: 'a'.repeat(81) }, { action: 'open', conversation: 'ast_a', catchUpPrompt: 'x' }]) {
       expect(parseAssistantRequest({ type: 'werkbord.assistant', ...bad }), JSON.stringify(bad)).toBeNull();
     }
+  });
+});
+
+describe('the brief can be asked to write, or to clear, and nothing else', () => {
+  it('accepts a prompt to write, with an optional project context, and refuses every other shape', () => {
+    const ctx = { workspace: 'personal', project: 'prj_1', label: 'App' };
+    expect(parseBriefRequest({ type: 'werkbord.brief', action: 'ask', prompt: 'Summarize the last day' })).toEqual({ action: 'ask', prompt: 'Summarize the last day' });
+    expect(parseBriefRequest({ type: 'werkbord.brief', action: 'ask', prompt: 'Plan my day', projectContext: ctx })).toMatchObject({ action: 'ask', projectContext: ctx });
+    expect(parseBriefRequest({ type: 'werkbord.brief', action: 'ask', prompt: 'Plan my day', projectContext: null })).toMatchObject({ projectContext: null });
+    expect(parseBriefRequest({ type: 'werkbord.brief', action: 'clear' })).toEqual({ action: 'clear' });
+    for (const bad of [{}, { action: 'ask' }, { action: 'ask', prompt: '' }, { action: 'ask', prompt: '  ' }, { action: 'ask', prompt: 'x'.repeat(24001) }, { action: 'ask', prompt: 5 },
+      { action: 'ask', prompt: 'x', extra: 1 }, { action: 'ask', prompt: 'x', projectContext: { workspace: 'a' } }, { action: 'ask', prompt: 'x', projectContext: [] },
+      { action: 'clear', prompt: 'x' }, { action: 'open', prompt: 'x' }]) {
+      expect(parseBriefRequest({ type: 'werkbord.brief', ...bad }), JSON.stringify(bad)).toBeNull();
+    }
+    expect(parseBriefRequest({ type: 'werkbord.assistant', action: 'ask', prompt: 'x' })).toBeNull();
+    expect(parseBriefRequest(null)).toBeNull();
   });
 });

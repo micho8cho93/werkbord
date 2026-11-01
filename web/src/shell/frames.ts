@@ -47,6 +47,8 @@ export interface Deps {
   open(id: string, target: string, place: string): void;
   /** Individual's assistant says whether it is open and whether something there needs the person. */
   assistant(id: string, state: { open: boolean; waiting: number; running: boolean }): void;
+  /** The brief's frame says how it stands and how tall it is. */
+  brief?(state: 'idle' | 'working' | 'done' | 'failed', height: number): void;
   /** A page says the person chose a theme there. */
   theme(id: string, choice: 'light' | 'dark' | ''): void;
   /** A page says the person chose a style there (Paper, Graphite, Classic or Cloud). */
@@ -131,7 +133,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
   if (m.type === 'werkbord.frame') {
     // The assistant's frame is not a workspace's page: it has no place to remember, and may open only a place in the person's own
     // Werkbord or a validated Team ticket route.
-    if (frame.surface && m.event !== 'assistant' && m.event !== 'open' && m.event !== 'agent_session') return;
+    if (frame.surface && m.event !== 'assistant' && m.event !== 'brief' && m.event !== 'open' && m.event !== 'agent_session') return;
     if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
     else if (m.event === 'palette' && !frame.surface) d.palette?.();
     else if (m.event === 'leave' && !frame.surface) d.leave?.();
@@ -170,6 +172,10 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     else if (m.event === 'open' && m.target === 'personal' && isPlace(m.place) && String(m.place).startsWith('#') && (!frame.surface || frame.id === 'personal')) d.open(frame.id, 'personal', m.place as string);
     // Only the assistant's own frame, which is the person's own Werkbord, says how the assistant stands. A count and two flags are
     // all that cross: never a word of the conversation.
+    // The brief's frame says only that it is writing, done or failed, and how tall it is: never a word of what it wrote.
+    else if (m.event === 'brief' && frame.surface && frame.id === 'personal' && (m.state === 'idle' || m.state === 'working' || m.state === 'done' || m.state === 'failed') && typeof m.height === 'number' && Number.isFinite(m.height) && m.height >= 0 && m.height <= 4000) {
+      d.brief?.(m.state, Math.round(m.height));
+    }
     else if (m.event === 'assistant' && frame.surface && frame.id === 'personal' && typeof m.open === 'boolean' && typeof m.running === 'boolean' && Number.isSafeInteger(m.waiting) && (m.waiting as number) >= 0) {
       d.assistant(frame.id, { open: m.open, waiting: m.waiting as number, running: m.running });
     }
@@ -177,9 +183,9 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
 }
 
 /** Where the assistant's own frame loads from: the person's own Werkbord, as its assistant page and nothing else. */
-export function surfaceUrl(workspaceUrl: string): string {
+export function surfaceUrl(workspaceUrl: string, surface: 'assistant' | 'brief' = 'assistant'): string {
   const u = new URL(workspaceUrl);
-  u.searchParams.set('surface', 'assistant');
+  u.searchParams.set('surface', surface);
   return u.toString();
 }
 

@@ -103,6 +103,12 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 
     // ---- 2. Work: the order, the flags, and answering in place ----
     await page.getByRole('button', { name: 'Work', exact: true }).first().click();
+    const sections = page.getByRole('navigation', { name: 'Work sections' });
+    // Work opens on its Overview, where what stands in the way is counted; the queue and its flags are on the next tab.
+    await sections.getByRole('button', { name: 'Overview', exact: true }).waitFor();
+    assert.equal(await sections.locator('[aria-current=page]').innerText(), 'Overview', 'Work opens on Overview');
+    await page.getByTestId('work-stats').waitFor();
+    await sections.getByRole('button', { name: /^Queue/ }).click();
     const flags = page.getByTestId('work-flags');
     await flags.waitFor();
     const chips = (await flags.locator('button').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
@@ -110,6 +116,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
     const nowRows = await page.locator('[data-section=now] button.task strong').allInnerTexts();
     assert.deepEqual(nowRows, ['Fix the login flow', 'Tidy the settings page', 'Ship the release notes', 'Refactor the parser'], 'an answer, then a review, then high priority, then the rest of what is moving');
     await page.screenshot({ path: path.join(artifacts, 'work-attention.png') });
+    await sections.getByRole('button', { name: 'Overview', exact: true }).click();
     const panel = page.getByTestId('next-decision');
     assert.match(await panel.innerText(), /Waiting for you/);
     assert.match(await panel.innerText(), /npm test -- --watch=false/, 'an approval shows what it is for, without opening anything');
@@ -118,6 +125,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
     const sent = calls.find(c => c.method === 'Relay' && c.args[1] === 'AnswerQuestion');
     assert.ok(sent, 'the answer was sent');
     assert.deepEqual({ project: sent.args[2][0].projectId, question: sent.args[2][0].questionId, answer: sent.args[2][0].answer }, { project: 'one', question: 'q1', answer: 'Allow' });
+    await sections.getByRole('button', { name: /^Queue/ }).click();
     assert.equal(await page.getByTestId('work-flags').locator('button', { hasText: 'answer needed' }).count(), 0, 'the flag goes with the question');
     ok('Work puts the answer first, flags and counts what needs a look, and answers an approval in place');
 

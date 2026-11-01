@@ -116,6 +116,25 @@ describe('frame authority', () => {
   });
 });
 
+describe('the brief report', () => {
+  const say = (data: Record<string, unknown>, from: Window = assistantWindow, origin = surface.origin) => ({ source: from, origin, data: { type: 'werkbord.frame', event: 'brief', ...data } });
+  it('takes a state and a height from the brief’s own frame, and never a word of what it wrote', async () => {
+    const d = { ...deps(), brief: vi.fn() };
+    await handle([surface], say({ state: 'done', height: 211.4 }), d);
+    expect(d.brief).toHaveBeenCalledWith('done', 211);
+    await handle([surface], say({ state: 'done', height: 12, text: 'the write-up' }), d);
+    expect(JSON.stringify(vi.mocked(d.brief).mock.calls)).not.toContain('write-up');
+  });
+  it('ignores a workspace page, a forged origin and anything that is not exactly that shape', async () => {
+    const d = { ...deps(), brief: vi.fn() };
+    const all = [...frames, surface];
+    await handle(all, say({ state: 'done', height: 10 }, individual, frames[0].origin), d);
+    await handle(all, say({ state: 'done', height: 10 }, assistantWindow, 'https://evil.example'), d);
+    for (const bad of [{ state: 'finished', height: 10 }, { state: 'done', height: -1 }, { state: 'done', height: 5000 }, { state: 'done', height: '10' }, { state: 'done', height: Infinity }, { state: 'done' }]) await handle(all, say(bad), d);
+    expect(d.brief).not.toHaveBeenCalled();
+  });
+});
+
 describe('the assistant report', () => {
   const say = (data: Record<string, unknown>, from: Window = assistantWindow, origin = surface.origin) => ({ source: from, origin, data: { type: 'werkbord.frame', event: 'assistant', ...data } });
   it('takes a count and two flags from the assistant’s own frame', async () => {

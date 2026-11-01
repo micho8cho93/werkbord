@@ -2,10 +2,10 @@
 // search and whose work is shown on Work, and how far each page was scrolled. In memory only: it is the window's, not the person's data,
 // and a window that is reopened starts on Work at the top.
 
-export type WorkSection = 'queue' | 'plans';
+export type WorkSection = 'overview' | 'queue';
 
 class ViewState {
-  work = $state<{ section: WorkSection; search: string; everyone: boolean }>({ section: 'queue', search: '', everyone: false });
+  work = $state<{ section: WorkSection; search: string; everyone: boolean }>({ section: 'overview', search: '', everyone: false });
   scroll: Record<string, number> = {};
 }
 

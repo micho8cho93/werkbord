@@ -24,7 +24,7 @@
 </script>
 
 <section class="catchup" aria-labelledby="catchup-title">
-  <div class="heading"><h2 id="catchup-title" class="section-title">Since you were last here</h2>{#if previous}<span class="muted">{elapsed === 0 ? 'Earlier today' : `${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}</span>{/if}</div>
+  <div class="heading"><h2 id="catchup-title">Since you were last here</h2>{#if previous}<span class="muted">{elapsed === 0 ? 'Earlier today' : `${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}</span>{/if}</div>
   {#if explanationError}<p role="alert">{explanationError}</p>{/if}
   {#if !previous}<p class="muted">Your next visit will show what changed while you were away.</p>
   {:else if result}
@@ -38,9 +38,9 @@
   {:else}<p class="muted">Loading recent activity…</p>{/if}
 </section>
 <style>
-  .catchup { border-block: 1px solid var(--border); padding-block: 12px; flex: none; }
+  .catchup { padding-bottom: 12px; border-bottom: 1px solid var(--border); flex: none; }
   .heading, .facts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
-  h2, p { margin: 0; } h2 { font-size: 14px; } p { font-size: 13px; margin-top: 6px; }
+  h2, p { margin: 0; } h2 { font-family: var(--font); font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text); } p { font-size: 13px; margin-top: 6px; }
   .facts { margin-top: 8px; }
   .facts .btn { max-width: 100%; white-space: normal; text-align: left; } .muted { color: var(--text-2); font-size: 13px; }
   ul { margin: 8px 0 0; padding: 0; list-style: none; max-height: 160px; overflow: auto; }

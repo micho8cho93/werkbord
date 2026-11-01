@@ -235,6 +235,7 @@
         {#if filtering}<button class="btn quiet small" onclick={() => { agentFilter = ''; runnerFilter = ''; priorityFilter = ''; setFilter(project.id, noFilter()); }}>Reset filters</button>{/if}
       </div></details>
       {#if viewingArchive}<Archive {scope} />{:else}
+        <div class="queue-layout">
         <div class="queue-stack" use:orderDrops={reorder}>
         {#each groups as group (group.id)}
           <section class="queue-card" aria-labelledby="work-{group.id}" data-order-group="queue" data-order-drop="tasks:{group.id}" data-order-name={group.title}>
@@ -251,6 +252,12 @@
         {/each}
         {#if done.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{done.length}</span></summary><ul>{#each done as task (task.id)}{@render taskRow(task, false)}{/each}</ul></details></section>{/if}
         </div>
+        <!-- The plans sit beside the queue, not a page away: where each stands, and one click to its tasks in order. -->
+        {#if !isPhone()}<aside class="tray plans-tray" aria-labelledby="plans-side-h" data-testid="plans-side">
+          <header><h2 id="plans-side-h" class="section-title">Plans</h2><a class="plans-link" href={projectHref(project.id, 'work') + '?section=plans'}>{plans.length ? 'Manage' : 'New plan'}</a></header>
+          <ul class="tray-card plan-rows">{#each plans.slice(0, 8) as plan (plan.id)}<li><a href={projectHref(project.id, 'work') + '?plan=' + encodeURIComponent(plan.id)}><strong>{plan.title}</strong><span>{progressOf(plan)}</span></a></li>{:else}<li class="plan-empty">Group related tasks into a plan to see how far it has got.</li>{/each}</ul>
+        </aside>{/if}
+        </div>
       {/if}
     </section>
   {/if}
@@ -263,6 +270,7 @@
 <GitSheets projectId={project.id} store={git} />
 <style>
  .work-new{display:none;}.archive{margin-left:auto;font-size:12px;color:var(--text-2);background:transparent;border:0;cursor:pointer;}.queue-filters{font-size:12px;color:var(--text-2);margin-bottom:20px;}.queue-filters summary{cursor:pointer;}.filters{display:flex;gap:14px;flex-wrap:wrap;padding:14px 0 0;}.filters label{display:flex;align-items:center;gap:8px;}.filters select{min-height:32px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);background:var(--surface);font:inherit;max-width:180px;}
+ .queue-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(16rem,22rem);gap:24px;align-items:start;}.queue-layout>.queue-stack{min-width:0;}.plans-tray{position:sticky;top:16px;}.plans-link{margin-left:auto;font-size:12px;color:var(--accent);text-decoration:none;}.plans-link:hover{text-decoration:underline;}.plan-rows{list-style:none;margin:0;padding:0;overflow:clip;}.plan-rows li+li{border-top:1px solid var(--border);}.plan-rows a{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;color:var(--text);text-decoration:none;font-size:14px;}.plan-rows a:hover{background:var(--hover);}.plan-rows strong{font-weight:500;overflow-wrap:anywhere;}.plan-rows span,.plan-empty{font-size:12px;color:var(--text-2);}.plan-rows span{white-space:nowrap;}.plan-empty{padding:14px;line-height:1.5;}@media(max-width:1100px){.queue-layout{grid-template-columns:minmax(0,1fr);}.plans-tray{position:static;}}
  .queue-card :global(.work-card){border-inline-width:0;border-bottom-width:0;border-radius:0;box-shadow:none;background:transparent;}
  @media(max-width:899px){.work-new{display:inline-flex;}.archive{min-height:44px;}.filters select{min-height:44px;}}
 </style>

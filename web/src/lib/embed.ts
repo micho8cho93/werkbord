@@ -97,6 +97,67 @@ export const surface: boolean = (() => {
   }
 })();
 
+/**
+ * Whether this page is the brief's frame in the desktop shell (?surface=brief): a small page of the person's own Werkbord that shows
+ * one short write-up from Salie inside a card of the window, so it can be read without leaving Work. Like the assistant's frame it is
+ * the person's own Werkbord, and the write-up stays in it: only a state and a height are told to the window.
+ */
+export const briefSurface: boolean = (() => {
+  try {
+    return isEmbedded() && new URLSearchParams(location.search).get('surface') === 'brief';
+  } catch {
+    return false;
+  }
+})();
+
+// ---- the brief, between the page and the Work card it sits in ----
+
+export interface BriefRequest {
+  action: 'ask' | 'clear';
+  /** What to ask Salie to write: built by the window from what it already shows, and only ever a request to read. */
+  prompt?: string;
+  projectContext?: import('./assistant/project-context.svelte').AssistantProjectContext | null;
+}
+
+/** Parses a message from the window. Only the parent is believed, and only what is exactly this shape. */
+export function parseBriefRequest(data: unknown): BriefRequest | null {
+  const m = data as { type?: unknown; action?: unknown; prompt?: unknown; projectContext?: unknown } | null;
+  if (!m || m.type !== 'werkbord.brief') return null;
+  if (Object.keys(m).some(key => !['type', 'action', 'prompt', 'projectContext'].includes(key))) return null;
+  if (m.action === 'clear') return m.prompt === undefined && m.projectContext === undefined ? { action: 'clear' } : null;
+  if (m.action !== 'ask' || typeof m.prompt !== 'string' || m.prompt.trim() === '' || m.prompt.length > 24000) return null;
+  if (m.projectContext !== undefined && m.projectContext !== null) {
+    if (typeof m.projectContext !== 'object' || Array.isArray(m.projectContext)) return null;
+    const c = m.projectContext as Record<string, unknown>;
+    if (Object.keys(c).length !== 3 || !['workspace', 'project', 'label'].every(k => typeof c[k] === 'string' && (c[k] as string).length > 0 && (c[k] as string).length <= 500)) return null;
+  }
+  return { action: 'ask', prompt: m.prompt, ...(m.projectContext === undefined ? {} : { projectContext: m.projectContext as BriefRequest['projectContext'] }) };
+}
+
+/** Calls handler when the window asks the brief to write, or to clear what it shows. */
+export function onBriefRequest(handler: (r: BriefRequest) => void): () => void {
+  if (!isEmbedded()) return () => {};
+  const listener = (event: MessageEvent) => {
+    if (event.source !== window.parent) return;
+    const r = parseBriefRequest(event.data);
+    if (r) handler(r);
+  };
+  window.addEventListener('message', listener);
+  return () => window.removeEventListener('message', listener);
+}
+
+export interface BriefReport {
+  state: 'idle' | 'working' | 'done' | 'failed';
+  /** How tall the write-up is, so the card can be as tall. A number is all that crosses. */
+  height: number;
+}
+
+/** Tells the window how the brief stands. Does nothing outside the desktop app. */
+export function reportBrief(r: BriefReport): void {
+  if (!isEmbedded()) return;
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'brief', state: r.state, height: Math.max(0, Math.min(4000, Math.ceil(r.height))) }, '*');
+}
+
 // ---- the assistant, between the page and the window's sidebar ----
 //
 // The assistant opens out of the button that was pressed. When the window's sidebar holds that button, the button is outside this

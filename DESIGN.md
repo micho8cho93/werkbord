@@ -159,11 +159,22 @@ together (a page header, a card's actions, a menu); the label decides the tone, 
 ### The window's workspace navigation
 
 The desktop shell keeps Work, Calendar, Agents, Analytics and Salie in one 224px sidebar, with Settings separately at
-its foot. The sidebar uses the paper/background token, a hairline right edge and 44px destination targets; hover uses
-`--surface-2`, and the current destination uses `--surface` with stronger ink and weight. Focus uses `--accent`.
+its foot. The sidebar sits on `--frame` with no edge of its own (the page beside it is an inset, rounded panel), with 44px
+destination targets; hover is a few percent of ink over the frame, and the current destination uses `--surface` with stronger ink and weight. Focus uses `--accent`.
 A native project dropdown above the destinations offers All Projects, then Personal projects and Team projects grouped
 by ownership. Team options include their workspace name; offline and unavailable contexts remain explicit.
 Scope persists across destinations, and All Projects includes only accessible workspace projections.
+
+**Work** opens on All Projects, on its **Overview** tab; the other tab is **Queue & Plans**. Overview is the page a person
+lands on: five numbers (what needs an answer, what is running, what is ready for review, what failed or is blocked, what is
+ready to start; each takes you to the first of its kind in the queue), what waits for them, a **Catch up** card, and trays for
+what is running now, what is next and the plans. Catch up shows what changed since the last visit, which needs no one to
+write it, and a short write-up from Salie that is made only when one of its buttons is pressed. The write-up is drawn by a
+frame of the person's own Werkbord (`?surface=brief`) inside the card, so Salie does not open and no word of it reaches
+the window page: the window is told only whether the frame is writing, done or failed, and how tall it is. Queue & Plans is the
+queue (Now, Next and Later) with the plans in a column beside it; a row is dragged by its always-visible grip into another
+section, which sets its priority, since sections are worked out from the task. State reads on the right of a row: a ring that
+turns (`.spin`) while an agent works, a tick when done, an amber dot when it needs you.
 
 At 640px and below the sidebar becomes a 64px icon rail. Destination names remain in accessible labels, the project
 select keeps its native behaviour behind a folder icon, and the current project name remains visible in the context strip.

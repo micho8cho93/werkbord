@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { tick as afterRender } from 'svelte';
   import Icon from '../lib/Icon.svelte';
   import Inbox from './Inbox.svelte';
   import CatchUp from './CatchUp.svelte';
-  import Brief from './Brief.svelte';
+  import BriefCard from './BriefCard.svelte';
   import { model } from './model.svelte';
   import { viewState } from './view-state.svelte';
   import { executionLabel, standing } from './aggregate';
@@ -31,7 +32,7 @@
   // Team work held by someone else is out of the way by default: this is where a person looks for what is theirs to do. Personal work and
   // unclaimed Team work have no holder, so they always show.
   let everyone = $state(viewState.work.everyone);
-  $effect(() => { viewState.work = { section: section === 'plans' ? 'plans' : 'queue', search, everyone }; });
+  $effect(() => { viewState.work = { section: section === 'queue' ? 'queue' : 'overview', search, everyone }; });
   const othersHold = $derived(all.some(r => r.item.owner && !r.item.mine && r.item.group !== 'plan' && r.item.group !== 'done'));
   const queueRows = $derived(rowsOf(overview, rows.filter(r => everyone || !r.item.owner || r.item.mine).map(r => ({ workspace: r.workspace.id, item: r.item }))));
   const entryOf = (id: string) => overview?.entries.find(e => e.workspace.id === id)?.workspace;
@@ -63,6 +64,23 @@
 
   // What most deserves a look, counted by why, above the queue: each says how many and takes you to the first.
   const flags = $derived(flagCounts(queueRows));
+  // Overview: where things stand in five numbers (each takes you to the first of its kind in the queue), what is running, and what is next.
+  const running = $derived(queueRows.filter(r => r.state === 'running'));
+  const upNext = $derived((sections.find(s => s.id === 'next')?.rows ?? []).slice(0, 5));
+  const flagN = (flag: Flag) => flags.find(f => f.flag === flag)?.count ?? 0;
+  const stats = $derived<{ id: string; n: number; label: string; tone: string; flag?: Flag }[]>([
+    { id: 'ask', n: waiting.length || flagN('ask'), label: 'Need your answer', tone: 'ask', flag: 'ask' },
+    { id: 'running', n: running.length, label: 'Running', tone: 'work' },
+    { id: 'review', n: flagN('review'), label: 'Ready for review', tone: 'ok', flag: 'review' },
+    { id: 'failed', n: flagN('failed'), label: 'Failed or blocked', tone: 'block', flag: 'failed' },
+    { id: 'ready', n: readyCount(queueRows), label: 'Ready to start', tone: '' },
+  ]);
+  async function showFlag(flag?: Flag) {
+    if (!flag) return;
+    section = 'queue';
+    await afterRender();
+    seek(flag);
+  }
   function seek(flag: Flag) {
     const el = document.querySelector<HTMLElement>(`.work-view [data-flag="${flag}"]`);
     el?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
@@ -104,11 +122,37 @@
     <button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
     {#if creating}<div class="project-choices" role="group" aria-label="Choose a project for new work"><div><strong>New {creating}</strong><button class="btn quiet small" onclick={() => creating = ''} aria-label="Close project choices"><Icon name="close" size={14} /></button></div><p class="muted">Choose the project for this {creating}.</p>{#each choices as choice (choice.workspace + choice.project.id)}<button onclick={() => openCreate(creating as 'task' | 'plan', choice)}>{choice.title}<Icon name="right" size={13} /></button>{/each}</div>{/if}
   </div></header>
-  <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => section = 'queue'}>Queue<span>{queueCount}</span></button><button aria-current={section === 'plans' ? 'page' : undefined} onclick={() => section = 'plans'}>Plans<span>{all.filter(r => r.item.group === 'plan').length}</span></button></nav>
+  <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'overview' ? 'page' : undefined} onclick={() => section = 'overview'}>Overview</button><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => section = 'queue'}>Queue &amp; Plans<span>{queueCount}</span></button></nav>
   {#if !overview}<p role="status" class="empty">Loading work…</p>{/if}
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
-  {#if section === 'queue'}
+  {#if section === 'overview'}
+    <div class="work-grid overview">
+      <div class="work-main">
+        <section class="tray stats" aria-labelledby="stats-h" data-testid="work-stats">
+          <header><h2 id="stats-h" class="section-title">Where things stand</h2><span class="tray-note">{model.selectedProject ? model.contextLabel : 'all projects'}</span></header>
+          <ul class="stat-grid">
+            {#each stats as s (s.id)}<li class="tray-card stat" data-tone={s.tone} data-zero={s.n === 0 ? '' : undefined}><button type="button" class="stat-button" disabled={!s.flag} onclick={() => showFlag(s.flag)}><span class="stat-n">{s.n}</span><span class="stat-label">{s.label}</span></button></li>{/each}
+          </ul>
+        </section>
+        {@render decisionBlock()}
+        <BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}</BriefCard>
+    <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
+
+      </div>
+      <div class="work-side">
+        <section class="tray" aria-labelledby="running-h">
+          <header><h2 id="running-h" class="section-title">Running now</h2><span class="tray-note">{running.length}</span></header>
+          <ul class="tray-card rows">{#each running.slice(0, 5) as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No agent is working right now.</li>{/each}</ul>
+        </section>
+        <section class="tray" aria-labelledby="next-h">
+          <header><h2 id="next-h" class="section-title">Up next</h2><button type="button" class="link" onclick={() => section = 'queue'}>See all</button></header>
+          <ul class="tray-card rows">{#each upNext as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No tasks ready to pick up.</li>{/each}</ul>
+        </section>
+        {@render plansTray(3, 'plans-o-h')}
+      </div>
+    </div>
+  {:else}
     {#if flags.length}
       <ul class="flags" aria-label="What needs a look" data-testid="work-flags">
         {#each flags as f (f.flag)}<li><button type="button" class="flag-chip" data-flag={f.flag} onclick={() => seek(f.flag)}><span class="flag-dot" aria-hidden="true"></span><strong>{f.count}</strong> {f.label.toLowerCase()}</button></li>{/each}
@@ -127,9 +171,14 @@
       {/each}
       {#if completed.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{completed.length}</span></summary><ul>{#each completed as row, i (row.workspace + row.item.href)}{@render task(row, i)}{/each}</ul></details></section>{/if}
     </div>
-    <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
     </div>
-    <div class="work-side">
+      <div class="work-side">
+        {@render plansTray(0, 'plans-h')}
+      </div>
+    </div>
+  {/if}
+</section>
+{#snippet decisionBlock()}
     <aside class="decision" class:urgent={waiting.length > 0} aria-labelledby="decision-h" data-testid="next-decision">
       <h2 id="decision-h" class="section-title">{waiting.length ? 'Waiting for you' : 'Your next decision'}{#if waiting.length}<span class="pill wb-pop" aria-label="{waiting.length} waiting">{waiting.length}</span>{/if}</h2>
       <div aria-live="polite" class="decision-list">
@@ -162,14 +211,13 @@
       {/if}
       </div>
     </aside>
-    <Brief />
-    {#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}
-    </div>
-    </div>
-  {:else}
-    <section aria-labelledby="plans-h"><h2 id="plans-h" class="visually-hidden">Plans</h2><p class="section-note muted">Related tasks, one shared objective.</p><ul class="plans">{#each plans as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="plan-symbol"><Icon name="dependencies" size={18} /></span><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project} · {row.workspace.name}</span></span><span class="plan-progress">{row.item.detail}</span><Icon name="right" size={14} /></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul></section>
-  {/if}
-</section>
+{/snippet}
+{#snippet plansTray(limit: number, id: string)}
+  <section class="tray" aria-labelledby={id}>
+    <header><h2 {id} class="section-title">Plans</h2><span class="tray-note">{plans.length}</span></header>
+    <ul class="tray-card rows plans">{#each (limit ? plans.slice(0, limit) : plans) as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project}{#if showWhere} · {row.workspace.name}{/if}</span></span><span class="plan-progress">{row.item.detail}</span></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
+  </section>
+{/snippet}
 {#snippet task(row: Row, index: number = 0)}
   {@const live = row.item.group === 'done' ? undefined : detail(row.workspace, row.item)}
   <li data-flag={row.flag} class="wb-rise" style:--i={index}><button class="task" data-state={row.state} data-flag={row.flag} aria-current={openHere(row.workspace, row.item.href) ? 'true' : undefined} onclick={() => open(row.workspace, row.item.href)}>
@@ -182,20 +230,33 @@
   </button></li>
 {/snippet}
 <style>
- p{margin:6px 0 0;}.actions{position:relative;}.scope{display:inline-flex;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);}.scope button{min-height:32px;padding:4px 12px;border:0;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:13px;cursor:pointer;}.scope button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:500;}.scope button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}h2{font-size:14px;margin:0;font-weight:600;}.count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}ul{list-style:none;padding:0;margin:0;}li+li{border-top:1px solid var(--border);}.task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}.task:hover{background:var(--hover);}.task-content{display:grid;gap:4px;min-width:0;flex:1;}strong{font-size:14px;font-weight:500;line-height:1.5;}.context,.detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere;}.blocked{color:var(--block-text);}.task-state{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--text-2);}.open-icon{color:var(--text-2);opacity:0;}.task:hover .open-icon,.task:focus-visible .open-icon{opacity:1;}.empty{padding:16px 28px;color:var(--text-2);font-size:13px;line-height:1.6;}.section-note{margin-bottom:16px;font-size:13px;}.plans{margin-top:12px;}.plan-symbol{color:var(--text);background:color-mix(in srgb,var(--accent) 7%,var(--surface));width:32px;height:32px;display:grid;place-items:center;border-radius:6px;}.plan-progress{font-size:12px;color:var(--text-2);}.attention{border-top:1px solid var(--border);padding-top:14px;margin-top:24px;}.attention summary,.completed summary{cursor:pointer;padding:10px 0;color:var(--text-2);font-size:13px;}.source-notice{padding:12px 0;color:var(--text-2);font-size:13px;}.project-choices{position:absolute;z-index:5;right:0;top:calc(100% + 10px);width:320px;max-width:calc(100vw - 40px);background:var(--surface);border:1px solid var(--border);box-shadow:var(--win-sh);border-radius:8px;padding:14px;}.project-choices>div{display:flex;justify-content:space-between;align-items:center;}.project-choices p{font-size:12px;margin:0 0 10px;}.project-choices>button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;padding:12px 4px;color:var(--text);cursor:pointer;font:inherit;}.project-choices>button:hover{background:var(--surface-2);}
+ p{margin:6px 0 0;}.actions{position:relative;}.scope{display:inline-flex;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);}.scope button{min-height:32px;padding:4px 12px;border:0;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:13px;cursor:pointer;}.scope button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:500;}.scope button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}h2{font-size:14px;margin:0;font-weight:600;}.count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}ul{list-style:none;padding:0;margin:0;}li+li{border-top:1px solid var(--border);}.task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}.task:hover{background:var(--hover);}.task-content{display:grid;gap:4px;min-width:0;flex:1;}strong{font-size:14px;font-weight:500;line-height:1.5;}.context,.detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere;}.blocked{color:var(--block-text);}.task-state{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--text-2);}.open-icon{color:var(--text-2);opacity:0;}.task:hover .open-icon,.task:focus-visible .open-icon{opacity:1;}.empty{padding:16px 28px;color:var(--text-2);font-size:13px;line-height:1.6;}.plans{margin-top:12px;}.plan-progress{font-size:12px;color:var(--text-2);}.attention{border-top:1px solid var(--border);padding-top:14px;margin-top:24px;}.attention summary,.completed summary{cursor:pointer;padding:10px 0;color:var(--text-2);font-size:13px;}.source-notice{padding:12px 0;color:var(--text-2);font-size:13px;}.project-choices{position:absolute;z-index:5;right:0;top:calc(100% + 10px);width:320px;max-width:calc(100vw - 40px);background:var(--surface);border:1px solid var(--border);box-shadow:var(--win-sh);border-radius:8px;padding:14px;}.project-choices>div{display:flex;justify-content:space-between;align-items:center;}.project-choices p{font-size:12px;margin:0 0 10px;}.project-choices>button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;padding:12px 4px;color:var(--text);cursor:pointer;font:inherit;}.project-choices>button:hover{background:var(--surface-2);}
  @media(max-width:900px){.actions{flex-wrap:wrap;width:100%;}.plan-progress{max-width:110px;}.task{padding:14px 0;}.open-icon{opacity:1;}}
 
- .work-grid{display:grid;grid-template-columns:minmax(0,44rem) minmax(18rem,26rem);justify-content:start;gap:32px;align-items:start;}.work-side{position:sticky;top:16px;display:grid;gap:16px;min-width:0;}.work-main{min-width:0;}
+ .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(18rem,26rem);gap:24px;align-items:start;}.work-side{position:sticky;top:16px;display:grid;gap:16px;min-width:0;align-content:start;}.work-main{min-width:0;display:grid;gap:16px;align-content:start;}
  .queue-note{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
  .context{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;}.context .sep{opacity:.6;}.context .plan{color:var(--text-2);}.context .detail::before{content:'·';margin-right:8px;}
  .task-state[data-state=action]::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--amber);}.task-state[data-state=blocked]::before{content:'';width:10px;height:10px;border-radius:50%;border:2px dashed var(--block);}.task-state[data-state=done]{color:var(--ok);}
+ /* Overview: five numbers on a tray, then trays for what is running, what is next and the plans. */
+ .stat-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr));gap:10px;}
+ .stat-grid>li+li{border-top:0;}.stat{padding:0;overflow:clip;}
+ .stat-button{display:grid;gap:2px;width:100%;padding:12px 14px;text-align:left;background:transparent;border:0;color:var(--text);font:inherit;cursor:pointer;}
+ .stat-button:disabled{cursor:default;}.stat-button:not(:disabled):hover{background:var(--hover);}.stat-button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+ .stat-n{font-size:var(--fs-page);font-weight:600;letter-spacing:-.025em;line-height:1.1;font-variant-numeric:tabular-nums;}
+ .stat-label{font-size:var(--fs-meta);color:var(--text-2);}
+ .stat[data-tone=ask] .stat-n{color:var(--warn-text);}.stat[data-tone=work] .stat-n{color:var(--accent);}.stat[data-tone=ok] .stat-n{color:var(--ok-text);}.stat[data-tone=block] .stat-n{color:var(--block-text,var(--text));}
+ .stat[data-zero] .stat-n{color:var(--text-2);}
+ .rows{overflow:clip;}.rows .empty{padding:14px 16px;}.rows .task{padding:12px 14px;}
+ .link{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--fs-meta);cursor:pointer;padding:0;}.link:hover{text-decoration:underline;}
+ .decision.urgent{background:var(--tray-ask);border-color:var(--tray-ask-edge);}
  .state{font-size:12px;color:var(--text-2);white-space:nowrap;}.state[data-state=action]{color:var(--warn-text);font-weight:500;}.state[data-state=blocked]{color:var(--block-text,var(--text-2));}.state[data-state=running]{color:var(--accent);}.state[data-state=ready],.state[data-state=done]{opacity:.8;}
  .ask-chip{font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:99px;color:var(--text-2);}
  .decision{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;display:grid;gap:10px;}
  .decision-count{margin:0;font-size:12px;color:var(--text-2);}.decision-prompt{margin:0;font-size:14px;line-height:1.5;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:6;line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;}
  .decision-facts{margin:0;display:grid;gap:6px;font-size:12px;}.decision-facts div{display:grid;grid-template-columns:64px 1fr;gap:8px;}.decision-facts dt{color:var(--text-2);}.decision-facts dd{margin:0;overflow-wrap:anywhere;}
  .decision-note{margin:0;font-size:12px;color:var(--text-2);line-height:1.5;}.decision-empty{margin:0;font-size:13px;color:var(--text-2);}.decision .btn{justify-self:start;}
- @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.work-side{position:static;order:-1;}}
+ @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.work-side{position:static;}}
+ .compact .work-grid{grid-template-columns:minmax(0,1fr);}.compact .work-side{position:static;}
 
  /* Attention: the edge of a row says why it is worth a look; the chips above the queue count them and take you to the first. */
  .flags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 18px;}

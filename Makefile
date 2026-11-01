@@ -322,6 +322,11 @@ test-project-context-browser: web-shell
 test-work-agents-ux-browser: web-shell
 	node scripts/browser-work-agents-ux.cjs
 
+.PHONY: test-brief-browser
+## test-brief-browser: Work's Overview, and a brief written inside its card by a frame of the person's own Werkbord (never in Salie)
+test-brief-browser: build web-shell
+	node scripts/browser-brief.cjs
+
 .PHONY: test-work-browser
 ## test-work-browser: Work queues, plans and dependencies in Personal, Team and the shell, desktop and phone
 test-work-browser: web web-embed web-shell

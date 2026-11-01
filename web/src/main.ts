@@ -4,10 +4,11 @@ import { adoptTokenFromURL } from './lib/api';
 import { enrollFromURL } from './lib/phones/enroll.svelte';
 import { assistant } from './lib/assistant/sessions.svelte';
 import { detectDesktop, openLinksInBrowser } from './lib/desktop.svelte';
-import { embedded, followShell, surface } from './lib/embed';
+import { briefSurface, embedded, followShell, surface } from './lib/embed';
 import { onStyle, onTheme } from '../../internal/nativebridge/bridge.js';
 import { look, theme } from './lib/theme.svelte';
 import AssistantSurface from './lib/assistant/AssistantSurface.svelte';
+import BriefSurface from './lib/assistant/BriefSurface.svelte';
 import { app } from './lib/state.svelte';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -20,7 +21,14 @@ async function boot() {
   await enrollFromURL();
   await app.loadDevice();
 
-  if (surface && !app.remote) {
+  if (briefSurface && !app.remote) {
+    // The brief's frame: one short write-up from Salie inside a card of the window. It has the sign-in and the theme, and nothing else.
+    document.documentElement.classList.add('brief-surface');
+    onTheme((choice) => theme.set(choice));
+    onStyle((choice) => look.set(choice, true));
+    app.start();
+    mount(BriefSurface, { target: document.getElementById('app')! });
+  } else if (surface && !app.remote) {
     // The assistant's own frame in the desktop window: the assistant over the whole window and nothing else, started by the window's
     // sidebar button. It needs the sign-in, the theme the person chose, and to know it is in the app (for its file dialog); the board,
     // its live updates and the service worker are the workspace page's business.
@@ -46,7 +54,7 @@ async function boot() {
 }
 void boot();
 
-if (!surface && import.meta.env.PROD && 'serviceWorker' in navigator) {
+if (!surface && !briefSurface && import.meta.env.PROD && 'serviceWorker' in navigator) {
   if (embedded()) {
     // The desktop window shows this page in a frame, where a worker only does harm (see public/sw.js) and nothing is
     // installed or used offline. Remove one that an earlier version registered there.

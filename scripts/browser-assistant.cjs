@@ -205,7 +205,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(lastClip.clip, 'none', 'once open, nothing is left clipping the surface');
             assert.ok(circles.at(-1).circle.r > 900, 'it ends covering the window, r=' + circles.at(-1).circle.r);
             const first = samples.find(s => s.bg), last = samples.at(-1);
-            assert.notEqual(first.bg, last.bg, 'the background changes while it opens');
+            // From the surface to the page: a style whose surface and page are the same white (Classic) has nothing to change.
+            if (theme['--surface'] !== theme['--bg']) assert.notEqual(first.bg, last.bg, 'the background changes while it opens');
             assertColorNear(first.bg, theme['--surface'], 'it starts as the current sidebar button surface');
             assert.equal(last.bg, theme['--bg'], 'it ends as the current theme’s paper');
             assert.ok(Number(first.opacity) < 0.5 && Number(samples.at(-1).opacity) > 0.99, `the content arrives after the surface starts to open (${first.opacity} → ${samples.at(-1).opacity}, ${samples.length} samples, phases ${[...new Set(samples.map(x => x.phase))]})`);

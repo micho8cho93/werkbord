@@ -150,7 +150,7 @@ let browser,shellServer;
  await shell.getByRole('button',{name:/^Agree on the interface/}).waitFor();assert.equal(await shell.getByRole('button',{name:/Write the release guide/}).count(),0);assert.equal(await shell.getByRole('button',{name:/^Agree rollout/}).count(),0);
  await shell.getByTestId('project-context').selectOption('');await shell.getByRole('button',{name:/^Agree rollout/}).waitFor();
  await shell.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'all-projects-work-desktop.png')});
- await shell.getByRole('navigation',{name:'Work sections'}).getByRole('button',{name:/^Plans/}).click();
+ await shell.getByRole('navigation',{name:'Work sections'}).getByRole('button',{name:/^Queue/}).click();
  await shell.getByRole('button',{name:/^Deliver the adapter/}).waitFor();await shell.getByRole('button',{name:/^Rollout plan/}).waitFor();
  await shell.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'all-projects-plans-desktop.png')});
  assert.deepEqual(errors,[]);console.log('PASS Work: Personal/Team queues, dependencies, standalone tasks, plans, ordering, persistence, run associations and cross-project summary; desktop/phone layouts');
