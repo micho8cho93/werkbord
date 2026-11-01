@@ -165,6 +165,12 @@ A native project dropdown above the destinations offers All Projects, then Perso
 by ownership. Team options include their workspace name; offline and unavailable contexts remain explicit.
 Scope persists across destinations, and All Projects includes only accessible workspace projections.
 
+**Calendar** (across projects, and a work project's own) opens on the month: whole weeks, a day's items as chips with a bar in
+their project's colour, the time of day first when there is one, items with no time above those with one, and "N more" for a
+crowded day. Week and List are the other views; a window narrower than 700px opens on List, where a month is too cramped to
+tap. Show (all, planned work, agent runs) and project filters sit beside the views. **No date** is a tray of work that has no
+date yet, dragged onto a day to plan it; planning never starts an agent.
+
 **Agents**, with no session open, uses its width: sessions are small one-line cards (title, then agent and project, then what it is
 doing) in a grid inside a tray per group (Needs you, Needs a look, Running, Recently finished), and a rail beside them says what is
 happening now (three counts) and which runners are available. The whole card answers the pointer. A session that is working shows

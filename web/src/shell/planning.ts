@@ -2,7 +2,7 @@ import { model } from './model.svelte';
 import { ask } from './native';
 import { isPlace } from './frames';
 
-export interface PlanningItem { title: string; description: string; version: number; start: string; end: string; milestone: boolean; scheduledAt: string; editable: boolean; canReschedule?: boolean; scheduleVersion?: number }
+export interface PlanningItem { title: string; description: string; version: number; start: string; end: string; milestone: boolean; time?: string; scheduledAt: string; editable: boolean; canReschedule?: boolean; scheduleVersion?: number }
 export async function planningCall(workspace: string, href: string, operation: 'read' | 'save' | 'move' | 'reschedule', payload: Record<string, unknown> = {}): Promise<PlanningItem> {
   if (!isPlace(href)) throw new Error('This task address is invalid.');
   if (!model.view?.items.some(i => i.id === workspace && i.state === 'ready')) throw new Error('Reconnect this workspace before editing.');

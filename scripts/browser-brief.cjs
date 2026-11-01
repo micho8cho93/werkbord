@@ -29,7 +29,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
  const Q=[{id:'t1',title:'Add retry to the sync client',project:pj.name,href:'#/p/'+pj.id+'/task/x3',group:'now',detail:'Needs your answer'},{id:'t2',title:'Migrate the runs table',project:pj.name,href:'#/p/'+pj.id+'/task/x4',group:'now',detail:'Failed'},{id:'t3',title:'Dark mode audit',project:pj.name,href:'#/p/'+pj.id+'/task/x5',group:'next'},{id:'t4',title:'Document the export format',project:pj.name,href:'#/p/'+pj.id+'/task/x6',group:'later',detail:'Waiting on Migrate the runs table'}];
  const entry=(id,kind,name)=>({id,kind,name,state:'ready'});
  const items=[{...entry('personal','personal','Individual'),source:'local'}];
- const summary=e=>({schema:'workspace-summary/v1',workspace:e,projects:projs.map(p=>({id:p.id,name:p.name,href:'#/p/'+p.id+'/work'})),work:[],queue:Q,attention:A});
+ const summary=e=>({schema:'workspace-summary/v1',workspace:e,projects:projs.map(p=>({id:p.id,name:p.name,href:'#/p/'+p.id+'/work'})),work:[],queue:Q,attention:A,planned:(()=>{const d=n=>{const x=new Date();x.setDate(x.getDate()+n);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};const h=(t,i,a,b,tm)=>({id:'pl'+i,title:t,project:'Window project',start:d(a),end:d(b),time:tm,href:'#/p/'+pj.id+'/task/p'+i});return [h('Write release notes',1,0,0,'09:30'),h('Plan the migration',2,0,2),h('Customer demo',3,0,0,'15:00'),h('Fix flaky test',4,0,0),h('Review PR 214',5,0,0,'11:00')]})(),schedule:[]});
  const calls={
   Premium:()=>({active:false,canCheck:false,buyUrl:''}), Info:()=>({version:'fixture',platform:'darwin'}),
   Workspaces:()=>({items,selected:'personal',problems:null,team:{state:'ready'},teamInstaller:false,invitation:false}),
@@ -103,8 +103,37 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
   // The tab is remembered while the window stays open.
   await tabs.getByRole('button',{name:'Overview',exact:true}).click();
   await page.getByTestId('work-stats').waitFor();
-  assert.deepEqual(errors,[],'no page errors');
   console.log('PASS Queue & Plans holds the queue with the plans beside it');
+
+  // Calendar: a month of whole weeks with chips (untimed first, then by time), "more" for a crowded day, filters, a week, a list, and a No date tray.
+  await page.getByRole('button',{name:'Calendar',exact:true}).first().click();
+  await page.getByRole('heading',{name:'Calendar',exact:true}).waitFor();
+  const month=page.getByRole('group',{name:'View'});
+  assert.equal(await month.getByRole('button',{name:'Month',exact:true}).getAttribute('aria-pressed'),'true','the calendar opens on the month');
+  const cell=page.locator('section.day.today');
+  await cell.waitFor();
+  const titles=await cell.locator('.event strong').allInnerTexts();
+  assert.deepEqual(titles.slice(0,2),['Fix flaky test','Plan the migration'],'items with no time come first, then those with a time');
+  assert.equal(await cell.locator('.more').count(),1,'a crowded day says how many more');
+  assert.match(await cell.locator('.more').innerText(),/2 more/);
+  await cell.locator('.more').click();
+  assert.equal(await cell.locator('.event').count(),5,'the day opens to all of its items');
+  assert.match(await cell.locator('.event').filter({hasText:'Review PR 214'}).locator('.at').innerText(),/11:00/,'a timed item shows its time');
+  const tray=page.getByRole('complementary',{name:'No date'});
+  await tray.waitFor();
+  assert.equal(await tray.locator('.event').count(),4,'work with no date waits in the tray');
+  await page.getByLabel('Show',{exact:true}).selectOption('scheduled');
+  assert.match(await page.locator('.empty').innerText(),/No scheduled or planned work this month/,'the filter hides what is not asked for');
+  await page.getByLabel('Show',{exact:true}).selectOption('all');
+  await month.getByRole('button',{name:'Week',exact:true}).click();
+  assert(await page.locator('section.day').count()===7,'a week is seven days');
+  await month.getByRole('button',{name:'List',exact:true}).click();
+  await page.locator('ol.list li').first().waitFor();
+  await page.screenshot({path:O+'work-calendar-list.png'});
+  await month.getByRole('button',{name:'Month',exact:true}).click();
+  await page.screenshot({path:O+'work-calendar-month.png'});
+  assert.deepEqual(errors,[],'no page errors');
+  console.log('PASS Calendar: month, week and list, times, overflow, filter and a No date tray');
  } catch(e){ await page.screenshot({path:O+'work-brief-failure.png'}).catch(()=>{}); throw e; }
  finally { await br.close(); child.kill(); server.close(); }
  process.exit(0);

@@ -27,9 +27,10 @@ export function followPlanning(): () => void {
           current = await api.editTask(task, { orchestration: { ...o, enabled: true, scheduledAt: at, timezone: zone } });
         } else {
           const milestone = payload.milestone ?? task.plan?.milestone ?? false;
-          // A planned time of day belongs to a single day: moving a range of days clears it.
-          const time = milestone || !payload.end || payload.end === payload.start ? task.plan?.time : undefined;
-          const plan = { ...task.plan, start: payload.start, end: payload.end, milestone, time };
+          // A planned time of day belongs to a single day: it is kept (or set, when a save names one), and a range of days clears it.
+          const single = milestone || !payload.end || payload.end === payload.start;
+          const named = typeof payload.time === 'string' ? payload.time : task.plan?.time;
+          const plan = { ...task.plan, start: payload.start, end: payload.end, milestone, time: single && named ? named : undefined };
           current = await api.editTask(task, m.operation === 'save' ? { title: payload.title, description: payload.description, plan } : { plan });
         }
       }

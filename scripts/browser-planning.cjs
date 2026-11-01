@@ -160,8 +160,7 @@ let browser, server, debugPage;
     await wait(async()=> (await getter()).title==='Universal '+workspace,'Universal edit persists');assert.equal(await page.getByRole('heading',{name:'Calendar',exact:true}).count(),1,'All Projects Calendar stays visible');
   }
   await page.locator('nav[aria-label="Werkbord"] [data-page=calendar]').click();
-  // On a Sunday the task scheduled for tomorrow is in next week, which is not the week the calendar opens on.
-  if ((new Date(today+'T12:00Z').getUTCDay()+6)%7===6) await page.getByRole('button',{name:'Next period',exact:true}).click();
+  // The calendar opens on the month, which shows tomorrow whichever day today is (whole weeks, so even the next month's first days).
   const scheduledRow=page.locator(`[data-plan-item="personal/${scheduledTask.id}/schedule"]`).first();
   await scheduledRow.waitFor(); await scheduledRow.click();
   const executionPanel=page.getByRole('dialog',{name:'Edit task'});

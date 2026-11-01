@@ -4,6 +4,7 @@
   import { instantFromWall, wallTime } from '../lib/scheduling';
   import type { DateDrop } from '../lib/planningGestures';
   import { formatTime, formatWall } from '../lib/clock.svelte';
+  import { localToday } from '../lib/planning-dates';
   import PlanningCalendar from '../lib/PlanningCalendar.svelte';
   import { standing } from './aggregate';
   import { model } from './model.svelte';
@@ -13,8 +14,15 @@
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
     ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, detail: p.time ? formatWall(p.time) + ' · planned' : undefined, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
-    ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' ') + (p.reason ? ' · ' + p.reason : ''), workspace: e.workspace.id, kind: 'scheduled' as const }; })
+    ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, time: `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' ') + (p.reason ? ' · ' + p.reason : ''), workspace: e.workspace.id, kind: 'scheduled' as const }; })
   ]));
+  // Work with no date yet waits in the No date tray, to be dragged onto a day: the queue less what is already on the calendar.
+  const todayDay = $derived(localToday(Date.now()));
+  const undated = $derived((overview?.entries ?? []).flatMap(e => {
+    const dated = new Set([...(e.summary?.planned ?? []).flatMap(p => [p.href, p.id]), ...(e.summary?.schedule ?? []).flatMap(p => [p.href, p.id])]);
+    return (e.summary?.queue ?? []).filter(q => q.group !== 'done' && q.group !== 'plan' && !dated.has(q.href) && !dated.has(q.id))
+      .map(q => ({ id: e.workspace.id + '/' + q.id + '/plan', title: q.title, project: e.workspace.name + ' · ' + q.project, start: todayDay, end: todayDay, href: q.href, workspace: e.workspace.id, kind: 'planned' as const }));
+  }));
   const silent = $derived(overview ? overview.entries.filter(e => !e.summary && (e.error || e.workspace.state !== 'ready')) : []);
   let editing = $state<string>('');
   let draft = $state<PlanningItem | null>(null);
@@ -23,18 +31,21 @@
   let busy = $state(false);
   let at = $state('');
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const row = $derived(rows.find(r => r.id === editing));
+  const row = $derived(rows.find(r => r.id === editing) ?? undated.find(r => r.id === editing));
+  // A time of day belongs to a single day.
+  const single = $derived(!!draft && !!draft.start && (draft.milestone || !draft.end || draft.end === draft.start));
   async function open(id: string) {
-    const r = rows.find(r => r.id === id); if (!r) return;
+    const r = rows.find(r => r.id === id) ?? undated.find(r => r.id === id); if (!r) return;
     editing = id; draft = null; error = ''; busy = true;
     try { const item = await planningCall(r.workspace, r.href, 'read'); if (editing === id) { draft = item; original = { ...item }; at = item.scheduledAt ? wallTime(item.scheduledAt, zone) : ''; } }
     catch (e) { error = e instanceof Error ? e.message : String(e); }
     finally { busy = false; }
   }
   async function move(drop: DateDrop) {
-    const r = rows.find(r => r.id === drop.id); if (!r) return;
+    const r = rows.find(r => r.id === drop.id) ?? undated.find(r => r.id === drop.id); if (!r) return;
     const item = await planningCall(r.workspace, r.href, 'read');
-    if (r.kind === 'planned' && (item.start !== r.start || item.end !== r.end)) { await model.refreshOverview(); throw new Error('This plan changed elsewhere. The calendar has been refreshed.'); }
+    if (undated.some(u => u.id === r.id)) { if (item.start || item.scheduledAt) { await model.refreshOverview(); throw new Error('This task was given a date elsewhere. The calendar has been refreshed.'); } }
+    else if (r.kind === 'planned' && (item.start !== r.start || item.end !== r.end)) { await model.refreshOverview(); throw new Error('This plan changed elsewhere. The calendar has been refreshed.'); }
     if (r.kind === 'scheduled' && Date.parse(item.scheduledAt) !== Date.parse(r.at)) { await model.refreshOverview(); throw new Error('This schedule changed elsewhere. The calendar has been refreshed.'); }
     await planningCall(r.workspace, r.href, r.kind === 'scheduled' ? 'reschedule' : 'move', { ...drop, version: item.version, scheduleVersion: item.scheduleVersion });
     await model.refreshOverview();
@@ -51,7 +62,7 @@
           draft = item; original = { ...item }; detailsSaved = true;
         }
         if (at !== wallTime(draft.scheduledAt, zone)) await planningCall(row.workspace, row.href, 'reschedule', { ...draft, at: instantFromWall(at, zone) });
-      } else await planningCall(row.workspace, row.href, 'save', { ...draft });
+      } else await planningCall(row.workspace, row.href, 'save', { ...draft, time: single ? (draft.time ?? '') : '' });
       await model.refreshOverview(); editing = ''; draft = null;
     } catch (e) { error = (detailsSaved ? 'Task details were saved; the schedule could not be confirmed. ' : '') + (e instanceof Error ? e.message : String(e)); }
     finally { busy = false; }
@@ -60,7 +71,7 @@
 <section class="page" class:embedded aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">Scheduled and planned work across all projects</p>
 </header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} dense={embedded} remember={embedded ? 'window-home' : 'window-calendar'} onopen={id => void open(id)} onmove={move} />{/if}
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} dense={embedded} remember={embedded ? 'window-home' : 'window-calendar'} onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}
@@ -77,6 +88,7 @@
       {:else}
         <label class="field">Start date<input class="input" type="date" bind:value={draft.start} onchange={() => { if (draft?.milestone) draft.end = draft.start; }} required disabled={!draft.editable} /></label>
         <label class="field">End date<input class="input" type="date" bind:value={draft.end} min={draft.start} required disabled={!draft.editable || draft.milestone} /></label>
+        {#if single}<label class="field">Time <span class="muted">(optional)</span><input class="input" type="time" bind:value={draft.time} disabled={!draft.editable} /></label>{/if}
         <label><input type="checkbox" bind:checked={draft.milestone} onchange={() => { if (draft?.milestone) draft.end = draft.start; }} disabled={!draft.editable} /> Milestone</label>
         <p class="context">Planned dates do not start an agent.</p>
       {/if}
