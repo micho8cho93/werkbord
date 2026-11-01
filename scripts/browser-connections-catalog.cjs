@@ -35,7 +35,8 @@ assert(base, 'Requires a disposable fixture');
     await page.getByRole('heading', { name: 'Linear', level: 4 }).waitFor();
     const row = page.locator('ul.connections > li').filter({ hasText: 'Linear' });
     assert.match(await row.innerText(), /Disabled/, 'a new connection starts disabled');
-    assert.equal(await row.getByRole('checkbox', { name: 'Connection enabled' }).isChecked(), false, 'and is not turned on');
+    assert.equal(await row.getByRole('checkbox', { name: 'Connection enabled' }).isDisabled(), true, 'and cannot be turned on before it is tested');
+    assert.match(await row.innerText(), /Not tested/, 'and does not claim a test it never had');
     assert.match(await page.getByRole('status').filter({ hasText: 'Connection saved' }).innerText(), /Test and discover to sign in/);
 
     // A service that is added is not offered again; a safer default is kept; "Add your own" is the plain form.

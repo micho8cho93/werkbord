@@ -87,6 +87,9 @@
     finally { busy = false; }
   }
 
+  /** Whether a connection has been tested: a time the server left out, or the empty date it once sent for one, is not a test. */
+  const tested = (c: MCPConnection) => !!c.testedAt && new Date(c.testedAt).getFullYear() > 1970;
+
   function put(c: MCPConnection) { connections = [...connections.filter(x => x.id !== c.id), c].sort((a,b) => a.name.localeCompare(b.name)); }
 
   async function test(c: MCPConnection) {
@@ -240,10 +243,10 @@
             </div>
           </div>
           {#if c.lastError}<p class="error">Last test failed: {c.lastError}</p>
-          {:else if c.testedAt}<p class="note">Last tested {new Date(c.testedAt).toLocaleString()}</p>
+          {:else if tested(c)}<p class="note">Last tested {new Date(c.testedAt!).toLocaleString()}</p>
           {:else}<p class="note">Not tested. Test the connection to review its tools and resources.</p>{/if}
           <div class="grants" aria-label="Connection access">
-            <label class="check"><input type="checkbox" checked={c.enabled} disabled={busy || !c.testedAt} onchange={(e) => enable(c,e.currentTarget.checked)} /><span>Connection enabled</span></label>
+            <label class="check"><input type="checkbox" checked={c.enabled} disabled={busy || !tested(c)} onchange={(e) => enable(c,e.currentTarget.checked)} /><span>Connection enabled</span></label>
             <label class="check"><input type="checkbox" checked={c.assistantEnabled} disabled={busy || !c.enabled} onchange={(e) => context(c,'assistant',e.currentTarget.checked)} /><span>Salie</span></label>
             <label class="check"><input type="checkbox" checked={c.codingEnabled} disabled={busy || !c.enabled} onchange={(e) => context(c,'coding',e.currentTarget.checked)} /><span>Coding agents</span></label>
           </div>

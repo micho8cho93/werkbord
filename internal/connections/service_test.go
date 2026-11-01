@@ -419,3 +419,18 @@ func TestStdioMCPUsesOnlyConfiguredEnvironmentReferences(t *testing.T) {
 		t.Fatalf("stdio discovery = %+v", c.Tools)
 	}
 }
+
+// A connection that has never been tested says nothing about when: the empty date is left out, so it cannot read as a test.
+func TestAnUntestedConnectionHasNoTestedTime(t *testing.T) {
+	raw, err := json.Marshal(Connection{ID: "c1", Name: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "testedAt") {
+		t.Fatalf("an untested connection reports a time: %s", raw)
+	}
+	raw, _ = json.Marshal(Connection{ID: "c1", Name: "x", TestedAt: time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)})
+	if !strings.Contains(string(raw), `"testedAt":"2026-11-01T10:00:00Z"`) {
+		t.Fatalf("a tested one keeps its time: %s", raw)
+	}
+}

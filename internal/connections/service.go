@@ -97,7 +97,7 @@ type Connection struct {
 	Coding       bool              `json:"codingEnabled"`
 	Tools        []Tool            `json:"tools,omitempty"`
 	Resources    []Resource        `json:"resources,omitempty"`
-	TestedAt     time.Time         `json:"testedAt,omitempty"`
+	TestedAt     time.Time         `json:"testedAt,omitzero"`
 	LastError    string            `json:"lastError,omitempty"`
 }
 
