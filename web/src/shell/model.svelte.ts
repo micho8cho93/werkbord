@@ -233,8 +233,9 @@ export class Model {
     if (this.frames[id]) this.places[id] = place;
     // A Team page that moved to another tab is no longer the ticket the return bar was shown for.
     if (this.departed && this.departed.workspace === id && id !== 'personal' && place.startsWith('?')) {
-      const wanted = new URLSearchParams(this.departed.place.slice(this.departed.place.indexOf('?') + 1)).get('ticket');
-      if (wanted && new URLSearchParams(place.slice(1)).get('ticket') !== wanted) this.departed = null;
+      const ticketOf = (p: string) => /[?&]ticket=([^&]*)/.exec(p)?.[1];
+      const wanted = ticketOf(this.departed.place);
+      if (wanted && ticketOf(place) !== wanted) this.departed = null;
     }
     // The Individual page leaves Agents (a session's task, say): the window is then on Work, and the sidebar says so.
     if (id === 'personal' && !this.frames.personal?.pending) {
@@ -485,8 +486,9 @@ export class Model {
   }
 
   private async restoreView(): Promise<void> {
-    let saved: { page?: unknown; current?: unknown; place?: unknown; pane?: { workspace?: unknown; place?: unknown } | null } | null = null;
-    try { saved = JSON.parse(sessionStorage.getItem(Model.VIEW_KEY) ?? 'null'); } catch { return; }
+    type Saved = { page?: unknown; current?: unknown; place?: unknown; pane?: { workspace?: unknown; place?: unknown } | null } | null;
+    let saved: Saved;
+    try { saved = JSON.parse(sessionStorage.getItem(Model.VIEW_KEY) ?? 'null') as Saved; } catch { return; }
     if (!saved || typeof saved !== 'object') return;
     const placeOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 2000 && (v.startsWith('#/') || v.startsWith('?'));
     const known = (id: unknown): id is string => typeof id === 'string' && !!this.view?.items.some((i) => i.id === id && i.state !== 'unavailable');

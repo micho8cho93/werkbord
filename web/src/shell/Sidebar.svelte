@@ -80,10 +80,11 @@
     <div class="destinations">
       {#each destinations as d (d.page)}
         {@const b = d.page === 'inbox' ? badges.inbox : d.page === 'agents' ? badges.agents : undefined}
-        <button class="nav" type="button" title={d.label} aria-current={model.page === d.page || d.page === 'inbox' && onWork ? 'page' : undefined} onclick={() => model.go(d.page)} data-page={d.page}>
+        <button class="nav" type="button" title={d.label} aria-current={model.page === d.page || d.page === 'inbox' && onWork ? 'page' : undefined} onclick={() => model.go(d.page)} data-page={d.page} aria-describedby={b ? `rail-${d.page}-waiting` : undefined}>
           <Icon name={d.icon} /><span>{d.label}</span>
-          {#if b}{#key b.count}<span class="pill" data-tone={b.tone} role="status" aria-label={b.label} title={b.label}>{b.count}</span>{/key}{/if}
+          {#if b}{#key b.count}<span class="pill" data-tone={b.tone} aria-hidden="true" title={b.label}>{b.count}</span>{/key}{/if}
         </button>
+        {#if b}<span id="rail-{d.page}-waiting" class="sr-only">{b.count} waiting: {b.label}</span>{/if}
       {/each}
     </div>
     <div class="bottom">
