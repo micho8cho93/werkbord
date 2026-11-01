@@ -28,6 +28,19 @@
   // One project context and destination list surround the original workspace-owned detail screens.
   const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help', 'agents'];
   let mainEl: HTMLElement | undefined;
+  // A new page takes the keyboard with it: focus moves into the page, so the next Tab reaches its first control rather than going back
+  // down the sidebar. Only when focus was in the sidebar or nowhere; a page that put focus in a field itself keeps it.
+  let shownPage: string | undefined;
+  $effect(() => {
+    const page = model.page;
+    if (shownPage !== undefined && shownPage !== page) {
+      queueMicrotask(() => {
+        const at = document.activeElement;
+        if (!at || at === document.body || at.closest('nav.side')) mainEl?.focus({ preventScroll: true });
+      });
+    }
+    shownPage = page;
+  });
   // The person's own Werkbord cannot be shown (too old, or not running): say so instead of a blank frame.
   const problem = $derived(model.current === 'personal' && model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
   // What a page that shows a workspace's page for Settings or Help needs: that workspace to be there to show.

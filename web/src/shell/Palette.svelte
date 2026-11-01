@@ -16,8 +16,19 @@
     at = 0;
   });
   $effect(() => {
+    // Focus goes into the box, and comes back to where it was when the box goes, so the keyboard is not left on nothing.
+    const before = document.activeElement as HTMLElement | null;
     queueMicrotask(() => input?.focus());
+    return () => { if (before?.isConnected) before.focus(); };
   });
+
+  // Escape closes it from anywhere in the window, not only while the cursor is in the box.
+  function windowKey(e: KeyboardEvent): void {
+    if (e.key === 'Escape' && !e.defaultPrevented) {
+      e.preventDefault();
+      close();
+    }
+  }
 
   function close(): void {
     model.closePalette();
@@ -45,6 +56,7 @@
   }
 </script>
 
+<svelte:window onkeydown={windowKey} />
 <div class="scrim" onclick={close} role="presentation"></div>
 <div class="box" role="dialog" aria-modal="true" aria-label="Go to" data-testid="palette">
   <input

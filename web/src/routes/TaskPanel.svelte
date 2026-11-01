@@ -410,9 +410,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 
   // Esc closes the panel, unless a dialog inside it or a field is in use.
   function onWindowKey(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || editing || scheduling || app.switcherOpen || app.newTaskOpen) return;
+    if (e.key !== 'Escape' || e.defaultPrevented || editing || scheduling || app.switcherOpen || app.newTaskOpen || document.querySelector('.sheet[aria-modal="true"]')) return;
     const el = document.activeElement;
-    if (el instanceof HTMLTextAreaElement || (el instanceof HTMLInputElement && el.value)) {
+    // Escape in a field only leaves the field; a second one leaves the page. Leaving takes a deliberate press, not a stray one.
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
       el.blur();
       return;
     }

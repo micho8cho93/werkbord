@@ -72,4 +72,18 @@ describe('the words for a step', () => {
     expect(labelOf({ kind: 'plan', projectId: 'p', planId: 'x' })).toBe('Plan');
     expect(all.map(o => labelOf(o)).every(Boolean)).toBe(true);
   });
+
+  it('folds a loop away instead of growing the chain', () => {
+    const work: Origin = { kind: 'work' };
+    const plan: Origin = { kind: 'plan', projectId: 'p', planId: 'l' };
+    const task: Origin = { kind: 'task', projectId: 'p', taskId: 't' };
+    const session: Origin = { kind: 'session', key: 'run:r' };
+    // Work, Plan, Task, Session, back to the task, and the session again.
+    let chain = pushed(plan, pushed(work, []));
+    chain = pushed(task, chain);
+    chain = pushed(session, chain);
+    chain = pushed(task, chain);
+    expect(chain).toEqual([task, plan]); // the cap had already let Work go; the lap adds nothing
+    expect(pushed(session, chain)).toEqual([session, task, plan]);
+  });
 });

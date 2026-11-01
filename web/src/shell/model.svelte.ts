@@ -57,6 +57,7 @@ export class Model {
   }
   selectProject(selected: ProjectIdentity | null): void {
     this.selectedProject = selected;
+    this.pane = null; // a task of the old project must not stay beside the list of the new one
     try { localStorage.setItem('werkbord.shell.project', contextKey(selected)); } catch { /* Selection still works. */ }
     // Detail screens are contextual Work; switching projects returns to the shared Work surface.
     if (this.page === 'workspace') this.go('inbox');
@@ -226,6 +227,11 @@ export class Model {
   /** Records where a workspace's page says it is. */
   setPlace(id: string, place: string): void {
     if (this.frames[id]) this.places[id] = place;
+    // A Team page that moved to another tab is no longer the ticket the return bar was shown for.
+    if (this.departed && this.departed.workspace === id && id !== 'personal' && place.startsWith('?')) {
+      const wanted = new URLSearchParams(this.departed.place.slice(this.departed.place.indexOf('?') + 1)).get('ticket');
+      if (wanted && new URLSearchParams(place.slice(1)).get('ticket') !== wanted) this.departed = null;
+    }
     // The Individual page leaves Agents (a session's task, say): the window is then on Work, and the sidebar says so.
     if (id === 'personal' && !this.frames.personal?.pending) {
       if (this.page === 'agents' && !isAgentsPlace(place)) { this.current = 'personal'; this.universal = false; this.page = 'workspace'; }
@@ -265,6 +271,8 @@ export class Model {
    * it next to Work's list (see `pane`) when the window is wide enough.
    */
   async openAgents(key?: string, from: readonly Origin[] = [], beside = false): Promise<void> {
+    // Opened from Salie: remember the page she was covering, for when she is closed again.
+    if (this.assistantShown) { this.salieReturn = this.snapshot(); this.salieBack = false; }
     if (!this.personalReady) {
       // Without the person's own Werkbord there are no sessions to open: the page lists what workspaces report.
       this.leaveAssistant();
@@ -303,6 +311,7 @@ export class Model {
     const r = this.assistantButton?.getBoundingClientRect();
     const rect = r ? { x: r.left, y: r.top, width: r.width, height: r.height } : { x: 24, y: 24, width: 0, height: 0 };
     if (!this.assistantShown) await this.toggleAssistant(rect);
+    if (this.salieReturn) this.salieBack = true;
     if (conversation && this.assistantAsk?.action === 'open') this.assistantAsk = { ...this.assistantAsk, conversation };
     else if (conversation && this.assistantShown) this.assistantAsk = { action: 'open', conversation, rect };
   }
@@ -353,6 +362,13 @@ export class Model {
     if (this.assistantOpening) return;
     this.assistantShown = false;
     if (was) queueMicrotask(() => this.assistantButton?.focus({ preventScroll: true }));
+    // Salie was brought back from a session she had opened and is now put away: the window goes back to where she was first opened.
+    if (was && this.salieReturn && this.salieBack && this.page === 'agents') {
+      const back = this.salieReturn;
+      this.salieReturn = null;
+      this.salieBack = false;
+      this.restore(back);
+    }
   }
 
   /** Closes the assistant if it is open, for a destination that is chosen some other way than through the sidebar it covers. */
@@ -601,6 +617,25 @@ export class Model {
    */
   settingsReturn = $state<{ page: Page; current: string; place: string | undefined; pane: { workspace: string; place: string } | null } | null>(null);
 
+  /** Where a Salie that opened a session came from, so that closing Salie again, after coming back to it, lands there. */
+  private salieReturn: { page: Page; current: string; place: string | undefined; pane: { workspace: string; place: string } | null } | null = null;
+  private salieBack = false;
+
+  private snapshot() {
+    return { page: this.page, current: this.current, place: this.places[this.current], pane: this.pane ? { ...this.pane } : null };
+  }
+
+  private restore(back: NonNullable<Model['settingsReturn']>): void {
+    if (back.page === 'workspace') {
+      this.page = 'workspace';
+      this.current = back.current;
+      void this.goTo(back.current, back.place);
+      return;
+    }
+    this.go(back.page);
+    if (back.pane) void this.openPane(back.pane.workspace, back.pane.place);
+  }
+
   private rememberBeforeSettings(): void {
     if (this.page === 'settings' || this.page === 'help') return;
     this.settingsReturn = { page: this.page, current: this.current, place: this.places[this.current], pane: this.pane ? { ...this.pane } : null };
@@ -611,14 +646,7 @@ export class Model {
     const back = this.settingsReturn;
     this.settingsReturn = null;
     if (!back || back.page === 'settings' || back.page === 'help') return this.go('inbox');
-    if (back.page === 'workspace') {
-      this.page = 'workspace';
-      this.current = back.current;
-      void this.goTo(back.current, back.place);
-      return;
-    }
-    this.go(back.page);
-    if (back.pane) void this.openPane(back.pane.workspace, back.pane.place);
+    this.restore(back);
   }
 
   /** Settings, at a section if one is asked for. Whichever part of Werkbord the person is in, it is the same screen. */
@@ -653,6 +681,8 @@ export class Model {
 
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    this.salieReturn = null;
+    this.salieBack = false;
     if (p === 'settings' || p === 'help' || p === 'workspaces') this.rememberBeforeSettings();
     else if (this.page === 'settings' || this.page === 'help') this.settingsReturn = null;
     this.departed = null;

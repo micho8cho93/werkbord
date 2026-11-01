@@ -100,7 +100,12 @@ export function chainOf(hashOrQuery: string): Origin[] {
 
 /** The chain for a page reached from `here`: `here` first, then what led to it. */
 export function pushed(here: Origin, chain: readonly Origin[]): Origin[] {
-  return [here, ...chain].slice(0, MAX_CHAIN);
+  // Coming back to a place the chain already passes through is going round a loop (task, session, the same task…): the loop is
+  // folded away, so Back goes to what was before the first visit and the chain does not grow with each lap.
+  const key = encodeOrigin(here);
+  const seen = chain.findIndex((o) => encodeOrigin(o) === key);
+  const rest = seen === -1 ? chain : chain.slice(seen + 1);
+  return [here, ...rest].slice(0, MAX_CHAIN);
 }
 
 /** The route back from a page whose chain is this: where it goes, and the chain that place is shown with. */

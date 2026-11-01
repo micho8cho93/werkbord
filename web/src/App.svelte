@@ -149,6 +149,12 @@
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    // In the window, one palette serves every page: the frame hands ⌘K up to it, typing or not (a chord is never a letter).
+    if (framed && (e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      window.parent.postMessage({ type: 'werkbord.frame', event: 'palette' }, '*');
+      return;
+    }
     if (typing || (app.needsOnboarding && !app.onboardingPaused && !isPhone())) return;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
       if (assistant.mounted) return;
@@ -216,7 +222,7 @@
           <div class="gacts">
             {#if !framed && (!app.needsOnboarding || app.onboardingPaused)}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
             {#if !framed && !deck && (!app.needsOnboarding || app.onboardingPaused)}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
-            <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
+            <button class="btn jump" type="button" onclick={() => (framed ? window.parent.postMessage({ type: 'werkbord.frame', event: 'palette' }, '*') : (app.switcherOpen = true))} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
             </button>
           </div>
