@@ -85,10 +85,12 @@
 </script>
 
 <li class="card wb-rise" class:selected data-tone={tone} data-session={session.key} data-outcome={session.live ? undefined : doing.outcome} style:--i={index}>
-  <button type="button" class="open-card wb-lift" onclick={onopen} aria-label="Open {title}" aria-current={selected ? 'true' : undefined}>
+  <button type="button" class="open-card" onclick={onopen} aria-label="Open {title}" aria-current={selected ? 'true' : undefined}>
     <span class="head">
       <span class="dot" data-tone={tone} aria-hidden="true"></span>
-      <span class="title">{title}</span>
+      <span class="title" {title}>{title}</span>
+      <!-- Working reads on the right, as a ring that turns, the same as on a task row. -->
+      {#if tone === 'running'}<span class="spin" role="img" aria-label="Working"></span>{/if}
       <span class="state" data-waiting={doing.waiting ? 'true' : undefined} data-outcome={doing.outcome}>{doing.state}</span>
     </span>
     <span class="meta">{meta}</span>
@@ -120,9 +122,10 @@
 </li>
 
 <style>
-  .card { position: relative; list-style: none; display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
-  .open-card { position: relative; display: grid; gap: 3px; width: 100%; padding: 11px 14px 11px 16px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
-  .open-card:hover { background: var(--surface-2); }
+  .card { position: relative; list-style: none; display: grid; gap: 0; border: 1px solid var(--edge-strong); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; transition: background-color 120ms, border-color 120ms; }
+  /* The whole card answers the pointer, not just the part that opens it. */
+  .card:hover { background: var(--hover); }
+  .open-card { position: relative; display: grid; gap: 2px; width: 100%; padding: 9px 12px 9px 14px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
   .open-card:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   /* The edge says how much the session needs you before any word is read. */
   .card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: transparent; transition: background 200ms; }
@@ -130,12 +133,13 @@
   .card[data-tone='trouble']::before { background: var(--danger); }
   .card[data-tone='running']::before { background: var(--accent); }
   .card[data-tone='needs'] { border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); background: color-mix(in srgb, var(--amber) 7%, var(--surface)); }
+  .card[data-tone='needs']:hover { background: color-mix(in srgb, var(--amber) 13%, var(--surface)); }
   .card[data-tone='trouble'] { border-color: color-mix(in srgb, var(--danger) 38%, var(--border)); }
   .card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .title { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
-  .card[data-tone='needs'] .title { font-size: 14px; }
-  .meta, .doing { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+  .title { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doing { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .state { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
   .state[data-waiting='true'] { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--text); font-weight: 600; }
   .state[data-outcome='failed'], .state[data-outcome='interrupted'] { color: var(--danger-text); }
@@ -145,7 +149,7 @@
   .dot[data-tone='trouble'] { background: var(--danger); color: var(--danger); }
   .dot[data-tone='running'] { background: var(--accent); color: var(--accent); }
   .dot[data-tone='done'] { background: var(--ok); color: var(--ok); opacity: .7; }
-  .inline { display: grid; gap: 8px; padding: 0 14px 12px 16px; }
+  .inline { display: grid; gap: 8px; padding: 0 12px 10px 14px; }
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
     .inline.tucked { grid-template-rows: 0fr; padding-bottom: 0; overflow: hidden; transition: grid-template-rows 200ms var(--ease), padding 200ms var(--ease); }
     .inline.tucked > :global(*) { min-height: 0; overflow: hidden; opacity: 0; transition: opacity 160ms; }
@@ -164,11 +168,7 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   @media (prefers-reduced-motion: no-preference) {
     .card[data-tone='needs'] { animation: wb-breathe 2.6s ease-in-out infinite; }
-    .dot[data-tone='needs'], .dot[data-tone='running'] { animation: none; }
-    .dot[data-tone='needs']::after, .dot[data-tone='running']::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; animation: wb-ping 2.2s ease-out infinite; }
-    .dot[data-tone='running']::after { animation-duration: 3s; }
-    /* A live session carries a slow current along its foot, so a page of work looks alive without anything moving in the text. */
-    .card[data-tone='running']::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background-image: linear-gradient(100deg, transparent 0 35%, var(--accent) 50%, transparent 65% 100%); background-size: 260% 100%; background-repeat: no-repeat; opacity: .55; animation: wb-live 2.8s linear infinite; }
+    .dot[data-tone='needs']::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; animation: wb-ping 2.2s ease-out infinite; }
   }
   @media (max-width: 899px) { .open-card, .btn { min-height: 44px; } }
 </style>

@@ -217,6 +217,34 @@
     onopen={() => select(x.key)} onchange={() => void refresh()} />
 {/snippet}
 
+{#snippet groups()}
+  {#if !shownCount}
+    <p class="muted empty">{list.length ? 'No session matches this filter.' : 'No agent sessions yet. Start an agent on a task, ask Salie to, or open a new session.'}</p>
+  {/if}
+  {#if ov.needsYou.length}
+    <section class="tray" aria-labelledby="ag-needs" data-tone="ask"><header><h2 id="ag-needs" class="section-title" data-tone="needs">Needs you</h2><span class="tray-note">{ov.needsYou.length}</span></header><ul class="cards">{#each ov.needsYou as x, i (x.key)}{@render card(x, 'needs', i)}{/each}</ul></section>
+  {/if}
+  {#if trouble.length}
+    <section class="tray" aria-labelledby="ag-trouble"><header><h2 id="ag-trouble" class="section-title" data-tone="trouble">Needs a look</h2><span class="tray-note">{trouble.length}</span></header><ul class="cards">{#each trouble as x, i (x.key)}{@render card(x, 'trouble', i)}{/each}</ul></section>
+  {/if}
+  {#if ov.running.length}
+    <section class="tray" aria-labelledby="ag-running"><header><h2 id="ag-running" class="section-title" data-tone="running">Running</h2><span class="tray-note">{ov.running.length}</span></header><ul class="cards">{#each ov.running as x, i (x.key)}{@render card(x, 'running', i)}{/each}</ul></section>
+  {/if}
+  {#if finished.length}
+    <section class="tray" aria-labelledby="ag-recent"><header><h2 id="ag-recent" class="section-title">Recently finished</h2><span class="tray-note">{finished.length}</span></header><ul class="cards">{#each finished.slice(0, 12) as x, i (x.key)}{@render card(x, 'done', i)}{/each}</ul></section>
+  {/if}
+  {#if !terminalsListed}<p class="muted fine">Terminals are listed only on the computer they run on.</p>{/if}
+{/snippet}
+
+{#snippet runnersTray()}
+  <section class="tray runners" aria-labelledby="ag-runners">
+    <header><h2 id="ag-runners" class="section-title">Runners</h2></header>
+    {#if app.runners.length}
+      <ul class="tray-card runner-list">{#each app.runners as r (r.id)}<li data-online={r.online && !r.disabled}><span class="dot" data-tone={r.online && !r.disabled ? 'ok' : 'neutral'}></span><span class="title">{app.runnerName(r)}</span><span class="meta">{r.online && !r.disabled ? 'Available' : r.disabled ? 'Disabled' : 'Offline'} · {r.currentRuns}/{r.capacity}</span></li>{/each}</ul>
+    {:else}<p class="muted fine">No runner is reporting.</p>{/if}
+  </section>
+{/snippet}
+
 <div class="agents" class:has-session={!!key} class:pane={paneMode}>
   <!-- The page's heading is the app header's ("Agents", above): this page adds no second one, only what it can do. -->
   {#if !paneMode}
@@ -263,30 +291,26 @@
     {#if !paneMode}
       <div class="overview" bind:this={sideEl} onscroll={() => { scrolled = sideEl?.scrollTop ?? 0; }}>
         {#if !loaded}<p role="status" class="muted">Loading sessions…</p>
-        {:else}
+        {:else if key}
           {#if summary.length}<ul class="summary" aria-label="Session summary">{#each summary as c (c.id)}<li data-kind={c.id} class="wb-pop">{c.text}</li>{/each}</ul>{/if}
-          {#if !shownCount}
-            <p class="muted empty">{list.length ? 'No session matches this filter.' : 'No agent sessions yet. Start an agent on a task, ask Salie to, or open a new session.'}</p>
-          {/if}
-          {#if ov.needsYou.length}
-            <section aria-labelledby="ag-needs"><h2 id="ag-needs" data-tone="needs">Needs you</h2><ul class="cards">{#each ov.needsYou as x, i (x.key)}{@render card(x, 'needs', i)}{/each}</ul></section>
-          {/if}
-          {#if trouble.length}
-            <section aria-labelledby="ag-trouble"><h2 id="ag-trouble" data-tone="trouble">Needs a look</h2><ul class="cards">{#each trouble as x, i (x.key)}{@render card(x, 'trouble', i)}{/each}</ul></section>
-          {/if}
-          {#if ov.running.length}
-            <section aria-labelledby="ag-running"><h2 id="ag-running" data-tone="running">Running</h2><ul class="cards">{#each ov.running as x, i (x.key)}{@render card(x, 'running', i)}{/each}</ul></section>
-          {/if}
-          {#if finished.length}
-            <section aria-labelledby="ag-recent"><h2 id="ag-recent">Recently finished</h2><ul class="cards">{#each finished.slice(0, 12) as x, i (x.key)}{@render card(x, 'done', i)}{/each}</ul></section>
-          {/if}
-          {#if !terminalsListed}<p class="muted fine">Terminals are listed only on the computer they run on.</p>{/if}
-          <section class="runners" aria-labelledby="ag-runners">
-            <h2 id="ag-runners">Runners</h2>
-            {#if app.runners.length}
-              <ul class="runner-row">{#each app.runners as r (r.id)}<li data-online={r.online && !r.disabled}><span class="dot" data-tone={r.online && !r.disabled ? 'ok' : 'neutral'}></span><span class="title">{app.runnerName(r)}</span><span class="meta">{r.online && !r.disabled ? 'Available' : r.disabled ? 'Disabled' : 'Offline'} · {r.currentRuns}/{r.capacity}</span></li>{/each}</ul>
-            {:else}<p class="muted fine">No runner is reporting.</p>{/if}
-          </section>
+          {@render groups()}
+          {@render runnersTray()}
+        {:else}
+          <!-- With no session open the page uses its width: the sessions in a grid of small cards, and beside them what is happening now. -->
+          <div class="wide">
+            <div class="groups-col">{@render groups()}</div>
+            <aside class="rail" aria-label="Where agents stand">
+              <section class="tray stand" aria-labelledby="ag-stand" data-testid="agents-stand">
+                <header><h2 id="ag-stand" class="section-title">Right now</h2></header>
+                <ul class="stat-grid" aria-label="Session summary">
+                  <li class="tray-card stat" data-kind="needsYou" data-zero={ov.counts.needsYou ? undefined : ''}><span class="stat-n">{ov.counts.needsYou}</span><span class="stat-label">{ov.counts.needsYou === 1 ? 'Needs you' : 'Need you'}</span></li>
+                  <li class="tray-card stat" data-kind="running" data-zero={ov.counts.running ? undefined : ''}><span class="stat-n">{ov.counts.running}</span><span class="stat-label">Running</span></li>
+                  <li class="tray-card stat" data-kind="failed" data-zero={ov.counts.failed ? undefined : ''}><span class="stat-n">{ov.counts.failed}</span><span class="stat-label">Failed</span></li>
+                </ul>
+              </section>
+              {@render runnersTray()}
+            </aside>
+          </div>
         {/if}
       </div>
     {/if}
@@ -370,7 +394,7 @@
   .lede { margin: 0; font-size: 13px; max-width: 60ch; }
   .tools .select { width: auto; max-width: 200px; }
   .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  h2 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 8px; }
+  h2 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0; }
   /* A heading says how urgent its group is with a dot as well as a word. */
   h2[data-tone]::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--text-2); vertical-align: 1px; }
   h2[data-tone='needs'] { color: var(--warn-text); }
@@ -385,24 +409,38 @@
   /* The list and the open session sit side by side: choosing a session never takes the list away. */
   .split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; transition: grid-template-columns 280ms var(--ease); }
   .split.two { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
-  .overview { min-height: 0; overflow-y: auto; padding: 2px 4px 24px 2px; display: grid; gap: 20px; align-content: start; max-width: 960px; scrollbar-gutter: stable; }
-  .split.two .overview { max-width: none; }
+  .overview { min-height: 0; overflow-y: auto; padding: 2px 4px 24px 2px; display: grid; gap: 12px; align-content: start; scrollbar-gutter: stable; }
   .summary { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
   .summary li { padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--surface-2); color: var(--text-2); }
   .summary li[data-kind='needsYou'] { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--text); font-weight: 600; }
   .summary li[data-kind='failed'] { color: var(--danger-text); }
   .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  /* Open with no session: the cards sit in a grid, two or three across, and a rail beside them says what is happening. */
+  .wide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem); gap: 16px; align-items: start; }
+  .groups-col { min-width: 0; display: grid; gap: 12px; align-content: start; }
+  .groups-col .cards { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+  .rail { position: sticky; top: 0; display: grid; gap: 12px; min-width: 0; align-content: start; }
+  .stat-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .stat { display: grid; gap: 2px; padding: 10px 12px; }
+  .stat-n { font-size: var(--fs-page); font-weight: 600; letter-spacing: -.025em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat-label { font-size: var(--fs-meta); color: var(--text-2); }
+  .stat[data-kind='needsYou'] .stat-n { color: var(--warn-text); }
+  .stat[data-kind='running'] .stat-n { color: var(--accent); }
+  .stat[data-kind='failed'] .stat-n { color: var(--danger-text); }
+  .stat[data-zero] .stat-n { color: var(--text-2); }
+  .runner-list { list-style: none; margin: 0; padding: 0; overflow: clip; }
+  .runner-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 10px 12px; }
+  .runner-list li + li { border-top: 1px solid var(--border); }
+  .runner-list .meta { grid-column: 2; }
+  .runner-list .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
   .meta { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
   .state { padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
   .state[data-waiting='true'] { background: color-mix(in srgb, var(--amber) 18%, var(--surface)); color: var(--text); }
   .state[data-outcome='failed'], .state[data-outcome='interrupted'] { color: var(--danger-text); }
   .state[data-outcome='completed'] { color: var(--ok-text); }
-  .runners h2 { margin-top: 4px; }
-  .runner-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; }
-  .runner-row li { display: inline-flex; align-items: center; gap: 6px; }
-  .runner-row .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-2); opacity: .5; }
-  .runner-row .dot[data-tone='ok'] { background: var(--ok); opacity: 1; }
+  .runner-list .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-2); opacity: .5; }
+  .runner-list .dot[data-tone='ok'] { background: var(--ok); opacity: 1; }
   .open { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg); margin-bottom: 12px; }
   .pane .open { border: 0; border-radius: 0; margin: 0; flex: 1; }
   .trail { padding: 6px 12px 0; background: var(--surface); }
@@ -435,6 +473,7 @@
     .open { animation: pan 300ms var(--ease) both; }
     @keyframes pan { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
   }
+  @media (max-width: 1000px) { .wide { grid-template-columns: minmax(0, 1fr); } .rail { position: static; } }
   @media (max-width: 899px) {
     .agents { padding: 12px 12px 0; }
     /* Too narrow for both: the session takes the page, and closing it brings the list back as it was. */

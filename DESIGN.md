@@ -165,6 +165,11 @@ A native project dropdown above the destinations offers All Projects, then Perso
 by ownership. Team options include their workspace name; offline and unavailable contexts remain explicit.
 Scope persists across destinations, and All Projects includes only accessible workspace projections.
 
+**Agents**, with no session open, uses its width: sessions are small one-line cards (title, then agent and project, then what it is
+doing) in a grid inside a tray per group (Needs you, Needs a look, Running, Recently finished), and a rail beside them says what is
+happening now (three counts) and which runners are available. The whole card answers the pointer. A session that is working shows
+the turning ring on the right of its card. With a session open the list is one narrow column beside it, as before.
+
 **Work** opens on All Projects, on its **Overview** tab; the other tab is **Queue & Plans**. Overview is the page a person
 lands on: five numbers (what needs an answer, what is running, what is ready for review, what failed or is blocked, what is
 ready to start; each takes you to the first of its kind in the queue), what waits for them, a **Catch up** card, and trays for
