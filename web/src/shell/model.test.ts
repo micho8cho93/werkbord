@@ -455,6 +455,9 @@ it('marks aggregate reads unavailable when the summary bridge fails', async () =
   model.overview = { at: '', entries: [{ workspace: individual, summary: { schema: '', workspace: individual, projects: [], work: [], attention: [], schedule: [], at: '' } }] };
   native.app.Overview = async () => { throw new Error('disconnected'); };
   expect(await model.refreshOverview()).toBe(false);
+  expect(model.contextOverview?.entries[0].summary).toBeDefined(); // one miss is a hiccup: what was shown stays
+  await model.refreshOverview();
+  await model.refreshOverview(); // a run of misses withdraws it
   expect(model.contextOverview?.entries[0].summary).toBeUndefined();
   expect(model.contextOverview?.entries[0].error).toContain('could not be refreshed');
   const firstLoad = new Model();
@@ -783,5 +786,85 @@ describe('leaving Settings', () => {
     model.openSettings();
     model.go('reviews');
     expect(model.settingsReturn).toBeNull();
+  });
+});
+
+describe('remembering where the window was', () => {
+  it('comes back to the page and the Team place it was on, and ignores what it does not know', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), clear: () => store.clear() });
+    native.app.Workspaces = async () => view([individual, team]);
+    const first = new Model();
+    await first.start();
+    first.stop();
+    first.go('calendar');
+    first.saveView();
+    const second = new Model();
+    await second.start();
+    second.stop();
+    expect(second.page).toBe('calendar');
+    sessionStorage.setItem('werkbord.shell.view', JSON.stringify({ page: 'workspace', current: 'gone', place: '?tab=work' }));
+    const third = new Model();
+    await third.start();
+    third.stop();
+    expect(third.page).toBe('inbox');
+    sessionStorage.setItem('werkbord.shell.view', '{not json');
+    const fourth = new Model();
+    await fourth.start();
+    fourth.stop();
+    expect(fourth.page).toBe('inbox');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('a Team ticket opened from another workspace’s page', () => {
+  it('offers the place it was opened from as the way back', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    model.frames.personal = { target: { id: 'personal', kind: 'personal', url: 'http://127.0.0.1:1/', origin: 'http://127.0.0.1:1' }, ready: true };
+    native.app.OpenWorkspace = async (id: string) => ({ id, kind: 'team' as const, url: 'http://127.0.0.1:2/', origin: 'http://127.0.0.1:2' });
+    model.page = 'workspace';
+    model.current = 'personal';
+    model.places.personal = '#/p/prj_1/work';
+    await model.goTo('team:main', '?tab=work&ticket=t1');
+    expect(model.departed?.from).toMatchObject({ workspace: 'personal', place: '#/p/prj_1/work' });
+    await model.goTo('team:main', '?tab=people');
+    expect(model.departed).toBeNull();
+  });
+});
+
+describe('a refresh that misses', () => {
+  const summary = { schema: 's', workspace: team as never, projects: [], work: [], attention: [], schedule: [], at: '' };
+  const answered: Overview = { at: 'now', entries: [{ workspace: individual as never, summary: summary as never }] };
+
+  it('keeps the work on screen for a miss or two and withdraws it only after a run of them', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    native.app.Overview = async () => answered;
+    expect(await model.refreshOverview()).toBe(true);
+    native.app.Overview = async () => { throw new Error('timed out'); };
+    expect(await model.refreshOverview()).toBe(false);
+    expect(await model.refreshOverview()).toBe(false);
+    expect(model.overview?.entries[0].error).toBeUndefined();
+    expect(model.overview?.entries[0].summary).toBeTruthy();
+    await model.refreshOverview();
+    expect(model.overview?.entries[0].error).toBeTruthy();
+    native.app.Overview = async () => answered;
+    await model.refreshOverview();
+    expect(model.overview?.entries[0].error).toBeUndefined();
+  });
+
+  it('does not call a workspace unreachable for a blip', async () => {
+    const model = new Model();
+    const up = view([individual, team]);
+    native.app.Workspaces = async () => up;
+    await model.refresh();
+    const blip = view([individual, { ...team, state: 'connecting' } as never]);
+    native.app.Workspaces = async () => blip;
+    await model.refresh();
+    await model.refresh();
+    expect(model.view?.items.find((i) => i.id === 'team:main')?.state).toBe('ready');
+    await model.refresh();
+    expect(model.view?.items.find((i) => i.id === 'team:main')?.state).toBe('connecting');
   });
 });

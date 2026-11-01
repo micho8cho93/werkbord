@@ -62,7 +62,7 @@
     const plan = chain.find(o => o.kind === 'plan');
     if (plan) void api.workPlans(plan.projectId).then(p => (plans = p), () => {});
   });
-  const names: Names = { task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title, plan: (_p, id) => plans.find(x => x.id === id)?.title };
+  const names: Names = { task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title, plan: (_p, id) => plans.find(x => x.id === id)?.title, session: k => list.find(s => s.key === k)?.title };
 
   const key = $derived(isSessionKey(router.sub) ? router.sub : '');
   const selected = $derived(key ? list.find(s => s.key === key) : undefined);

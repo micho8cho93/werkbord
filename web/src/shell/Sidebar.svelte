@@ -16,6 +16,15 @@
   // Help is Individual's guides and shortcuts, which describe every part of Werkbord, so it is there wherever the person is.
   // What is waiting in each place, so a glance at the rail says whether something needs the person and what sort.
   const badges = $derived(railBadges(model.overview));
+  // A workspace's page is Work, except where a Team page is on one of its other tabs (People, Reviews, Settings…), which the rail has no
+  // name for: Work is not marked there, because it is not where the person is.
+  const onWork = $derived.by(() => {
+    if (model.page !== 'workspace') return false;
+    const place = model.places[model.current] ?? '';
+    if (model.current === 'personal' || !place.startsWith('?')) return true;
+    const tab = new URLSearchParams(place.slice(1)).get('tab');
+    return !tab || tab === 'work';
+  });
   const helpUnavailable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
   let salieButton: HTMLButtonElement | undefined = $state();
   const selected = $derived(contextKey(model.selectedProject));
@@ -71,7 +80,7 @@
     <div class="destinations">
       {#each destinations as d (d.page)}
         {@const b = d.page === 'inbox' ? badges.inbox : d.page === 'agents' ? badges.agents : undefined}
-        <button class="nav" type="button" title={d.label} aria-current={model.page === d.page || d.page === 'inbox' && model.page === 'workspace' ? 'page' : undefined} onclick={() => model.go(d.page)} data-page={d.page}>
+        <button class="nav" type="button" title={d.label} aria-current={model.page === d.page || d.page === 'inbox' && onWork ? 'page' : undefined} onclick={() => model.go(d.page)} data-page={d.page}>
           <Icon name={d.icon} /><span>{d.label}</span>
           {#if b}{#key b.count}<span class="pill" data-tone={b.tone} role="status" aria-label={b.label} title={b.label}>{b.count}</span>{/key}{/if}
         </button>

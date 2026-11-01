@@ -40,6 +40,10 @@ export const PANE_MIN = 1000;
 
 const VIEW_EVERY = 4000;
 const OVERVIEW_EVERY = 10000;
+/** How many answers in a row may be missed before the work they would have refreshed is taken off the screen (about half a minute). */
+const MISSES_BEFORE_WITHDRAWN = 3;
+/** How many looks in a row may show a workspace unreachable before it is said to be: a network blip lasts a look or two. */
+const LOOKS_BEFORE_UNREACHABLE = 3;
 
 export class Model {
   view = $state<WorkspaceView | null>(null);
@@ -100,7 +104,7 @@ export class Model {
    * Where the person left one of the window's own pages (Work, Calendar, Agents) for a detail page, and the project context they
    * had there. Back to that page puts both as they were, even if opening the detail moved the context to its project.
    */
-  departed = $state<{ page: Page; context: ProjectIdentity | null; workspace: string; place: string } | null>(null);
+  departed = $state<{ page: Page; context: ProjectIdentity | null; workspace: string; place: string; from?: { workspace: string; place: string | undefined; label: string } } | null>(null);
   /**
    * Work's detail pane: a task, plan or session shown beside the list rather than instead of it, so the list keeps its place, its search
    * and its scroll, and Back is closing the pane. `place` is the queue's own address for what was opened, which is what the list marks.
@@ -115,7 +119,7 @@ export class Model {
   /** How Individual's assistant stands, as it last said: open over everything, something waiting for the person, a reply on the way. */
   assistant = $state<{open: boolean; waiting: number; running: boolean}>({ open: false, waiting: 0, running: false });
   /** A request for the assistant, handed to its frame by AssistantFrame once the frame can take it (see toggleAssistant). */
-  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; conversation?: string; rect: Anchor; catchUpPrompt?: string } | null>(null);
+  assistantAsk = $state<{ action: 'open' | 'close' | 'toggle'; conversation?: string; rect: Anchor; catchUpPrompt?: string; sendNow?: boolean } | null>(null);
   /** The sidebar's Salie destination: the one place Salie opens from, and where focus returns when it closes. */
   assistantSidebarButton: HTMLElement | undefined;
   get assistantButton(): HTMLElement | undefined {
@@ -343,9 +347,10 @@ export class Model {
     this.assistantAsk = { action: 'open', rect };
   }
 
-  async explainCatchUp(prompt: string): Promise<void> {
+  /** Opens Salie with a prompt written for her. With `sendNow` the person has already asked for the answer (pressed a button for it), so it is sent. */
+  async explainCatchUp(prompt: string, sendNow = false): Promise<void> {
     await this.toggleAssistant({ x: 24, y: 24, width: 0, height: 0 });
-    if (this.assistantAsk) this.assistantAsk = { action: 'open', rect: this.assistantAsk.rect, catchUpPrompt: prompt.slice(0, 24000) };
+    if (this.assistantAsk) this.assistantAsk = { action: 'open', rect: this.assistantAsk.rect, catchUpPrompt: prompt.slice(0, 24000), ...(sendNow ? { sendNow: true } : {}) };
   }
 
   /** The assistant's page says how it stands. When it has closed, the frame is put away and focus goes back to the button. */
@@ -401,7 +406,15 @@ export class Model {
    */
   private stamped(id: string, place: string | undefined): string | undefined {
     const here = this.here;
-    if (!here) this.departed = null; // moving about inside a workspace is not leaving one of the window's pages
+    if (!here) {
+      // Moving about inside a workspace is not leaving one of the window's pages, but a Team ticket opened from another workspace's page
+      // (a Salie card, the palette) has nowhere else to go Back to: the bar names the place it was opened from.
+      this.departed = null;
+      if (id !== 'personal' && place?.startsWith('?') && /[?&]ticket=/.test(place) && this.page === 'workspace' && this.current !== id) {
+        const name = this.view?.items.find((i) => i.id === this.current)?.name ?? 'Back';
+        this.departed = { page: 'workspace', context: this.selectedProject, workspace: id, place, from: { workspace: this.current, place: this.places[this.current], label: name } };
+      }
+    }
     if (!place || !here) return place;
     if (id !== 'personal') {
       if (place.startsWith('?')) this.departed = { page: this.page, context: this.selectedProject, workspace: id, place };
@@ -453,6 +466,37 @@ export class Model {
     );
     // An invitation the app was opened with is waiting: the add dialog hands it to the workspace it sets up.
     if (this.view?.invitation) this.addOpen = true;
+    else await this.restoreView();
+    this.viewRestored = true;
+  }
+
+  /**
+   * Where the window was, kept for the length of the window (a reload keeps it, a closed window starts again on Work): the page, the
+   * workspace page and place on show, and the pane beside Work's list. Team pages are not addressed by the browser, so this is what
+   * lets a reload come back to the ticket that was open.
+   */
+  private static readonly VIEW_KEY = 'werkbord.shell.view';
+  private viewRestored = $state(false);
+
+  saveView(): void {
+    if (!this.viewRestored || !this.loaded) return;
+    const state = { page: this.page, current: this.current, place: this.places[this.current] ?? null, pane: this.pane ? { workspace: this.pane.workspace, place: this.pane.place } : null };
+    try { sessionStorage.setItem(Model.VIEW_KEY, JSON.stringify(state)); } catch { /* Not remembered; nothing is lost but the place. */ }
+  }
+
+  private async restoreView(): Promise<void> {
+    let saved: { page?: unknown; current?: unknown; place?: unknown; pane?: { workspace?: unknown; place?: unknown } | null } | null = null;
+    try { saved = JSON.parse(sessionStorage.getItem(Model.VIEW_KEY) ?? 'null'); } catch { return; }
+    if (!saved || typeof saved !== 'object') return;
+    const placeOk = (v: unknown): v is string => typeof v === 'string' && v.length <= 2000 && (v.startsWith('#/') || v.startsWith('?'));
+    const known = (id: unknown): id is string => typeof id === 'string' && !!this.view?.items.some((i) => i.id === id && i.state !== 'unavailable');
+    if (saved.page === 'workspace') {
+      if (known(saved.current) && placeOk(saved.place)) await this.goTo(saved.current, saved.place);
+    } else if (saved.page === 'calendar' || saved.page === 'agents' || saved.page === 'reviews' || saved.page === 'analytics') {
+      this.go(saved.page);
+    } else if (saved.page !== 'inbox') return;
+    const pane = saved.pane;
+    if (pane && known(pane.workspace) && placeOk(pane.place) && saved.page === 'inbox') await this.openPane(pane.workspace, pane.place);
   }
 
   stop(): void {
@@ -460,10 +504,31 @@ export class Model {
     this.timers = [];
   }
 
+  private overviewMisses = 0;
+  private unreachableLooks: Record<string, number> = {};
+
+  /**
+   * A workspace that was ready and is reported connecting or offline for a look or two is still shown as ready: the rows of a workspace
+   * that is not ready are withdrawn, and a blip would blank them. Every other change (leaving, set up, unavailable) applies at once.
+   */
+  private steady(view: WorkspaceView, previous: WorkspaceView | null): WorkspaceView {
+    const items = view.items.map((item) => {
+      const was = previous?.items.find((i) => i.id === item.id);
+      if (item.state === 'ready') { delete this.unreachableLooks[item.id]; return item; }
+      if ((item.state === 'connecting' || item.state === 'offline') && was?.state === 'ready') {
+        const looks = (this.unreachableLooks[item.id] = (this.unreachableLooks[item.id] ?? 0) + 1);
+        if (looks < LOOKS_BEFORE_UNREACHABLE) return { ...item, state: 'ready' as const, detail: was.detail };
+      }
+      return item;
+    });
+    return { ...view, items };
+  }
+
   async refresh(): Promise<void> {
     try {
-      const view = await ask((a) => a.Workspaces());
+      const fresh = await ask((a) => a.Workspaces());
       const previous = this.view;
+      const view = this.steady(fresh, previous);
       this.view = view;
       this.settleSetup(view);
       if (this.selectedProject && !view.items.some(i => i.id === this.selectedProject?.workspace && !['setup', 'leaving'].includes(i.state))) this.selectProject(null);
@@ -491,6 +556,7 @@ export class Model {
   async refreshOverview(): Promise<boolean> {
     try {
       const overview = await ask((a) => a.Overview());
+      this.overviewMisses = 0;
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
       this.overview = { ...overview, entries: this.accessibleEntries(overview) };
       decisions.sync(this.overview);
@@ -502,6 +568,10 @@ export class Model {
       }
       return true;
     } catch {
+      // One missed answer is a hiccup, not a loss of access: the rows stay as they were (the window says it is catching up) rather than
+      // vanishing and coming back ten seconds later. Only a run of misses withdraws them, below.
+      this.overviewMisses++;
+      if (this.overview && this.overviewMisses < MISSES_BEFORE_WITHDRAWN) return false;
       // Keep project labels for recovery, but never present old records as a current authorised aggregate.
       const previous = this.overview ?? { at: '', entries: (this.view?.items ?? []).map(workspace => ({ workspace })) };
       this.overview = { ...previous, entries: previous.entries.map(e => ({ ...e, error: 'Workspace summaries could not be refreshed. Reconnect to try again.' })) };

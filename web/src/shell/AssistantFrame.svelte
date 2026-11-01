@@ -93,6 +93,7 @@
         projectContext: model.selectedProject ? { workspace: model.selectedProject.workspace, project: model.selectedProject.project, label: model.contextLabel } : null,
         ...(request.conversation ? { conversation: request.conversation } : {}),
         ...(request.catchUpPrompt === undefined ? {} : {catchUpPrompt: request.catchUpPrompt}),
+        ...(request.catchUpPrompt !== undefined && request.sendNow ? {sendNow: true} : {}),
         origin: { x: request.rect.x + request.rect.width / 2, y: request.rect.y + request.rect.height / 2 },
       });
     });

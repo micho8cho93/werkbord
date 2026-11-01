@@ -2,6 +2,7 @@
   import Icon from '../lib/Icon.svelte';
   import Inbox from './Inbox.svelte';
   import CatchUp from './CatchUp.svelte';
+  import Brief from './Brief.svelte';
   import { model } from './model.svelte';
   import { viewState } from './view-state.svelte';
   import { executionLabel, standing } from './aggregate';
@@ -126,9 +127,9 @@
       {/each}
       {#if completed.length}<section class="queue-card" aria-label="Completed work"><details class="queue-section completed"><summary>Completed<span class="count">{completed.length}</span></summary><ul>{#each completed as row, i (row.workspace + row.item.href)}{@render task(row, i)}{/each}</ul></details></section>{/if}
     </div>
-    {#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}
     <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
     </div>
+    <div class="work-side">
     <aside class="decision" class:urgent={waiting.length > 0} aria-labelledby="decision-h" data-testid="next-decision">
       <h2 id="decision-h">{waiting.length ? 'Waiting for you' : 'Your next decision'}{#if waiting.length}<span class="pill wb-pop" aria-label="{waiting.length} waiting">{waiting.length}</span>{/if}</h2>
       <div aria-live="polite" class="decision-list">
@@ -161,6 +162,9 @@
       {/if}
       </div>
     </aside>
+    <Brief />
+    {#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}
+    </div>
     </div>
   {:else}
     <section aria-labelledby="plans-h"><h2 id="plans-h" class="visually-hidden">Plans</h2><p class="section-note muted">Related tasks, one shared objective.</p><ul class="plans">{#each plans as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="plan-symbol"><Icon name="dependencies" size={18} /></span><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project} · {row.workspace.name}</span></span><span class="plan-progress">{row.item.detail}</span><Icon name="right" size={14} /></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul></section>
@@ -181,17 +185,17 @@
  p{margin:6px 0 0;}.actions{position:relative;}.scope{display:inline-flex;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);}.scope button{min-height:32px;padding:4px 12px;border:0;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:13px;cursor:pointer;}.scope button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:500;}.scope button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}h2{font-size:14px;margin:0;font-weight:600;}.count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}ul{list-style:none;padding:0;margin:0;}li+li{border-top:1px solid var(--border);}.task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}.task:hover{background:color-mix(in srgb,var(--accent) 3%,var(--surface));}.task-content{display:grid;gap:4px;min-width:0;flex:1;}strong{font-size:14px;font-weight:500;line-height:1.5;}.context,.detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere;}.blocked{color:var(--block-text);}.task-marker{height:14px;width:14px;border:1px solid var(--text-2);border-radius:50%;flex:none;}.open-icon{color:var(--text-2);opacity:0;}.task:hover .open-icon,.task:focus-visible .open-icon{opacity:1;}.empty{padding:16px 28px;color:var(--text-2);font-size:13px;line-height:1.6;}.section-note{margin-bottom:16px;font-size:13px;}.plans{margin-top:12px;}.plan-symbol{color:var(--text);background:color-mix(in srgb,var(--accent) 7%,var(--surface));width:32px;height:32px;display:grid;place-items:center;border-radius:6px;}.plan-progress{font-size:12px;color:var(--text-2);}.attention{border-top:1px solid var(--border);padding-top:14px;margin-top:24px;}.attention summary,.completed summary{cursor:pointer;padding:10px 0;color:var(--text-2);font-size:13px;}.source-notice{padding:12px 0;color:var(--text-2);font-size:13px;}.project-choices{position:absolute;z-index:5;right:0;top:calc(100% + 10px);width:320px;max-width:calc(100vw - 40px);background:var(--surface);border:1px solid var(--border);box-shadow:var(--win-sh);border-radius:8px;padding:14px;}.project-choices>div{display:flex;justify-content:space-between;align-items:center;}.project-choices p{font-size:12px;margin:0 0 10px;}.project-choices>button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;padding:12px 4px;color:var(--text);cursor:pointer;font:inherit;}.project-choices>button:hover{background:var(--surface-2);}
  @media(max-width:900px){.actions{flex-wrap:wrap;width:100%;}.plan-progress{max-width:110px;}.task{padding:14px 0;}.open-icon{opacity:1;}}
 
- .work-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px;align-items:start;}.work-main{min-width:0;}
+ .work-grid{display:grid;grid-template-columns:minmax(0,44rem) minmax(18rem,26rem);justify-content:start;gap:32px;align-items:start;}.work-side{position:sticky;top:16px;display:grid;gap:16px;min-width:0;}.work-main{min-width:0;}
  .queue-note{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
  .context{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;}.context .sep{opacity:.6;}.context .plan{color:var(--text-2);}.context .detail::before{content:'·';margin-right:8px;}
  .task-marker{display:grid;place-items:center;}.task-marker[data-state=action]{background:var(--amber);border-color:var(--amber);box-shadow:inset 0 0 0 3px var(--surface);}.task-marker[data-state=running]{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--surface);}.task-marker[data-state=blocked]{border-style:dashed;border-color:var(--block);}.task-marker[data-state=waiting]{border-style:dotted;}.task-marker[data-state=done]{background:var(--ok);border-color:var(--ok);color:var(--surface);}
  .state{font-size:12px;color:var(--text-2);white-space:nowrap;}.state[data-state=action]{color:var(--warn-text);font-weight:500;}.state[data-state=blocked]{color:var(--block-text,var(--text-2));}.state[data-state=running]{color:var(--accent);}.state[data-state=ready],.state[data-state=done]{opacity:.8;}
  .ask-chip{font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:99px;color:var(--text-2);}
- .decision{position:sticky;top:16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;display:grid;gap:10px;}.decision h2{font-size:14px;}
+ .decision{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;display:grid;gap:10px;}.decision h2{font-size:14px;}
  .decision-count{margin:0;font-size:12px;color:var(--text-2);}.decision-prompt{margin:0;font-size:14px;line-height:1.5;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:6;line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;}
  .decision-facts{margin:0;display:grid;gap:6px;font-size:12px;}.decision-facts div{display:grid;grid-template-columns:64px 1fr;gap:8px;}.decision-facts dt{color:var(--text-2);}.decision-facts dd{margin:0;overflow-wrap:anywhere;}
  .decision-note{margin:0;font-size:12px;color:var(--text-2);line-height:1.5;}.decision-empty{margin:0;font-size:13px;color:var(--text-2);}.decision .btn{justify-self:start;}
- @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.decision{position:static;order:-1;}}
+ @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.work-side{position:static;order:-1;}}
 
  /* Attention: the edge of a row says why it is worth a look; the chips above the queue count them and take you to the first. */
  .flags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 18px;}
@@ -221,7 +225,7 @@
  .decision-more{margin:0;font-size:12px;color:var(--text-2);}
  .decision-card :global(.ask){margin:0;}
  .decision-card .btn.quiet{justify-self:start;}
- .compact .work-grid{grid-template-columns:minmax(0,1fr);gap:16px;}
+ .compact .work-grid{grid-template-columns:minmax(0,1fr);gap:16px;}.compact .work-side{position:static;}
  .compact .decision{position:static;order:-1;}
  .compact .work-heading{flex-direction:column;align-items:stretch;gap:12px;}
  .compact .actions{flex-wrap:wrap;width:100%;}

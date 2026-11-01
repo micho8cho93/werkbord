@@ -185,6 +185,7 @@ export class AssistantSessions {
         if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; }
         if (req.action === 'toggle') this.toggle(req.origin, null);
         else this.show(req.origin, null);
+        if (req.sendNow && req.catchUpPrompt !== undefined) void this.active.send();
       }
     });
     const stopEffects = $effect.root(() => {

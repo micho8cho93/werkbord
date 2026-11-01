@@ -28,6 +28,9 @@
   // One project context and destination list surround the original workspace-owned detail screens.
   const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help', 'agents'];
   let mainEl: HTMLElement | undefined;
+  // The window remembers where it is, so that a reload comes back to it.
+  $effect(() => { model.saveView(); });
+
   // A new page takes the keyboard with it: focus moves into the page, so the next Tab reaches its first control rather than going back
   // down the sidebar. Only when focus was in the sidebar or nowhere; a page that put focus in a field itself keeps it.
   let shownPage: string | undefined;
@@ -83,7 +86,7 @@
   }
   function key(e: KeyboardEvent): void {
     // Escape leaves Settings for where it was opened from, unless something typed into, a menu or a dialog has a use for it.
-    if (e.key === 'Escape' && !e.defaultPrevented && model.page === 'settings' && model.settingsReturn && !model.paletteOpen && !model.addOpen &&
+    if (e.key === 'Escape' && !e.defaultPrevented && (model.page === 'settings' || model.page === 'help') && model.settingsReturn && !model.paletteOpen && !model.addOpen &&
         !(e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable], [role="dialog"], details[open]')) &&
         !document.querySelector('.sheet[aria-modal="true"]')) {
       e.preventDefault();

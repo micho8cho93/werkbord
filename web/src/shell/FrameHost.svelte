@@ -70,6 +70,7 @@
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
       palette: () => model.togglePalette(),
+      leave: () => { if (model.page === 'help' || model.page === 'settings') model.leaveSettings(); },
       workSalie: (workspace, project, plan, ask) => {
         const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;
         if (plan && ask === 'chain') return void model.explainCatchUp(`Put the tasks of Work plan ${plan} in project ${pid} in order, so each waits for the one before it. Read list_work_plans first, then use chain_work_plan.`);

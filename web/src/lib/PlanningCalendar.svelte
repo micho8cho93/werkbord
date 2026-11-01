@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { layout } from './motion';
   import { addDays, visibleDays } from './calendar';
   import { localToday } from './planning-dates';
   import { listenDates, type DateDrop } from './planningGestures';
+  import { leaveWeek, weekLeftOn } from './calendar-memory';
   export interface CalendarRow { id: string; title: string; project: string; start: string; end: string; href?: string; detail?: string; status?: string; kind?: 'planned' | 'scheduled'; milestone?: boolean; }
-  let { rows, dense = false, onopen, onmove }: { rows: CalendarRow[]; dense?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void> } = $props();
+  let { rows, dense = false, onopen, onmove, remember = '' }: { rows: CalendarRow[]; dense?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void>; remember?: string } = $props();
   let surface = $state<HTMLElement>();
-  let anchor = $state(localToday(Date.now()));
+  let anchor = $state(untrack(() => weekLeftOn(remember)) ?? localToday(Date.now()));
+  $effect(() => leaveWeek(remember, anchor));
   let pending = $state<Record<string, boolean>>({});
   let error = $state('');
   const days = $derived(visibleDays(anchor, 'week'));

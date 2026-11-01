@@ -60,7 +60,7 @@
 <section class="page" class:embedded aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">Scheduled and planned work across all projects</p>
 </header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} dense={embedded} onopen={id => void open(id)} onmove={move} />{/if}
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} dense={embedded} remember={embedded ? 'window-home' : 'window-calendar'} onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}

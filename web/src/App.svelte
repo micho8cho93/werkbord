@@ -149,6 +149,12 @@
   function onKey(e: KeyboardEvent) {
     const el = e.target as HTMLElement | null;
     const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    // Help in the window leaves by Escape, like Settings: the window knows where it was opened from.
+    if (framed && e.key === 'Escape' && router.view === 'help' && !e.defaultPrevented && !typing && !document.querySelector('[role="dialog"], details[open]')) {
+      e.preventDefault();
+      window.parent.postMessage({ type: 'werkbord.frame', event: 'leave' }, '*');
+      return;
+    }
     // In the window, one palette serves every page: the frame hands ⌘K up to it, typing or not (a chord is never a letter).
     if (framed && (e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
       e.preventDefault();

@@ -29,6 +29,8 @@ export interface MessageLike {
 export interface Deps {
   /** A page inside a workspace's frame was asked to jump somewhere (⌘K): the window's one palette answers, not a second one in the frame. */
   palette?(): void;
+  /** A page in the frame was asked to go back (Escape on Help): the window answers by leaving Settings or Help for where they were opened from. */
+  leave?(): void;
   workSalie?(workspace: string, project: string, plan: string, ask?: 'chain'): void;
   /** A page of the person's own Werkbord, or Salie, asks to open a coding-agent session in Agents. The key is a validated session key. */
   agentSession?(key?: string, from?: string): void;
@@ -132,6 +134,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     if (frame.surface && m.event !== 'assistant' && m.event !== 'open' && m.event !== 'agent_session') return;
     if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
     else if (m.event === 'palette' && !frame.surface) d.palette?.();
+    else if (m.event === 'leave' && !frame.surface) d.leave?.();
     else if (m.event === 'work_salie' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && (m.planId === undefined || typeof m.planId === 'string' && /^[\w-]{1,120}$/.test(m.planId))) d.workSalie?.(frame.id, m.projectId, typeof m.planId === 'string' ? m.planId : '', m.ask === 'chain' ? 'chain' : undefined);
     // A session is opened by its key and nothing else: the key is what the controller derives from the owning record's ID, and the
     // shell shows the person's own Werkbord at it. Only Individual's pages and Salie may ask; a Team page has no session to open.

@@ -135,6 +135,7 @@ export function withChain(href: string, chain: readonly Origin[]): string {
 export interface Names {
   task?(projectId: string, taskId: string): string | undefined;
   plan?(projectId: string, planId: string): string | undefined;
+  session?(key: string): string | undefined;
 }
 
 /** The words for an origin in a trail. */
@@ -144,7 +145,7 @@ export function labelOf(o: Origin, names: Names = {}): string {
     case 'agents': return 'Agents';
     case 'calendar': return 'Calendar';
     case 'salie': return 'Salie';
-    case 'session': return 'Session';
+    case 'session': return names.session?.(o.key) || 'Session';
     case 'plan': return names.plan?.(o.projectId, o.planId) || 'Plan';
     case 'task': return names.task?.(o.projectId, o.taskId) || 'Task';
   }

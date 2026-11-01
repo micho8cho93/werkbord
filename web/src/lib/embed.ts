@@ -110,6 +110,8 @@ export interface AssistantRequest {
   /** Open this conversation (its ID, nothing of what was said). */
   conversation?: string;
   catchUpPrompt?: string;
+  /** The prompt was asked for by the person's own press of a button, so it is sent rather than left as a draft. */
+  sendNow?: boolean;
   projectContext?: import('./assistant/project-context.svelte').AssistantProjectContext | null;
   /** Where the button is, in this page's coordinates. */
   origin?: { x: number; y: number };
@@ -119,19 +121,20 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
 
 /** Parses a message from the shell. Only the parent window is believed, and only what is exactly this shape. */
 export function parseAssistantRequest(data: unknown): AssistantRequest | null {
-  const m = data as { type?: unknown; action?: unknown; conversation?: unknown; catchUpPrompt?: unknown; projectContext?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
+  const m = data as { type?: unknown; action?: unknown; conversation?: unknown; catchUpPrompt?: unknown; sendNow?: unknown; projectContext?: unknown; origin?: { x?: unknown; y?: unknown } } | null;
   if (!m || m.type !== 'werkbord.assistant') return null;
-  if (Object.keys(m).some(key => !['type', 'action', 'conversation', 'catchUpPrompt', 'projectContext', 'origin'].includes(key))) return null;
+  if (Object.keys(m).some(key => !['type', 'action', 'conversation', 'catchUpPrompt', 'sendNow', 'projectContext', 'origin'].includes(key))) return null;
   if (m.action !== 'open' && m.action !== 'close' && m.action !== 'toggle') return null;
   if (m.conversation !== undefined && (m.action !== 'open' || typeof m.conversation !== 'string' || !/^[\w-]{1,80}$/.test(m.conversation))) return null;
   if (m.catchUpPrompt !== undefined && (m.action !== 'open' || typeof m.catchUpPrompt !== 'string' || m.catchUpPrompt.length > 24000 || m.conversation !== undefined)) return null;
+  if (m.sendNow !== undefined && (m.sendNow !== true || m.catchUpPrompt === undefined)) return null;
   if (m.projectContext !== undefined && m.projectContext !== null) {
     if (typeof m.projectContext !== 'object' || Array.isArray(m.projectContext)) return null;
     const c = m.projectContext as Record<string, unknown>;
     if (Object.keys(c).length !== 3 || !['workspace', 'project', 'label'].every(k => typeof c[k] === 'string' && (c[k] as string).length > 0 && (c[k] as string).length <= 500)) return null;
   }
   const o = m.origin;
-  return { ...(m.projectContext === undefined ? {} : { projectContext: m.projectContext as AssistantRequest['projectContext'] }), ...(m.catchUpPrompt === undefined ? {} : {catchUpPrompt: m.catchUpPrompt as string}), ...(m.conversation ? {conversation: m.conversation as string} : {}), action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
+  return { ...(m.projectContext === undefined ? {} : { projectContext: m.projectContext as AssistantRequest['projectContext'] }), ...(m.catchUpPrompt === undefined ? {} : {catchUpPrompt: m.catchUpPrompt as string}), ...(m.sendNow === true ? {sendNow: true} : {}), ...(m.conversation ? {conversation: m.conversation as string} : {}), action: m.action, origin: o && finite(o.x) && finite(o.y) ? { x: o.x, y: o.y } : undefined };
 }
 
 /** Calls handler when the shell that framed this page asks the assistant to open or close. */

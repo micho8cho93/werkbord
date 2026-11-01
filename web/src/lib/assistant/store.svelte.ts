@@ -190,6 +190,7 @@ export class AssistantStore {
       else if (req.action === 'open') {
         if (req.catchUpPrompt !== undefined) { this.draft = req.catchUpPrompt; }
         this.show(req.origin, null);
+        if (req.sendNow && req.catchUpPrompt !== undefined) void this.send();
       }
       else if (this.isOpen) this.hide();
       else this.show(req.origin, null);

@@ -71,6 +71,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const names: Names = {
     task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title,
     plan: (_p, id) => plans.find(x => x.id === id)?.title,
+    session: k => (latest && k === `run:${latest.id}` ? `Session · ${agentName(app.agents, latest.agentId)}` : undefined),
   };
   /** What this task is to a page it opens: a way back to it, then to wherever it was reached from. */
   const here = $derived<Origin[]>(pushed({ kind: 'task', projectId: project.id, taskId: router.taskId }, chain));

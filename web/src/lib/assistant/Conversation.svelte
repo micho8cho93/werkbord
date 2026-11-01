@@ -87,7 +87,7 @@
   $effect(() => { if (assistant.phase === 'opening') void tick().then(toEnd); });
   $effect(() => () => { cancelAnimationFrame(followingFrame); cancelAnimationFrame(jumpFrame); });
 
-  const suggestions = ['What needs my attention?', 'What is blocked right now?', 'What is planned for this week?'];
+  const suggestions = ['What needs my attention?', 'What is blocked right now?', 'What is planned for this week?', 'Summarize the last 3 days', 'Plan my day'];
   const kinds = $derived(assistant.providers);
 
   /** What the screen says about the connection, once there is a conversation to be connected to. */
