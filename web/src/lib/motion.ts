@@ -150,3 +150,25 @@ export function chartSweep(node: SVGCircleElement, options: { length: number; ci
   });
   return { destroy: watch.destroy };
 }
+
+/**
+ * A button that was out of reach and now is, says so once: a ring spreads from it. Meant for the button that is the next step (accept,
+ * merge, finish), so that when the work behind it lands the eye is drawn to what can now be done. Nothing moves for a button that
+ * starts enabled, or when the person prefers less motion (the stylesheet removes the animation).
+ */
+export function readyCue(node: HTMLElement) {
+  let was = node.matches(':disabled, [aria-disabled="true"]');
+  const done = () => node.classList.remove('just-ready');
+  const watch = new MutationObserver(() => {
+    const now = node.matches(':disabled, [aria-disabled="true"]');
+    if (was && !now) {
+      node.classList.remove('just-ready');
+      void node.offsetWidth;
+      node.classList.add('just-ready');
+    }
+    was = now;
+  });
+  watch.observe(node, { attributes: true, attributeFilter: ['disabled', 'aria-disabled'] });
+  node.addEventListener('animationend', done);
+  return { destroy() { watch.disconnect(); node.removeEventListener('animationend', done); } };
+}

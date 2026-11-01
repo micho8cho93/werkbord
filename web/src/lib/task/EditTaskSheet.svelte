@@ -195,7 +195,7 @@
   </form>
   {#snippet footer()}
     <button class="btn" type="button" onclick={cancel}>Cancel</button>
-    <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim() || !dirty}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
+    <button class="btn primary" type="submit" form="edit-task-form" aria-busy={busy} disabled={busy || !title.trim() || !dirty}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
   {/snippet}
 </Sheet>
 

@@ -21,7 +21,8 @@
     </div>
   {/if}
   {#if app.notice}
-    <div class="toast" role="status">
+    <div class="toast" class:ok={app.noticeTone === 'ok'} role="status" onmouseenter={() => app.holdNotice(true)} onmouseleave={() => app.holdNotice(false)} onfocusin={() => app.holdNotice(true)} onfocusout={() => app.holdNotice(false)}>
+      {#if app.noticeTone === 'ok'}<span class="mark" aria-hidden="true"><Icon name="check" size={14} /></span>{/if}
       <span>{app.notice}</span>
       {#if app.noticeAction}
         <button class="act" onclick={act}>{app.noticeAction.label}</button>
@@ -60,6 +61,18 @@
     box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.5);
     animation: up 0.25s var(--ease);
     overflow-wrap: anywhere;
+  }
+
+  .toast.ok {
+    box-shadow: inset 3px 0 0 var(--ok), 0 10px 30px -8px rgba(0, 0, 0, 0.5);
+  }
+
+  .mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    margin-top: 1px;
+    color: var(--ok);
   }
 
   .toast.bad {

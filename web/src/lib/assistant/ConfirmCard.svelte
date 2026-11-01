@@ -8,7 +8,7 @@
   import { projectHref } from '../location';
   import { openAgents } from '../agent-nav';
   import { isSessionKey } from '../agent-sessions';
-  import { acknowledge, surface } from '../motion';
+  import { acknowledge, readyCue, surface } from '../motion';
   import { withChain, type Origin } from '../origin';
 
   // A change the assistant prepared. Nothing has happened: the words below were written by Werkbord from the exact arguments
@@ -47,7 +47,7 @@
 
   {#if item.state === 'waiting' || item.state === 'working'}
     <div class="acts">
-      <button class="btn primary" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'approve')}>
+      <button class="btn primary" type="button" aria-busy={item.state === 'working'} use:readyCue disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'approve')}>
         {item.state === 'working' ? (item.operation === 'create_ticket' ? 'Adding…' : item.operation === 'start_agent_run' ? 'Starting…' : item.operation === 'import_work_batch' ? 'Importing…' : 'Saving…') : item.operation === 'start_agent_run' ? 'Confirm and start' : item.operation === 'import_work_batch' ? 'Import into Work' : 'Confirm'}
       </button>
       <button class="btn" type="button" disabled={item.state === 'working' || assistant.batch !== null} onclick={() => assistant.resolve(item, 'decline')}>Decline</button>

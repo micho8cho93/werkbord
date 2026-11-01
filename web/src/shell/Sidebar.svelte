@@ -5,6 +5,7 @@
   import { model, type Page } from './model.svelte';
   import { contextKey, parseContext } from './project-context';
   import { sidebar } from './nav-fold.svelte';
+  import { railBadges } from './rail';
 
   const destinations: { label: string; page: Page; icon: IconName }[] = [
     { label: 'Work', page: 'inbox', icon: 'control' },
@@ -13,6 +14,8 @@
     { label: 'Analytics', page: 'analytics', icon: 'analytics' },
   ];
   // Help is Individual's guides and shortcuts, which describe every part of Werkbord, so it is there wherever the person is.
+  // What is waiting in each place, so a glance at the rail says whether something needs the person and what sort.
+  const badges = $derived(railBadges(model.overview));
   const helpUnavailable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
   let salieButton: HTMLButtonElement | undefined = $state();
   const selected = $derived(contextKey(model.selectedProject));
@@ -67,8 +70,10 @@
     </button>
     <div class="destinations">
       {#each destinations as d (d.page)}
+        {@const b = d.page === 'inbox' ? badges.inbox : d.page === 'agents' ? badges.agents : undefined}
         <button class="nav" type="button" title={d.label} aria-current={model.page === d.page || d.page === 'inbox' && model.page === 'workspace' ? 'page' : undefined} onclick={() => model.go(d.page)} data-page={d.page}>
           <Icon name={d.icon} /><span>{d.label}</span>
+          {#if b}{#key b.count}<span class="pill" data-tone={b.tone} role="status" aria-label={b.label} title={b.label}>{b.count}</span>{/key}{/if}
         </button>
       {/each}
     </div>
@@ -116,6 +121,13 @@
   .salie.waiting { animation: ask 2.4s ease-in-out infinite; }
   .salie:focus-visible { outline-color: var(--text); }
   .count { margin-left: auto; min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--amber); color: #1d1b18; font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+  /* What waits in a place: amber for an agent asking, red for a failure, green for work to review. It pops once when the number changes and
+     only an asking pill glows, so one thing at a time pulls the eye. The number is always there, so colour is never the only signal. */
+  .pill { margin-left: auto; min-width: 22px; padding: 2px 6px; border-radius: 999px; font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; color: #1d1b18; background: var(--amber); animation: pop 320ms var(--ease); }
+  .pill[data-tone='bad'] { background: var(--danger); color: #fff; }
+  .pill[data-tone='review'] { background: color-mix(in srgb, var(--ok) 22%, var(--surface)); color: var(--ok-text); }
+  .pill[data-tone='ask'] { animation: pop 320ms var(--ease), ask 2.4s 320ms ease-in-out infinite; }
+  @keyframes pop { 0% { transform: scale(.6); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
   .working { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: breathe 1.6s ease-in-out infinite; }
   .bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
   .bottom .nav { flex: 1 1 0; min-width: 0; padding-inline: 10px; gap: 8px; }
@@ -131,8 +143,8 @@
   .side.collapsed { width: 64px; padding-inline: 8px; }
   .side.collapsed .top { flex-direction: column; gap: 8px; }
   .side.collapsed .brand { justify-content: center; padding-inline: 0; }
-  .side.collapsed .brand > span, .side.collapsed .nav > span:not(.count):not(.working), .side.collapsed .salie .name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .side.collapsed .count, .side.collapsed .working { position: absolute; top: 4px; right: 4px; margin: 0; min-width: 0; }
+  .side.collapsed .brand > span, .side.collapsed .nav > span:not(.count):not(.working):not(.pill), .side.collapsed .salie .name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .side.collapsed .count, .side.collapsed .working, .side.collapsed .pill { position: absolute; top: 4px; right: 4px; margin: 0; min-width: 0; }
   .side.collapsed .count { padding: 0 5px; font-size: 11px; line-height: 16px; }
   .side.collapsed .bottom { flex-direction: column; }
   .side.collapsed .nav, .side.collapsed .salie { justify-content: center; padding-inline: 8px; gap: 0; }

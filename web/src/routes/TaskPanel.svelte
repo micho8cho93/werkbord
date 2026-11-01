@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
-  import { acknowledge, surface } from '../lib/motion';
+  import { acknowledge, readyCue, surface } from '../lib/motion';
   import { ApiError, api } from '../lib/api';
   import { BUSY_RUNNERS, agentLabel, compact, executionAgents, onlyBusy, optionLabel, priorityLabel, resolveFor, sourceLabel, summaryLine } from '../lib/execution';
   import ExecutionFields from '../lib/ExecutionFields.svelte';
@@ -513,7 +513,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
         {#if task.archivedAt}
           <span class="chip">Archived</span><button class="btn small ok" disabled={busy} onclick={() => archive(false)}>Restore task</button>
         {:else if latest && runStatus(latest).active}
-          {#if canFinishRun}<button class="btn small ok" disabled={busy} onclick={finish}><Icon name="check" size={14} />Finish</button>{/if}
+          <button class="btn small ok waits" use:readyCue disabled={busy || !canFinishRun} title={canFinishRun ? 'Finish this run and keep its work' : 'Available when the agent has finished its turn'} onclick={finish}><Icon name="check" size={14} />Finish</button>
           <button class="btn small danger" disabled={busy} onclick={() => { picked = ''; void stopLatest(); }}><Icon name="stop" size={12} />{confirmingStop ? 'Confirm stop' : 'Stop agent'}</button>
         {/if}
         {@render closer(true)}
@@ -538,7 +538,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
           <div class="next">
             <span class="k">Next</span>
             {#if next.kind !== 'none'}
-              <button class="btn primary" data-testid="task-next" disabled={busy} onclick={doNext}>{next.label}</button>
+              <button class="btn primary" data-testid="task-next" use:readyCue disabled={busy} aria-busy={busy} onclick={doNext}>{next.label}</button>
             {:else if step.blockedBy.length}
               <p class="why">Finish {step.blockedBy.length > 1 ? 'the blocking tasks' : 'the blocking task'} first.</p>
             {:else if step.kind === 'running'}
@@ -674,7 +674,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                     <textarea class="input" rows="2" placeholder="Anything to add to the task…" bind:value={instructions}></textarea>
                   </label>
                   <div class="start-row">
-                    <button class="btn primary" disabled={busy || !startingAgentReady || (!!latest && !nextMode)} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : nextMode === 'handoff' ? 'Start continuation' : nextMode === 'resume' ? 'Resume conversation' : 'Start agent'}</button>
+                    <button class="btn primary" aria-busy={busy} disabled={busy || !startingAgentReady || (!!latest && !nextMode)} onclick={start}><Icon name="play" size={12} />{busy ? 'Starting…' : nextMode === 'handoff' ? 'Start continuation' : nextMode === 'resume' ? 'Resume conversation' : 'Start agent'}</button>
                   </div>
                   {#if startBusy}
                     <p class="note" role="status">{BUSY_RUNNERS} <a href="{globalHref('settings')}?runners">See runners</a></p>

@@ -135,6 +135,8 @@ class AppState {
   notice = $state<string>('');
   /** One thing to do about the notice, such as Undo, for as long as the notice shows. */
   noticeAction = $state<{ label: string; run: () => void } | null>(null);
+  noticeTone = $state<'info' | 'ok'>('info');
+  private noticeMs = 9000;
   /** The project last visited: where a link that names none goes, and what the tabs point at on a global page. */
   lastProjectId = $state<string>(loadLastProject());
   /** Whether the Jump to palette (projects, sections, tasks) is open. */
@@ -397,17 +399,25 @@ class AppState {
   }
 
   /** Shows a message app-wide for a while. */
-  notify(message: string, ms = 9000, action: { label: string; run: () => void } | null = null): void {
+  notify(message: string, ms = 9000, action: { label: string; run: () => void } | null = null, tone: 'info' | 'ok' = 'info'): void {
     this.notice = message;
     this.noticeAction = action;
+    this.noticeTone = tone;
+    this.noticeMs = ms;
+    this.holdNotice(false);
+  }
+
+  /** Keeps a message up while the pointer is on it, and gives it its time again once the pointer leaves. */
+  holdNotice(hold: boolean): void {
     clearTimeout(this.noticeTimer);
-    this.noticeTimer = setTimeout(() => this.dismissNotice(), ms);
+    if (!hold && this.notice) this.noticeTimer = setTimeout(() => this.dismissNotice(), this.noticeMs);
   }
 
   dismissNotice(): void {
     clearTimeout(this.noticeTimer);
     this.notice = '';
     this.noticeAction = null;
+    this.noticeTone = 'info';
   }
 
   /** Calls fn for every event of one run, until the returned function is called. */

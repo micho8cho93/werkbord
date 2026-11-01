@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../../../../internal/uipresentation/static/work.css';
+  import { readyCue } from '../motion';
   import { blockingTasks } from '../work-queue';
   import { runReportStale } from '../format';
   import { assistant } from '../assistant/sessions.svelte';
@@ -96,7 +97,7 @@
     busy = 'archive';
     try {
       scope.upsertTask(await api.archiveTask(task, true));
-      app.notify('Task archived. Its details are kept in Archive.');
+      app.notify('Task archived. Its details are kept in Archive.', 9000, null, 'ok');
     } catch (err) {
       app.handleError(err);
       await scope.load().catch(e => app.handleError(e));
@@ -179,7 +180,7 @@
   {:else if task.state === 'review'}
     <div class="acts">
       <a class="btn small primary" href={branch && !run?.remote ? branchHref(task.projectId, branch.scope, branch.name) : href}>{branch && !run?.remote ? 'Review changes' : 'Review result'}</a>
-      {#if mergeable}<button class="btn small ok" onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>{/if}
+      {#if mergeable}<button class="btn small ok" use:readyCue onclick={() => onmerge(task)}><Icon name="merge" size={14} />Merge…</button>{/if}
     </div>
   {:else if task.state === 'doing' && run?.state === 'completed'}
     <div class="acts">

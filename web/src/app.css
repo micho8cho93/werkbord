@@ -1042,3 +1042,53 @@ html.asst-open body {
 @keyframes wb-breathe { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 4px var(--amber-ring); } }
 @keyframes wb-live { from { background-position: 160% 0; } to { background-position: -60% 0; } }
 @keyframes wb-pop { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+
+
+/* A button that is working shows it where the person is looking: a small arc turns beside its words. Set aria-busy on any .btn. The arc
+   is still drawn, standing still, when the person prefers less motion. */
+.btn[aria-busy='true'] {
+  pointer-events: none;
+}
+
+.btn[aria-busy='true']::before {
+  content: '';
+  flex: none;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+}
+
+/* A disabled step that is waiting for something reads as waiting, not broken: it is flat and grey until it can be used. */
+.btn.waits:disabled {
+  opacity: 1;
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-2);
+  box-shadow: none;
+  filter: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn[aria-busy='true']::before {
+    animation: wb-spin 0.8s linear infinite;
+  }
+
+  .btn.just-ready {
+    animation: wb-ready 900ms var(--ease) 1;
+  }
+
+  @keyframes wb-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes wb-ready {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 70%, transparent); transform: scale(0.97); }
+    40% { transform: scale(1.04); }
+    100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent); transform: scale(1); }
+  }
+}
