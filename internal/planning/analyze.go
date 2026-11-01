@@ -99,6 +99,13 @@ func InvalidRange(itemID, title string, r Range, err error) *ChangeError {
 	if r.Milestone && r.Start == "" {
 		field = "plan.start"
 	}
+	// Dates that are fine on their own: the time of day is what was refused.
+	if dates := r; r.Time != "" {
+		dates.Time = ""
+		if _, dateErr := CleanRange(dates); dateErr == nil {
+			code, field = CodeInvalidRange, "plan.time"
+		}
+	}
 	return &ChangeError{Issues: []Issue{{Code: code, Severity: SeverityError, ItemID: itemID, Field: field, Message: title + ": " + err.Error()}}}
 }
 

@@ -13,6 +13,16 @@ describe('spans', () => {
     expect(spanOf(task('a', { start: '2026-10-12', milestone: true }))).toEqual({ start: '2026-10-12', end: '2026-10-12', milestone: true });
   });
 
+  it('reads a time of day only on a single day', () => {
+    expect(spanOf(task('a', { start: '2026-10-05', time: '09:30' }))).toEqual({ start: '2026-10-05', end: '2026-10-05', milestone: false, time: '09:30' });
+    expect(spanOf(task('a', { start: '2026-10-05', end: '2026-10-05', time: '17:00' }))?.time).toBe('17:00');
+    expect(spanOf(task('a', { start: '2026-10-12', milestone: true, time: '08:15' }))).toEqual({ start: '2026-10-12', end: '2026-10-12', milestone: true, time: '08:15' });
+    // Across days it is not read, and a bad one is ignored rather than guessed at.
+    expect(spanOf(task('a', { start: '2026-10-05', end: '2026-10-07', time: '09:30' }))).toEqual({ start: '2026-10-05', end: '2026-10-07', milestone: false });
+    expect(spanOf(task('a', { start: '2026-10-05', time: '9:30' }))).toEqual({ start: '2026-10-05', end: '2026-10-05', milestone: false });
+    expect(spanOf(task('a', { time: '09:30' }))).toBeNull();
+  });
+
   it('places nothing it cannot read', () => {
     expect(spanOf(task('a'))).toBeNull();
     expect(spanOf(task('a', {}))).toBeNull();

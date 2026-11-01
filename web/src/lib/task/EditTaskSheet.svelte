@@ -55,7 +55,7 @@
     zone: task.orchestration?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
   }));
   const editKey = (t: string, d: string, e: ExecutionConfig, labels: string[], mode: WorkMode, p: Plan, deps: string[], at: string) =>
-    JSON.stringify([t.trim(), d, compact(e), [...labels].sort(), mode, p.start || '', p.end || '', !!p.milestone, [...deps].sort(), at]);
+    JSON.stringify([t.trim(), d, compact(e), [...labels].sort(), mode, p.start || '', p.end || '', p.time || '', !!p.milestone, [...deps].sort(), at]);
   const initialScheduled = start.scheduledAt ? wallTime(start.scheduledAt, start.zone) : '';
   const initialKey = editKey(start.title, start.description, start.execution, start.labelIds, start.workMode, start.plan, start.dependencies, initialScheduled);
   let title = $state(start.title);
@@ -66,7 +66,11 @@
   let plan = $state<Plan>(start.plan);
   let dependencies = $state<string[]>(start.dependencies);
   let scheduled = $state(initialScheduled);
-  const dirty = $derived(editKey(title, description, execution, labelIds, workMode, plan, dependencies, scheduled) !== initialKey);
+  // A planned time plans the work. Starting an agent then is a separate, explicit choice, off until it is made.
+  let startAgent = $state(false);
+  const planAt = $derived(plan.start && plan.time && (plan.milestone || !plan.end || plan.end === plan.start) ? `${plan.start}T${plan.time}` : '');
+  const canStartAtPlan = $derived(!!planAt && agentWorkable({ workMode }, app.project(task.projectId)) && !task.orchestration?.runId && !start.scheduledAt);
+  const dirty = $derived(editKey(title, description, execution, labelIds, workMode, plan, dependencies, scheduled + (startAgent && canStartAtPlan ? '+agent' : '')) !== initialKey);
   const project = $derived(app.project(task.projectId));
   // The task's latest run is a session like any other: the Calendar, Scheduling and the task page all open it in Agents by its key.
   const decision = $derived(scope.decisions.find(d => d.taskId === task.id));
@@ -103,13 +107,13 @@
   const dependencyIssue = $derived(issues.find((issue) => issue.field === 'dependencies')?.message ?? '');
 
   $effect(() => {
-    void [plan.start, plan.end, plan.milestone, JSON.stringify(dependencies)];
+    void [plan.start, plan.end, plan.time, plan.milestone, JSON.stringify(dependencies)];
     serverIssues = [];
   });
 
   async function focusIssue(issue: PlanIssue) {
     await tick();
-    const id = issue.field === 'plan.start' ? 'edit-task-start' : issue.field === 'plan.end' ? 'edit-task-end' : `dependencies-${task.id}`;
+    const id = issue.field === 'plan.start' ? 'edit-task-start' : issue.field === 'plan.end' ? 'edit-task-end' : issue.field === 'plan.time' ? 'edit-task-time' : `dependencies-${task.id}`;
     document.getElementById(id)?.focus({ preventScroll: false });
   }
 
@@ -140,6 +144,10 @@
       if (side && start.scheduledAt && scheduled !== wallTime(start.scheduledAt, start.zone)) {
         edit.orchestration = { ...editableOrchestration(task.orchestration ?? emptyOrchestration()), ...edit.orchestration,
           scheduledAt: instantFromWall(scheduled, start.zone), timezone: start.zone };
+      }
+      if (startAgent && canStartAtPlan) {
+        edit.orchestration = { ...editableOrchestration(task.orchestration ?? emptyOrchestration()), ...edit.orchestration,
+          enabled: true, scheduledAt: instantFromWall(planAt, start.zone), timezone: start.zone };
       }
       const t = await api.editTask({ ...task, version: start.version }, edit);
       scope.upsertTask(t);
@@ -180,6 +188,11 @@
       <textarea class="input" rows="4" bind:value={description}></textarea>
     </label>
     <TaskPlanFields bind:plan repository={project?.kind !== 'work'} idPrefix="edit-task" issues={planIssues} />
+    {#if canStartAtPlan}
+      <label class="agent-at"><input type="checkbox" bind:checked={startAgent} data-testid="start-agent-at-plan" /><span>Also start an agent at {plan.time} on {plan.start} ({start.zone})</span></label>
+    {:else if side && canAgent && start.scheduledAt && planAt && !task.orchestration?.runId}
+      <button class="btn small" type="button" data-testid="use-planned-time" onclick={() => (scheduled = planAt)}>Start the agent at the planned time</button>
+    {/if}
     {#if side && canAgent && start.scheduledAt}
       <label class="field"><span>Agent start time ({start.zone})</span><input class="input" type="datetime-local" bind:value={scheduled} disabled={!!task.orchestration?.runId} required /></label>
       <p class="muted note">{task.orchestration?.runId ? 'This schedule has already been dispatched. Plan a new run from the task’s schedule controls.' : 'Changing this time reschedules the agent start. Planned dates stay separate.'}</p>
@@ -209,6 +222,13 @@
     display: grid;
     gap: 6px;
     font-weight: 500;
+  }
+
+  .agent-at {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
   }
 
   .exec {

@@ -15,6 +15,15 @@ describe('planning draft validation', () => {
     expect(validatePlanRange({ milestone: true }, 'Release')[0]).toMatchObject({ field: 'plan.start', code: 'milestone_without_date' });
   });
 
+  it('checks a planned time: well formed, with a date, on a single day', () => {
+    expect(validatePlanRange({ start: '2026-10-05', time: '09:30' }, 'Build')).toEqual([]);
+    expect(validatePlanRange({ start: '2026-10-05', milestone: true, time: '23:59' }, 'Build')).toEqual([]);
+    expect(validatePlanRange({ start: '2026-10-05', time: '9.30' }, 'Build')[0]).toMatchObject({ field: 'plan.time', code: 'invalid_time' });
+    expect(validatePlanRange({ start: '2026-10-05', time: '24:00' }, 'Build')[0]).toMatchObject({ field: 'plan.time', code: 'invalid_time' });
+    expect(validatePlanRange({ time: '09:30' }, 'Build')[0]).toMatchObject({ field: 'plan.time', code: 'time_without_date' });
+    expect(validatePlanRange({ start: '2026-10-05', end: '2026-10-07', time: '09:30' }, 'Build')[0]).toMatchObject({ field: 'plan.time', code: 'time_on_range' });
+  });
+
   it('allows a dependent to start on its prerequisite end date and leaves undated work advisory', () => {
     const prerequisite = task('pre', { start: '2026-10-05', end: '2026-10-09' });
     const sameDay = task('next', { start: '2026-10-09', end: '2026-10-12' }, ['pre']);

@@ -307,13 +307,17 @@ type Planned struct {
 	Project string `json:"project"`
 	Start   string `json:"start"`
 	End     string `json:"end"`
-	Href    string `json:"href"`
+	// Time is the time of day it is planned for ("09:30"), only on a single day, or empty.
+	Time string `json:"time,omitempty"`
+	Href string `json:"href"`
 }
 
 func (p Planned) valid() bool {
 	_, a := time.Parse("2006-01-02", p.Start)
 	_, b := time.Parse("2006-01-02", p.End)
-	return ValidID(p.ID) && plain(p.Title, MaxText) && p.Title != "" && plain(p.Project, MaxName) && a == nil && b == nil && p.End >= p.Start && ValidHref(p.Href)
+	_, at := time.Parse("15:04", p.Time)
+	timeOK := p.Time == "" || len(p.Time) == 5 && at == nil && p.Start == p.End
+	return ValidID(p.ID) && plain(p.Title, MaxText) && p.Title != "" && plain(p.Project, MaxName) && a == nil && b == nil && p.End >= p.Start && timeOK && ValidHref(p.Href)
 }
 
 // Check is one line of a health report.

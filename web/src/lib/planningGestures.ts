@@ -1,6 +1,7 @@
 import '../../../internal/uipresentation/static/planning-drag.js';
 import '../../../internal/uipresentation/static/planning.css';
 import { api } from './api';
+import { clockAt } from './calendar';
 import type { ProjectScope } from './scope.svelte';
 import { app } from './state.svelte';
 
@@ -24,7 +25,10 @@ export async function movePlan(scope: ProjectScope, drop: DateDrop): Promise<voi
   const task = scope.activeTasks.find(t => t.id === drop.id);
   if (!task) return;
   try {
-    scope.upsertTask(await api.editTask(task, { plan: { ...task.plan, start: drop.start, end: drop.end } }));
+    // A time of day belongs to one day: a drop on the time grid sets it, a drop on a whole day or across days clears it.
+    const single = drop.start === drop.end || !!task.plan?.milestone;
+    const time = single && drop.minute !== undefined ? clockAt(drop.minute) : undefined;
+    scope.upsertTask(await api.editTask(task, { plan: { ...task.plan, start: drop.start, end: drop.end, time } }));
     app.notify(`Planned dates saved for “${task.title}”.`);
   } catch (error) {
     app.notify(`Dates could not be changed. ${error instanceof Error ? error.message : String(error)}`);

@@ -121,7 +121,11 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 				if end == "" || t.Plan.Milestone {
 					end = start
 				}
-				out.Planned = append(out.Planned, workspace.Planned{ID: t.ID, Title: t.Title, Project: p.Name, Start: start, End: end, Href: taskHref(t.ProjectID, t.ID)})
+				at := ""
+				if start == end {
+					at = t.Plan.Time
+				}
+				out.Planned = append(out.Planned, workspace.Planned{ID: t.ID, Title: t.Title, Project: p.Name, Start: start, End: end, Time: at, Href: taskHref(t.ProjectID, t.ID)})
 				if len(out.Planned) >= workspace.MaxItems {
 					return nil
 				}

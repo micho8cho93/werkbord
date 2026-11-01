@@ -58,9 +58,16 @@ be put on a ticket (the database refuses it too: the link is keyed by workspace)
 
 ## Plans and milestones in Calendar
 
-A plan is `{start, end, milestone}`: both dates optional and inclusive. Only a start is a one-day item; only an end is something due that
+A plan is `{start, end, milestone, time}`: both dates optional and inclusive. Only a start is a one-day item; only an end is something due that
 day; a milestone is a single date (kept in `start`) and needs a date. An end before its start is refused. Plans are **not** an `Orchestration` (Individual)
 or a schedule (Team): changing one never schedules, delays or moves a run.
+
+`time` (Individual) is the time of day the work is planned for, `HH:MM` on a 24-hour clock with no zone, like the day it belongs to. It is only
+for a single day (a start with no end, or one end the same day, or a milestone) and needs that day; across days it is refused. It is stored in
+`tasks.plan_time` (migration `0035_plan_time.sql`). A timed plan sits in the project Calendar's time grid, drawn dashed so it reads as a plan and
+not as an agent start. A plan with a time still never starts an agent: starting one at that time is a separate, explicit choice in the task's editor
+(**Also start an agent at …**, unticked), or the offer after a placement in Calendar. The Calendar's **No date** tray lists every open task with no
+plan, human work included, and planning one never schedules it.
 
 Calendar shows planned ranges and milestones alongside scheduled starts. Edit planned dates and dependencies on the task; changing a planned date never launches an agent.
 
@@ -149,6 +156,7 @@ These legacy endpoint names describe retained data validation only. The Timeline
 | | Migration | Adds |
 | --- | --- | --- |
 | Individual | `0013_planning.sql` | `labels`, `task_labels`; `tasks.work_mode`, `plan_start`, `plan_end`, `milestone`; `projects.kind`. Existing tasks become `agent` with no labels and no plan; existing projects become `repository`. |
+| Individual | `0035_plan_time.sql` | `tasks.plan_time`: the time of day a task is planned for, on a single day. Existing tasks keep a plan with no time. |
 | Team | `0014_planning.sql` | `labels`, `ticket_labels`, `ticket_dependencies` (all keyed by workspace); `tickets.work_mode`, `plan_start`, `plan_end`, `milestone`. Existing tickets become `agent` with no labels, plan or dependencies. |
 | Team | `0015_one_dependency_list.sql` | Copies the dependencies of every existing shared request onto its ticket's `ticket_dependencies`. Nothing is created or dropped. |
 

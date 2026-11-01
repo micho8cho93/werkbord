@@ -23,16 +23,20 @@
   const draftIssues = $derived(validatePlanRange(plan, 'This task'));
   const startError = $derived(issues.find((i) => i.field === 'plan.start')?.message ?? draftIssues.find((i) => i.field === 'plan.start')?.message ?? '');
   const endError = $derived(issues.find((i) => i.field === 'plan.end')?.message ?? draftIssues.find((i) => i.field === 'plan.end')?.message ?? '');
+  const timeError = $derived(issues.find((i) => i.field === 'plan.time')?.message ?? '');
+  // A time of day belongs to one day: with a date and no separate end date, or with an end on the same day.
+  const singleDay = $derived(!!(plan.start || plan.end) && (milestone || !plan.end || !plan.start || plan.end === plan.start));
+  $effect(() => { if (plan.time && !singleDay) plan.time = ''; });
 
   function setMilestone(on: boolean) {
     // A milestone is one date: keep the start, or the end if that is all there is.
-    plan = on ? { start: plan.start || plan.end || '', milestone: true } : { start: plan.start, end: '' };
+    plan = on ? { start: plan.start || plan.end || '', milestone: true, time: plan.time } : { start: plan.start, end: '', time: plan.time };
   }
 </script>
 
 <fieldset class="group">
   <legend>Planning <span class="opt">optional</span></legend>
-  <p class="hint muted">{repository ? 'Plan the work. These dates do not start an agent.' : 'These dates plan the work in Calendar. This project does not run agents.'}</p>
+  <p class="hint muted">{repository ? 'Plan the work. These dates and times do not start an agent.' : 'These dates plan the work in Calendar. This project does not run agents.'}</p>
   <div class="dates">
     <label>
       <span>{milestone ? 'Date' : 'Start'}</span>
@@ -44,6 +48,13 @@
         <span>End</span>
         <input class="input" class:invalid={!!endError} type="date" id="{idPrefix}-end" bind:value={plan.end} min={plan.start || undefined} aria-invalid={!!endError} aria-describedby={endError ? `${idPrefix}-end-error` : undefined} />
         {#if endError}<small class="field-error" id="{idPrefix}-end-error" role="alert">{endError}</small>{/if}
+      </label>
+    {/if}
+    {#if singleDay}
+      <label>
+        <span>Time <span class="opt">optional</span></span>
+        <input class="input time" class:invalid={!!timeError} type="time" id="{idPrefix}-time" bind:value={plan.time} aria-invalid={!!timeError} aria-describedby={timeError ? `${idPrefix}-time-error` : undefined} />
+        {#if timeError}<small class="field-error" id="{idPrefix}-time-error" role="alert">{timeError}</small>{/if}
       </label>
     {/if}
     <label class="check"><input type="checkbox" checked={milestone} onchange={(e) => setMilestone(e.currentTarget.checked)} /><span>Milestone</span></label>
@@ -103,6 +114,10 @@
 
   .dates .input {
     width: 10.5rem;
+  }
+
+  .dates .input.time {
+    width: 7.5rem;
   }
 
   .dates .input.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }

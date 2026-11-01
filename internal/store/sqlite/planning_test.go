@@ -308,6 +308,23 @@ func TestTaskPlanAndModeRoundTrip(t *testing.T) {
 		if !got.Plan.Milestone || got.Plan.Start != "2026-10-12" || got.WorkMode != planning.ModeAgent {
 			t.Errorf("milestone: %+v", got)
 		}
+		// The time of day a task is planned for is stored with its day, and cleared with it.
+		timed := seedTask(t, tx, "prj_1", "tsk_3")
+		timed.Plan = domain.Plan{Start: "2026-10-14", Time: "11:30"}
+		if err := tx.Tasks().Update(ctx, timed); err != nil {
+			return err
+		}
+		got, _ = tx.Tasks().Get(ctx, "tsk_3")
+		if got.Plan != (domain.Plan{Start: "2026-10-14", Time: "11:30"}) {
+			t.Errorf("planned time: %+v", got.Plan)
+		}
+		got.Plan = domain.Plan{}
+		if err := tx.Tasks().Update(ctx, got); err != nil {
+			return err
+		}
+		if again, _ := tx.Tasks().Get(ctx, "tsk_3"); !again.Plan.IsZero() {
+			t.Errorf("a cleared plan keeps its time: %+v", again.Plan)
+		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)

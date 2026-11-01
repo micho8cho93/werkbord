@@ -129,7 +129,7 @@ export interface Summary {
   work: WorkItem[];
   attention: Attention[];
   schedule: Scheduled[];
-  planned?: { id: string; title: string; project: string; start: string; end: string; href: string }[];
+  planned?: { id: string; title: string; project: string; start: string; end: string; time?: string; href: string }[];
   infra?: Infra;
   at: string;
 }

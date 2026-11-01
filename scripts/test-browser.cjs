@@ -83,7 +83,7 @@ async function cleanup() {
     if (process.env.BROWSER_SCRIPT) { run(process.execPath, [process.env.BROWSER_SCRIPT], testEnv); return; }
     if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv); return; }
     if (process.env.BROWSER_MCP_ONLY === '1') { run(process.execPath, ['scripts/browser-mcp-setup.cjs'], testEnv); return; }
-    if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); return; }
+    if (process.env.BROWSER_PLANNING_ONLY === '1') { run(process.execPath, ['scripts/browser-planning.cjs'], testEnv); run(process.execPath, ['scripts/browser-plan-time.cjs'], testEnv); return; }
     if (process.env.BROWSER_CONTROLS_ONLY === '1') { run(process.execPath, ['scripts/browser-controls.cjs'], testEnv); return; }
     if (process.env.BROWSER_INITIATIVES_ONLY === '1') { run(process.execPath, ['scripts/browser-initiatives.cjs'], testEnv); return; }
     if (process.env.BROWSER_TEAM_ONLY === '1') { run(process.execPath, ['scripts/browser-team.cjs'], testEnv); return; }
@@ -105,6 +105,7 @@ async function cleanup() {
     }
     run(process.execPath, ['scripts/browser-individual.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv);
+    run(process.execPath, ['scripts/browser-plan-time.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-salie-terminals.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-agent-sessions.cjs'], testEnv);
     run(process.execPath, ['scripts/browser-phone.cjs'], testEnv);

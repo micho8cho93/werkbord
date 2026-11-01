@@ -467,3 +467,30 @@ func TestTimelineReportsDependenciesTheAPIWouldRefuse(t *testing.T) {
 		}
 	}
 }
+
+// A plan may name the time of day it is for. It is kept, it is refused on more than one day, and like the dates it
+// never touches when an agent starts.
+func TestAPlannedTimeIsKeptAndNeverReschedules(t *testing.T) {
+	f, s, pid, _ := schedulingFixture(t)
+	ctx := context.Background()
+	if _, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: pid, Title: "x", Plan: domain.Plan{Start: "2026-10-05", End: "2026-10-07", Time: "09:30"}}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("a time on a range of days: %v", err)
+	}
+	if _, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: pid, Title: "x", Plan: domain.Plan{Start: "2026-10-05", Time: "9.30"}}); !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("not a time: %v", err)
+	}
+	made, err := f.tasks.CreateTask(ctx, NewTask{ProjectID: pid, Title: "timed", Plan: domain.Plan{Start: "2026-10-05", Time: "09:30"}})
+	if err != nil || made.Plan.Time != "09:30" {
+		t.Fatalf("created = %+v, %v", made.Plan, err)
+	}
+	armed := arm(t, f, pid, "armed", domain.Orchestration{})
+	before := decisionFor(t, s, pid, armed.ID)
+	plan := domain.Plan{Start: "2026-12-01", Time: "17:45"}
+	moved, err := f.tasks.Update(ctx, armed.ID, TaskPatch{Plan: &plan, Version: armed.Version})
+	if err != nil || moved.Plan != plan {
+		t.Fatalf("plan = %+v, %v", moved.Plan, err)
+	}
+	if after := decisionFor(t, s, pid, armed.ID); after != before {
+		t.Fatalf("a planned time changed the scheduling decision: %+v → %+v", before, after)
+	}
+}

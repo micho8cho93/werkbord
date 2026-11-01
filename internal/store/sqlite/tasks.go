@@ -19,7 +19,7 @@ func archiveMS(at *time.Time) any {
 	return ms(*at)
 }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch, archived_at, work_mode, plan_start, plan_end, milestone`
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch, archived_at, work_mode, plan_start, plan_end, milestone, plan_time`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
@@ -27,7 +27,7 @@ func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var execution, orchestration string
 	var archived sql.NullInt64
 	var milestone int
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch, &archived, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone); err != nil {
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch, &archived, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone, &t.Plan.Time); err != nil {
 		return nil, err
 	}
 	t.Plan.Milestone = milestone == 1
@@ -60,9 +60,9 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 		return err
 	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration), t.SourceRef, t.WorkBranch, t.BaseBranch, archiveMS(t.ArchivedAt),
-		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone))
+		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time)
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}
@@ -185,10 +185,10 @@ func (r taskRepo) Update(ctx context.Context, t *domain.Task) error {
 	}
 	res, err := r.q.ExecContext(ctx, `
 		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, execution = ?, orchestration = ?, updated_at = ?, archived_at = ?,
-			work_mode = ?, plan_start = ?, plan_end = ?, milestone = ?, version = version + 1
+			work_mode = ?, plan_start = ?, plan_end = ?, milestone = ?, plan_time = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
 		t.Title, t.Description, t.State, t.Position, execution, mustJSON(t.Orchestration), ms(t.UpdatedAt), archiveMS(t.ArchivedAt),
-		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.ID, t.Version)
+		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time, t.ID, t.Version)
 	if err != nil {
 		return err
 	}

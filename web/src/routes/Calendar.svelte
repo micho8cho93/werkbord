@@ -82,7 +82,8 @@
   };
   const scheduledIn = (t: Task | undefined) => (t?.orchestration?.scheduledAt ? wallTime(t.orchestration.scheduledAt, zone) : '');
   // Only work an agent can do is placed here: the calendar says when a task is started, and human work is never started.
-  const unscheduled = $derived(scope.activeTasks.filter((t) => agentWorkable(t, project) && t.state !== 'done' && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
+  // Work with no date, human work included: a person can plan it here without an agent ever starting.
+  const undated = $derived(scope.activeTasks.filter((t) => t.state !== 'done' && !spanOf(t) && !active(t) && !(t.orchestration?.enabled && t.orchestration.scheduledAt)));
   const upcoming = $derived(
     scope.activeTasks
       .filter((t) => t.orchestration?.enabled && !t.orchestration.runId)
@@ -95,12 +96,23 @@
   const waiting = $derived(
     scope.activeTasks.filter((t) => t.state !== 'done' && blockingTasks(t, scope.tasks, scope.latestRun).length > 0),
   );
-  /** Whether the days on show hold nothing to run: the grid alone does not say so. */
-  const emptyView = $derived(days.every((d) => !scope.activeTasks.some((t) => scheduledIn(t).startsWith(d))));
+  /** The time a task is planned for on a day, if it has a plan for that day and a time: it sits in the grid like an agent start does. */
+  const plannedAt = (t: Task, day: string) => {
+    const span = spanOf(t);
+    return span?.time && span.start === day && span.end === day ? span.time : '';
+  };
+  /** What sits in a day's time grid: agent starts, and work planned for a time (unless an agent start already stands for it). */
+  type Placed = { task: Task; kind: 'run' | 'plan' };
   function eventsOn(day: string) {
-    const evs = scope.activeTasks.filter((t) => scheduledIn(t).startsWith(day)).map((t) => ({ start: minuteOf(scheduledIn(t)), item: t }));
+    const evs: { start: number; item: Placed }[] = [];
+    for (const t of scope.activeTasks) {
+      if (scheduledIn(t).startsWith(day)) evs.push({ start: minuteOf(scheduledIn(t)), item: { task: t, kind: 'run' } });
+      else if (plannedAt(t, day)) evs.push({ start: minuteOf(`${day}T${plannedAt(t, day)}`), item: { task: t, kind: 'plan' } });
+    }
     return lanes(evs, EVENT_MIN);
   }
+  /** Whether the days on show hold nothing: the grid and the planned row together say so. */
+  const emptyView = $derived(days.every((d) => eventsOn(d).length === 0 && !scope.activeTasks.some((t) => { const p = spanOf(t); return p && p.start <= d && p.end >= d; })));
 
   // ---- concurrency: what the project lets run at once, and what runs now ----
   let limit = $state(0);
@@ -114,9 +126,28 @@
   });
   const running = $derived(scope.activeTasks.filter(active).length);
 
-  // ---- scheduling ----
+  // ---- planning and scheduling ----
   let busy = $state(false);
   let picked = $state<Task | null>(null);
+
+  /** Plan a task for a day, and a time if given. This plans the work and never starts an agent. */
+  async function place(task: Task, day: string, time = '') {
+    if (busy) return;
+    busy = true;
+    try {
+      const saved = await api.editTask(task, { plan: { start: day, ...(time ? { time } : {}) } });
+      scope.upsertTask(saved);
+      const label = `${new Date(`${day}T12:00Z`).toLocaleDateString([], { weekday: 'short', timeZone: 'UTC' })}${time ? ' ' + formatWall(time) : ''}`;
+      const offer = time && agentWorkable(saved, project) && !(saved.orchestration?.enabled && saved.orchestration.scheduledAt) && !saved.orchestration?.runId;
+      app.notify(`“${task.title}” is planned for ${label}. No agent starts.`, 8000, offer ? { label: 'Also start the agent then', run: () => void schedule(saved, day, time) } : null);
+      picked = null;
+    } catch (e) {
+      app.notify(e instanceof Error ? e.message : String(e));
+      await scope.load().catch(() => {});
+    } finally {
+      busy = false;
+    }
+  }
 
   async function schedule(task: Task, day: string, time: string) {
     if (busy) return;
@@ -155,6 +186,7 @@
 
   // ---- drag and drop, and click to place ----
   let dragId = $state('');
+  let dragKind: 'run' | 'plan' | 'new' = 'new';
   let dragOffset = 0;
   let ghost = $state<{ day: string; minute: number } | null>(null);
 
@@ -162,8 +194,9 @@
     const r = col.getBoundingClientRect();
     return ((e.clientY - r.top - offset) / HOUR) * 60;
   }
-  function onDragStart(e: DragEvent, task: Task) {
+  function onDragStart(e: DragEvent, task: Task, kind: 'run' | 'plan' | 'new' = 'new') {
     dragId = task.id;
+    dragKind = kind;
     const el = e.currentTarget as HTMLElement;
     dragOffset = el.classList.contains('ev') ? e.clientY - el.getBoundingClientRect().top : 0;
     e.dataTransfer?.setData('text/plain', task.id);
@@ -181,11 +214,21 @@
     const time = clockAt(minuteAt(e, e.currentTarget as HTMLElement, dragOffset));
     dragId = '';
     ghost = null;
-    if (task) void schedule(task, day, time);
+    if (!task) return;
+    // An agent start that is dragged moves; anything else is a plan, which never starts an agent.
+    if (dragKind === 'run') void schedule(task, day, time);
+    else void place(task, day, time);
+  }
+  function onPlannedDrop(e: DragEvent, day: string) {
+    e.preventDefault();
+    const task = scope.activeTasks.find((t) => t.id === dragId);
+    dragId = '';
+    ghost = null;
+    if (task && dragKind !== 'run') void place(task, day);
   }
   function onColumnClick(e: MouseEvent, day: string) {
     if (!picked || (e.target as HTMLElement).closest('.ev')) return;
-    void schedule(picked, day, clockAt(minuteAt(e, e.currentTarget as HTMLElement)));
+    void place(picked, day, clockAt(minuteAt(e, e.currentTarget as HTMLElement)));
   }
 
   // Opens at the morning, or at the first thing planned this week.
@@ -229,7 +272,7 @@
     </div>
     <div class="tools">
       {#if picked}
-        <span class="picking"><span class="dot" data-tone="work"></span>Click a time for “{picked.title}”<button class="btn quiet small" onclick={() => (picked = null)}>Cancel</button></span>
+        <span class="picking"><span class="dot" data-tone="work"></span>Click a time to plan “{picked.title}”<button class="btn quiet small" onclick={() => (picked = null)}>Cancel</button></span>
       {/if}
       {#if editingZone}
         <form
@@ -262,13 +305,13 @@
           <div class="dh" class:today={d === today}><span>{h.dow}</span><i>{h.n}</i></div>
         {/each}
       </div>
-      {#if scope.activeTasks.some(t => spanOf(t))}
-        <div class="planned" style:--days={days.length}><span class="planned-label">Planned</span>{#each days as d (d)}<div data-plan-day={d}>{#each scope.activeTasks.filter(t => { const p = spanOf(t); return p && p.start <= d && p.end >= d; }) as t (t.id)}<button class="planned-task" data-plan-item={t.id} data-plan-start={spanOf(t)?.start} data-plan-end={spanOf(t)?.end} onclick={() => editing = t}>{t.title}</button>{/each}</div>{/each}</div>
+      {#if scope.activeTasks.some(t => { const p = spanOf(t); return p && !p.time; }) || dragId}
+        <div class="planned" style:--days={days.length}><span class="planned-label">Planned</span>{#each days as d (d)}<!-- svelte-ignore a11y_no_static_element_interactions --><div data-plan-day={d} ondragover={(e) => { if (dragId && dragKind !== 'run') e.preventDefault(); }} ondrop={(e) => onPlannedDrop(e, d)}>{#each scope.activeTasks.filter(t => { const p = spanOf(t); return p && !p.time && p.start <= d && p.end >= d; }) as t (t.id)}<button class="planned-task" data-plan-item={t.id} data-plan-start={spanOf(t)?.start} data-plan-end={spanOf(t)?.end} onclick={() => editing = t}>{t.title}</button>{/each}</div>{/each}</div>
       {/if}
       {#if emptyView}
         <p class="empty-view" role="status">
-          Nothing is scheduled to run {view === 'day' ? 'on this day' : 'this week'}.
-          {unscheduled.length ? '' : 'Add a task in Work and it can be scheduled here.'}
+          Nothing is planned {view === 'day' ? 'on this day' : 'this week'}.
+          {undated.length ? 'Drag a task from No date onto a day.' : 'Add a task in Work and it can be planned here.'}
         </p>
       {/if}
       <div class="grid-scroll" bind:this={grid}>
@@ -292,8 +335,9 @@
               onclick={(e) => onColumnClick(e, d)}
             >
               {#if ghost && ghost.day === d}<div class="ghost" style:top="{(ghost.minute / 60) * HOUR}px" style:height="{(EVENT_MIN / 60) * HOUR}px"></div>{/if}
-              {#each eventsOn(d) as e (e.item.id)}
-                {@const t = e.item}
+              {#each eventsOn(d) as e (e.item.kind + e.item.task.id)}
+                {@const t = e.item.task}
+                {@const isPlan = e.item.kind === 'plan'}
                 {@const run = scope.latestRun[t.id]}
                 {@const s = run ? runStatus(run) : undefined}
                 {@const decision = scope.decisions.find((x) => x.taskId === t.id)}
@@ -302,13 +346,14 @@
                   class="ev"
                   class:run={s?.tone === 'work'}
                   class:needs={s?.needsInput}
-                  class:past={!!t.orchestration?.runId || !t.orchestration?.enabled}
+                  class:plan={isPlan}
+                  class:past={!isPlan && (!!t.orchestration?.runId || !t.orchestration?.enabled)}
                   class:focused={t.id === focusId}
                   aria-current={t.id === focusId ? 'true' : undefined}
                   href={'#/p/' + project.id + '/calendar'} onclick={(e) => { e.preventDefault(); editing = t; }}
-                  data-plan-item={t.id + '/schedule'} data-plan-start={d} data-plan-end={d} data-plan-scheduled
+                  data-plan-item={isPlan ? t.id : t.id + '/schedule'} data-plan-start={d} data-plan-end={d} data-plan-scheduled
                   draggable="true"
-                  ondragstart={(ev) => onDragStart(ev, t)}
+                  ondragstart={(ev) => onDragStart(ev, t, e.item.kind)}
                   ondragend={() => ((dragId = ''), (ghost = null))}
                   style:top="{(e.start / 60) * HOUR + 1}px"
                   style:height="{(EVENT_MIN / 60) * HOUR - 2}px"
@@ -317,8 +362,12 @@
                   title="{t.title} · {decision ? `${schedulingLabels[decision.state]}: ${schedulingReason(decision)}` : ''}"
                 >
                   <b>{t.title}</b>
-                  <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : decision ? schedulingLabels[decision.state].toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : 'scheduled'}</span>
-                  {#if t.orchestration?.enabled && !t.orchestration.runId}
+                  {#if isPlan}
+                    <span>{formatWall(plannedAt(t, d))} · planned</span>
+                  {:else}
+                    <span>{formatWall(scheduledIn(t).slice(11))} · {s ? s.label.toLowerCase() : decision ? schedulingLabels[decision.state].toLowerCase() : eff.agent ? agentLabel(app.agents, eff.agent) : 'scheduled'}</span>
+                  {/if}
+                  {#if !isPlan && t.orchestration?.enabled && !t.orchestration.runId}
                     <button
                       class="x"
                       aria-label="Unschedule {t.title}"
@@ -340,12 +389,11 @@
 
     <aside class="side" aria-label="Planning">
       <section>
-        <h3>Not scheduled to run<span class="chip">{unscheduled.length}</span></h3>
-        {#if !scope.activeTasks.some(t => t.orchestration?.enabled && t.orchestration.scheduledAt)}<p class="empty-s">To plan work without starting an agent, edit the task’s planned dates and milestone.</p>{/if}
-        {#if unscheduled.length}
+        <h3>No date<span class="chip">{undated.length}</span></h3>
+        {#if undated.length}
           <ul class="items">
-            {#each unscheduled as t (t.id)}
-              <li class="item" class:on={picked?.id === t.id} data-plan-item={t.id + '/schedule'} data-plan-start={today} data-plan-end={today} data-plan-scheduled draggable="true" ondragstart={(e) => onDragStart(e, t)} ondragend={() => ((dragId = ''), (ghost = null))}>
+            {#each undated as t (t.id)}
+              <li class="item" class:on={picked?.id === t.id} draggable="true" ondragstart={(e) => onDragStart(e, t, 'new')} ondragend={() => ((dragId = ''), (ghost = null))}>
                 <span class="grip" aria-hidden="true"><Icon name="grip" /></span>
                 <button class="pbtn" aria-pressed={picked?.id === t.id} onclick={() => (picked = picked?.id === t.id ? null : t)}>
                   <span class="t">{t.title}</span>
@@ -354,9 +402,9 @@
               </li>
             {/each}
           </ul>
-          <p class="mm">Drag onto the week, or pick one and click a time.</p>
+          <p class="mm">Drag onto a day, or pick one and click a time. Planning never starts an agent.</p>
         {:else}
-          <p class="empty-s">Everything has a time.</p>
+          <p class="empty-s">Everything has a date.</p>
         {/if}
       </section>
 
@@ -643,6 +691,13 @@
 
   .ev.past {
     opacity: 0.6;
+  }
+
+  /* Work planned for a time: an outline, not a fill, so it reads as a plan and not as an agent that will start. */
+  .ev.plan {
+    background: var(--surface);
+    border: 1px dashed var(--edge-strong);
+    box-shadow: inset 3px 0 0 var(--text-2);
   }
 
   .ev b {

@@ -19,6 +19,9 @@ type Range struct {
 	Start     string `json:"start,omitempty"`
 	End       string `json:"end,omitempty"`
 	Milestone bool   `json:"milestone,omitempty"`
+	// Time is the time of day the work is planned for ("09:30"), a wall time with no zone, like the day it belongs to. It is
+	// only for a single day, and like the rest of a Range it never starts an agent.
+	Time string `json:"time,omitempty"`
 }
 
 // IsZero reports whether nothing is planned.
@@ -36,7 +39,7 @@ func ParseDay(s string) (time.Time, error) {
 // CleanRange validates and normalises a planned range: dates well formed, the end not before the
 // start, and a milestone a single date. It does not look at other work.
 func CleanRange(r Range) (Range, error) {
-	r.Start, r.End = strings.TrimSpace(r.Start), strings.TrimSpace(r.End)
+	r.Start, r.End, r.Time = strings.TrimSpace(r.Start), strings.TrimSpace(r.End), strings.TrimSpace(r.Time)
 	var start, end time.Time
 	var err error
 	if r.Start != "" {
@@ -57,10 +60,37 @@ func CleanRange(r Range) (Range, error) {
 			return Range{}, invalid("a milestone is a single date: set the date, not a start and an end")
 		}
 		r.End = ""
-		return r, nil
+		return cleanTime(r)
 	}
 	if r.Start != "" && r.End != "" && end.Before(start) {
 		return Range{}, invalid("the end date %s is before the start date %s", r.End, r.Start)
+	}
+	return cleanTime(r)
+}
+
+// ValidTime reports whether s is a time of day written HH:MM on a 24-hour clock.
+func ValidTime(s string) bool {
+	if len(s) != 5 || s[2] != ':' {
+		return false
+	}
+	_, err := time.Parse("15:04", s)
+	return err == nil
+}
+
+// cleanTime checks a planned time of day: well formed, and only on a range that is a single day.
+func cleanTime(r Range) (Range, error) {
+	if r.Time == "" {
+		return r, nil
+	}
+	if !ValidTime(r.Time) {
+		return Range{}, invalid("the time %q is not a time of day: write it as HH:MM", r.Time)
+	}
+	first, last, ok := r.Span()
+	if !ok {
+		return Range{}, invalid("a time needs a day: set the date it is planned for")
+	}
+	if !first.Equal(last) {
+		return Range{}, invalid("a time is for a single day: set one date, not a start and an end")
 	}
 	return r, nil
 }

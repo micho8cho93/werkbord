@@ -145,6 +145,7 @@ func operations() []*operation {
 					"labelIds":     List("Labels to put on it.", Str("A label id.", idMax), 20),
 					"plannedStart": Day("First planned day, like 2026-03-31."),
 					"plannedEnd":   Day("Last planned day."),
+					"plannedTime":  TimeOfDay("The time of day it is planned for, like 09:30, on a single planned day. It only plans the work: it never starts an agent."),
 					"milestone":    Bool("Whether it is a single-day milestone."),
 				}, "projectId", "title")},
 			plan: planCreateTicket, run: runCreateTicket,
@@ -163,6 +164,7 @@ func operations() []*operation {
 					"labelIds":        List("The labels it should carry (replaces the old set).", Str("A label id.", idMax), 20),
 					"plannedStart":    Day("First planned day; empty clears."),
 					"plannedEnd":      Day("Last planned day; empty clears."),
+					"plannedTime":     TimeOfDay("The time of day it is planned for, like 09:30, on a single planned day; empty clears. It only plans the work: it never starts an agent."),
 					"milestone":       Bool("Whether it is a single-day milestone."),
 				}, "projectId", "ticketId")},
 			plan: planUpdateTicket, run: runUpdateTicket,
@@ -452,6 +454,7 @@ type ScheduleItem struct {
 	WorkMode     string     `json:"workMode"`
 	PlannedStart string     `json:"plannedStart,omitempty"`
 	PlannedEnd   string     `json:"plannedEnd,omitempty"`
+	PlannedTime  string     `json:"plannedTime,omitempty"`
 	Milestone    bool       `json:"milestone,omitempty"`
 	ScheduledAt  *time.Time `json:"scheduledAt,omitempty"`
 	NotBefore    *time.Time `json:"notBefore,omitempty"`
@@ -493,7 +496,7 @@ func opGetSchedule(ctx context.Context, e *env, a map[string]any) (any, error) {
 			break
 		}
 		items = append(items, ScheduleItem{TicketID: t.ID, Title: clip(t.Title, 200), State: string(t.State), WorkMode: string(t.Mode()),
-			PlannedStart: t.Plan.Start, PlannedEnd: t.Plan.End, Milestone: t.Plan.Milestone, ScheduledAt: o.ScheduledAt, NotBefore: o.NotBefore,
+			PlannedStart: t.Plan.Start, PlannedEnd: t.Plan.End, PlannedTime: t.Plan.Time, Milestone: t.Plan.Milestone, ScheduledAt: o.ScheduledAt, NotBefore: o.NotBefore,
 			Deadline: o.Deadline, DependsOn: nonNil(o.Dependencies), AutoStart: o.Enabled})
 	}
 	warnings := service.TimelineWarnings(all)
@@ -655,7 +658,7 @@ func planCreateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 	if err != nil {
 		return nil, err
 	}
-	rng, err := planning.CleanRange(planning.Range{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Milestone: boolArg(a, "milestone")})
+	rng, err := planning.CleanRange(planning.Range{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Time: str(a, "plannedTime"), Milestone: boolArg(a, "milestone")})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", domain.ErrInvalid, err)
 	}
@@ -674,6 +677,9 @@ func planCreateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 	}
 	if rng.End != "" {
 		norm["plannedEnd"] = rng.End
+	}
+	if rng.Time != "" {
+		norm["plannedTime"] = rng.Time
 	}
 	if rng.Milestone {
 		norm["milestone"] = true
@@ -696,7 +702,7 @@ func runCreateTicket(ctx context.Context, e *env, a map[string]any) (any, error)
 	t, err := e.b.CreateTicket(ctx, service.NewTask{
 		ProjectID: str(a, "projectId"), Title: str(a, "title"), Description: str(a, "description"),
 		WorkMode: planning.ExecutionMode(str(a, "workMode")), LabelIDs: strList(a, "labelIds"),
-		Plan: domain.Plan{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Milestone: boolArg(a, "milestone")},
+		Plan: domain.Plan{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Time: str(a, "plannedTime"), Milestone: boolArg(a, "milestone")},
 	})
 	if err != nil {
 		return nil, err
@@ -760,13 +766,17 @@ func planUpdateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 	_, hasStart := a["plannedStart"]
 	_, hasEnd := a["plannedEnd"]
 	_, hasMilestone := a["milestone"]
-	if hasStart || hasEnd || hasMilestone {
+	_, hasTime := a["plannedTime"]
+	if hasStart || hasEnd || hasMilestone || hasTime {
 		next := t.Plan
 		if hasStart {
 			next.Start = str(a, "plannedStart")
 		}
 		if hasEnd {
 			next.End = str(a, "plannedEnd")
+		}
+		if hasTime {
+			next.Time = str(a, "plannedTime")
 		}
 		if hasMilestone {
 			next.Milestone = boolArg(a, "milestone")
@@ -777,7 +787,7 @@ func planUpdateTicket(ctx context.Context, e *env, a map[string]any) (*plan, err
 		}
 		if next != t.Plan {
 			// The whole resulting plan is carried, so what is confirmed is what it becomes.
-			norm["plannedStart"], norm["plannedEnd"], norm["milestone"] = next.Start, next.End, next.Milestone
+			norm["plannedStart"], norm["plannedEnd"], norm["plannedTime"], norm["milestone"] = next.Start, next.End, next.Time, next.Milestone
 			changes = append(changes, fmt.Sprintf("planned %s → %s", rangeText(t.Plan), rangeText(next)))
 		}
 	}
@@ -808,7 +818,7 @@ func runUpdateTicket(ctx context.Context, e *env, a map[string]any) (any, error)
 		patch.LabelIDs = &ids
 	}
 	if _, ok := a["plannedStart"]; ok {
-		plan := domain.Plan{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Milestone: boolArg(a, "milestone")}
+		plan := domain.Plan{Start: str(a, "plannedStart"), End: str(a, "plannedEnd"), Time: str(a, "plannedTime"), Milestone: boolArg(a, "milestone")}
 		patch.Plan = &plan
 	}
 	// The ticket must still be in the project the person was shown.
@@ -1007,16 +1017,24 @@ func nameList(names []string) string {
 	return strings.Join(names, ", ")
 }
 
+// atTime is " at 09:30" for a range planned for a time of day, and nothing otherwise.
+func atTime(r planning.Range) string {
+	if r.Time == "" {
+		return ""
+	}
+	return " at " + r.Time
+}
+
 func rangeText(r planning.Range) string {
 	switch {
 	case r.IsZero():
 		return "nothing"
 	case r.Milestone:
-		return "milestone " + r.Start
+		return "milestone " + r.Start + atTime(r)
 	case r.End == "":
-		return "from " + r.Start
+		return "from " + r.Start + atTime(r)
 	case r.Start == "":
-		return "until " + r.End
+		return "until " + r.End + atTime(r)
 	}
 	return r.Start + " to " + r.End
 }
@@ -1032,7 +1050,7 @@ func taskPlanInput() *Schema {
 		"description": Str("Task description.", descMax),
 		"sourceRef":   Str("Source reference for the task.", 2000),
 		"plan": Object(map[string]*Schema{
-			"start": Day("First planned day."), "end": Day("Last planned day."), "milestone": Bool("Whether this is a single-day milestone."),
+			"start": Day("First planned day."), "end": Day("Last planned day."), "time": TimeOfDay("Time of day on a single planned day, like 09:30."), "milestone": Bool("Whether this is a single-day milestone."),
 		}),
 		"dependencies": List("Existing task IDs or tempIds from this plan.", Str("Task or temporary task ID.", 128), 100),
 	})

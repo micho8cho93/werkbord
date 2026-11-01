@@ -41,6 +41,7 @@ type TicketView struct {
 	LabelIDs             []string   `json:"labelIds"`
 	PlannedStart         string     `json:"plannedStart,omitempty"`
 	PlannedEnd           string     `json:"plannedEnd,omitempty"`
+	PlannedTime          string     `json:"plannedTime,omitempty"`
 	Milestone            bool       `json:"milestone,omitempty"`
 	DependsOn            []string   `json:"dependsOn"`
 	ScheduledAt          *time.Time `json:"scheduledAt,omitempty"`
@@ -65,7 +66,7 @@ func ticketView(t domain.Task, descChars int) TicketView {
 	v := TicketView{
 		ID: t.ID, ProjectID: t.ProjectID, Title: clip(t.Title, 200), Description: desc, DescriptionTruncated: cut,
 		State: string(t.State), WorkMode: string(t.Mode()), LabelIDs: nonNil(t.LabelIDs),
-		PlannedStart: t.Plan.Start, PlannedEnd: t.Plan.End, Milestone: t.Plan.Milestone, DependsOn: nonNil(t.Orchestration.Dependencies),
+		PlannedStart: t.Plan.Start, PlannedEnd: t.Plan.End, PlannedTime: t.Plan.Time, Milestone: t.Plan.Milestone, DependsOn: nonNil(t.Orchestration.Dependencies),
 		ScheduledAt: t.Orchestration.ScheduledAt, NotBefore: t.Orchestration.NotBefore, Deadline: t.Orchestration.Deadline,
 		AutoStart: t.Orchestration.Enabled, Source: clip(t.SourceRef, 200), Archived: t.ArchivedAt != nil, Version: t.Version, UpdatedAt: t.UpdatedAt,
 	}

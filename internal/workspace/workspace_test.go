@@ -245,6 +245,8 @@ func TestPlannedRangesKeepOwnerLinksAndRejectInvalidDates(t *testing.T) {
 		func(p *Planned) { p.Start = "2026-02-30" },
 		func(p *Planned) { p.End = "2026-10-01" },
 		func(p *Planned) { p.Href = "https://other-machine.example" },
+		func(p *Planned) { p.Time = "09:30" },                // a time belongs to a single day
+		func(p *Planned) { p.End, p.Time = p.Start, "9.30" }, // and is HH:MM
 	} {
 		invalid := s
 		invalid.Planned = append([]Planned{}, s.Planned...)
@@ -256,5 +258,10 @@ func TestPlannedRangesKeepOwnerLinksAndRejectInvalidDates(t *testing.T) {
 		if dropped != 1 || len(clean.Planned) != 0 {
 			t.Fatalf("bad range retained: %+v", clean.Planned)
 		}
+	}
+	timed := s
+	timed.Planned = []Planned{{ID: "planned_2", Title: "Standup notes", Project: "App", Start: "2026-10-12", End: "2026-10-12", Time: "09:30", Href: "#/p/prj_1/task/task_2"}}
+	if err := timed.Validate(); err != nil {
+		t.Fatalf("a timed plan on one day is valid: %v", err)
 	}
 }

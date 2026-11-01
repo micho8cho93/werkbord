@@ -26,13 +26,16 @@ export function followPlanning(): () => void {
           const at = payload.at || instantFromWall(payload.start + 'T' + wallTime(o.scheduledAt || new Date().toISOString(), local).slice(11, 16), local);
           current = await api.editTask(task, { orchestration: { ...o, enabled: true, scheduledAt: at, timezone: zone } });
         } else {
-          const plan = { ...task.plan, start: payload.start, end: payload.end, milestone: payload.milestone ?? task.plan?.milestone ?? false };
+          const milestone = payload.milestone ?? task.plan?.milestone ?? false;
+          // A planned time of day belongs to a single day: moving a range of days clears it.
+          const time = milestone || !payload.end || payload.end === payload.start ? task.plan?.time : undefined;
+          const plan = { ...task.plan, start: payload.start, end: payload.end, milestone, time };
           current = await api.editTask(task, m.operation === 'save' ? { title: payload.title, description: payload.description, plan } : { plan });
         }
       }
       const span = spanOf(current);
       event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: true, item: { title: current.title, description: current.description, version: current.version,
-        start: span?.start || '', end: span?.end || '', milestone: !!span?.milestone, scheduledAt: current.orchestration?.scheduledAt || '', editable: !current.archivedAt,
+        start: span?.start || '', end: span?.end || '', time: span?.time || '', milestone: !!span?.milestone, scheduledAt: current.orchestration?.scheduledAt || '', editable: !current.archivedAt,
         canReschedule: !current.archivedAt && !current.orchestration?.runId } }, { targetOrigin: event.origin });
     } catch (error) {
       event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: false, error: error instanceof Error ? error.message : String(error) }, { targetOrigin: event.origin });

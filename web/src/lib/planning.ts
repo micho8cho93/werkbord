@@ -99,6 +99,12 @@ function analyze(items: Item[]): Finding[] {
     } else if (milestone && firstRaw === '') {
       add('milestone_without_date', 'warning', current, 'plan.start', `“${current.title}” needs a date to appear in Calendar.`);
     }
+    const { time = '' } = current.plan;
+    if (time) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) add('invalid_time', 'error', current, 'plan.time', `“${current.title}” has an invalid planned time. Write it as HH:MM.`);
+      else if (firstRaw === '') add('time_without_date', 'error', current, 'plan.time', `“${current.title}” needs a date for its planned time.`);
+      else if (first !== undefined && last !== undefined && last !== first) add('time_on_range', 'error', current, 'plan.time', `A planned time is for a single day. Set one date for “${current.title}”, or clear the time.`);
+    }
     const seen = new Set<string>();
     for (const id of current.dependencies) {
       if (seen.has(id)) {

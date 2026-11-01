@@ -39,7 +39,7 @@
   let cleared = false;
   function persist() { if (cleared) return; draftStored = writeDraft(draftKey, { title, description, execution, labelIds, workMode, plan, saved, uncertainSave, uncertainStart }); }
   $effect(() => { void title; void description; JSON.stringify(execution); JSON.stringify(labelIds); void workMode; JSON.stringify(plan); void saved; void uncertainSave; void uncertainStart; untrack(persist); });
-  $effect(() => { void [plan.start, plan.end, plan.milestone]; planIssues = []; });
+  $effect(() => { void [plan.start, plan.end, plan.time, plan.milestone]; planIssues = []; });
 
   const inherited = $derived(resolveFor({}, project.execution, app.globalExecution));
   const isWork = $derived(project.kind === 'work');
@@ -64,7 +64,7 @@
       planIssues = invalidPlan;
       error = 'Fix the highlighted planning issues.';
       await tick();
-      document.getElementById(invalidPlan[0].field === 'plan.end' ? 'new-task-end' : 'new-task-start')?.focus();
+      document.getElementById(invalidPlan[0].field === 'plan.end' ? 'new-task-end' : invalidPlan[0].field === 'plan.time' ? 'new-task-time' : 'new-task-start')?.focus();
       return;
     }
     busy = true;
@@ -108,7 +108,7 @@
       error = planIssues.length ? 'Fix the highlighted planning issues.' : uncertainStart ? 'Task saved. Could not confirm whether the agent started. Open the saved task and check Runs before starting again.' : uncertainSave ? 'Could not confirm whether the task was saved. Check the Work before adding it again.' : `${saved ? 'Task saved. Agent could not start: ' : ''}${err instanceof Error ? err.message : String(err)}`;
       if (planIssues.length) {
         await tick();
-        document.getElementById(planIssues[0].field === 'plan.end' ? 'new-task-end' : 'new-task-start')?.focus();
+        document.getElementById(planIssues[0].field === 'plan.end' ? 'new-task-end' : planIssues[0].field === 'plan.time' ? 'new-task-time' : 'new-task-start')?.focus();
       }
     } finally {
       busy = false;

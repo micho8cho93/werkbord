@@ -8,6 +8,7 @@
   const addDays = (d, n) => iso(at(d) + n * DAY);
   const daysBetween = (a, b) => Math.round((at(b) - at(a)) / DAY);
   const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(at(s));
+  const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 
   // Where a ticket sits in time, or null when it has no usable dates. Only a start is a one-day item, only an end is
   // something due that day, a milestone is its single date.
@@ -18,10 +19,12 @@
     const end = isDay(p.end) ? p.end : undefined;
     const first = start || end;
     if (!first) return null;
-    if (p.milestone) return { start: first, end: first, milestone: true };
+    // A time of day belongs to a single day: it is read only there.
+    const time = isTime(p.time) ? p.time : undefined;
+    if (p.milestone) return time ? { start: first, end: first, milestone: true, time } : { start: first, end: first, milestone: true };
     const last = end || first;
     if (daysBetween(first, last) < 0) return null;
-    return { start: first, end: last, milestone: false };
+    return time && last === first ? { start: first, end: last, milestone: false, time } : { start: first, end: last, milestone: false };
   }
 
   function spanTitle(span, thisYear) {
@@ -53,5 +56,5 @@
     return 1.05 / (lum + 0.05) >= (lum + 0.05) / 0.0565 ? '#ffffff' : '#14130f';
   }
 
-  root.WerkbordPlanning = { addDays, daysBetween, isDay, spanOf, spanTitle, localToday, safeColor, inkFor };
+  root.WerkbordPlanning = { addDays, daysBetween, isDay, isTime, spanOf, spanTitle, localToday, safeColor, inkFor };
 })(globalThis);

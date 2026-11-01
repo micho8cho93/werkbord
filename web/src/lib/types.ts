@@ -145,10 +145,14 @@ export interface LabelUse extends Label {
   tasks: number;
 }
 
-/** When a task is planned, in whole days (YYYY-MM-DD). A milestone is the single date in `start`. */
+/**
+ * When a task is planned, in whole days (YYYY-MM-DD). A milestone is the single date in `start`. `time` is the time of day
+ * (HH:MM, no zone) it is planned for, on a single day; it plans the work and never starts an agent.
+ */
 export interface Plan {
   start?: string;
   end?: string;
+  time?: string;
   milestone?: boolean;
 }
 

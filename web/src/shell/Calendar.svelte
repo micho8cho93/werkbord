@@ -3,7 +3,7 @@
   import { planningCall, type PlanningItem } from './planning';
   import { instantFromWall, wallTime } from '../lib/scheduling';
   import type { DateDrop } from '../lib/planningGestures';
-  import { formatTime } from '../lib/clock.svelte';
+  import { formatTime, formatWall } from '../lib/clock.svelte';
   import PlanningCalendar from '../lib/PlanningCalendar.svelte';
   import { standing } from './aggregate';
   import { model } from './model.svelte';
@@ -12,7 +12,7 @@
   // `embedded` is Home's panel: it fills the panel and leaves the title to the hub.
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
-    ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
+    ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, detail: p.time ? formatWall(p.time) + ' · planned' : undefined, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
     ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' ') + (p.reason ? ' · ' + p.reason : ''), workspace: e.workspace.id, kind: 'scheduled' as const }; })
   ]));
   const silent = $derived(overview ? overview.entries.filter(e => !e.summary && (e.error || e.workspace.state !== 'ready')) : []);

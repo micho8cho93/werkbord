@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"werkbord/internal/planning"
 )
 
 // Schema describes the arguments of an operation. It is a small subset of JSON Schema, exactly the part that
@@ -71,6 +73,11 @@ func Bool(desc string) *Schema { return &Schema{Type: "boolean", Description: de
 // Day is a calendar day, 2006-01-02. The empty string is allowed where a field may be cleared.
 func Day(desc string) *Schema {
 	return &Schema{Type: "string", Description: desc, Format: "date", Pattern: "day", MaxLength: 10}
+}
+
+// TimeOfDay is a time on a 24-hour clock, 15:04, with no zone. The empty string is allowed where a field may be cleared.
+func TimeOfDay(desc string) *Schema {
+	return &Schema{Type: "string", Description: desc, Pattern: "time", MaxLength: 5}
 }
 
 // List is an array of at most max items.
@@ -439,6 +446,9 @@ func (s *Schema) validate(v any, at string) error {
 			if len(str) != 10 || str[4] != '-' || str[7] != '-' {
 				return fmt.Errorf("%s must be a day like 2026-03-31", at)
 			}
+		}
+		if s.Pattern == "time" && str != "" && !planning.ValidTime(str) {
+			return fmt.Errorf("%s must be a time of day like 09:30", at)
 		}
 	case "integer":
 		f, ok := v.(float64)
