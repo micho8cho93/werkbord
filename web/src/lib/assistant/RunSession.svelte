@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { app } from '../state.svelte';
+  import { confirmAction } from '../confirm.svelte';
   import { agentName, runStatus } from '../format';
   import FeedView from '../FeedView.svelte';
   import QuestionCard from '../QuestionCard.svelte';
@@ -24,6 +25,10 @@
     if (following) void tick().then(() => { if (output) output.scrollTop = output.scrollHeight; });
   });
   const run = $derived(session.run);
+  // Stopping ends work in progress, so it asks first, as Stop does on an Agents card.
+  async function stopRun() {
+    if (await confirmAction({ title: 'Stop this run?', message: 'The agent stops where it is. Work it has already done stays in its working copy.', confirmLabel: 'Stop run', danger: true })) void session.act('stop');
+  }
   function ticket(event: MouseEvent) {
     if (!run) return;
     assistant.hide();
@@ -40,7 +45,7 @@
     <span class="ctx" title={`${session.worktree?.path ?? session.project?.repoPath ?? ""}`}>{@render where()}</span>
     {#if run && liveRun(run)}<span class="pulse" role="status" aria-label="Session is live"></span>{/if}
     {#if run && liveRun(run) && may.message && !session.questions.length && (run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle'))}<button class="btn small" disabled={session.busy} onclick={() => session.act('finish')}>Finish run</button>{/if}
-    {#if run && liveRun(run) && may.stop}<button class="btn small" disabled={session.busy} onclick={() => session.act('stop')}>Stop run</button>{/if}
+    {#if run && liveRun(run) && may.stop}<button class="btn small" disabled={session.busy} onclick={stopRun}>Stop run</button>{/if}
   </div>
   {#if may.message && session.questions.length}<div class="pinned">{#each session.questions as question (question.id)}<QuestionCard {question} revealContext />{/each}</div>{/if}
   <div bind:this={output} onscroll={() => { if (output) following = output.scrollTop + output.clientHeight >= output.scrollHeight - 100; }} class="output" tabindex="-1" role="region" aria-label="Session output">
@@ -90,7 +95,7 @@
       </form>{/if}
       <div class="actions">
         {#if may.message && !session.questions.length && (run.state === 'blocked' || (run.state === 'waiting_for_user' && run.waiting === 'idle'))}<button class="btn" disabled={session.busy} onclick={() => session.act('finish')}>Finish run</button>{/if}
-        {#if may.stop}<button class="btn danger" disabled={session.busy} onclick={() => session.act('stop')}>Stop run</button>{/if}
+        {#if may.stop}<button class="btn danger" disabled={session.busy} onclick={stopRun}>Stop run</button>{/if}
         {#if run.pendingRequests?.length}<span role="status">Waiting for runner acknowledgement: {run.pendingRequests.join(', ')}</span>{/if}
       </div>
     {:else if run}<p>This session has ended. Its activity remains available.</p>{/if}

@@ -766,3 +766,22 @@ describe('Work beside a task or session', () => {
     expect(calendar.paneable).toBe(false);
   });
 });
+
+describe('leaving Settings', () => {
+  it('goes back to the page it was opened from, and forgets it once the person goes elsewhere', () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    model.page = 'calendar';
+    model.openSettings();
+    expect(model.page).toBe('settings');
+    expect(model.settingsReturn?.page).toBe('calendar');
+    model.openSettings('general/workspaces');
+    expect(model.settingsReturn?.page).toBe('calendar');
+    model.leaveSettings();
+    expect(model.page).toBe('calendar');
+    expect(model.settingsReturn).toBeNull();
+    model.openSettings();
+    model.go('reviews');
+    expect(model.settingsReturn).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { hosting, standing } from './aggregate';
   import { model } from './model.svelte';
+  import { confirmAction } from '../lib/confirm.svelte';
   import type { Item, Overview } from './types';
 
   // Every workspace on this computer, what this computer does for each, and where to manage it. Hosting is shown here as
@@ -97,7 +98,7 @@
             {/if}
           {/if}
           {#if i.kind === 'team' && (i.state === 'setup' || i.state === 'leaving' || (i.state === 'connecting' && !i.role))}
-            <button class="btn quiet" type="button" onclick={() => model.forget(i.id)}>Remove from this list</button>
+            <button class="btn quiet" type="button" onclick={async () => { if (await confirmAction({ title: 'Remove from this list?', message: 'The workspace disappears from this window. Nothing on the host is deleted.', confirmLabel: 'Remove', danger: true })) model.forget(i.id); }}>Remove from this list</button>
           {/if}
         </div>
         {#if i.kind === 'team' && i.state !== 'setup'}

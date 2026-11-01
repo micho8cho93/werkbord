@@ -21,6 +21,7 @@
   import SettingsNative from './SettingsNative.svelte';
   import SettingsPlan from './SettingsPlan.svelte';
   import Icon from '../lib/Icon.svelte';
+  import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import { model, PANE_MIN, type Page } from './model.svelte';
   import { onApp } from './native';
 
@@ -68,6 +69,14 @@
     void model.goTo(open.workspace, where.replace(/([?&])pane=1&?/, '$1').replace(/[?&]$/, ''));
   }
   function key(e: KeyboardEvent): void {
+    // Escape leaves Settings for where it was opened from, unless something typed into, a menu or a dialog has a use for it.
+    if (e.key === 'Escape' && !e.defaultPrevented && model.page === 'settings' && model.settingsReturn && !model.paletteOpen && !model.addOpen &&
+        !(e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable], [role="dialog"], details[open]')) &&
+        !document.querySelector('.sheet[aria-modal="true"]')) {
+      e.preventDefault();
+      model.leaveSettings();
+      return;
+    }
     // ⌘K goes to a project, a place or a page; ⌘⇧K still does, for whoever learnt it when it switched workspace.
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
@@ -135,6 +144,7 @@
   {#if model.addOpen}<AddTeam />{/if}
 </div>
 <AssistantFrame />
+<ConfirmDialog />
 
 <style>
   .skip-main {

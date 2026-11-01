@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import Icon from './Icon.svelte';
   import { surface } from './motion';
+  import { confirmAction } from './confirm.svelte';
 
   // A bottom sheet on a phone, a centred dialog on a wide screen. Every action that changes
   // something outside the app (a merge, a push, a new task) is confirmed in one of these, with
@@ -15,7 +16,14 @@
     width = '34rem',
     side = false,
     layer = 50,
-  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string; side?: boolean; layer?: number } = $props();
+    dirty = false,
+  }: { title: string; onclose: () => void; children: Snippet; footer?: Snippet; width?: string; side?: boolean; layer?: number; dirty?: boolean } = $props();
+
+  // A backdrop click, Escape or the close button is a dismissal, not a decision: with unsaved typing in the sheet it asks first.
+  async function dismiss() {
+    if (dirty && !(await confirmAction({ title: 'Discard changes?', message: 'You have unsaved changes. Closing now loses them.', confirmLabel: 'Discard changes', danger: true }))) return;
+    onclose();
+  }
 
   let panel: HTMLDivElement | undefined = $state();
   let trapping = false;
@@ -61,7 +69,7 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      onclose();
+      void dismiss();
     }
   }
 
@@ -74,11 +82,11 @@
 
 <svelte:window onkeydown={onkey} onfocusin={onfocus} />
 
-<div style:--sheet-layer={layer} class="backdrop" class:side transition:surface={{ y: 0, duration: 140 }} role="presentation" onclick={onclose}></div>
+<div style:--sheet-layer={layer} class="backdrop" class:side transition:surface={{ y: 0, duration: 140 }} role="presentation" onclick={dismiss}></div>
 <div style:--sheet-layer={layer} class="sheet" class:side transition:surface={{ x: side ? 20 : 0, y: side ? 0 : 16 }} role="dialog" aria-modal="true" aria-label={title} tabindex="-1" bind:this={panel} style:--w={width}>
   <header>
     <h2>{title}</h2>
-    <button class="btn quiet small icon" onclick={onclose} aria-label="Close"><Icon name="close" /></button>
+    <button class="btn quiet small icon" onclick={dismiss} aria-label="Close"><Icon name="close" /></button>
   </header>
   <div class="body">{@render children()}</div>
   {#if footer}<footer>{@render footer()}</footer>{/if}

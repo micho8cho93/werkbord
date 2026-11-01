@@ -8,6 +8,8 @@
   const shown = $derived(model.settingsShown);
   const many = $derived(new Set(groups.map((g) => g.owner).filter(Boolean)).size > 1);
   let expanded = $state<Record<string, boolean>>({});
+  const names: Record<string, string> = { workspace: 'your work', inbox: 'Work', calendar: 'Calendar', agents: 'Agents', reviews: 'Reviews', analytics: 'Analytics' };
+  const backLabel = $derived(model.settingsReturn?.pane ? 'the open item' : names[model.settingsReturn?.page ?? ''] ?? 'where you were');
 </script>
 
 {#snippet sectionButtons(g: Group)}
@@ -15,6 +17,10 @@
     <button class="item" type="button" aria-current={shown.id === s.id ? 'page' : undefined} data-section={s.id} onclick={() => model.openSettings(s.id)}>{s.label}</button>
   {/each}
 {/snippet}
+
+{#if model.settingsReturn}
+  <button class="back" type="button" data-testid="settings-back" onclick={() => model.leaveSettings()}>‹ Back to {backLabel}</button>
+{/if}
 
 <label class="narrow">
   <span>Settings section</span>
@@ -45,6 +51,8 @@
 </nav>
 
 <style>
+  .back { flex: none; margin: 12px 8px 0; padding: 6px 8px; text-align: left; color: var(--text-2); font-size: 12px; background: none; border: 0; border-radius: 6px; cursor: pointer; }
+  .back:hover { color: var(--text); background: var(--surface-2); }
   .sections {
     flex: none;
     width: 208px;

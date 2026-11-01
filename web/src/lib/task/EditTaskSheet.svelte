@@ -11,6 +11,7 @@
   import Sheet from '../Sheet.svelte';
   import type { ProjectScope } from '../scope.svelte';
   import { app } from '../state.svelte';
+  import { confirmAction } from '../confirm.svelte';
   import { openAgents } from '../agent-nav';
   import { runKey } from '../agent-sessions';
   import { router } from '../router.svelte';
@@ -73,6 +74,27 @@
   const canAgent = $derived(agentWorkable({ workMode }, project));
   let busy = $state(false);
   let error = $state('');
+
+  /** Leaving for another page with edits typed in would lose them: ask first. */
+  async function leaveOk(): Promise<boolean> {
+    return !dirty || confirmAction({ title: 'Discard changes?', message: 'You have unsaved changes. Leaving now loses them.', confirmLabel: 'Discard changes', danger: true });
+  }
+  async function cancel() {
+    if (await leaveOk()) onclose();
+  }
+  async function openTask(e: MouseEvent) {
+    if (!dirty) { onclose(); return; }
+    e.preventDefault();
+    const href = (e.currentTarget as HTMLAnchorElement).href;
+    if (await leaveOk()) { onclose(); window.location.href = href; }
+  }
+  async function openSession() {
+    if (!latest || !(await leaveOk())) return;
+    const key = runKey(latest.id);
+    const from = routeBack();
+    onclose();
+    openAgents(key, from);
+  }
   let serverIssues = $state<PlanIssue[]>([]);
   const draftTask = $derived({ ...task, title: title.trim(), description, plan, orchestration: { ...(task.orchestration ?? {}), enabled: task.orchestration?.enabled ?? false, dependencies, expectedPaths: task.orchestration?.expectedPaths ?? [] } });
   const draftIssues = $derived(validatePlanDraft(scope.tasks, draftTask));
@@ -133,7 +155,7 @@
   }
 </script>
 
-<Sheet title="Edit task" {onclose} {side} width="38rem">
+<Sheet title="Edit task" {onclose} {dirty} {side} width="38rem">
   <form
     id="edit-task-form"
     class="form"
@@ -144,10 +166,10 @@
   >
     {#if decision && canAgent}<p class="muted note">{decision.reason}</p>{/if}
     {#if onschedule && canAgent}<button class="btn" type="button" disabled={busy || dirty} onclick={onschedule}>Schedule and dependencies</button>{#if dirty}<p class="muted note">Save or cancel your changes before opening schedule controls.</p>{/if}{/if}
-    {#if side}<p class="session-link"><a class="btn small" data-testid="open-task" href={openTaskHref()} onclick={() => onclose()}>Open task</a></p>{/if}
+    {#if side}<p class="session-link"><a class="btn small" data-testid="open-task" href={openTaskHref()} onclick={openTask}>Open task</a></p>{/if}
     {#if latest}
       <p class="session-link" data-testid="task-session">Latest session: {runStatus(latest).label}.
-        <button class="btn small" type="button" onclick={() => { const key = runKey(latest.id); const from = routeBack(); onclose(); openAgents(key, from); }}>Open session</button></p>
+        <button class="btn small" type="button" onclick={openSession}>Open session</button></p>
     {/if}
     <label class="field">
       <span>Title</span>
@@ -172,7 +194,7 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </form>
   {#snippet footer()}
-    <button class="btn" type="button" onclick={onclose}>Cancel</button>
+    <button class="btn" type="button" onclick={cancel}>Cancel</button>
     <button class="btn primary" type="submit" form="edit-task-form" disabled={busy || !title.trim() || !dirty}>{busy ? 'Saving…' : side ? 'Save changes' : 'Save'}</button>
   {/snippet}
 </Sheet>

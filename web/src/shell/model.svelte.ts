@@ -595,8 +595,35 @@ export class Model {
     }
   }
 
+  /**
+   * Where the person was when they opened Settings or Help, so that leaving them goes back to that very place (the open task, the pane
+   * beside Work's list), not to the top of a page. Kept only while Settings or Help is on show.
+   */
+  settingsReturn = $state<{ page: Page; current: string; place: string | undefined; pane: { workspace: string; place: string } | null } | null>(null);
+
+  private rememberBeforeSettings(): void {
+    if (this.page === 'settings' || this.page === 'help') return;
+    this.settingsReturn = { page: this.page, current: this.current, place: this.places[this.current], pane: this.pane ? { ...this.pane } : null };
+  }
+
+  /** Leaves Settings or Help for where they were opened from. Without that, Work. */
+  leaveSettings(): void {
+    const back = this.settingsReturn;
+    this.settingsReturn = null;
+    if (!back || back.page === 'settings' || back.page === 'help') return this.go('inbox');
+    if (back.page === 'workspace') {
+      this.page = 'workspace';
+      this.current = back.current;
+      void this.goTo(back.current, back.place);
+      return;
+    }
+    this.go(back.page);
+    if (back.pane) void this.openPane(back.pane.workspace, back.pane.place);
+  }
+
   /** Settings, at a section if one is asked for. Whichever part of Werkbord the person is in, it is the same screen. */
   openSettings(section?: string): void {
+    this.rememberBeforeSettings();
     this.leaveAssistant();
     if (section) this.settingsSection = section;
     this.page = 'settings';
@@ -618,6 +645,7 @@ export class Model {
 
   /** Help: Individual's guides and shortcuts, shown wherever the person is. */
   openHelp(): void {
+    this.rememberBeforeSettings();
     this.leaveAssistant();
     this.page = 'help';
     void this.host('personal', '#/help');
@@ -625,6 +653,8 @@ export class Model {
 
   /** Shows a page of the shell's own. */
   go(p: Page): void {
+    if (p === 'settings' || p === 'help' || p === 'workspaces') this.rememberBeforeSettings();
+    else if (this.page === 'settings' || this.page === 'help') this.settingsReturn = null;
     this.departed = null;
     this.pane = null;
     if (p === 'settings') return this.openSettings();
