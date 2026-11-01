@@ -127,7 +127,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
             if (new URL(route.request().frame().url()).searchParams.get('surface') === 'assistant') await sleep(800);
             await route.continue();
         });
-        page = await ctx.newPage(); page.setDefaultTimeout(60000);
+        page = await ctx.newPage(); page.setDefaultTimeout(20000);
         page.on('pageerror', e => errors.push(e.message));
         await page.goto(shellOrigin + '/shell/shell/index.html');
         const side = page.getByTestId('sidebar');
@@ -277,7 +277,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
 
         // A pasted address carries its route: no history is needed to go back, and a reload keeps it.
         const direct = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-        const lone = await direct.newPage(); lone.setDefaultTimeout(60000);
+        const lone = await direct.newPage(); lone.setDefaultTimeout(20000);
         lone.on('pageerror', e => errors.push(e.message));
         await lone.goto(ind + '/#token=' + token);
         await lone.waitForFunction(() => !location.hash.includes('token='));
