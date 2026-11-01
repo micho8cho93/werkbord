@@ -730,3 +730,8 @@ Three operations let Salie turn a planning conversation into structure in Work. 
 
 A failed or stopped task is shown as needing rework and the tasks after it as *Held* (`work-steps.ts`, derived, nothing stored). Their
 calendar times do not move; the Calendar marks them at risk. Running the failed task again and finishing it lets the held work go on.
+
+`schedule_task_run` sets, or with `cancel` removes, the time an agent starts on a task by itself. The person confirms the exact local time and
+zone; a time that has passed, a task no agent may work on, and a schedule that was already used are refused. The task's dependencies
+still have to be finished by then (the scheduler waits for them). It is the same schedule the task's Schedule sheet edits, not the
+planned dates of the Calendar.

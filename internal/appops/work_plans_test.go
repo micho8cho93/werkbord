@@ -162,3 +162,38 @@ func TestSalieChainsAnExistingPlan(t *testing.T) {
 		t.Fatal("offered to chain a plan that is already in order")
 	}
 }
+
+func TestSalieSchedulesAndCancelsAStart(t *testing.T) {
+	f := newFx(t)
+	project := f.repoProject("Delivery")
+	p := f.session("ast_schedule")
+	task := f.ticket(project.ID, "Nightly checks")
+	ask := map[string]any{"projectId": project.ID, "ticketId": task.ID, "startAt": "2999-11-02T09:00", "timezone": "Europe/Paris"}
+	if _, err := f.call(p, "schedule_task_run", map[string]any{"projectId": project.ID, "ticketId": task.ID, "startAt": "2001-01-01T09:00", "timezone": "UTC"}); err == nil {
+		t.Fatal("scheduled in the past")
+	}
+	if _, err := f.call(p, "schedule_task_run", map[string]any{"projectId": project.ID, "ticketId": task.ID, "startAt": "tomorrow"}); err == nil {
+		t.Fatal("accepted a time it cannot read")
+	}
+	pending := f.mustCall(p, "schedule_task_run", ask)
+	if !strings.Contains(pending.Pending.Summary, "09:00 (Europe/Paris)") {
+		t.Fatal(pending.Pending.Summary)
+	}
+	if got := f.tickets(project.ID)[0]; got.Orchestration.Enabled {
+		t.Fatal("scheduled before confirmation")
+	}
+	if _, err := f.confirm(p, pending.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	got := f.tickets(project.ID)[0]
+	if !got.Orchestration.Enabled || got.Orchestration.ScheduledAt == nil || got.Orchestration.ScheduledAt.UTC().Format("15:04") != "08:00" || got.Orchestration.Timezone != "Europe/Paris" {
+		t.Fatalf("%+v", got.Orchestration)
+	}
+	cancel := f.mustCall(p, "schedule_task_run", map[string]any{"projectId": project.ID, "ticketId": task.ID, "cancel": true})
+	if _, err := f.confirm(p, cancel.Pending.ActionID, true); err != nil {
+		t.Fatal(err)
+	}
+	if after := f.tickets(project.ID)[0]; after.Orchestration.Enabled || after.Orchestration.ScheduledAt != nil {
+		t.Fatalf("%+v", after.Orchestration)
+	}
+}

@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"werkbord/internal/domain"
 	"werkbord/internal/mcpplan"
 	"werkbord/internal/planning"
+	"werkbord/internal/service"
 )
 
 // The most a single import may hold: it is one confirmation the person reads, and one write.
@@ -52,7 +54,7 @@ type BatchResult struct {
 }
 
 func workBatchOps() []*operation {
-	return append(append(workStructureOps(), importOp()...), chainOps()...)
+	return append(append(workStructureOps(), importOp()...), append(chainOps(), scheduleOps()...)...)
 }
 
 func importOp() []*operation {
@@ -479,4 +481,127 @@ func runChain(ctx context.Context, e *env, a map[string]any) (any, error) {
 		return nil, err
 	}
 	return &Changed{Message: fmt.Sprintf("Put %d tasks of %q in order.", len(titles), found.Title)}, nil
+}
+
+func scheduleOps() []*operation {
+	return []*operation{{
+		Spec: Spec{Name: "schedule_task_run", Title: "Schedule an agent to start on a task", Kind: KindMutation, Permission: PermTicketsUpdate, RequiresConfirmation: true,
+			Description: "Set when a coding agent starts on a task by itself (or cancel that). The person confirms the exact time first. It starts nothing now, and the task's dependencies still have to be finished by then: the scheduler waits for them. Give the local time the person means, like 2026-11-02T09:00, and their time zone if you know it. Planned dates for the calendar are a different thing: use update_ticket for those.",
+			Input: Object(map[string]*Schema{
+				"projectId":       projectID,
+				"ticketId":        ticketID,
+				"startAt":         Str("Local date and time to start, like 2026-11-02T09:00. Leave out when cancelling.", 32),
+				"timezone":        Str("IANA time zone of that time, like Europe/Paris. Default: this computer's.", 64),
+				"cancel":          Bool("Remove the scheduled start instead."),
+				"expectedVersion": Int("The ticket's version you last read. Leave out to use the current one.", 1, 1<<30),
+			}, "projectId", "ticketId")},
+		AssistantOnly: true, plan: planSchedule, run: runSchedule,
+	}}
+}
+
+type scheduleAsk struct {
+	at     time.Time
+	zone   string
+	cancel bool
+}
+
+func parseScheduleAsk(a map[string]any, now time.Time) (scheduleAsk, error) {
+	if boolArg(a, "cancel") {
+		if str(a, "startAt") != "" {
+			return scheduleAsk{}, fmt.Errorf("%w: give a time or cancel, not both", domain.ErrInvalid)
+		}
+		return scheduleAsk{cancel: true}, nil
+	}
+	zone := strings.TrimSpace(str(a, "timezone"))
+	if zone == "" {
+		zone = time.Local.String()
+		if zone == "Local" {
+			zone = "UTC"
+		}
+	}
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return scheduleAsk{}, fmt.Errorf("%w: unknown time zone %q", domain.ErrInvalid, zone)
+	}
+	raw := strings.TrimSpace(str(a, "startAt"))
+	at, err := time.ParseInLocation("2006-01-02T15:04", raw, loc)
+	if err != nil {
+		return scheduleAsk{}, fmt.Errorf("%w: startAt must look like 2026-11-02T09:00", domain.ErrInvalid)
+	}
+	if !at.After(now) {
+		return scheduleAsk{}, fmt.Errorf("%w: %s has already passed; pick a later time", domain.ErrInvalid, raw)
+	}
+	return scheduleAsk{at: at.UTC(), zone: zone}, nil
+}
+
+func planSchedule(ctx context.Context, e *env, a map[string]any) (*plan, error) {
+	pid, tid := str(a, "projectId"), str(a, "ticketId")
+	project, err := e.b.Project(ctx, pid)
+	if err != nil {
+		return nil, err
+	}
+	t, err := e.b.Ticket(ctx, pid, tid)
+	if err != nil {
+		return nil, err
+	}
+	if t.ArchivedAt != nil {
+		return nil, fmt.Errorf("%w: this task is archived", domain.ErrConflict)
+	}
+	if v, ok := a["expectedVersion"].(float64); ok && int64(v) != t.Version {
+		return nil, fmt.Errorf("%w: task %s is at version %d, not %d: read it again first", domain.ErrConflict, t.ID, t.Version, int64(v))
+	}
+	ask, err := parseScheduleAsk(a, e.now)
+	if err != nil {
+		return nil, err
+	}
+	norm := map[string]any{"projectId": pid, "ticketId": tid, "expectedVersion": t.Version}
+	if ask.cancel {
+		if !t.Orchestration.Enabled {
+			return nil, fmt.Errorf("%w: %q has no scheduled start", domain.ErrConflict, clip(t.Title, 80))
+		}
+		norm["cancel"] = true
+		return &plan{Args: norm, Summary: fmt.Sprintf("Cancel the scheduled start of an agent on %q", clip(t.Title, 80))}, nil
+	}
+	if why := domain.AgentRefusal(project.Project, *t); why != "" {
+		return nil, fmt.Errorf("%w: %s, so an agent cannot be scheduled on it", domain.ErrInvalid, strings.ToLower(why[:1])+why[1:])
+	}
+	if t.Orchestration.RunID != "" || t.Orchestration.Missed {
+		return nil, fmt.Errorf("%w: this task's earlier schedule was already used; schedule a new run from the task in Werkbord", domain.ErrConflict)
+	}
+	loc, _ := time.LoadLocation(ask.zone)
+	norm["startAt"], norm["timezone"] = ask.at.In(loc).Format("2006-01-02T15:04"), ask.zone
+	deps := ""
+	if n := len(t.Orchestration.Dependencies); n > 0 {
+		deps = fmt.Sprintf(", once the %d %s it waits for %s finished", n, plural(n, "task", "tasks"), plural(n, "is", "are"))
+	}
+	return &plan{Args: norm, Summary: fmt.Sprintf("Start an agent on %q at %s (%s)%s", clip(t.Title, 80), ask.at.In(loc).Format("Mon 2 Jan 2006, 15:04"), ask.zone, deps)}, nil
+}
+
+func runSchedule(ctx context.Context, e *env, a map[string]any) (any, error) {
+	pid, tid := str(a, "projectId"), str(a, "ticketId")
+	t, err := e.b.Ticket(ctx, pid, tid)
+	if err != nil {
+		return nil, err
+	}
+	ask, err := parseScheduleAsk(a, e.now)
+	if err != nil {
+		return nil, err
+	}
+	o := t.Orchestration
+	if ask.cancel {
+		o.Enabled, o.ScheduledAt = false, nil
+	} else {
+		at := ask.at
+		o.Enabled, o.ScheduledAt, o.Timezone = true, &at, ask.zone
+	}
+	patch := service.TaskPatch{Orchestration: &o, Version: int64(a["expectedVersion"].(float64))}
+	updated, err := e.b.UpdateTicket(ctx, tid, patch)
+	if err != nil {
+		return nil, err
+	}
+	v := ticketView(*updated, listDescriptionChars)
+	if ask.cancel {
+		return &Changed{Message: fmt.Sprintf("Cancelled the scheduled start on %q.", clip(updated.Title, 80)), Ticket: &v}, nil
+	}
+	return &Changed{Message: fmt.Sprintf("Scheduled an agent to start on %q at %s (%s).", clip(updated.Title, 80), ask.at.Format(time.RFC3339), ask.zone), Ticket: &v}, nil
 }
