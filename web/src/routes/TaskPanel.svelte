@@ -873,7 +873,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   .focus[data-step='review'], .focus[data-step='done'] { border-left-color: var(--ok); }
   .focus .now, .focus .next { display: grid; gap: 4px; justify-items: start; min-width: 0; }
   .focus .next { justify-items: end; text-align: right; }
-  .focus .k, .related .k { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-2); }
+  .focus .k, .related .k { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-2); }
   .focus .line { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; }
   .focus .why { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.5; overflow-wrap: anywhere; }
   .blockers { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }

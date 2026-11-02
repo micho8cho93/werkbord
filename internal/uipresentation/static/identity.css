@@ -10,7 +10,7 @@
 .wb-agent[data-size='md'] { --wb-tile: 24px; --wb-box: 32px; }
 .wb-agent[data-size='lg'] { --wb-tile: 28px; --wb-box: 36px; }
 
-.wb-agent-tile { display: grid; place-items: center; width: var(--wb-tile); height: var(--wb-tile); border-radius: 50%; background: #fff; border: 1px solid var(--border); box-sizing: border-box; color: #202329; font-size: calc(var(--wb-tile) * 0.5); font-weight: 600; line-height: 1; overflow: hidden; }
+.wb-agent-tile { display: grid; place-items: center; width: var(--wb-tile); height: var(--wb-tile); border-radius: 50%; background: #fff; border: 1px solid var(--border); box-sizing: border-box; color: #202329; font-size: max(11.5px, calc(var(--wb-tile) * 0.5)); font-weight: 600; line-height: 1; overflow: hidden; }
 .wb-agent-tile svg { width: 62%; height: 62%; display: block; }
 .wb-agent-tile.letter { background: var(--surface-2); color: var(--text); }
 

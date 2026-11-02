@@ -147,6 +147,7 @@
 
   .msg[data-role='user'] time {
     justify-self: end;
+    color: var(--text);
   }
 
   .tool {

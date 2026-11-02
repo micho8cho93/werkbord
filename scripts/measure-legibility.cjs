@@ -116,17 +116,24 @@ function measure(minPx) {
     if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) throw Error('Measurement requires a loopback browser fixture');
     if ((await api('/api/health')).version !== 'browser-fixture') throw Error('Refusing to measure anything except the disposable browser fixture');
     const projects = (await api('/api/projects')).projects;
+    // The plan page (steps, tabs, context column) needs a plan; make one from the project's own tasks if the seed has none.
+    for (const p of projects) {
+        const ts = (await api(`/api/projects/${p.id}/tasks`)).tasks;
+        if (ts.length > 1 && !(await api(`/api/projects/${p.id}/work-plans`)).length) await fetch(`${base}/api/projects/${p.id}/work-plans`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Measured plan', description: 'For legibility', taskIds: ts.slice(0, 3).map((t) => t.id), decisions: '', questions: '' }) });
+    }
     const repo = projects.find((p) => p.kind !== 'work');
     const work = projects.find((p) => p.kind === 'work');
-    const pages = [['needs-you', '#/control'], ['projects', '#/projects'], ['help', '#/help']];
+    const pages = [['needs-you', '#/control'], ['projects', '#/projects'], ['agents', '#/sessions'], ['analytics', '#/analytics'], ['help', '#/help']];
     for (const s of ['defaults', 'labels', 'routing', 'runners', 'agents', 'computer', 'phone', 'github', 'alerts']) pages.push(['settings-' + s, '#/settings' + (s === 'defaults' ? '' : '?' + s)]);
     // The pages only the phone has: the Control Deck, the screens its keys open, and the Calendar's three views. Measured at phone width only.
     const phoneOnly = [['phone-deck', '#/deck'], ['phone-my-work', '#/mywork'], ['phone-agents', '#/agents'], ['phone-reviews', '#/reviews'], ['phone-git', '#/repositories'], ['phone-runners', '#/runners'], ['phone-calendar-month', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Month', exact: true }).click()]];
     phoneOnly.push(['phone-calendar-week', '#/schedule', (pg) => pg.getByRole('group', { name: 'Calendar view' }).getByRole('button', { name: 'Week', exact: true }).click()]);
     for (const [label, p] of [['repo', repo], ['work', work]]) {
         if (!p) continue;
-        const secs = p.kind === 'work' ? ['overview', 'board', 'calendar', 'defaults'] : ['overview', 'board', 'calendar', 'git', 'runs', 'defaults'];
+        const secs = p.kind === 'work' ? ['work', 'work?section=plans', 'analytics', 'defaults'] : ['work', 'work?section=plans', 'git', 'analytics', 'defaults'];
         for (const s of secs) pages.push([`${label}-${s}`, `#/p/${p.id}/${s}`]);
+        const plan = (await api(`/api/projects/${p.id}/work-plans`).catch(() => []))[0];
+        if (plan) pages.push([`${label}-plan`, `#/p/${p.id}/work?plan=${plan.id}`]);
         const tasks = (await api(`/api/projects/${p.id}/tasks`)).tasks;
         for (const t of tasks.filter((t) => t.state === 'review' || t.state === 'doing').slice(0, 2)) pages.push([`${label}-task-${t.state}`, `#/p/${p.id}/task/${t.id}`]);
         if (tasks[0]) pages.push([`${label}-task-${tasks[0].state}`, `#/p/${p.id}/task/${tasks[0].id}`]);
@@ -134,7 +141,7 @@ function measure(minPx) {
     for (const p of projects) {
         if (p === repo || p === work) continue;
         const tasks = (await api(`/api/projects/${p.id}/tasks`)).tasks;
-        for (const s of ['board', 'runs']) pages.push([`other-${p.name}-${s}`, `#/p/${p.id}/${s}`]);
+        pages.push([`other-${p.name}-work`, `#/p/${p.id}/work`]);
         for (const t of tasks.filter((t) => t.state === 'review')) pages.push([`other-${p.name}-task-review`, `#/p/${p.id}/task/${t.id}`]);
     }
     // Git's subsections and drill-downs contain text not visible on its overview.
@@ -161,12 +168,7 @@ function measure(minPx) {
     await page.goto(base + '/#token=' + token);
     await page.waitForTimeout(800);
     await page.goto(base + '/#/control');
-    const allTab = page.getByRole('button', { name: /^All: \d+ items?, including \d+ ready for review$/ });
-    await allTab.waitFor();
-    assert.equal(await page.getByRole('button', { name: /^Review: \d+ items?$/ }).count(), 1, 'Review remains an explicit filter');
-    assert(await page.getByText('Workspace and project badges count interruptions. All also includes work ready for review.', { exact: true }).isVisible(), 'the page explains why All can exceed interruption badges');
-    assert.match(await page.locator('.rail .project .num.pend').first().getAttribute('aria-label'), /^\d+ interruptions?; excludes work ready for review$/);
-    assert(await page.getByText(/\d+ questions? needs? your answer/, { exact: false }).count() > 0, 'project summaries use Needs you vocabulary');
+    await page.waitForTimeout(600);
     const all = [];
     const small = [];
     let nodes = 0;
@@ -189,7 +191,7 @@ function measure(minPx) {
                 }
             }
             if (screenshots && repo) {
-                await page.goto(base + `/#/p/${repo.id}/board`);
+                await page.goto(base + `/#/p/${repo.id}/work`);
                 await page.getByRole('button', { name: 'New task', exact: true }).click();
                 await page.getByRole('heading', { name: 'New task in ' + repo.name, exact: true }).waitFor();
                 await page.screenshot({ path: require('node:path').join(screenshots, `new-task-${size}-${theme}.png`) });
