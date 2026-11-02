@@ -9,6 +9,7 @@ import (
 	"werkbord/internal/planning"
 	"werkbord/internal/team/domain"
 	"werkbord/internal/team/store"
+	"werkbord/internal/workspace"
 )
 
 // The ticket workflow:
@@ -43,6 +44,10 @@ type Board struct {
 	// Active names the tickets in progress whose owner's agent is working on them right now. It is all the team sees of
 	// anyone's agent; what it does stays with its owner.
 	Active map[string]bool `json:"active"`
+	// Agents is what the team may know of each in-progress ticket's owner's agent: which agent (unless its owner withholds that), its
+	// state, when the server last heard, and whether that is current. Read only; it grants no control and carries no run, prompt,
+	// path or usage. Active is derived from it.
+	Agents map[string]workspace.AgentRef `json:"agents"`
 }
 
 type statusColumn struct {
@@ -87,9 +92,10 @@ func (s *Service) Board(ctx context.Context, a Actor, projectID string) (Board, 
 		if b.Labels, err = tx.Labels(ctx, a.Workspace.ID); err != nil {
 			return err
 		}
-		if b.Active, err = s.activeAgents(ctx, tx, a, x, b.Tickets); err != nil {
+		if b.Agents, err = s.peerExecutions(ctx, tx, a, x.Project, b.Tickets); err != nil {
 			return err
 		}
+		b.Active = activeFrom(b.Agents)
 		b.People, err = people(ctx, tx, a.Workspace.ID, projectID)
 		return err
 	})

@@ -60,6 +60,8 @@ type Settings struct {
 	// SyncOff are the Team projects whose held tickets are not copied into the person's own Werkbord. Every other
 	// project is, once the person connects their runner.
 	SyncOff []string `json:"syncOff,omitempty"`
+	// WithholdAgent: do not tell the team which coding agent runs the person's work. Peers then see a neutral mark and the true state.
+	WithholdAgent bool `json:"withholdAgent,omitempty"`
 }
 
 // MaxSyncOff bounds the projects a computer can opt out of synchronizing.

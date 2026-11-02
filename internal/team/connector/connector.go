@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"werkbord/internal/integration"
@@ -73,6 +74,10 @@ type Connector struct {
 	// Status is where each held ticket of an enabled project stood after the last Tick that could read the workspace,
 	// keyed project:ticket.
 	Status map[string]TicketSync
+	// WithholdAgent: the member has chosen not to tell their team which agent they use. Peers then see a neutral mark with a true state.
+	WithholdAgent bool
+	// Caps is what the host is known to accept; share one across Ticks.
+	Caps *HostCaps
 }
 
 func (c *Connector) now() time.Time {
@@ -420,7 +425,7 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 				return errors.New("invalid or out-of-order controller event")
 			}
 			lastSeq = e.Seq
-			observations = append(observations, domain.Progress{Execution: reportable(*e.Execution), GitUnavailable: true})
+			observations = append(observations, domain.Progress{Execution: reportable(*e.Execution, c.WithholdAgent), GitUnavailable: true})
 			if len(observations) == 128 {
 				feed.Cursor = e.Seq
 				break
@@ -435,7 +440,7 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 		feed.Cursor = snap.Cursor
 	}
 	if feed.Reset || feed.Cursor >= snap.Cursor && lastSeq <= snap.Cursor {
-		o := domain.Progress{Execution: reportable(snap.Execution), Git: snap.Git, GitUnavailable: snap.GitUnavailable}
+		o := domain.Progress{Execution: reportable(snap.Execution, c.WithholdAgent), Git: snap.Git, GitUnavailable: snap.GitUnavailable}
 		b, _ := json.Marshal(o)
 		if string(b) != a.LastObservation || c.now().Sub(a.LastSnapshotAt) >= time.Minute {
 			observations = append(observations, o)
@@ -456,16 +461,59 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 	return nil
 }
 
-// reportable is the execution a Workspace Host of any age accepts: the controller names the agent and reports "starting", but a host
-// built before those existed refuses an unknown field or state with a 400, and the connector would then retry for ever and stop all
-// progress reporting. Until hosts are known to accept them (agent visibility, phase 4b), neither leaves the machine.
-func reportable(e integration.Execution) integration.Execution {
-	e.AgentID = ""
-	if e.State == "starting" {
-		e.State = "queued"
+// reportable is the execution as it leaves the machine. The controller names the agent and reports "starting"; a member who has
+// chosen not to share which agent they use (withhold) sends neither the name. What a host that predates the fields makes of the
+// rest is dealt with at delivery, where it can be learned (see deliver).
+func reportable(e integration.Execution, withhold bool) integration.Execution {
+	if withhold {
+		e.AgentID = ""
 	}
 	return e
 }
+
+// legacyShape is the execution a Workspace Host of any age accepts: no agent, and "starting" as "queued". A host built before agent
+// visibility refuses an unknown field or state with a 400, and a connector that kept retrying that would stop all progress reporting.
+func legacyShape(p domain.Progress) domain.Progress {
+	p.Execution.AgentID = ""
+	if p.Execution.State == "starting" {
+		p.Execution.State = "queued"
+	}
+	return p
+}
+
+func newShape(p domain.Progress) bool {
+	return p.Execution.AgentID != "" || p.Execution.State == "starting"
+}
+
+// legacyRecheck is how long a host that refused the newer shape is spoken to in the older one before the newer is tried again, so an
+// upgraded host is noticed without every report paying for a refusal.
+const legacyRecheck = 15 * time.Minute
+
+// HostCaps remembers what the Workspace Host has been found not to accept. It outlives a single Tick, so share one between them.
+type HostCaps struct {
+	mu       sync.Mutex
+	legacyAt time.Time
+}
+
+func (h *HostCaps) legacy(now time.Time) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return !h.legacyAt.IsZero() && now.Sub(h.legacyAt) < legacyRecheck
+}
+
+func (h *HostCaps) markLegacy(now time.Time) {
+	h.mu.Lock()
+	h.legacyAt = now
+	h.mu.Unlock()
+}
+
+func (c *Connector) caps() *HostCaps {
+	if c.Caps == nil {
+		c.Caps = &HostCaps{}
+	}
+	return c.Caps
+}
+
 func (c *Connector) deliver(ctx context.Context, a *devicestate.Association) error {
 	ps, err := c.Journal.Pending(ctx, a.Key(), c.now())
 	if err != nil {
@@ -474,7 +522,16 @@ func (c *Connector) deliver(ctx context.Context, a *devicestate.Association) err
 	for _, p := range ps {
 		var ack domain.ProgressAck
 		path := "/projects/" + a.TeamProjectID + "/tickets/" + a.TicketID + "/progress"
-		err := c.Host.Do(ctx, "PUT", path, p.Progress, &ack)
+		body := p.Progress
+		if c.caps().legacy(c.now()) {
+			body = legacyShape(body)
+		}
+		err := c.Host.Do(ctx, "PUT", path, body, &ack)
+		if err != nil && hostclient.IsStatus(err, 400) && newShape(body) {
+			// Possibly a host from before agent visibility: say it again in the older words, and remember.
+			c.caps().markLegacy(c.now())
+			err = c.Host.Do(ctx, "PUT", path, legacyShape(body), &ack)
+		}
 		if err != nil {
 			if hostclient.IsStatus(err, 401) || hostclient.IsStatus(err, 403) || hostclient.IsStatus(err, 404) || hostclient.IsStatus(err, 409) {
 				return c.Journal.Suspend(ctx, a, "workspace refused progress; reconcile authority and review association")

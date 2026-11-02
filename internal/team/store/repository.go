@@ -54,6 +54,7 @@ type Tx interface {
 	Progress(context.Context, string, string, string, string) (domain.ProgressRecord, error)
 	SaveProgress(context.Context, string, string, string, domain.ProgressRecord) error
 	TicketProgress(context.Context, string, string, string) ([]domain.ProgressRecord, error)
+	ProjectProgress(context.Context, string, string) (map[string][]domain.ProgressRecord, error)
 	SecurityQueries
 	PlanningQueries
 	WorkspaceQueries

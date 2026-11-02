@@ -48,3 +48,25 @@ func (t *sqlTx) TicketProgress(ctx context.Context, w, p, k string) ([]domain.Pr
 	}
 	return out, rows.Err()
 }
+
+// ProjectProgress is every execution report on a project's tickets, by ticket, in one read.
+func (t *sqlTx) ProjectProgress(ctx context.Context, w, p string) (map[string][]domain.ProgressRecord, error) {
+	rows, err := t.q.QueryContext(ctx, `SELECT ticket_id, document FROM ticket_progress WHERE workspace_id=? AND project_id=? ORDER BY ticket_id, device_id`, w, p)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]domain.ProgressRecord{}
+	for rows.Next() {
+		var ticket, raw string
+		if err := rows.Scan(&ticket, &raw); err != nil {
+			return nil, err
+		}
+		var r domain.ProgressRecord
+		if err := json.Unmarshal([]byte(raw), &r); err != nil {
+			return nil, err
+		}
+		out[ticket] = append(out[ticket], r)
+	}
+	return out, rows.Err()
+}

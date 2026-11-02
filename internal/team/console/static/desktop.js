@@ -343,15 +343,18 @@ async function settingsView() {
   const form = h('select', { name: 'computer-kind' }, [['', 'Choose…'], ['desktop', 'Desktop / Mac mini'], ['laptop', 'Laptop'], ['server', 'Server / NAS']].map(([value, label]) => h('option', { value, selected: s.form === value || (!s.form && !value) }, label)));
   const policy = h('select', { name: 'remote-policy' }, [['ask', 'Ask each time'], ['off', 'Off'], ['auto', 'Allow from trusted devices']].map(([value, label]) => h('option', { value, selected: s.remoteStart === value }, label)));
   const open = h('input', { name: 'remote-open', type: 'checkbox', checked: s.remoteOpen });
+  const shareAgent = h('input', { name: 'share-agent', type: 'checkbox', checked: !s.withholdAgent });
   const sleeps = h('input', { name: 'computer-sleeps', type: 'checkbox', checked: s.sleeps || s.form === 'laptop' });
   const hostOffer = h('input', { name: 'offer-workspace-host', type: 'checkbox', checked: s.offerWorkspaceHost });
   const connectivityOffer = h('input', { name: 'offer-connectivity-host', type: 'checkbox', checked: s.offerConnectivityHost });
   const plan = await deviceApi('GET', '/removal');
-  return h('div', { class: 'computer-settings-grid' }, runnerSetup(), syncPanel(), !only ? await memorySharingPanel() : '', !only ? await phoneSettings() : '', h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), !HOSTED ? themeButton() : '', !HOSTED ? styleChoice() : '', h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked })); } },
+  return h('div', { class: 'computer-settings-grid' }, runnerSetup(), syncPanel(), !only ? await memorySharingPanel() : '', !only ? await phoneSettings() : '', h('section', { class: 'panel' }, h('h2', {}, 'Computer settings'), !HOSTED ? themeButton() : '', !HOSTED ? styleChoice() : '', h('form', { class: 'device-settings', onsubmit: e => { e.preventDefault(); act(() => deviceApi('PUT', '/settings', { ...s, form: form.value, sleeps: sleeps.checked, offerWorkspaceHost: hostOffer.checked, offerConnectivityHost: connectivityOffer.checked, remoteStart: policy.value, remoteOpen: open.checked, withholdAgent: !shareAgent.checked })); } },
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Computer'), field('Type', form), field('Sleeps automatically', sleeps)),
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Hosting'), field('Workspace Host', hostOffer), field('Connectivity Host', connectivityOffer),
       h('p', { class: 'muted' }, 'Hosting starts after administrator approval; sleep pauses this computer’s work.'),
       h('details', {}, h('summary', {}, 'Details'), h('p', { class: 'muted' }, 'Workspace Hosts keep Team available. Connectivity Hosts enable remote access. Three Workspace Hosts allow Team to keep working if one goes offline.'))),
+    h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Your team’s view'), field('Show teammates which coding agent runs my work', shareAgent),
+      h('p', { class: 'muted' }, 'Teammates can see that your agent is running, never what it is doing. Turn this off to show a neutral mark instead of the agent’s name.')),
     h('fieldset', { class: 'setting-group' }, h('legend', {}, 'Trusted devices'), field('Remote starts', policy), field('Allow trusted devices to open tickets here', open),
       h('p', { class: 'muted' }, 'Compare device identities before granting trust.'),
       h('details', {}, h('summary', {}, 'Details'), h('p', { class: 'muted' }, 'A trusted device can ask this computer to open tickets on its runner. Starting work still follows this computer’s local approvals.')),

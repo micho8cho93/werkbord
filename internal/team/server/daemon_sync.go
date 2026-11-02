@@ -49,7 +49,7 @@ func (d *Daemon) synchronize(ctx context.Context, host *hostclient.Client, bridg
 	for _, id := range d.state.Settings().SyncOff {
 		off[id] = true
 	}
-	c := &connector.Connector{WorkspaceID: mat.Meta.WorkspaceID, MemberID: member, DeviceID: mat.Host.DeviceID(), Host: host, Local: bridge, Journal: j, All: true, Off: off}
+	c := &connector.Connector{WorkspaceID: mat.Meta.WorkspaceID, MemberID: member, DeviceID: mat.Host.DeviceID(), Host: host, Local: bridge, Journal: j, All: true, Off: off, WithholdAgent: d.state.Settings().WithholdAgent, Caps: &d.caps}
 	err := c.Tick(ctx)
 	v := syncView{Active: true, Tickets: []connector.TicketSync{}, At: time.Now()}
 	for _, st := range c.Status {

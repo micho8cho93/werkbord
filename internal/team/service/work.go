@@ -524,6 +524,10 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 					return err
 				}
 				if v.role[p.ID].Can(domain.PPTicketsView) {
+					agents, err := s.peerExecutions(ctx, tx, a, p, tickets)
+					if err != nil {
+						return err
+					}
 					byTicket := map[string]domain.Ticket{}
 					for _, k := range tickets {
 						if k.ArchivedAt == nil {
@@ -557,7 +561,7 @@ func (s *Service) Overview(ctx context.Context, a Actor) (Overview, error) {
 							if k.Status == domain.TicketDone {
 								group = "done"
 							}
-							out.Queue = append(out.Queue, workspace.QueueItem{ID: k.ID, Title: k.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID, Group: group, Detail: detail, Owner: v.who(k.AssigneeID), Mine: k.AssigneeID != "" && k.AssigneeID == a.Member.ID})
+							out.Queue = append(out.Queue, workspace.QueueItem{ID: k.ID, Title: k.Title, Project: p.Name, Href: "?tab=work&project=" + p.ID + "&ticket=" + k.ID, Group: group, Detail: detail, Owner: v.who(k.AssigneeID), Mine: k.AssigneeID != "" && k.AssigneeID == a.Member.ID, Agent: agentRef(agents, k.ID)})
 						}
 						byTicket[k.ID] = k
 						if k.Status == domain.TicketAvailable && k.AssigneeID == "" && k.ArchivedAt == nil {
@@ -758,3 +762,11 @@ func (s *Service) workspaceSyncNow(ctx context.Context, a Actor, since, after in
 }
 
 func workspaceKey(workspaceID string) string { return "ws:" + workspaceID }
+
+// agentRef is the agent reference for a ticket, or none.
+func agentRef(agents map[string]workspace.AgentRef, id string) *workspace.AgentRef {
+	if r, ok := agents[id]; ok {
+		return &r
+	}
+	return nil
+}

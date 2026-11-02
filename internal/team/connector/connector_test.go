@@ -206,23 +206,22 @@ func TestTickImportsMatchedTicketsAndReportsTheOnesWaitingForARepository(t *test
 	}
 }
 
-// The controller names the agent and reports "starting", but a Workspace Host built before that refuses what it does not know and
-// the connector would retry for ever. Until 4b, neither leaves the machine.
-func TestConnectorWithholdsAgentAndStartingFromEveryHost(t *testing.T) {
+func observed(t *testing.T, c Connector) (devicestate.Association, *devicestate.SyncJournal, []devicestate.PendingProgress) {
+	t.Helper()
 	ctx := context.Background()
 	j, err := devicestate.OpenSyncJournal(ctx, filepath.Join(t.TempDir(), "sync.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer j.Close()
+	t.Cleanup(func() { j.Close() })
 	a := devicestate.Association{WorkspaceID: "w", TeamProjectID: "p", TicketID: "t", MemberID: "m", DeviceID: "d", TaskID: "local", LocalProjectID: "project", Cursor: 5}
 	if err := j.Save(ctx, a); err != nil {
 		t.Fatal(err)
 	}
 	starting := integration.Execution{State: "starting", AgentID: "codex"}
 	running := integration.Execution{State: "running", AgentID: "claude-code", RunnerOnline: true}
-	l := &localStub{snapshot: integration.Snapshot{Schema: integration.Schema, Cursor: 7, Execution: running}, feed: integration.Feed{Schema: integration.Schema, Cursor: 7, Events: []integration.Event{{Seq: 6, Execution: &starting}}}}
-	c := Connector{Local: l, Journal: j}
+	c.Local = &localStub{snapshot: integration.Snapshot{Schema: integration.Schema, Cursor: 7, Execution: running}, feed: integration.Feed{Schema: integration.Schema, Cursor: 7, Events: []integration.Event{{Seq: 6, Execution: &starting}}}}
+	c.Journal = j
 	if err := c.observe(ctx, &a); err != nil {
 		t.Fatal(err)
 	}
@@ -230,12 +229,64 @@ func TestConnectorWithholdsAgentAndStartingFromEveryHost(t *testing.T) {
 	if len(pending) != 2 {
 		t.Fatalf("%d observations", len(pending))
 	}
+	return a, j, pending
+}
+
+// The connector reports which agent a run is, and "starting", unless its member chose not to share the agent.
+func TestConnectorReportsTheAgentAndStartingUnlessTheMemberWithholdsIt(t *testing.T) {
+	_, _, pending := observed(t, Connector{})
+	if e := pending[0].Progress.Execution; e.State != "starting" || e.AgentID != "codex" {
+		t.Fatalf("%+v", e)
+	}
+	if e := pending[1].Progress.Execution; e.State != "running" || e.AgentID != "claude-code" {
+		t.Fatalf("%+v", e)
+	}
+	_, _, pending = observed(t, Connector{WithholdAgent: true})
 	for _, p := range pending {
-		if p.Progress.Execution.AgentID != "" || p.Progress.Execution.State == "starting" {
-			t.Fatalf("a host of any age must see the old shape: %+v", p.Progress.Execution)
+		if p.Progress.Execution.AgentID != "" {
+			t.Fatalf("a withheld agent left the machine: %+v", p.Progress.Execution)
 		}
 	}
-	if pending[0].Progress.Execution.State != "queued" || pending[1].Progress.Execution.State != "running" {
-		t.Fatalf("%+v %+v", pending[0].Progress.Execution, pending[1].Progress.Execution)
+	if pending[0].Progress.Execution.State != "starting" {
+		t.Fatal("withholding the agent must not hide the state")
+	}
+}
+
+// refusingHost is a Workspace Host from before agent visibility: its strict decoder refuses an agent or "starting" with a 400.
+type refusingHost struct {
+	workspaceStub
+	bodies []domain.Progress
+}
+
+func (h *refusingHost) Do(_ context.Context, method, path string, in any, out any) error {
+	p := in.(domain.Progress)
+	h.bodies = append(h.bodies, p)
+	if p.Execution.AgentID != "" || p.Execution.State == "starting" {
+		return &hostclient.Error{Status: 400, Message: "unknown field"}
+	}
+	*(out.(*domain.ProgressAck)) = domain.ProgressAck{Sequence: p.Sequence, Applied: true}
+	return nil
+}
+
+// A host that refuses the new shape is told the old one, once, and is remembered, so reporting never stops.
+func TestAnOlderHostIsToldTheOldShapeAndRememberedUntilItIsRecheckedLater(t *testing.T) {
+	now := time.Now()
+	h := &refusingHost{}
+	caps := &HostCaps{}
+	c := Connector{Host: h, Caps: caps, Now: func() time.Time { return now }}
+	a, j, _ := observed(t, c)
+	c.Journal = j
+	if err := c.deliver(context.Background(), &a); err != nil {
+		t.Fatalf("an older host stopped progress: %v", err)
+	}
+	last := h.bodies[len(h.bodies)-1]
+	if last.Execution.AgentID != "" || last.Execution.State == "starting" {
+		t.Fatalf("the older host was sent the new shape: %+v", last.Execution)
+	}
+	if !caps.legacy(now) {
+		t.Fatal("the refusal was not remembered")
+	}
+	if caps.legacy(now.Add(legacyRecheck + time.Second)) {
+		t.Fatal("an upgraded host would never be noticed")
 	}
 }

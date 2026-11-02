@@ -12,6 +12,7 @@ import (
 	"werkbord/internal/planning"
 	"werkbord/internal/team/domain"
 	"werkbord/internal/team/store"
+	"werkbord/internal/workspace"
 )
 
 // ReportProgress stores execution observations independently of board/review
@@ -185,28 +186,119 @@ func (s *Service) currentProgress(ctx context.Context, tx store.Tx, a Actor, x a
 	return out, nil
 }
 
-// activeAgents says which of a project's tickets have an owner whose agent is working on them right now: one yes-or-no per
-// ticket, and nothing more. It is what everyone on the project may see of someone else's agent. A report that is overdue, or
-// from before the ticket was last claimed, says nothing about now.
-func (s *Service) activeAgents(ctx context.Context, tx store.Tx, a Actor, x access, tickets []domain.Ticket) (map[string]bool, error) {
-	out := map[string]bool{}
+// ExecutionOf puts a reported execution state in the shell's words. It is the one translation, so a summary and a board never
+// disagree about what a state means. A state it does not know is no state.
+func ExecutionOf(state string) workspace.Execution {
+	switch state {
+	case "queued", "pending":
+		return workspace.ExecQueued
+	case "starting":
+		return workspace.ExecStarting
+	case "running":
+		return workspace.ExecRunning
+	case "needs_input", "waiting_for_user":
+		// A report intentionally carries no question text or waiting kind.
+		return workspace.ExecWaiting
+	case "blocked":
+		return workspace.ExecBlocked
+	case "completed", "succeeded":
+		return workspace.ExecCompleted
+	case "failed":
+		return workspace.ExecFailed
+	case "stopped", "canceled":
+		return workspace.ExecCanceled
+	}
+	return workspace.ExecNone
+}
+
+// peerExecutions says, for each of a project's in-progress tickets that has an owner with an agent run reported, which agent it is
+// and what state it is in. It is all anyone else on the project may see of someone's agent: the agent's id (which the owner may
+// withhold), a state, when the server heard it, and whether that is current. No run, branch, path, prompt, question or usage.
+//
+// A report counts only if it belongs to the ticket's present claim, from a device that is still the owner's, from someone who is
+// still on the project. The newest such report wins, so a switch of agent replaces the old one, and an old replay cannot bring it
+// back (the host keeps one row per device and only a higher sequence replaces it). Fresh is the server's own word, on its own clock:
+// the report is no older than DeviceOnlineWindow and says the owner's runner was online. An overdue or runner-offline report is
+// not fresh, and nothing here ever turns it into "done" or "offline".
+//
+// One read per project, not one per ticket; device and membership checks are remembered across the tickets.
+func (s *Service) peerExecutions(ctx context.Context, tx store.Tx, a Actor, p domain.Project, tickets []domain.Ticket) (map[string]workspace.AgentRef, error) {
+	out := map[string]workspace.AgentRef{}
+	if p.Archived {
+		return out, nil
+	}
+	want := false
 	for _, k := range tickets {
-		if k.Status != domain.TicketInProgress || k.AssigneeID == "" || k.ArchivedAt != nil {
+		if k.Status == domain.TicketInProgress && k.AssigneeID != "" && k.ArchivedAt == nil {
+			want = true
+			break
+		}
+	}
+	if !want {
+		return out, nil
+	}
+	all, err := tx.ProjectProgress(ctx, a.Workspace.ID, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	now := s.stamp()
+	devices, members := map[string]bool{}, map[string]bool{}
+	for _, k := range tickets {
+		if k.Status != domain.TicketInProgress || k.AssigneeID == "" || k.ArchivedAt != nil || !k.Claimed() || k.ClaimedAt == nil {
 			continue
 		}
-		rs, err := tx.TicketProgress(ctx, a.Workspace.ID, k.ProjectID, k.ID)
-		if err != nil {
-			return nil, err
-		}
-		live, err := s.currentProgress(ctx, tx, a, x, k, rs)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range live {
-			if !r.Stale && r.Execution.RunID != "" && (r.Execution.State == "queued" || r.Execution.State == "starting" || r.Execution.State == "running" || r.Execution.State == "needs_input") {
-				out[k.ID] = true
+		var best *domain.ProgressRecord
+		for i := range all[k.ID] {
+			r := &all[k.ID][i]
+			if r.Assignment != k.Assignment || r.MemberID != k.AssigneeID || !k.ClaimedAt.Equal(r.ClaimAt) || r.Execution.RunID == "" || ExecutionOf(r.Execution.State) == workspace.ExecNone {
+				continue
 			}
+			ok, seen := devices[r.DeviceID]
+			if !seen {
+				d, err := tx.Device(ctx, a.Workspace.ID, r.DeviceID)
+				ok = err == nil && !d.Revoked() && d.MemberID == r.MemberID
+				devices[r.DeviceID] = ok
+			}
+			if !ok {
+				continue
+			}
+			member, seen := members[r.MemberID]
+			if !seen {
+				var err error
+				if member, err = tx.IsProjectMember(ctx, a.Workspace.ID, p.ID, r.MemberID); err != nil {
+					return nil, err
+				}
+				members[r.MemberID] = member
+			}
+			if !member {
+				continue
+			}
+			if best == nil || r.ReportedAt.After(best.ReportedAt) || r.ReportedAt.Equal(best.ReportedAt) && r.Sequence > best.Sequence {
+				best = r
+			}
+		}
+		if best != nil {
+			out[k.ID] = workspace.AgentRef{ID: best.Execution.AgentID, State: ExecutionOf(best.Execution.State), ObservedAt: best.ReportedAt,
+				Fresh: now.Sub(best.ReportedAt) <= domain.DeviceOnlineWindow && best.Execution.RunnerOnline}
 		}
 	}
 	return out, nil
+}
+
+// activeFrom is the older yes-or-no, derived from the same projection so the two cannot disagree: the owner's agent has work in
+// hand (queued, starting, running or waiting for them) and the report is fresh.
+func activeFrom(agents map[string]workspace.AgentRef) map[string]bool {
+	out := map[string]bool{}
+	for id, r := range agents {
+		switch r.State {
+		case workspace.ExecQueued, workspace.ExecStarting, workspace.ExecRunning, workspace.ExecWaiting:
+			out[id] = r.Fresh
+		}
+	}
+	for id, on := range out {
+		if !on {
+			delete(out, id)
+		}
+	}
+	return out
 }

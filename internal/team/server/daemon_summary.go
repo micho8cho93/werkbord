@@ -87,26 +87,19 @@ func executionOf(p *domain.ProgressRecord) workspace.Execution {
 	if p == nil {
 		return workspace.ExecNone
 	}
-	switch p.Execution.State {
-	case "queued", "pending":
-		return workspace.ExecQueued
-	case "starting":
-		return workspace.ExecStarting
-	case "running":
-		return workspace.ExecRunning
-	case "needs_input", "waiting_for_user":
-		// This report intentionally carries no question text or waiting kind.
-		return workspace.ExecWaiting
-	case "blocked":
-		return workspace.ExecBlocked
-	case "completed", "succeeded":
-		return workspace.ExecCompleted
-	case "failed":
-		return workspace.ExecFailed
-	case "stopped", "canceled":
-		return workspace.ExecCanceled
+	return service.ExecutionOf(p.Execution.State)
+}
+
+// agentOf is the viewer's own agent on a ticket they hold, from their own report. Fresh follows the same rule peers are given.
+func agentOf(p *domain.ProgressRecord, now time.Time) *workspace.AgentRef {
+	if p == nil || p.Execution.RunID == "" || p.ReportedAt.IsZero() {
+		return nil
 	}
-	return workspace.ExecNone
+	st := service.ExecutionOf(p.Execution.State)
+	if st == workspace.ExecNone {
+		return nil
+	}
+	return &workspace.AgentRef{ID: p.Execution.AgentID, State: st, ObservedAt: p.ReportedAt, Fresh: !p.Stale && now.Sub(p.ReportedAt) <= domain.DeviceOnlineWindow && p.Execution.RunnerOnline}
 }
 
 func executionReportOf(p *domain.ProgressRecord) *workspace.ExecutionReport {
@@ -176,7 +169,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				seen[k.ID] = true
 				titles[k.ID] = k.Key + " " + k.Title
 				out.Work = append(out.Work, workspace.Item{ID: k.ID, Title: k.Key + " " + k.Title, Project: w.Project.Name, Status: statusOf(k.Status),
-					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), Report: executionReportOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt})
+					Href: ticketHref(k.ProjectID, k.ID), Execution: executionOf(in.Progress[k.ID]), Report: executionReportOf(in.Progress[k.ID]), UpdatedAt: k.UpdatedAt, Agent: agentOf(in.Progress[k.ID], in.Now)})
 			}
 		}
 		add(in.MyWork.Ready)

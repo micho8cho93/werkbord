@@ -18,6 +18,9 @@ type runner struct {
 	k     domain.Ticket
 	seq   int64
 	clock *time.Time
+	// agent is what reports name as the agent; offline makes them say the runner is not online.
+	agent   string
+	offline bool
 }
 
 func (tm *team) runnerFor(a Actor, k domain.Ticket, name string) *runner {
@@ -41,7 +44,7 @@ func (r *runner) report(run int, state string) error {
 	r.tm.t.Helper()
 	r.seq++
 	started := r.k.ClaimedAt.Add(time.Second)
-	e := integration.Execution{RunID: "run_" + string(rune('a'+run)), State: state, StartedAt: &started, RunnerOnline: true}
+	e := integration.Execution{RunID: "run_" + string(rune('a'+run)), State: state, AgentID: r.agent, StartedAt: &started, RunnerOnline: !r.offline}
 	if state == "completed" || state == "failed" || state == "canceled" {
 		done := started.Add(time.Minute)
 		e.CompletedAt, e.Outcome = &done, state

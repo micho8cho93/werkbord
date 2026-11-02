@@ -22,6 +22,7 @@ import (
 	"werkbord/internal/envelope"
 	"werkbord/internal/httpkit"
 	"werkbord/internal/team/config"
+	"werkbord/internal/team/connector"
 	"werkbord/internal/team/console"
 	"werkbord/internal/team/devicestate"
 	"werkbord/internal/team/domain"
@@ -71,6 +72,7 @@ type Daemon struct {
 	bridge          *localwerkbord.Client
 	handler         *runnerlink.Handler
 	journal         *devicestate.SyncJournal
+	caps            connector.HostCaps
 	sync            syncView
 	lastSync        time.Time
 	lastRunnerCheck time.Time
