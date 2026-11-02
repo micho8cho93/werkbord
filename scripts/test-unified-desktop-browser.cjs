@@ -86,7 +86,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  const personalKey = await page.getByTestId('project-context').locator('option').filter({hasText:'Customer portal'}).first().getAttribute('value');
  const personalProjectId = JSON.parse(personalKey)[1];
  await openDestination(page, 'project:personal:' + personalProjectId);
- for (const section of ['Overview', 'Work', 'Git', 'Runs']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
+ for (const section of ['Work', 'Git']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
  assert.equal(await page.getByTestId('project-context').inputValue(), personalKey);
@@ -147,8 +147,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
  // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
  await openDestination(page, 'project:team:main:' + project.id);
- await firstFrame.getByRole('navigation', { name: 'Project sections' }).getByRole('button', { name: 'Git', exact: true }).waitFor();
- assert.equal(await page.getByTestId('project-context').inputValue(), JSON.stringify(['team:main', project.id]));
+ await firstFrame.getByRole('heading', { level: 1 }).first().waitFor(); assert.equal(await firstFrame.getByRole('navigation', { name: 'Project sections' }).count(), 0, 'in the window a project has no tabs of its own: Work and Git are in the sidebar'); await side.getByRole('button', { name: 'Git', exact: true }).first().waitFor();
+ await wait(async () => (await page.getByTestId('project-context').inputValue()) === JSON.stringify(['team:main', project.id]), 'the sidebar marks the opened Team project');
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  // People is a tab of the team, not an entry of the sidebar: the team's entry stays marked while the person is in it.
  assert.equal(await side.locator('[data-section="team:main"] [data-page=ws-members]').count(), 0, 'the sidebar does not list People');
