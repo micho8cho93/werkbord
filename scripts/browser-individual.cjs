@@ -442,7 +442,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('tab', { name: /^Chat/ }).click();
         await page.getByRole('textbox', {name:'Message to the agent',exact:true}).waitFor();
         await api('POST', `/api/projects/${p.id}/runs/${localRun.id}/input`, { text:'commit' });
-        await page.locator('.panel').getByText('Committed fixture work', {exact:true}).waitFor();
+        await page.getByLabel('Chat').getByText('Committed fixture work', {exact:true}).waitFor();
         await page.getByRole('button', {name:'Finish run',exact:true}).waitFor();
         await page.getByRole('button', {name:'Finish run',exact:true}).click();
         let finishedRun = false;
