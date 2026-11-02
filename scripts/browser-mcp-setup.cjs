@@ -16,7 +16,13 @@ assert(base, 'Requires a disposable fixture');
     await page.goto(base + '/#token=' + token);
     await page.getByRole('link', { name: 'Settings', exact: true }).waitFor();
     await page.goto(base + '/#/settings?mcp');
-    await page.getByText('Have an MCP configuration? Paste it here').click();
+    // Signing in with the token can reset the address on a slow machine; if it did, take the same route a person would.
+    const paste = page.getByText('Have an MCP configuration? Paste it here');
+    await paste.waitFor({ timeout: 5000 }).catch(async () => {
+      await page.getByRole('link', { name: 'Settings', exact: true }).click();
+      await page.getByRole('link', { name: 'MCP services', exact: true }).click();
+    });
+    await paste.click();
     await page.getByRole('textbox', { name: 'MCP configuration', exact: true }).fill(JSON.stringify({ mcpServers: { 'Fixture service': { url: base + '/mcp' } } }));
     await page.getByRole('button', { name: 'Fill in connection', exact: true }).click();
     assert.equal(await page.getByRole('textbox', { name: 'Name', exact: true }).inputValue(), 'Fixture service');
@@ -66,5 +72,9 @@ assert(base, 'Requires a disposable fixture');
     await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, 'mcp-help-phone.png') });
     assert.deepEqual(errors, []);
     console.log('PASS MCP setup: import, generated HTTP authentication, stdio settings, credential hiding and phone Help');
+  } catch (err) {
+    await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR || '/tmp', 'mcp-setup-failure.png') }).catch(() => {});
+    console.error('page address at failure:', page.url());
+    throw err;
   } finally { await browser.close(); }
 })().catch(err => { console.error(err); process.exitCode = 1; });
