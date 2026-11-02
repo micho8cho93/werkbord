@@ -78,7 +78,13 @@ the existing scheduler loop, so the unique `(task_id, schedule_key)` claim keeps
   current task, Resume.
 - A step finishing moves its task to Review; the next step waits for the run before it to *complete*, not for approval.
 - The run state lives in the plan document (`run`), writable only by this service; a plan edit keeps it.
-- Team plans have no such control: Team never executes. Each member starts their own ticket from its Agent controls.
+- A plan that is running says so plainly: **Stalled at step N** (a step's last session failed or was stopped; later steps wait, and the
+  button is *Retry step N*) or **Finished** (nothing left to start; steps are done or waiting for your review). A step the scheduler had
+  already dispatched and that then failed is retried like any other. The plan list marks a plan with a step that needs rework.
+- Team plans have no run control: Team never executes. The Team plan's **Execution** tab shows *your steps*: which are ready for you,
+  which wait on whom (a dependency, by name and holder; the plan's order only informs), who holds the rest, and **Review and start**
+  for your next ready step, which opens your own ticket at its agent controls. You still choose the agent and runner and approve on
+  your own computer, and others start their own. Starting agents is for the desktop app.
   `internal/archtest/plan_run_test.go` pins this: Team's build does not link the services or the runner, and no Team source names the
   plan-run or fallback operations or routes.
 

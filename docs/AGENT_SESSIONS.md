@@ -138,21 +138,34 @@ approvals and markers stay in order and are never collapsed. Group by kind only 
 
 ## Continuing with another agent
 
-A run that failed or was stopped on a provider error, is blocked, or was interrupted offers **Continue with another agent…** on its
-task. The dialog is an assessment: it shows the agent-reported handoff (completed work, what is still to verify), the branch and a
-proposed provider, and dispatches nothing until **Approve**. Approve (which states that the next agent bills to its own account) is
-available only when the previous run is confirmed stopped (a finished run on a reachable runner), a handoff has been captured and
-another agent is usable. `recovery: intervention`, a blocked session that is still open and an unreachable runner all count as not
-stopped. It uses the existing continuation, which starts a new run from the handoff and never replays commands. Automatic fallback
-is a separate, opt-in setting (below).
+There is one way to carry on from a run that stopped, failed or got stuck: **Continue**. A run that failed or was stopped on a provider
+error, is blocked, or was interrupted offers **Continue…** on its task. The dialog shows the agent-reported handoff (completed work,
+what is still to verify), the branch, and the agent to continue with, and dispatches nothing until **Continue with …**, which states
+that the next agent bills to its own account.
+
+- It starts a new run from the handoff and never replays commands.
+- **A session a limit left open.** A provider limit that ends a turn leaves the process open and idle, so the run is *blocked*, not
+  failed. Continue ends that session in the same step (`stopFirst` on the continue request; local sessions that are blocked or waiting
+  only), keeps the worktree, and starts the next run. It is never two steps.
+- **Which agents.** Other agents that can start now. The same agent is offered too, unless a rate limit or empty allowance is what
+  stopped the work, since it would only meet that again.
+- **When it is not offered.** `recovery: intervention` (it is not known whether the process stopped) and an unreachable runner both
+  count as not stopped.
+- **Automatically next time.** When a limit stopped the work, the dialog can switch project fallback on with the agent chosen.
+
+"Set up another run" on a task stays for starting afresh, resuming the previous conversation, or a review or fix purpose. Plan steps
+that ended badly are started again by the plan's own reviewed preview (see `WORK.md`). Salie only launches runs, after you confirm.
 
 ### Automatic fallback (opt-in)
 
-Project settings → **Fallback** lets a project hand a failed run to another agent without asking. It is off by default and bounded:
+Project settings → **Fallback**, or the checkbox in the Continue dialog, lets a project do what Continue does without asking. It is off
+by default and bounded:
 
-- **Which runs:** only a run that has already *ended* as failed, on this computer, whose retained provider blocker is a rate limit or
-  exhausted allowance, within the last 24 hours. A session that is still open (blocked), an unknown stop (`recovery: intervention`),
-  a remote run, authentication, a full context window and unknown errors all stay with you.
+- **Which runs:** a run that has *ended* as failed on a rate limit or exhausted allowance, or a local session that limit left open and
+  idle (blocked) for at least two minutes, which is the time to reply or let the limit lift. That session is stopped, its worktree and
+  changes are kept, and it is continued like any other. Both only on this computer and within the last 24 hours. A session waiting on a
+  question, an unknown stop (`recovery: intervention`), a remote run, authentication, a full context window and unknown errors all stay
+  with you.
 - **Which agent:** the first of the project's chosen agents, in its order, that can start now and has not already worked on the task.
 - **Verified handoff:** the controller captures the handoff itself and reads the worktree's Git state. It must be a clean reading
   (no conflicts, no Git operation in progress) with recorded work (changed files, or a reported summary) to continue from.
@@ -164,6 +177,11 @@ Project settings → **Fallback** lets a project hand a failed run to another ag
   ledger records it as reserved. A refusal for a passing reason (capacity, an operation in progress) is retried; every other outcome is final.
 - The new run is an ordinary continuation (a fresh conversation from the handoff, never a replay of commands) with origin
   `fallback:<failed run>`, and its task says it was started automatically.
+- **It says what it did.** Each outcome, *continued* or *not continued, and why*, is an `agent.fallback` event on the run it acted
+  on: a marker in that run's feed and an alert (in the window, a system notification). A retry for a passing reason is not news and
+  says nothing. The ledger in Project settings keeps the last attempts, and the Continue dialog shows why a run was not continued.
+- If the session had to be stopped and nothing could be started (no verified handoff, no usable agent), the session stays stopped and
+  its conversation can still be resumed from the task.
 
 ## Limits
 

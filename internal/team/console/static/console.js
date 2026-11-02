@@ -2276,6 +2276,46 @@ function participants(tickets, people, names) {
   }));
 }
 
+// A plan's steps from the signed-in member's side. Team starts nothing: "Review and start" opens the member's own ticket at its agent
+// controls, where the member reviews the agent, runner and permissions and approves on their own computer. Steps held by others are
+// shown with who they wait for, never with whether those people are around.
+function startPlanStep(k) {
+  state.projectId = k.projectId; state.tab = 'work'; state.ticketId = k.id; state.agentFocus = k.id; state.handoff = null; state.data = null; state.validationIssues = [];
+  remember(); return render();
+}
+function planExecution(v, ownerNames) {
+  const me = state.me.member.id;
+  const own = (k) => k.assigneeId === me && state.data?.board?.project?.id === k.projectId && ownAgentRun(state.data, k).running;
+  const plan = WerkbordWork.planSteps(v.tickets.map(k => ({ ...k, running: own(k) })), me, (id) => ownerNames.get(id));
+  const byId = new Map(v.tickets.map(k => [k.id, k]));
+  const say = (s) => ({
+    ready: 'Ready for you', running: 'Your agent is running', review: 'In review', done: 'Done', unclaimed: 'Not claimed yet',
+    'yours-human': 'Yours to do, without an agent', theirs: 'Held by ' + s.holder,
+    waiting: 'Waiting for step ' + (s.waitsFor[0] ? s.waitsFor[0].number : '') + (s.waitsFor[0] ? ' (' + s.waitsFor[0].holder + ')' : '') + (s.waitsFor.length > 1 ? ' and ' + (s.waitsFor.length - 1) + ' more' : ''),
+  }[s.state]);
+  const next = plan.next ? plan.steps.find(s => s.id === plan.next) : null;
+  const headline = next ? h('button', { class: 'primary', 'data-testid': 'plan-start-mine', onclick: () => startPlanStep(byId.get(next.id)) }, 'Review and start step ' + next.number + ': ' + next.title)
+    : '';
+  const summary = !plan.mineOpen
+    ? (plan.unclaimed ? plan.unclaimed + (plan.unclaimed === 1 ? ' step is' : ' steps are') + ' not claimed yet. Claim one to prepare your own agent.' : 'You hold no open step in this plan.')
+    : next ? 'You hold ' + plural(plan.mineOpen, 'open step') + '. Step ' + next.number + ' is ready for you.'
+    : plan.mineWaiting === plan.mineOpen ? 'Your next step is waiting on someone else\'s work. It becomes ready when that is done.'
+    : 'None of your steps is ready to start right now.';
+  return h('section', { class: 'plan-execution', 'aria-label': 'Your steps', 'data-testid': 'plan-execution' },
+    h('h2', { class: 'section-title' }, 'Your steps'),
+    h('p', { class: 'muted small' }, 'Team does not start anything. A step you start runs on your computer with your agent, after you review it. Other members start their own.'),
+    h('p', { 'data-testid': 'plan-your-summary' }, summary),
+    state.desktop ? headline : (plan.mineOpen ? h('p', { class: 'muted small' }, 'Agents are started from the Werkbord desktop app on your computer.') : ''),
+    h('ol', { class: 'plan-steps' }, plan.steps.map(s => {
+      const k = byId.get(s.id);
+      return h('li', { 'data-state': s.state, 'data-step': String(s.number) },
+        h('span', { class: 'n' }, String(s.number)),
+        h('span', { class: 'what' }, h('strong', {}, s.title), h('span', { class: 'muted small' }, say(s) + (s.follows && s.state === 'ready' ? ' · after step ' + s.follows.number + ' (' + s.follows.holder + ') by the plan\'s order' : ''))),
+        s.canStart && state.desktop ? h('button', { class: 'plain small', onclick: () => startPlanStep(k) }, 'Review and start') : '',
+        s.state === 'unclaimed' ? h('button', { class: 'plain small', onclick: () => act(() => api('POST', '/projects/' + k.projectId + '/tickets/' + k.id + '/claim')) }, 'Claim') : '');
+    })));
+}
+
 // Initiatives coordinate references; project boards remain the place to work.
 let initiativeEditor;
 let initiativeEditorIdentity;
@@ -2355,10 +2395,10 @@ async function initiativesView(projectId) {
     const stepWho=k=>{if(pdBoard&&pdBoard.project.id===k.projectId)return assignmentOf(pd,k);const mine=k.assigneeId===state.me.member.id;return k.assigneeId?WerkbordTeamIdentity.assignment(null,{id:k.assigneeId,name:mine?state.me.member.name:ownerNames.get(k.assigneeId)||'a former member',self:mine},k.status==='available'?'Assigned to':'Held by'):null;};
     const stepLine=(k,n)=>{const after=n>0&&(k.dependencies||[]).includes(v.tickets[n-1].id)?' · After step '+n:'';return 'Step '+(n+1)+' of '+v.tickets.length+after;};
     const taskRows=h('ol',{class:'plan-tasks'},v.tickets.map((k,n)=>h('li',{},h('span',{class:'plan-task-marker'+(k.status==='done'?' complete':'')},k.status==='done'?icon('check'):''),h('div',{},h('button',{class:'link plan-task-title',onclick:()=>openTicket(k.projectId,k.id)},k.title),h('p',{class:'muted small'},statusName(k.status)+' · '+stepLine(k,n)),k.assigneeId&&k.status!=='done'?h('p',{class:'plan-task-who'},stepWho(k)):'',(k.dependencies||[]).length?h('p',{class:'work-blocked'},'Depends on '+k.dependencies.map(id=>v.tickets.find(t=>t.id===id)?.title||id).join(', ')):'',k.pullRequest?extLink(k.pullRequest.url,'PR · '+k.pullRequest.state):''))));
-    const content=state.workPlanTab==='sessions'?h('div',{},h('p',{class:'muted small section-note'},'Recent session reports for tasks you own.'),owned.length?owned.map(r=>h('div',{class:'row'},h('div',{class:'grow'},h('strong',{},r.k.title),h('p',{class:'muted small'},(r.progress.stale?'Last reported · ':'')+(AGENT_STATE[r.run]||r.run))),h('button',{class:'plain small',onclick:()=>openTicket(r.k.projectId,r.k.id)},'Open task session'))):h('p',{class:'muted section-note'},'Open a task to inspect its reported session.'))
+    const content=state.workPlanTab==='sessions'?h('div',{},planExecution(v,ownerNames),h('h3',{class:'plan-sessions-title'},'Your recent sessions'),h('p',{class:'muted small section-note'},'Recent session reports for tasks you own.'),owned.length?owned.map(r=>h('div',{class:'row'},h('div',{class:'grow'},h('strong',{},r.k.title),h('p',{class:'muted small'},(r.progress.stale?'Last reported · ':'')+(AGENT_STATE[r.run]||r.run))),h('button',{class:'plain small',onclick:()=>openTicket(r.k.projectId,r.k.id)},'Open task session'))):h('p',{class:'muted section-note'},'Open a task to inspect its reported session.'))
       :state.workPlanTab==='decisions'?h('div',{class:'plan-prose'},h('h2',{},'Decisions'),h('p',{class:'prose'},i.decisions||'No decisions recorded yet.'),v.memories.length?h('div',{},h('h3',{},'Shared context'),v.memories.map(m=>h('p',{},m.content.summary))):'')
       :state.workPlanTab==='questions'?h('div',{class:'plan-prose'},h('h2',{},'Open questions'),h('p',{class:'prose'},i.questions||'No open questions recorded.')):taskRows;
-    body=h('div',{class:'plan-body'},h('button',{class:'plain small plan-back',onclick:back},icon('left'),'Back to Work'),h('div',{class:'plan-detail-layout'},h('div',{class:'plan-main'},h('div',{class:'plan-title'},h('h1',{},i.title),h('span',{class:'plan-standing'+(v.blockers.length?' attention':'')},v.done===v.tickets.length&&v.done>0?'Complete':v.blockers.length?'Needs attention':v.done?'In progress':'Ready')),h('p',{class:'muted plan-description'},i.objective),h('div',{class:'plan-progress'},h('progress',{max:v.tickets.length||1,value:v.done,'aria-label':'Plan progress'}),h('span',{class:'muted small'},v.done+' of '+v.tickets.length+' tasks complete')),h('nav',{class:'plan-tabs','aria-label':'Plan sections'},[['tasks','Tasks'],['sessions','Sessions'],['decisions','Decisions'],['questions','Questions']].map(([id,label])=>h('button',{'aria-current':state.workPlanTab===id?'page':null,onclick:()=>{state.workPlanTab=id;render();}},label))),content),
+    body=h('div',{class:'plan-body'},h('button',{class:'plain small plan-back',onclick:back},icon('left'),'Back to Work'),h('div',{class:'plan-detail-layout'},h('div',{class:'plan-main'},h('div',{class:'plan-title'},h('h1',{},i.title),h('span',{class:'plan-standing'+(v.blockers.length?' attention':'')},v.done===v.tickets.length&&v.done>0?'Complete':v.blockers.length?'Needs attention':v.done?'In progress':'Ready')),h('p',{class:'muted plan-description'},i.objective),h('div',{class:'plan-progress'},h('progress',{max:v.tickets.length||1,value:v.done,'aria-label':'Plan progress'}),h('span',{class:'muted small'},v.done+' of '+v.tickets.length+' tasks complete')),h('nav',{class:'plan-tabs','aria-label':'Plan sections'},[['tasks','Tasks'],['sessions','Execution'],['decisions','Decisions'],['questions','Questions']].map(([id,label])=>h('button',{'aria-current':state.workPlanTab===id?'page':null,onclick:()=>{state.workPlanTab=id;render();}},label))),content),
       h('aside',{class:'plan-info','aria-label':'Plan information'},h('h2',{},'Plan info'),h('dl',{},h('dt',{},'Project'),h('dd',{},v.projects.map(p=>p.name).join(', ')),h('dt',{},'Created'),h('dd',{},new Date(i.createdAt).toLocaleDateString()),h('dt',{},'Owner'),h('dd',{},ownerNames.get(i.ownerId)||'Former member'),h('dt',{},'Tasks'),h('dd',{},v.tickets.length+' total · '+v.done+' complete')),h('h2',{},'Participants'),participants(v.tickets,pdPeople,ownerNames),h('h2',{},'Actions'),i.ownerId===state.me.member.id||can('projects.manage')?h('button',{class:'plain',onclick:()=>edit(i).catch(e=>{state.error=e.message;render();})},'Edit plan'):'',FRAMED&&projectId?h('button',{class:'plain',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:i.id},'*')},'Edit with Salie'):'',h('button',{class:'plain',onclick:()=>openProject(projectId||v.projects[0].id,'calendar')},'View in Calendar'),h('details',{},h('summary',{},'Dependencies and context'),v.blockers.map(b=>h('p',{class:'small'},b)),h('ul',{},v.nextActions.map(a=>h('li',{class:'small'},a)))),h('details',{},h('summary',{},'Activity and changes'),v.activity.map(a=>h('p',{class:'small'},a.kind+' · '+a.ticketKey+' · ',when(a.createdAt))),i.history.map(a=>h('p',{class:'small'},a.kind+' · ',when(a.at)))))));
   }
   if(editor.childElementCount)view.dataset.editing='true';

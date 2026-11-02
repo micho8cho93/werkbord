@@ -82,6 +82,21 @@ unfinished work when the member has permission to manage it. Details, commits, p
 retained; **Restore** returns the ticket to its previous status. Archived tickets leave active work counts and
 attention lists. Closing in Team changes coordination metadata only: stop an agent in the member's own Werkbord.
 
+## Which agent is on shared work
+
+A ticket shows who holds it and, read only, which agent that person's runner reports on it: the agent's mark, with a ring that turns
+only while a report is fresh (the server's own clock; `starting` is a still ring). A stale or unknown report never animates and never
+becomes "done" or "offline": it reads *last reported*. Nothing in Team shows whether a *person* is around: no online or offline, no
+green dot, no last seen, and the device and runner connection displays are never reused for this (a guard test enforces it).
+
+What the report carries is only the agent's ID and an execution state. No prompt, transcript, question, terminal output, environment,
+path, usage or spending, and no run ID. A member can stop their runner naming the agent they use; peers then see a neutral mark with
+the true running state. A connector speaks the older shape to a Workspace Host built before this existed, so reporting never stops
+for want of an upgrade. Team never controls another member's agent: the only way to start work is the member's own.
+
+A plan's **Execution** tab shows *your steps* (what is ready for you and what waits on whom) and sends you to your own ticket's agent
+controls to review and start. See [WORK.md](WORK.md#running-a-plan-personal).
+
 ## Concepts
 
 - **Workspace.** A team's shared space. It has a name and exactly one **owner**, the person who created it.

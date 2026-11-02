@@ -101,6 +101,30 @@ let browser;
   if (artifacts) await page.screenshot({ path: path.join(artifacts, 'team-agents-plan.png') });
   console.log('PASS Team plan: steps show holder and agent, participants show roles, no presence');
 
+  // Execution: a plan from this member's side. Lucas holds nothing, so he is told who holds each step and is offered nothing to start.
+  await page.getByRole('button', { name: 'Execution', exact: true }).click();
+  await page.getByTestId('plan-execution').waitFor();
+  assert.match(await page.getByTestId('plan-your-summary').innerText(), /You hold no open step in this plan/);
+  assert.match(await page.locator('.plan-steps > li').first().innerText(), /Held by Maya Maker/);
+  assert.equal(await page.getByTestId('plan-start-mine').count(), 0, 'nothing to start for a member who holds no step');
+  assert.doesNotMatch(await page.getByTestId('plan-execution').innerText(), /\b(online|offline|last seen|available now)\b/i, 'no presence');
+  // Maya holds both. Both are ready for her; starting an agent is for the desktop app, which this browser is not.
+  const mayaContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  await mayaContext.addInitScript(value => { sessionStorage.setItem('werkbord-team-token', value); localStorage.setItem('werkbord-team-tour', 'seen'); }, maya.token);
+  const mayaPage = await mayaContext.newPage(); mayaPage.setDefaultTimeout(15000); mayaPage.on('pageerror', e => errors.push(e.message));
+  await mayaPage.goto(`${team}/?tab=work&project=${project.id}`); await mayaPage.getByRole('heading', { name: 'Now', exact: true }).waitFor();
+  await mayaPage.getByRole('button', { name: 'Plans', exact: true }).click();
+  await mayaPage.locator('.plan-link', { hasText: 'Auth overhaul' }).click();
+  await mayaPage.getByRole('button', { name: 'Execution', exact: true }).click();
+  await mayaPage.getByTestId('plan-execution').waitFor();
+  assert.match(await mayaPage.getByTestId('plan-your-summary').innerText(), /You hold 2 open steps/);
+  assert.match(await mayaPage.locator('.plan-steps > li').first().innerText(), /Ready for you/);
+  assert.match(await mayaPage.getByTestId('plan-execution').innerText(), /Agents are started from the Werkbord desktop app/);
+  assert.match(await mayaPage.locator('.plan-steps > li').nth(1).innerText(), /after step 1 \(you\) by the plan's order/);
+  if (artifacts) await mayaPage.screenshot({ path: path.join(artifacts, 'team-plan-your-steps.png') });
+  await mayaContext.close();
+  console.log('PASS Team plan: Execution shows my steps, who holds the rest, and starts nothing for anyone');
+
   // The phone width holds, with no page errors.
   const phone = await open({ width: 390, height: 800 });
   assert((await phone.evaluate(() => document.documentElement.scrollWidth)) <= 391, 'no sideways scrolling at 390px');
