@@ -57,6 +57,9 @@
     return () => { live = false; };
   });
   const runWords: Record<string, string> = { running: 'Running', held: 'Paused', idle: 'Not started' };
+  /** What the run is doing, in one word: a stalled or finished plan is not simply "Running". */
+  const runWord = (p: PlanRunPreview) => p.stalled ? 'Stalled' : p.finished ? 'Finished' : runWords[p.state];
+  const controlLabel = (p: PlanRunPreview) => p.stalled && p.control === 'run' ? `Retry step ${p.stalled.number}` : planControlLabel[p.control];
   async function planControl() {
     if (!current || !preview || runBusy) return;
     runBusy = true; runError = '';
@@ -72,7 +75,7 @@
     } finally { runBusy = false; }
   }
   /** What the list row shows for a plan: its live agents (at most three) and whether anything wants the person. */
-  const rowOf = (plan: WorkPlan) => { const ps = planSteps(plan, scope.tasks, scope.latestRun, stale); return { ...activeAgents(ps, 3), attention: progressOf(plan, scope.tasks, scope.latestRun).standing === 'attention' }; };
+  const rowOf = (plan: WorkPlan) => { const ps = planSteps(plan, scope.tasks, scope.latestRun, stale); return { ...activeAgents(ps, 3), attention: ((pr) => pr.standing === 'attention' || pr.rework > 0)(progressOf(plan, scope.tasks, scope.latestRun)) }; };
   const sessions = $derived(scope.history.filter(r => current?.taskIds.includes(r.taskId)));
   // Back from a plan goes where the plan was opened from (Work in the window, a board…); a plan reached by a plain link goes to the board.
   const chain = $derived.by<Origin[]>(() => { const given = chainOf(router.query); return given.length ? given : [{ kind: 'board', projectId: project.id }]; });
@@ -222,13 +225,15 @@
       {#if preview}
       <section class="run" data-testid="plan-run" aria-label="Run this plan">
         <div class="run-head">
-          <p class="run-state" data-state={preview.state}><strong>{runWords[preview.state]}</strong><span class="muted">{preview.state === 'idle' ? `${preview.toStart} ${preview.toStart === 1 ? 'step' : 'steps'} ready to start` : `${preview.toStart} still to start`} · up to {preview.concurrency} at once</span></p>
-          <button class="btn primary" type="button" data-testid="plan-control" data-control={preview.control} disabled={runBusy || preview.control === 'none'} onclick={planControl}>{runBusy ? 'Working…' : planControlLabel[preview.control]}</button>
+          <p class="run-state" data-state={preview.state}><strong>{runWord(preview)}</strong><span class="muted">{preview.state === 'idle' ? `${preview.toStart} ${preview.toStart === 1 ? 'step' : 'steps'} ready to start` : `${preview.toStart} still to start`} · up to {preview.concurrency} at once</span></p>
+          <button class="btn primary" type="button" data-testid="plan-control" data-control={preview.control} disabled={runBusy || preview.control === 'none'} onclick={planControl}>{runBusy ? 'Working…' : controlLabel(preview)}</button>
         </div>
         <fieldset class="mode" disabled={runBusy || preview.state === 'running'}><legend>Order</legend>
           <label><input type="radio" name="plan-mode" value="in_order" bind:group={mode} />In order<span class="muted">Each step waits for the one before it.</span></label>
           <label><input type="radio" name="plan-mode" value="as_ready" bind:group={mode} />As each becomes ready<span class="muted">Each step starts once its own dependencies allow.</span></label>
         </fieldset>
+        {#if preview.stalled}<p class="stall" role="status" data-testid="plan-stalled"><strong>Stopped at step {preview.stalled.number}, {preview.stalled.title || 'an unavailable task'}.</strong> {preview.stalled.why} Later steps are waiting for it. Retry starts a new session; with the project's automatic fallback on, a provider limit is handled for you. Or open the task to continue it another way.</p>
+        {:else if preview.finished}<p class="stall ok" role="status" data-testid="plan-finished">Nothing is left to start. The steps that ran are done or waiting for your review.</p>{/if}
         {#if runError}<p class="error" role="alert">{runError}</p>{/if}
         <ol class="run-steps">{#each preview.steps as st (st.taskId)}<li data-action={st.action}><span class="n">{st.number}</span><span class="what"><strong>{st.title || 'Unavailable task'}</strong><span class="muted">{planActionLabel(st.action)}{st.why ? ' · ' + st.why : ''}{st.after.length ? ' · after ' + st.after.join(', ') : ''}{st.agent ? ' · ' + agentName(st.agent) : ''}{st.action !== 'skip' && st.reason && st.decision !== 'runnable' ? ' · ' + st.reason : ''}</span></span></li>{/each}</ol>
         <ul class="run-notes"><li>{preview.billing}</li><li>{preview.review}</li><li>{preview.interruption}</li></ul>
@@ -260,6 +265,7 @@
   .plans{font-size:13px;min-width:0;} h1{font-size:24px;letter-spacing:-.025em;margin:0;} h2{font-size:14px;margin:0 0 12px;} p{margin:5px 0 0;line-height:1.6;} .muted{color:var(--text-2);} .back{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);text-decoration:none;font-size:12px;margin:0 0 24px;}.back:hover{color:var(--text);}
   .plan-head{display:grid;gap:12px;margin:8px 0 28px;max-width:78ch;}.plan-head h1{line-height:1.2;}.plan-head .description{margin:0;}.k{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--text-2);}
   .description{white-space:pre-wrap;overflow-wrap:anywhere;max-width:72ch;}.progress{display:grid;grid-template-columns:auto minmax(80px,1fr) auto;align-items:center;gap:14px;}.progress>.count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}.standing{padding:4px 9px;border-radius:4px;font-size:12px;background:color-mix(in srgb,var(--ok) 10%,var(--surface));color:var(--ok-text);}.progress[data-standing=blocked] .standing,.progress[data-standing=attention] .standing{color:var(--block-text);background:color-mix(in srgb,var(--block) 9%,var(--surface));}.progress[data-standing=ready] .standing,.progress[data-standing=empty] .standing{color:var(--text-2);background:var(--surface-2);}
+  .stall{margin:0;padding:10px 12px;border:1px solid var(--border);border-left:3px solid var(--block);border-radius:6px;background:var(--surface-2);font-size:13px;overflow-wrap:anywhere;}.stall.ok{border-left-color:var(--ok);}
   progress{height:5px;accent-color:var(--ok);border:0;width:100%;appearance:none;background:var(--surface-2);border-radius:5px;}progress::-webkit-progress-bar{background:var(--surface-2);border-radius:5px;}progress::-webkit-progress-value{background:var(--ok);border-radius:5px;}progress::-moz-progress-bar{background:var(--ok);border-radius:5px;}
   .up-next{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0;}.up-next a{color:var(--text);font-weight:500;}.plan-actions{margin-top:4px;}
   .plan-tasks,.plan-list,.session-list{list-style:none;margin:0;padding:0;}h2#plan-tasks-h{margin-bottom:4px;}

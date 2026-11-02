@@ -84,6 +84,8 @@ export function stepOf(task: Task | undefined, tasks: readonly Task[], latest: R
 export type PlanStanding = 'complete' | 'attention' | 'blocked' | 'running' | 'ready' | 'empty';
 
 export interface PlanProgress {
+  /** Steps whose last session failed or was stopped: they wait for the person. */
+  rework: number;
   total: number;
   done: number;
   standing: PlanStanding;
@@ -116,7 +118,7 @@ export function progressOf(plan: Pick<WorkPlan, 'taskIds'>, tasks: readonly Task
   }
   else if (count('running')) { standing = 'running'; label = 'In progress'; }
   else { standing = 'ready'; label = done ? 'In progress' : 'Ready'; }
-  return { total, done, standing, label, upNext };
+  return { total, done, standing, label, upNext, rework: steps.filter(s => s.step.label === 'Failed' || s.step.label === 'Stopped').length };
 }
 
 /** The plan a task belongs to: the first plan that lists it. A task needs none. */

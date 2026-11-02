@@ -76,7 +76,7 @@ describe('a plan shows its progress and where it stands', () => {
     const tasks = [task('a', { state: 'doing' }), task('b', { state: 'review' }), task('c', after('a'))];
     expect(progressOf(plan('a', 'b', 'c'), tasks, latestOf(run('a')))).toMatchObject({ standing: 'attention', label: 'Needs you' });
     const stuck = [task('a'), task('b', after('a'))];
-    expect(progressOf(plan('a', 'b'), stuck, latestOf(run('a', { state: 'failed' })))).toMatchObject({ standing: 'blocked', label: '1 needs rework, 1 held' });
+    expect(progressOf(plan('a', 'b'), stuck, latestOf(run('a', { state: 'failed' })))).toMatchObject({ standing: 'blocked', label: '1 needs rework, 1 held', rework: 1 });
   });
 
   it('finds the plan of a task, and a task with no plan has none', () => {

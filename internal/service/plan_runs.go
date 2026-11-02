@@ -68,6 +68,19 @@ type PlanRunPreview struct {
 	Billing     string        `json:"billing"`
 	Interrupt   string        `json:"interruption"`
 	Review      string        `json:"review"`
+	// Stalled is set while the plan is running and a step's last session ended badly: later steps wait for it, and nothing
+	// moves until the person retries it (Run again) or deals with it. Finished is set while a running plan has nothing left to
+	// start and nothing running; its steps are done or waiting for the person's review.
+	Stalled  *PlanStall `json:"stalled,omitempty"`
+	Finished bool       `json:"finished,omitempty"`
+}
+
+// PlanStall names the step a plan is stuck on.
+type PlanStall struct {
+	TaskID string `json:"taskId"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Why    string `json:"why"`
 }
 
 // PlanRunInput binds a request to the plan and preview a person looked at.
@@ -155,7 +168,8 @@ func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, pla
 			step.Action, step.Why = PlanStepSkip, "An agent session is already running."
 		case ran && latest.State != domain.RunFailed && latest.State != domain.RunStopped:
 			step.Action, step.Why = PlanStepSkip, "Its session finished ("+string(latest.State)+"). Review it; later steps wait for it to be done."
-		case o.RunID != "":
+		case o.RunID != "" && !ran:
+			// A dispatched schedule whose run is not found. A run that ended badly is a retry, below, whether or not it was scheduled.
 			step.Action, step.Why = PlanStepSkip, "Its scheduled run has already started."
 		case !t.Mode().AllowsAgent():
 			step.Action, step.Why = PlanStepSkip, "Human work: later steps wait for you to finish it."
@@ -182,6 +196,14 @@ func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, pla
 			prev = t.ID
 		}
 	}
+	if plan.Run != nil && plan.Run.State == domain.PlanRunRunning {
+		for _, st := range out.Steps {
+			if st.Action == PlanStepRetry {
+				out.Stalled = &PlanStall{TaskID: st.TaskID, Number: st.Number, Title: st.Title, Why: st.Why}
+				break
+			}
+		}
+	}
 	out.Control = PlanControlNone
 	switch {
 	case plan.Run != nil && plan.Run.State == domain.PlanRunHeld:
@@ -196,6 +218,7 @@ func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, pla
 				out.Control = PlanControlHold
 			}
 		}
+		out.Finished = out.Control == PlanControlNone && len(out.Steps) > 0
 	case out.ToStart > 0:
 		out.Control = PlanControlRun
 	}

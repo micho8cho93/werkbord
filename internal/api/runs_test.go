@@ -44,7 +44,7 @@ func newRunsServer(t *testing.T, extra ...func(*Options)) *runsServer {
 		o.Projects.Catalog, o.Tasks.Catalog, o.Settings.Catalog = reg, reg, reg
 		mgr := runner.New(runner.Options{
 			Runs: o.Runs, Tasks: o.Tasks, Projects: o.Projects, Settings: o.Settings, Worktrees: &service.Worktrees{Deps: deps, Root: root},
-			Git: &gitrepo.CLI{}, Agents: reg, WorktreeRoot: root, FlushInterval: 10 * time.Millisecond, FinishTimeout: time.Second,
+			Git: &gitrepo.CLI{}, Agents: reg, Handoffs: o.Handoffs, WorktreeRoot: root, FlushInterval: 10 * time.Millisecond, FinishTimeout: time.Second,
 		})
 		t.Cleanup(func() { _ = mgr.Shutdown(context.Background()) })
 		o.Runner, o.Agents, o.Worktrees = mgr, reg, &service.Worktrees{Deps: deps, Root: root}
@@ -432,5 +432,30 @@ func TestAgentEventsStreamLive(t *testing.T) {
 	failed := expect("agent.failed")
 	if !strings.Contains(failed.data, "gone") {
 		t.Fatalf("failed = %s", failed.data)
+	}
+}
+
+// A rate limit leaves the session open and idle. Continuing from it is one step that ends it first, and only for a session the
+// person could stop themselves.
+func TestContinueCanEndAnOpenIdleSessionInTheSameStep(t *testing.T) {
+	rs := newRunsServer(t, func(o *Options) { o.Handoffs = &service.Handoffs{Deps: o.Runs.Deps, Git: &gitrepo.CLI{}} })
+	task := rs.task(t, "Build")
+	run := rs.start(t, task)
+	base := rs.url + "/api/projects/" + rs.project.ID + "/runs/" + run.ID
+	if code := do(t, "POST", base+"/continue", `{"agentId":"fake","stopFirst":true}`, nil); code != 409 {
+		t.Fatalf("a running session is not stopped for you: %d", code)
+	}
+	s := rs.adapter.Sessions()[0]
+	s.FailTurn("insufficient_quota")
+	waitFor(t, "blocked on the provider", func() bool { return rs.getRun(t, run.ID).State == domain.RunBlocked })
+	if code := do(t, "POST", base+"/continue", `{"agentId":"fake"}`, nil); code == 201 {
+		t.Fatal("without stopFirst an open session is not a valid parent")
+	}
+	var next domain.Run
+	if code := do(t, "POST", base+"/continue", `{"agentId":"fake","stopFirst":true,"purpose":"continue"}`, &next); code != 201 {
+		t.Fatalf("continue: %d", code)
+	}
+	if got := rs.getRun(t, run.ID); got.State != domain.RunStopped || next.ParentRunID != run.ID {
+		t.Fatalf("parent %s, next %+v", got.State, next)
 	}
 }

@@ -283,3 +283,79 @@ func TestRunPlanRetriesAFailedStepOnlyWhenTheReviewedPreviewSaysSo(t *testing.T)
 		t.Fatalf("an armed retry is waiting for the scheduler, not to be retried again: %+v", again.Steps[0])
 	}
 }
+
+// failDispatched makes a step look as the scheduler leaves it when its run has started and then failed: the schedule records the
+// run it dispatched, and that run ended badly.
+func failDispatched(t *testing.T, f *fixture, task *domain.Task) {
+	endDispatched(t, f, task, domain.RunFailed)
+}
+
+func endDispatched(t *testing.T, f *fixture, task *domain.Task, state domain.RunState) {
+	t.Helper()
+	ctx := context.Background()
+	run, err := f.runs.Create(ctx, NewRun{TaskID: task.ID, AgentID: "fake", Prompt: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
+		r, e := tx.Runs().Get(ctx, run.ID)
+		if e != nil {
+			return e
+		}
+		r.State, r.Reason = state, "ended"
+		if e := tx.Runs().Update(ctx, r); e != nil {
+			return e
+		}
+		cur, e := tx.Tasks().Get(ctx, task.ID)
+		if e != nil {
+			return e
+		}
+		cur.Orchestration.RunID = run.ID
+		return tx.Tasks().Update(ctx, cur)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAPlanThatFailsOnAScheduledStepIsStalledNotRunning(t *testing.T) {
+	f, s, pid, plan, tasks := planFixture(t)
+	ctx := context.Background()
+	pv, _ := s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if _, err := s.RunPlan(ctx, pid, plan.ID, PlanRunInput{Version: plan.Version, Digest: pv.Digest}); err != nil {
+		t.Fatal(err)
+	}
+	if pv, _ = s.PlanRunPreview(ctx, pid, plan.ID, ""); pv.Stalled != nil || pv.Finished {
+		t.Fatalf("a plan waiting for its scheduler is neither stalled nor finished: %+v", pv)
+	}
+	failDispatched(t, f, tasks[0])
+	pv, _ = s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if pv.Stalled == nil || pv.Stalled.TaskID != tasks[0].ID || pv.Stalled.Number != 1 || pv.Stalled.Why == "" {
+		t.Fatalf("the plan should say it is stalled on step 1: %+v", pv.Stalled)
+	}
+	if pv.Steps[0].Action != PlanStepRetry || pv.Control != PlanControlRun || pv.Finished {
+		t.Fatalf("a failed step offers a retry, not a pause: %+v %s", pv.Steps[0], pv.Control)
+	}
+	// Retrying it, as reviewed, arms it again.
+	if _, err := s.RunPlan(ctx, pid, plan.ID, PlanRunInput{Version: pv.PlanVersion, Digest: pv.Digest}); err != nil {
+		t.Fatal(err)
+	}
+	if pv, _ = s.PlanRunPreview(ctx, pid, plan.ID, ""); pv.Stalled != nil || pv.Steps[0].Action != PlanStepArmed {
+		t.Fatalf("%+v", pv.Steps[0])
+	}
+}
+
+func TestAPlanWithNothingLeftToStartIsFinished(t *testing.T) {
+	f, s, pid, plan, tasks := planFixture(t)
+	ctx := context.Background()
+	pv, _ := s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if _, err := s.RunPlan(ctx, pid, plan.ID, PlanRunInput{Version: plan.Version, Digest: pv.Digest}); err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		endDispatched(t, f, task, domain.RunCompleted)
+	}
+	pv, _ = s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if !pv.Finished || pv.Stalled != nil || pv.Control != PlanControlNone {
+		t.Fatalf("every step ran and is waiting for review: %+v", pv)
+	}
+}
