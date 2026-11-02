@@ -64,6 +64,9 @@ type AnalyticsData struct {
 
 type AnalyticsRepo interface {
 	Read(context.Context, string, time.Time, time.Time, int) (AnalyticsData, error)
+	// Usage returns the runs that were running at any time since the given moment (ended after it, or not ended), newest first, with only
+	// what a usage meter reads: agent, times, state and reported usage. Never a prompt, a transcript or a path.
+	Usage(ctx context.Context, since time.Time, limit int) ([]domain.Run, error)
 }
 
 // ProjectRepo persists projects. GetByPath returns domain.ErrNotFound when no

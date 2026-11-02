@@ -131,6 +131,11 @@ type scheduleSnapshot struct {
 	limit     int
 	health    []domain.HealthFinding
 	worktrees map[string]domain.Worktree
+	// global is the person's default execution choice, needed to know which agent an automatic start would use.
+	global domain.ExecutionConfig
+	// usageHeld are the agents Usage saver keeps automatic work off, with why; usageAllHeld says every agent that has a budget is held.
+	usageHeld    map[string]string
+	usageAllHeld bool
 }
 
 func scheduleRead(ctx context.Context, tx store.Tx, projectID string) (scheduleSnapshot, error) {
@@ -166,6 +171,9 @@ func scheduleRead(ctx context.Context, tx store.Tx, projectID string) (scheduleS
 		return x, e
 	}
 	x.limit = settings.ConcurrencyLimit
+	if e := tx.Settings().Get(ctx, domain.SettingExecution, &x.global); e != nil && !errors.Is(e, domain.ErrNotFound) {
+		return x, e
+	}
 	if x.health, err = tx.Health().ListByProject(ctx, projectID, domain.HealthOpen); err != nil {
 		return x, err
 	}
@@ -177,6 +185,16 @@ func scheduleRead(ctx context.Context, tx store.Tx, projectID string) (scheduleS
 		x.worktrees[w.ID] = w
 	}
 	return x, nil
+}
+
+// scheduleReadAt is scheduleRead plus what Usage saver holds now. Every start that an automatic path may make reads it this way.
+func (s *Scheduler) scheduleReadAt(ctx context.Context, tx store.Tx, projectID string, now time.Time) (scheduleSnapshot, error) {
+	x, err := scheduleRead(ctx, tx, projectID)
+	if err != nil {
+		return x, err
+	}
+	x.usageHeld, x.usageAllHeld, err = s.usageHolds(ctx, tx, now)
+	return x, err
 }
 
 func dependencyDecision(task domain.Task, x scheduleSnapshot) (string, string) {
@@ -262,6 +280,16 @@ func baseDecision(task domain.Task, x scheduleSnapshot, now time.Time, manual bo
 	}
 	if !manual && o.ScheduledAt != nil && now.Before(*o.ScheduledAt) {
 		return set("waiting_schedule", "Waiting for scheduled time")
+	}
+	// Usage saver keeps automatic work off an agent that is near the budget the person set. A start the person makes is never held.
+	if !manual && len(x.usageHeld) > 0 {
+		agent := domain.ResolveExecution(domain.Level{Config: task.Execution}, domain.Level{Config: x.project.Execution}, domain.Level{Config: x.global}).Agent
+		if why := x.usageHeld[agent]; agent != "" && why != "" {
+			return set("waiting_usage", why+"; it starts again as that usage ages out, or start it yourself")
+		}
+		if agent == "" && x.usageAllHeld {
+			return set("waiting_usage", "Usage saver: every agent you set a budget for is near it; it starts again as usage ages out, or start it yourself")
+		}
 	}
 	if o.NotBefore != nil && now.Before(*o.NotBefore) {
 		return set("waiting_schedule", "Waiting for not-before time")
@@ -418,7 +446,7 @@ func (s *Scheduler) inspect(ctx context.Context, t domain.Task, x scheduleSnapsh
 // Dependencies and capacity are gates, never synonyms for ordering or priority.
 func (s *Scheduler) Plan(ctx context.Context, projectID string) ([]domain.SchedulingDecision, error) {
 	var x scheduleSnapshot
-	err := s.Store.View(ctx, func(tx store.Tx) error { var e error; x, e = scheduleRead(ctx, tx, projectID); return e })
+	err := s.Store.View(ctx, func(tx store.Tx) error { var e error; x, e = s.scheduleReadAt(ctx, tx, projectID, s.now()); return e })
 	if err != nil {
 		return nil, err
 	}
@@ -546,7 +574,7 @@ func (s *Scheduler) CheckStart(ctx context.Context, taskID, key string) error {
 		if e != nil {
 			return e
 		}
-		x, e = scheduleRead(ctx, tx, task.ProjectID)
+		x, e = s.scheduleReadAt(ctx, tx, task.ProjectID, s.now())
 		return e
 	})
 	if err != nil {

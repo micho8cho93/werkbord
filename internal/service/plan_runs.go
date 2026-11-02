@@ -104,7 +104,7 @@ func planModeOr(mode, fallback string) (string, error) {
 // of the digest, so a busy moment never invalidates a preview.
 func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, planID, mode string) (*domain.WorkPlan, PlanRunPreview, map[string]domain.Task, error) {
 	var out PlanRunPreview
-	x, err := scheduleRead(ctx, tx, projectID)
+	x, err := s.scheduleReadAt(ctx, tx, projectID, s.now())
 	if err != nil {
 		return nil, out, nil, err
 	}

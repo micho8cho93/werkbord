@@ -1,4 +1,5 @@
 <script lang="ts">
+  import UsageSettings from '../lib/UsageSettings.svelte';
   import ClientsPanel from '../lib/ClientsPanel.svelte';
   import ProjectHistory from '../lib/ProjectHistory.svelte';
   import MemorySharing from '../lib/MemorySharing.svelte';
@@ -40,7 +41,7 @@
   const GROUPS = [
     { label: 'Projects & workspaces', sections: [{ id: 'history', label: 'Project history' }] },
     { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
-    { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'computer', label: 'This computer' }] },
+    { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'usage', label: 'Usage' }, { id: 'computer', label: 'This computer' }] },
     { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Personal memory' }] },
     { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
   ] as const;
@@ -201,6 +202,8 @@
       </div>
       <div hidden={mcpDirection !== 'service'}><ConnectionsPanel /></div>
       <div hidden={mcpDirection !== 'client'}><MCPClientsPanel /></div>
+    {:else if section === 'usage'}
+      <UsageSettings />
     {:else if section === 'agents'}
       <AgentSettings />
     {:else if section === 'time'}

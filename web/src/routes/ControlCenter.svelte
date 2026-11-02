@@ -18,6 +18,7 @@
     runnable: 0,
     queued: 1,
     waiting_capacity: 2,
+    waiting_usage: 2,
     waiting_runner: 2,
     waiting_retry: 2,
     waiting_dependency: 3,

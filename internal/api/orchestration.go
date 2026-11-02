@@ -182,3 +182,50 @@ func (s *Server) handleSetFallback(w http.ResponseWriter, r *http.Request) {
 	l, _ := s.opt.Scheduler.FallbackLedger(r.Context(), r.PathValue("pid"))
 	writeJSON(w, 200, fallbackView{out, l.Entries})
 }
+
+// usageView is the person's usage settings and the meter they are set against. It is the person's own, on this computer: it is not
+// part of anything a team or a phone is shown.
+type usageView struct {
+	Settings domain.UsageSettings `json:"settings"`
+	Meter    domain.UsageMeter    `json:"meter"`
+}
+
+func (s *Server) writeUsage(w http.ResponseWriter, r *http.Request, cfg domain.UsageSettings) {
+	m, e := s.opt.Scheduler.UsageMeter(r.Context())
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	writeJSON(w, 200, usageView{cfg, m})
+}
+
+func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Scheduler == nil {
+		writeError(w, 503, "unavailable", "scheduler is not enabled")
+		return
+	}
+	cfg, e := s.opt.Scheduler.UsageSettings(r.Context())
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	s.writeUsage(w, r, cfg)
+}
+
+func (s *Server) handleSetUsage(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Scheduler == nil {
+		writeError(w, 503, "unavailable", "scheduler is not enabled")
+		return
+	}
+	var in domain.UsageSettings
+	if e := decode(w, r, &in); e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	cfg, e := s.opt.Scheduler.SetUsageSettings(r.Context(), in)
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	s.writeUsage(w, r, cfg)
+}

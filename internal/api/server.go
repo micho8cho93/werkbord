@@ -135,6 +135,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/projects/{pid}/work-plans/{plan}/run", s.handlePlanRunPreview)
 	mux.HandleFunc("POST /api/projects/{pid}/work-plans/{plan}/run", s.handleRunPlan)
 	mux.HandleFunc("POST /api/projects/{pid}/work-plans/{plan}/hold", s.handleHoldPlan)
+	mux.HandleFunc("GET /api/usage", s.handleUsage)
+	mux.HandleFunc("PUT /api/usage", s.handleSetUsage)
 	mux.HandleFunc("GET /api/projects/{pid}/fallback", s.handleFallback)
 	mux.HandleFunc("PUT /api/projects/{pid}/fallback", s.handleSetFallback)
 	s.productMapRoutes(mux)

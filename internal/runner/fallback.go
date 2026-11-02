@@ -14,7 +14,14 @@ func (m *Manager) fallbackProject(ctx context.Context, projectID string) error {
 	if m.opt.Scheduler == nil || m.opt.Handoffs == nil {
 		return nil
 	}
-	usable := func(id string) bool { _, err := m.opt.Agents.Available(ctx, id); return err == nil }
+	// An agent near the budget the person set under Usage saver is not a place to move work to.
+	usable := func(id string) bool {
+		if m.opt.Scheduler.UsageHeld(ctx, id) != "" {
+			return false
+		}
+		_, err := m.opt.Agents.Available(ctx, id)
+		return err == nil
+	}
 	choices, err := m.opt.Scheduler.FallbackCandidates(ctx, projectID, usable)
 	if err != nil {
 		return err

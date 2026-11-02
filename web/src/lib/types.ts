@@ -120,7 +120,7 @@ export interface Orchestration {
  missed?: boolean;
  error?: string;
 }
-export interface SchedulingDecision { taskId: string; state: 'runnable'|'queued'|'waiting_dependency'|'waiting_schedule'|'waiting_capacity'|'waiting_runner'|'waiting_retry'|'potentially_conflicting'|'blocked'; reason: string }
+export interface SchedulingDecision { taskId: string; state: 'runnable'|'queued'|'waiting_dependency'|'waiting_schedule'|'waiting_capacity'|'waiting_usage'|'waiting_runner'|'waiting_retry'|'potentially_conflicting'|'blocked'; reason: string }
 export interface Handoff {
  objective: string; summary: string; filesChanged: string[]; decisions: string[]; tests: string[];
  results: string; gitState: string; knownIssues: string[]; blockers: string[]; questions: string[];

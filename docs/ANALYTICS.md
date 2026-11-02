@@ -128,3 +128,30 @@ BROWSER_ANALYTICS_ONLY=1 node scripts/test-browser.cjs
 ```
 
 No provider credentials, live usage-limit endpoint or subscription account is queried by analytics tests.
+
+## Usage meter and Usage saver
+
+Analytics looks back over 7, 30 or 90 days. The **usage meter** is the live version, for the last five hours and the last seven days,
+per agent, on **Agents** (a strip above the sessions) and in **Settings → Usage**. It is the person's own, on this computer, and is never
+part of a Team report or a phone's view (`GET/PUT /api/usage`).
+
+- **What it counts.** Input plus output tokens that runs Werkbord started reported (cached tokens may overlap input and are not added).
+  Work done in a provider's own app, and a run that reported no tokens, are not in it; the meter says how many runs reported none. A run
+  that began before a window opened counts its share of its time inside the window, which is an estimate: a run reports one running total,
+  not when each token was used. A rolling window has no single reset, so the meter says when the figure starts to fall (the oldest counted run
+  leaves the window), never "resets at".
+- **What it does not claim.** A provider does not tell Werkbord what is left of a plan, so there is no "remaining". **Budgets are the person's
+  own** (per agent, per five hours and per week, written as `2M` or `500k`); percent is of that budget. A figure the provider reports itself
+  (some CLIs print a utilisation) is not read yet.
+- **Usage saver.** The mode is *Standard* (measure and show, the default) or *Usage saver*, with a threshold from 50 to 99 percent
+  (default 80). When an agent with a budget reaches the threshold of either window, work that would start **by itself** on that agent waits
+  as `waiting_usage` ("Held by usage saver", with the reason): scheduled tasks and plan steps, and automatic fallback does not move work onto
+  it. If no agent is named and every agent with a budget is held, an automatic start waits too. **A start the person makes is never held.**
+  It does not change models or reasoning. It starts again by itself as usage ages out, or by raising the budget or switching to Standard.
+- **Cost.** Standard mode reads one setting. Saver reads one bounded query of the last week's runs (agent, times, state and reported usage;
+  never a prompt, a transcript or a path) when the scheduler decides.
+
+Tests: `internal/domain/usage_meter_test.go` (windows, pro-rating, budgets, thresholds, validation), `internal/service/usage_meter_test.go`
+(the meter from stored runs; the hold on automatic starts only; a manual start is never refused), the `/api/usage` test in
+`internal/api/orchestration_test.go`, `web/src/lib/usage.test.ts`, and `node scripts/test-browser.cjs` with
+`BROWSER_SCRIPT=scripts/browser-usage.cjs`.

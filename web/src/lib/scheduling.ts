@@ -8,6 +8,7 @@ export const schedulingLabels: Record<SchedulingDecision["state"], string> = {
   waiting_dependency: "Waiting for a prerequisite",
   waiting_schedule: "Scheduled",
   waiting_capacity: "Waiting for capacity",
+  waiting_usage: "Held by usage saver",
   potentially_conflicting: "May change the same files",
   blocked: "Blocked",
 };
@@ -25,6 +26,7 @@ const refusals: Partial<Record<SchedulingDecision["state"], string>> = {
   waiting_dependency: "It waits for the tasks it depends on to finish.",
   waiting_schedule: "It is scheduled for later and starts at its scheduled time.",
   waiting_capacity: "No run slot is free for this project yet. It can start when a current run finishes, or after you stop one.",
+  waiting_usage: "Usage saver is on and this agent is near the budget you set. It starts again as usage ages out, or you can start it yourself.",
   potentially_conflicting: "A running task may change the same files. Start this one when that run finishes.",
 };
 

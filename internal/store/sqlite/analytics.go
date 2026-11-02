@@ -124,3 +124,31 @@ func (r analyticsRepo) Read(ctx context.Context, project string, start, end time
 	sort.Slice(out.Events, func(i, j int) bool { return out.Events[i].Seq < out.Events[j].Seq })
 	return out, nil
 }
+
+func (r analyticsRepo) Usage(ctx context.Context, since time.Time, limit int) ([]domain.Run, error) {
+	if limit <= 0 || limit > 20000 {
+		limit = 20000
+	}
+	rows, err := r.q.QueryContext(ctx, `SELECT id,agent_id,state,created_at,updated_at,ended_at,COALESCE(json_extract(distribution,'$.usage'),'{}')
+ FROM runs WHERE COALESCE(ended_at, updated_at) >= ? OR ended_at IS NULL ORDER BY created_at DESC,rowid DESC LIMIT ?`, ms(since), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Run
+	for rows.Next() {
+		var run domain.Run
+		var created, updated int64
+		var ended sql.NullInt64
+		var usage string
+		if err := rows.Scan(&run.ID, &run.AgentID, &run.State, &created, &updated, &ended, &usage); err != nil {
+			return nil, err
+		}
+		run.CreatedAt, run.UpdatedAt, run.EndedAt = fromMS(created), fromMS(updated), fromNullMS(ended)
+		if err := json.Unmarshal([]byte(usage), &run.Usage); err != nil {
+			return nil, err
+		}
+		out = append(out, run)
+	}
+	return out, rows.Err()
+}

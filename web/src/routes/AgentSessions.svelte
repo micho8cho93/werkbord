@@ -26,7 +26,8 @@
   import Icon from '../lib/Icon.svelte';
   import { progressOf, stepOf } from '../lib/work-steps';
   import { runReportStale, timeAgo } from '../lib/format';
-  import { projectHref, sessionsHref } from '../lib/router.svelte';
+  import { globalHref, projectHref, sessionsHref } from '../lib/router.svelte';
+  import UsageMeter from '../lib/UsageMeter.svelte';
 
   // Agents: every coding-agent session in one list, and the one that is open. A session is listed from the record that owns it
   // (a task run from the runner, a terminal from the terminal service) and is named by its key; opening one here attaches to the
@@ -298,6 +299,7 @@
         {#if launchers.length}<button class="btn primary" type="button" aria-expanded={launchOpen} onclick={toggleLaunch}><Icon name="plus" size={14} />New session</button>{/if}
       </div>
     </div>
+    <UsageMeter settingsHref="{globalHref('settings')}?usage" />
   {/if}
 
   {#if launchOpen && !paneMode}

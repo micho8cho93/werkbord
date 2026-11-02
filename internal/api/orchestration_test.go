@@ -75,3 +75,27 @@ func TestOrchestrationAPIAndProjectScope(t *testing.T) {
 		t.Fatal(code, overview)
 	}
 }
+
+func TestUsageSettingsAndMeterOverHTTP(t *testing.T) {
+	ts := newTestServer(t, func(o *Options) {
+		o.Scheduler = &service.Scheduler{Deps: o.Tasks.Deps}
+	})
+	var v struct {
+		Settings domain.UsageSettings `json:"settings"`
+		Meter    domain.UsageMeter    `json:"meter"`
+	}
+	if code := do(t, "GET", ts.URL+"/api/usage", "", &v); code != 200 || v.Settings.Mode != domain.UsageStandard || v.Settings.SaverAt != 80 || len(v.Meter.Agents) != 0 {
+		t.Fatal(code, v)
+	}
+	if code := do(t, "PUT", ts.URL+"/api/usage", `{"mode":"saver","saverAt":70,"budgets":{"codex":{"fiveHour":2000000,"weekly":20000000}}}`, &v); code != 200 || v.Settings.Mode != domain.UsageSaver || v.Settings.SaverAt != 70 {
+		t.Fatal(code, v)
+	}
+	if len(v.Meter.Agents) != 1 || v.Meter.Agents[0].Agent != "codex" || v.Meter.Agents[0].FiveHour.Budget != 2000000 || v.Meter.Agents[0].FiveHour.Percent == nil {
+		t.Fatalf("a budgeted agent shows its meter even before it has run: %+v", v.Meter.Agents)
+	}
+	for _, bad := range []string{`{"mode":"frugal","saverAt":80}`, `{"mode":"saver","saverAt":5}`, `{"mode":"saver","saverAt":80,"budgets":{"Bad Agent":{"fiveHour":1}}}`, `{"mode":"saver","saverAt":80,"unknown":1}`} {
+		if code := do(t, "PUT", ts.URL+"/api/usage", bad, nil); code != 400 {
+			t.Errorf("%s: %d", bad, code)
+		}
+	}
+}

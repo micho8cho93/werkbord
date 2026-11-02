@@ -166,7 +166,8 @@ by default and bounded:
   changes are kept, and it is continued like any other. Both only on this computer and within the last 24 hours. A session waiting on a
   question, an unknown stop (`recovery: intervention`), a remote run, authentication, a full context window and unknown errors all stay
   with you.
-- **Which agent:** the first of the project's chosen agents, in its order, that can start now and has not already worked on the task.
+- **Which agent:** the first of the project's chosen agents, in its order, that can start now, has not already worked on the task, and is not
+  held by Usage saver (see `ANALYTICS.md`): work is not moved onto an agent that is itself near the budget you set.
 - **Verified handoff:** the controller captures the handoff itself and reads the worktree's Git state. It must be a clean reading
   (no conflicts, no Git operation in progress) with recorded work (changed files, or a reported summary) to continue from.
   Otherwise nothing starts and the ledger says why.

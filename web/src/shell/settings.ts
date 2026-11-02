@@ -47,7 +47,7 @@ function personal(): Group[] {
   return [
     { label: PROJECTS, sections: [at('history', 'Project history', '?history')] },
     { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
-    { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('computer', 'This computer', '?computer')] },
+    { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('usage', 'Usage', '?usage'), at('computer', 'This computer', '?computer')] },
     { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Personal memory', '?memory')] },
   ];
 }
