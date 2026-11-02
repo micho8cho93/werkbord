@@ -41,7 +41,13 @@ type summaryInputs struct {
 	Queue     []workspace.QueueItem
 	Planned   []workspace.Planned
 	Progress  map[string]*domain.ProgressRecord
+	// People are each project's members by their role there, for the header's participants. Name and role only: no email, and nothing
+	// about whether anyone is around.
+	People map[string][]workspace.Person
 }
+
+// maxPeopleProjects bounds the extra reads that name a project's members: one per project, the first few only.
+const maxPeopleProjects = 24
 
 func ticketHref(projectID, ticketID string) string {
 	return "?tab=work&project=" + projectID + "&ticket=" + ticketID
@@ -154,7 +160,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				continue
 			}
 			projectNames[p.Project.ID] = p.Project.Name
-			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=work&project=" + p.Project.ID, Repository: p.Project.Repository, LiveOff: p.Project.GitHubLiveOff})
+			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=work&project=" + p.Project.ID, Repository: p.Project.Repository, LiveOff: p.Project.GitHubLiveOff, People: in.People[p.Project.ID]})
 		}
 	}
 	if in.MyWork != nil {
@@ -394,6 +400,19 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 		in.Overview = &ov
 		in.Planned = ov.Planned
 		in.Queue = ov.Queue
+		in.People = map[string][]workspace.Person{}
+		for i, p := range ov.Projects {
+			if i >= maxPeopleProjects {
+				break
+			}
+			var members []service.Person
+			if err := host.Do(ctx, http.MethodGet, "/projects/"+p.Project.ID+"/people", nil, &members); err != nil {
+				continue
+			}
+			for _, m := range members {
+				in.People[p.Project.ID] = append(in.People[p.Project.ID], workspace.Person{ID: m.ID, Name: m.Name, Role: string(m.ProjectRole)})
+			}
+		}
 		var plans []service.InitiativeView
 		if err := host.Do(ctx, http.MethodGet, "/initiatives", nil, &plans); err == nil {
 			planOf := map[string]string{}

@@ -215,3 +215,34 @@ func TestArchivedProjectWorkStaysOutOfUniversalSummary(t *testing.T) {
 		t.Fatalf("archived project in current work: %+v", got)
 	}
 }
+
+func TestAProjectsPeopleTravelByRoleAndNameOnly(t *testing.T) {
+	in := summaryInputs{Slot: "main", Name: "Acme", State: workspace.StateReady, Now: time.Now(),
+		Overview: &service.Overview{Projects: []service.ProjectSummary{{Project: domain.Project{ID: "prj_1", Name: "Platform"}}}},
+		People:   map[string][]workspace.Person{"prj_1": {{ID: "tmb_1", Name: "Maya", Role: "owner"}, {ID: "tmb_2", Name: "Lucas", Role: "member"}}}}
+	out := buildSummary(in)
+	if len(out.Projects) != 1 || len(out.Projects[0].People) != 2 || out.Projects[0].People[0].Role != "owner" {
+		t.Fatalf("%+v", out.Projects)
+	}
+	raw, err := json.Marshal(out.Projects[0].People)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"email", "online", "lastSeen", "presence", "available", "connections"} {
+		if strings.Contains(strings.ToLower(string(raw)), strings.ToLower(banned)) {
+			t.Fatalf("people must not carry %q: %s", banned, raw)
+		}
+	}
+	if _, _, err := workspace.Decode(strings.NewReader(mustJSON(t, out)), workspace.TeamID("main")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

@@ -108,7 +108,11 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 				if t.State == domain.TaskDone {
 					group = "done"
 				}
-				out.Queue = append(out.Queue, workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail, Plan: planOf[t.ID], Priority: string(priority)})
+				item := workspace.QueueItem{ID: t.ID, Title: t.Title, Project: p.Name, Href: taskHref(t.ProjectID, t.ID), Group: group, Detail: detail, Plan: planOf[t.ID], Priority: string(priority)}
+				if run, ok := dependencies.latest[t.ID]; ok && run.State.Active() {
+					item.Agent = agentRefOf(run, ov.Runners)
+				}
+				out.Queue = append(out.Queue, item)
 			}
 			for _, t := range tasks {
 				if t.ArchivedAt != nil || (t.Plan.Start == "" && t.Plan.End == "") {
@@ -180,6 +184,21 @@ func reportOf(r domain.Run, runners []domain.Runner) *workspace.ExecutionReport 
 	return report
 }
 
+// agentRefOf says which agent is on a run and what it was last seen doing. Fresh is the controller's word: the run is not one on a
+// remote runner that is offline or disabled (reportOf), so a run whose runner has gone quiet is never shown as running. Nothing of the
+// run beyond its agent, state and time leaves here: no run ID, prompt, path or usage.
+func agentRefOf(r domain.Run, runners []domain.Runner) *workspace.AgentRef {
+	state := execOf(r)
+	at := r.UpdatedAt
+	if at.IsZero() {
+		at = r.CreatedAt
+	}
+	if state == workspace.ExecNone || at.IsZero() {
+		return nil
+	}
+	return &workspace.AgentRef{ID: r.AgentID, State: state, ObservedAt: at.UTC(), Fresh: !reportOf(r, runners).Stale}
+}
+
 // SummaryOf translates the Control Center's snapshot. It is exported so it can be tested without a store.
 func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	out := workspace.Summary{
@@ -205,11 +224,11 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 	// What an agent is doing right now, then what stopped, then what finished and waits for a person.
 	for _, r := range ov.Runs {
 		add(workspace.Item{ID: r.Run.TaskID, Title: r.TaskTitle, Project: r.ProjectName, Status: workspace.StatusDoing, Execution: execOf(r.Run),
-			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners)})
+			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners), Agent: agentRefOf(r.Run, ov.Runners)})
 	}
 	for _, r := range ov.Failed {
 		add(workspace.Item{ID: r.Run.TaskID, Title: r.TaskTitle, Project: r.ProjectName, Status: workspace.StatusDoing, Execution: workspace.ExecFailed,
-			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners)})
+			Href: taskHref(r.Run.ProjectID, r.Run.TaskID), UpdatedAt: r.Run.UpdatedAt, Report: reportOf(r.Run, ov.Runners), Agent: agentRefOf(r.Run, ov.Runners)})
 	}
 	for _, r := range ov.Review {
 		it := workspace.Item{ID: r.Task.ID, Title: r.Task.Title, Project: r.ProjectName, Status: workspace.StatusReview,
@@ -217,6 +236,7 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 		if r.LastRun != nil {
 			it.Execution = execOf(*r.LastRun)
 			it.Report = reportOf(*r.LastRun, ov.Runners)
+			it.Agent = agentRefOf(*r.LastRun, ov.Runners)
 		}
 		add(it)
 	}

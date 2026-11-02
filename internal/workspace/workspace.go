@@ -38,6 +38,7 @@ const (
 	MaxText      = 300
 	MaxName      = 120
 	MaxHref      = 300
+	MaxPeople    = 12
 )
 
 // Kind is what sort of workspace it is.
@@ -108,6 +109,42 @@ type Project struct {
 	Repository string `json:"repository,omitempty"`
 	// LiveOff: the workspace asks that this project's repository is not shown live from members' own GitHub sign-ins.
 	LiveOff bool `json:"liveOff,omitempty"`
+	// People are the members of a Team project, by role: who they are and nothing about whether they are around. At most MaxPeople;
+	// never an email address, and never anything that says whether someone is online, available or working.
+	People []Person `json:"people,omitempty"`
+}
+
+// Person is a member of a project as the header and the participants list show them: a name and the role they hold in the project.
+type Person struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Role string `json:"role,omitempty"`
+}
+
+func (p Person) valid() bool {
+	return ValidID(p.ID) && p.Name != "" && plain(p.Name, MaxName) && plain(p.Role, 40)
+}
+
+// AgentRef says which coding agent is on a piece of work and what it was last seen doing. Fresh is the source's word that the
+// observation is current: for Individual, the controller's (the run is live and its runner online); for a Team peer, the
+// server's, computed on its own clock. A reader never works it out from ObservedAt alone. The reference names no run, prompt, path
+// or credential, and it grants nothing: it only labels.
+type AgentRef struct {
+	// ID is the agent's catalogue identifier, a short lowercase slug. Empty when the sender does not say which agent it is
+	// (an older connector, or a member who chose not to share it): the state is then shown on a neutral mark.
+	ID         string    `json:"id,omitempty"`
+	State      Execution `json:"state"`
+	ObservedAt time.Time `json:"observedAt"`
+	Fresh      bool      `json:"fresh"`
+}
+
+var agentIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,47}$`)
+
+func (a *AgentRef) valid() bool {
+	if a == nil {
+		return true
+	}
+	return (a.ID == "" || agentIDPattern.MatchString(a.ID)) && a.State != ExecNone && a.State.Valid() && !a.ObservedAt.IsZero()
 }
 
 // Execution is where a piece of the person's work stands as an agent run, if there is one. The words are the same in
@@ -166,6 +203,8 @@ type Item struct {
 	Href      string           `json:"href"`
 	UpdatedAt time.Time        `json:"updatedAt,omitempty"`
 	Report    *ExecutionReport `json:"report,omitempty"`
+	// Agent is the agent on this work, when one is.
+	Agent *AgentRef `json:"agent,omitempty"`
 }
 
 // ExecutionReport qualifies the last known state without changing it. RecordedAt is
@@ -431,11 +470,13 @@ type QueueItem struct {
 	// Priority is the task's resolved priority ("low", "normal" or "high") where the source has one. It orders the queue for display and
 	// is never read as authority over what runs.
 	Priority string `json:"priority,omitempty"`
+	// Agent is the agent on this work, when one is.
+	Agent *AgentRef `json:"agent,omitempty"`
 }
 
 func (q QueueItem) valid() bool {
 	return ValidID(q.ID) && q.Title != "" && len(q.Title) <= MaxText && len(q.Project) <= MaxName && ValidHref(q.Href) && len(q.Detail) <= MaxText && (q.Group == "now" || q.Group == "next" || q.Group == "later" || q.Group == "done" || q.Group == "plan") &&
-		(q.Priority == "" || q.Priority == "low" || q.Priority == "normal" || q.Priority == "high")
+		(q.Priority == "" || q.Priority == "low" || q.Priority == "normal" || q.Priority == "high") && q.Agent.valid()
 }
 
 type Summary struct {
@@ -531,12 +572,12 @@ func (s Summary) Validate() error {
 		return errors.New("workspace: too many entries")
 	}
 	for _, p := range s.Projects {
-		if !ValidID(p.ID) || !plain(p.Name, MaxName) || p.Name == "" || !ValidHref(p.Href) {
+		if !ValidID(p.ID) || !plain(p.Name, MaxName) || p.Name == "" || !ValidHref(p.Href) || !validPeople(p.People) {
 			return fmt.Errorf("workspace: project %q is not valid", p.ID)
 		}
 	}
 	for _, it := range s.Work {
-		if !ValidID(it.ID) || !plain(it.Title, MaxText) || it.Title == "" || !plain(it.Project, MaxName) || !it.Status.Valid() || !it.Execution.Valid() || !it.Report.valid() || !ValidHref(it.Href) {
+		if !ValidID(it.ID) || !plain(it.Title, MaxText) || it.Title == "" || !plain(it.Project, MaxName) || !it.Status.Valid() || !it.Execution.Valid() || !it.Report.valid() || !it.Agent.valid() || !ValidHref(it.Href) {
 			return fmt.Errorf("workspace: work item %q is not valid", it.ID)
 		}
 	}
@@ -576,6 +617,30 @@ func (s Summary) Validate() error {
 	return nil
 }
 
+func validPeople(people []Person) bool {
+	if len(people) > MaxPeople {
+		return false
+	}
+	for _, p := range people {
+		if !p.valid() {
+			return false
+		}
+	}
+	return true
+}
+
+// cleanPeople keeps the people that are valid, clipped, at most MaxPeople of them.
+func cleanPeople(people []Person) []Person {
+	var out []Person
+	for _, p := range people {
+		p.Name, p.Role = clip(p.Name, MaxName), clip(p.Role, 40)
+		if p.valid() && len(out) < MaxPeople {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func (e Entry) validate() error {
 	if !ValidID(e.ID) || (e.Kind != KindIndividual && e.Kind != KindTeam) || !plain(e.Name, MaxName) || e.Name == "" || !e.State.Valid() || !plain(e.Detail, 500) || !plain(e.Role, 20) {
 		return fmt.Errorf("workspace: workspace %q is not valid", e.ID)
@@ -613,6 +678,7 @@ func (s Summary) Clean() (Summary, int) {
 	out.Projects = make([]Project, 0, len(s.Projects))
 	for _, p := range s.Projects {
 		p.Name = clip(p.Name, MaxName)
+		p.People = cleanPeople(p.People)
 		if ValidID(p.ID) && p.Name != "" && ValidHref(p.Href) && len(out.Projects) < MaxProjects {
 			out.Projects = append(out.Projects, p)
 		} else {
@@ -622,6 +688,9 @@ func (s Summary) Clean() (Summary, int) {
 	out.Work = make([]Item, 0, len(s.Work))
 	for _, it := range s.Work {
 		it.Title, it.Project = clip(it.Title, MaxText), clip(it.Project, MaxName)
+		if !it.Agent.valid() {
+			it.Agent = nil
+		}
 		if ValidID(it.ID) && it.Title != "" && it.Status.Valid() && it.Execution.Valid() && it.Report.valid() && ValidHref(it.Href) && len(out.Work) < MaxItems {
 			out.Work = append(out.Work, it)
 		} else {
@@ -650,6 +719,9 @@ func (s Summary) Clean() (Summary, int) {
 		q.Project = clip(q.Project, MaxName)
 		q.Detail = clip(q.Detail, MaxText)
 		q.Owner, q.Plan = clip(q.Owner, MaxName), clip(q.Plan, MaxText)
+		if !q.Agent.valid() {
+			q.Agent = nil
+		}
 		if q.valid() && len(out.Queue) < MaxItems {
 			out.Queue = append(out.Queue, q)
 		} else {

@@ -265,3 +265,75 @@ func TestPlannedRangesKeepOwnerLinksAndRejectInvalidDates(t *testing.T) {
 		t.Fatalf("a timed plan on one day is valid: %v", err)
 	}
 }
+
+func TestAnAgentReferenceRoundTripsAndABadOneIsDroppedWithoutTheRow(t *testing.T) {
+	at := time.Unix(1_800_000_000, 0).UTC()
+	s := good()
+	s.Work[0].Agent = &AgentRef{ID: "codex", State: ExecRunning, ObservedAt: at, Fresh: true}
+	s.Work = append(s.Work,
+		Item{ID: "tsk_2", Title: "Bad slug", Project: "App", Status: StatusDoing, Href: "#/x", Agent: &AgentRef{ID: "Codex!", State: ExecRunning, ObservedAt: at}},
+		Item{ID: "tsk_3", Title: "No state", Project: "App", Status: StatusDoing, Href: "#/x", Agent: &AgentRef{ID: "codex", ObservedAt: at}},
+		Item{ID: "tsk_4", Title: "Not observed", Project: "App", Status: StatusDoing, Href: "#/x", Agent: &AgentRef{ID: "codex", State: ExecRunning}},
+		Item{ID: "tsk_5", Title: "Neutral mark", Project: "App", Status: StatusDoing, Href: "#/x", Agent: &AgentRef{State: ExecRunning, ObservedAt: at, Fresh: true}},
+	)
+	s.Queue = []QueueItem{{ID: "tsk_1", Title: "Fix login", Project: "App", Href: "#/x", Group: "now", Agent: &AgentRef{ID: "claude-code", State: ExecStarting, ObservedAt: at, Fresh: true}},
+		{ID: "tsk_2", Title: "Bad", Project: "App", Href: "#/x", Group: "now", Agent: &AgentRef{ID: "../x", State: ExecRunning, ObservedAt: at}}}
+	got, dropped, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Work) != 5 || len(got.Queue) != 2 {
+		t.Fatalf("rows must survive a bad reference: %d work, %d queue (dropped %d)", len(got.Work), len(got.Queue), dropped)
+	}
+	if a := got.Work[0].Agent; a == nil || a.ID != "codex" || !a.Fresh {
+		t.Fatalf("%+v", a)
+	}
+	for _, i := range []int{1, 2, 3} {
+		if got.Work[i].Agent != nil {
+			t.Fatalf("work %d kept an invalid reference: %+v", i, got.Work[i].Agent)
+		}
+	}
+	if a := got.Work[4].Agent; a == nil || a.ID != "" {
+		t.Fatalf("a reference with no agent id is the neutral mark and must survive: %+v", a)
+	}
+	if got.Queue[0].Agent == nil || got.Queue[1].Agent != nil {
+		t.Fatalf("%+v %+v", got.Queue[0].Agent, got.Queue[1].Agent)
+	}
+	if err := (Summary{Schema: Schema, Workspace: s.Workspace, Work: s.Work[1:2]}).Validate(); err == nil {
+		t.Fatal("a strict reader must refuse an invalid agent reference")
+	}
+}
+
+func TestPeopleAreBoundedPlainAndCarryNoPresence(t *testing.T) {
+	s := good()
+	var many []Person
+	for i := 0; i < MaxPeople+5; i++ {
+		many = append(many, Person{ID: "m" + string(rune('a'+i)), Name: "Member", Role: "Engineer"})
+	}
+	many = append(many, Person{ID: "bad id", Name: "Spaces"}, Person{ID: "nameless"})
+	s.Projects[0].People = many
+	got, _, err := Decode(strings.NewReader(encode(t, s)), IndividualID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(got.Projects[0].People); n != MaxPeople {
+		t.Fatalf("people are bounded to %d, got %d", MaxPeople, n)
+	}
+	// The wire shape of a person is exactly id, name and role: nothing that says whether they are around, and no address.
+	raw, _ := json.Marshal(Person{ID: "m1", Name: "Maya", Role: "Tech Lead"})
+	var keys map[string]any
+	_ = json.Unmarshal(raw, &keys)
+	if len(keys) != 3 || keys["id"] == nil || keys["name"] == nil || keys["role"] == nil {
+		t.Fatalf("%s", raw)
+	}
+	for _, field := range []string{"online", "lastSeen", "presence", "available", "email"} {
+		if strings.Contains(strings.ToLower(string(raw)), strings.ToLower(field)) {
+			t.Fatalf("a person must not carry %q", field)
+		}
+	}
+	bad := good()
+	bad.Projects[0].People = []Person{{ID: "m1", Name: "Maya", Role: strings.Repeat("x", 41)}}
+	if bad.Validate() == nil {
+		t.Fatal("a strict reader must refuse an over-long role")
+	}
+}

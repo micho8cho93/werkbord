@@ -119,3 +119,40 @@ func TestSummaryPreservesIdleStartingAndUnacknowledgedRemoteState(t *testing.T) 
 		t.Fatal("disabled runner marked current")
 	}
 }
+
+func TestTheSummaryNamesTheAgentOnEachRunAndNeverCallsAQuietRunnersWorkFresh(t *testing.T) {
+	at := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	ov := &Overview{
+		Projects: []ProjectActivity{{ProjectID: "prj_1", Name: "App"}},
+		Runners:  []domain.Runner{{ID: "rnr_gone", Online: false}, {ID: "rnr_up", Online: true}},
+		Runs: []AttentionRun{
+			{Run: domain.Run{ID: "run_1", TaskID: "tsk_1", ProjectID: "prj_1", AgentID: "codex", State: domain.RunRunning, UpdatedAt: at}, ProjectName: "App", TaskTitle: "Local"},
+			{Run: domain.Run{ID: "run_2", TaskID: "tsk_2", ProjectID: "prj_1", AgentID: "claude-code", State: domain.RunStarting, UpdatedAt: at}, ProjectName: "App", TaskTitle: "Starting"},
+			{Run: domain.Run{ID: "run_3", TaskID: "tsk_3", ProjectID: "prj_1", AgentID: "gemini-cli", State: domain.RunRunning, Remote: true, RunnerID: "rnr_gone", UpdatedAt: at}, ProjectName: "App", TaskTitle: "Quiet runner"},
+			{Run: domain.Run{ID: "run_4", TaskID: "tsk_4", ProjectID: "prj_1", AgentID: "opencode", State: domain.RunRunning, Remote: true, RunnerID: "rnr_up", UpdatedAt: at}, ProjectName: "App", TaskTitle: "Live runner"},
+		},
+	}
+	got := map[string]*workspace.AgentRef{}
+	for _, it := range SummaryOf(ov, at).Work {
+		got[it.ID] = it.Agent
+	}
+	if a := got["tsk_1"]; a == nil || a.ID != "codex" || a.State != workspace.ExecRunning || !a.Fresh {
+		t.Fatalf("a local run: %+v", a)
+	}
+	if a := got["tsk_2"]; a == nil || a.State != workspace.ExecStarting {
+		t.Fatalf("starting must be its own state, not queued: %+v", a)
+	}
+	if a := got["tsk_3"]; a == nil || a.Fresh {
+		t.Fatalf("a run whose runner is offline must not be fresh: %+v", a)
+	}
+	if a := got["tsk_4"]; a == nil || !a.Fresh {
+		t.Fatalf("a run on a live runner is fresh: %+v", a)
+	}
+	// Nothing about the run itself leaves with the reference.
+	raw, _ := json.Marshal(got["tsk_1"])
+	for _, banned := range []string{"run_1", "runId", "prompt", "path", "runner"} {
+		if strings.Contains(string(raw), banned) {
+			t.Fatalf("the agent reference leaked %q: %s", banned, raw)
+		}
+	}
+}
