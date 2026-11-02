@@ -97,8 +97,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     console.log('PASS Settings keyboard access, responsive/theme captures, and task focus order');
     const workProject = await api('POST', '/api/projects', { kind: 'work', name: 'Planning fixture' });
     await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration', plan: {start: new Date().toISOString().slice(0,10)} });
-    await page.goto(base + `/#/p/${workProject.id}/calendar`);
-    await page.getByRole('button', { name: /Plan the migration/ }).first().click();
+    await page.goto(base + `/#/p/${workProject.id}/work`);
+    await page.locator('[data-task-id]', { hasText: 'Plan the migration' }).first().click();
+    await page.getByRole('button', { name: 'Edit task', exact: true }).click();
     const workEdit = page.getByRole('dialog', { name: 'Edit task', exact: true });
     await workEdit.getByText('These dates plan the work in Calendar. This project does not run agents.', { exact: true }).waitFor();
     assert.equal(await workEdit.getByText('Run automatically from the controller', { exact: true }).count(), 0, 'work projects keep planning without execution controls');
