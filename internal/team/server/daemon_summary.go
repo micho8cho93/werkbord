@@ -90,6 +90,8 @@ func executionOf(p *domain.ProgressRecord) workspace.Execution {
 	switch p.Execution.State {
 	case "queued", "pending":
 		return workspace.ExecQueued
+	case "starting":
+		return workspace.ExecStarting
 	case "running":
 		return workspace.ExecRunning
 	case "needs_input", "waiting_for_user":
@@ -117,7 +119,7 @@ func executionReportOf(p *domain.ProgressRecord) *workspace.ExecutionReport {
 		r.RecordedAt = &at
 	}
 	switch p.Execution.State {
-	case "queued", "pending", "running", "needs_input", "waiting_for_user", "blocked":
+	case "queued", "pending", "starting", "running", "needs_input", "waiting_for_user", "blocked":
 		r.Stale = r.Stale || !p.Execution.RunnerOnline
 	}
 	return r

@@ -420,7 +420,7 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 				return errors.New("invalid or out-of-order controller event")
 			}
 			lastSeq = e.Seq
-			observations = append(observations, domain.Progress{Execution: *e.Execution, GitUnavailable: true})
+			observations = append(observations, domain.Progress{Execution: reportable(*e.Execution), GitUnavailable: true})
 			if len(observations) == 128 {
 				feed.Cursor = e.Seq
 				break
@@ -435,7 +435,7 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 		feed.Cursor = snap.Cursor
 	}
 	if feed.Reset || feed.Cursor >= snap.Cursor && lastSeq <= snap.Cursor {
-		o := domain.Progress{Execution: snap.Execution, Git: snap.Git, GitUnavailable: snap.GitUnavailable}
+		o := domain.Progress{Execution: reportable(snap.Execution), Git: snap.Git, GitUnavailable: snap.GitUnavailable}
 		b, _ := json.Marshal(o)
 		if string(b) != a.LastObservation || c.now().Sub(a.LastSnapshotAt) >= time.Minute {
 			observations = append(observations, o)
@@ -454,6 +454,17 @@ func (c *Connector) observe(ctx context.Context, a *devicestate.Association) err
 	}
 	*a = next
 	return nil
+}
+
+// reportable is the execution a Workspace Host of any age accepts: the controller names the agent and reports "starting", but a host
+// built before those existed refuses an unknown field or state with a 400, and the connector would then retry for ever and stop all
+// progress reporting. Until hosts are known to accept them (agent visibility, phase 4b), neither leaves the machine.
+func reportable(e integration.Execution) integration.Execution {
+	e.AgentID = ""
+	if e.State == "starting" {
+		e.State = "queued"
+	}
+	return e
 }
 func (c *Connector) deliver(ctx context.Context, a *devicestate.Association) error {
 	ps, err := c.Journal.Pending(ctx, a.Key(), c.now())

@@ -1,6 +1,10 @@
 package integration
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestRepositoryIdentityValidatesBeforeNormalizing(t *testing.T) {
 	for _, s := range []string{"https://GitHub.com/Acme/Shop.git", "git@github.com:Acme/Shop", "ssh://git@github.com:22/Acme/Shop", "git://github.com/Acme/Shop/"} {
@@ -23,5 +27,33 @@ func TestRepositoryIdentityValidatesBeforeNormalizing(t *testing.T) {
 	b, _ = RepositoryIdentity("https://host/a/b")
 	if a == b {
 		t.Fatal("path case lost")
+	}
+}
+
+func TestAgentIDIsAShortLowercaseSlugAndStartingIsAState(t *testing.T) {
+	for _, ok := range []string{"codex", "claude-code", "github-copilot-cli", "amp-acp", "a1", strings.Repeat("a", 40)} {
+		if !ValidAgentID(ok) || !(Execution{State: "running", AgentID: ok}).Valid() {
+			t.Fatalf("%q should be accepted", ok)
+		}
+	}
+	for _, bad := range []string{"Codex", "-codex", "codex-", "co--dex", "co dex", "codex/..", "codex\n", "é", strings.Repeat("a", 41)} {
+		if ValidAgentID(bad) || (Execution{State: "running", AgentID: bad}).Valid() {
+			t.Fatalf("%q should be refused", bad)
+		}
+	}
+	if ValidAgentID("") || !(Execution{State: "running", AgentID: ""}).Valid() {
+		t.Fatal("no agent is valid for an execution but is not an agent id")
+	}
+	if !(Execution{State: "starting"}).Valid() || (Execution{State: "starting", Outcome: "starting"}).Valid() {
+		t.Fatal("starting is a live state with no outcome")
+	}
+	// An execution with no agent encodes exactly as it did before, so an older reader sees nothing new.
+	raw, _ := json.Marshal(Execution{State: "running"})
+	if strings.Contains(string(raw), "agentId") {
+		t.Fatal(string(raw))
+	}
+	raw, _ = json.Marshal(Execution{State: "running", AgentID: "codex"})
+	if !strings.Contains(string(raw), `"agentId":"codex"`) {
+		t.Fatal(string(raw))
 	}
 }

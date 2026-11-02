@@ -203,7 +203,7 @@ func (s *Service) activeAgents(ctx context.Context, tx store.Tx, a Actor, x acce
 			return nil, err
 		}
 		for _, r := range live {
-			if !r.Stale && r.Execution.RunID != "" && (r.Execution.State == "queued" || r.Execution.State == "running" || r.Execution.State == "needs_input") {
+			if !r.Stale && r.Execution.RunID != "" && (r.Execution.State == "queued" || r.Execution.State == "starting" || r.Execution.State == "running" || r.Execution.State == "needs_input") {
 				out[k.ID] = true
 			}
 		}

@@ -90,7 +90,7 @@ func CoordinateSchedule(ctx context.Context, host Workspace, local ExecutionLoca
 		state = "completed"
 	case "blocked", "failed", "canceled":
 		state = "blocked"
-	case "queued":
+	case "queued", "starting":
 		state = "queued"
 	}
 	return update(state, a.RunID)

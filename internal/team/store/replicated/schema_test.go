@@ -178,7 +178,7 @@ func TestTheOneDependencyListMigrationCarriesDataAcrossOnTheCluster(t *testing.T
 }
 
 // This test starts before migration 0015. Use only columns present at that schema version;
-// the current InsertTicket query includes source_ref from a later migration.
+// the current InsertTicket query includes source_ref, and InsertProject github_live_off, from later migrations.
 func seedBeforeSourceRef(t testing.TB, s *Store) seeded {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Millisecond)
@@ -191,7 +191,8 @@ func seedBeforeSourceRef(t testing.TB, s *Store) seeded {
 		if err := tx.InsertMember(bg, domain.Member{ID: k.owner, WorkspaceID: k.ws, Name: "Ada", Role: domain.RoleOwner, CreatedAt: now}, "hash-"+k.owner); err != nil {
 			return err
 		}
-		if err := tx.InsertProject(bg, domain.Project{ID: k.project, WorkspaceID: k.ws, Name: "App", CreatedAt: now, UpdatedAt: now}); err != nil {
+		if _, err := q.ExecContext(bg, `INSERT INTO projects (id, workspace_id, name, description, repository, archived, created_at, updated_at, revision) VALUES (?, ?, ?, '', '', 0, ?, ?, 0)`,
+			k.project, k.ws, "App", now.UnixMilli(), now.UnixMilli()); err != nil {
 			return err
 		}
 		if err := tx.AddProjectMember(bg, k.ws, domain.ProjectMember{ProjectID: k.project, MemberID: k.owner, AddedBy: k.owner, AddedAt: now, Role: domain.ProjectOwner}); err != nil {

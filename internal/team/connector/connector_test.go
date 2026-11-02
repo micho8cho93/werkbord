@@ -205,3 +205,37 @@ func TestTickImportsMatchedTicketsAndReportsTheOnesWaitingForARepository(t *test
 		t.Fatalf("linked status: %+v", st)
 	}
 }
+
+// The controller names the agent and reports "starting", but a Workspace Host built before that refuses what it does not know and
+// the connector would retry for ever. Until 4b, neither leaves the machine.
+func TestConnectorWithholdsAgentAndStartingFromEveryHost(t *testing.T) {
+	ctx := context.Background()
+	j, err := devicestate.OpenSyncJournal(ctx, filepath.Join(t.TempDir(), "sync.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer j.Close()
+	a := devicestate.Association{WorkspaceID: "w", TeamProjectID: "p", TicketID: "t", MemberID: "m", DeviceID: "d", TaskID: "local", LocalProjectID: "project", Cursor: 5}
+	if err := j.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	starting := integration.Execution{State: "starting", AgentID: "codex"}
+	running := integration.Execution{State: "running", AgentID: "claude-code", RunnerOnline: true}
+	l := &localStub{snapshot: integration.Snapshot{Schema: integration.Schema, Cursor: 7, Execution: running}, feed: integration.Feed{Schema: integration.Schema, Cursor: 7, Events: []integration.Event{{Seq: 6, Execution: &starting}}}}
+	c := Connector{Local: l, Journal: j}
+	if err := c.observe(ctx, &a); err != nil {
+		t.Fatal(err)
+	}
+	pending, _ := j.Pending(ctx, a.Key(), time.Now())
+	if len(pending) != 2 {
+		t.Fatalf("%d observations", len(pending))
+	}
+	for _, p := range pending {
+		if p.Progress.Execution.AgentID != "" || p.Progress.Execution.State == "starting" {
+			t.Fatalf("a host of any age must see the old shape: %+v", p.Progress.Execution)
+		}
+	}
+	if pending[0].Progress.Execution.State != "queued" || pending[1].Progress.Execution.State != "running" {
+		t.Fatalf("%+v %+v", pending[0].Progress.Execution, pending[1].Progress.Execution)
+	}
+}

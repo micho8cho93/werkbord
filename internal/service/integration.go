@@ -324,9 +324,13 @@ func (s *Tasks) Waiting(ctx context.Context) ([]WaitingItem, error) {
 
 func executionMetadata(r domain.Run) integration.Execution {
 	e := integration.Execution{RunID: r.ID, Branch: r.Branch, HeadCommit: r.HeadCommit, HandoffAvailable: r.Handoff != nil}
+	// An agent id that is not a plain slug is left out rather than made to fail validation for the whole snapshot.
+	if integration.ValidAgentID(r.AgentID) {
+		e.AgentID = r.AgentID
+	}
 	switch r.State {
 	case domain.RunStarting:
-		e.State = "queued"
+		e.State = "starting"
 	case domain.RunRunning:
 		e.State = "running"
 	case domain.RunWaitingForUser:
@@ -357,7 +361,7 @@ func executionMetadata(r domain.Run) integration.Execution {
 }
 
 // IntegrationSnapshot reads task/run/cursor together. Availability is computed
-// from persisted ownership and heartbeat, without exposing hostnames or agents.
+// from persisted ownership and heartbeat, without exposing hostnames. The agent is named by its catalogue id only.
 func (s *Tasks) IntegrationSnapshot(ctx context.Context, pid, tid string) (integration.Snapshot, error) {
 	out := integration.Snapshot{Schema: integration.Schema, Execution: integration.Execution{State: "queued"}}
 	err := s.Store.View(ctx, func(tx store.Tx) error {

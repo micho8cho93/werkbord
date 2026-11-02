@@ -1402,7 +1402,7 @@ function canArchiveTicket(k) {
 }
 
 // What the person holding a ticket sees of their own agent on the board. Everyone else sees only whether it is active.
-const AGENT_STATE = { queued: 'Agent starting', running: 'Agent running', needs_input: 'Agent needs your answer', blocked: 'Agent blocked', completed: 'Agent finished', failed: 'Agent failed', canceled: 'Agent stopped' };
+const AGENT_STATE = { queued: 'Agent starting', starting: 'Agent starting', running: 'Agent running', needs_input: 'Agent needs your answer', blocked: 'Agent blocked', completed: 'Agent finished', failed: 'Agent failed', canceled: 'Agent stopped' };
 // Whether the owner's agent is working on a ticket: a yes or a no, drawn the same for everyone.
 function presence(active) {
   return h('span', { class: 'presence' + (active ? ' on' : ''), title: active ? 'Their agent is working on it right now.' : 'Their agent is not working on it right now.' },
@@ -1412,7 +1412,7 @@ function ownAgentRun(d, k) {
   const records = d.progressReports?.find(r => r.ticket.id === k.id)?.progress || (d.ticket && d.ticket.id === k.id ? d.progress || [] : []);
   const progress = records.slice().sort((a, b) => Number(a.stale) - Number(b.stale) || new Date(b.reportedAt) - new Date(a.reportedAt))[0];
   const run = progress && !progress.stale && progress.execution.runId ? progress.execution.state : '';
-  return { progress, run, running: ['queued', 'running', 'needs_input'].includes(run) };
+  return { progress, run, running: ['queued', 'starting', 'running', 'needs_input'].includes(run) };
 }
 // Opens the ticket at the agent controls with the policy to review already laid out: one more press starts it.
 function startAgent(k) {

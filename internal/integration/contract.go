@@ -129,7 +129,10 @@ type CompletionSummary struct {
 
 // Execution intentionally excludes activity, errors, prompts, questions and handoff text.
 type Execution struct {
-	RunID            string     `json:"runId,omitempty"`
+	RunID string `json:"runId,omitempty"`
+	// AgentID is the coding agent's catalogue id (a short lowercase slug such as "codex"), so a reader can show which agent a run is.
+	// Never a prompt, model, path or account. Absent from older controllers and while a run has no agent.
+	AgentID          string     `json:"agentId,omitempty"`
 	State            string     `json:"state"`
 	StartedAt        *time.Time `json:"startedAt,omitempty"`
 	CompletedAt      *time.Time `json:"completedAt,omitempty"`
@@ -181,10 +184,27 @@ type Feed struct {
 	Events []Event `json:"events"`
 }
 
+// ValidAgentID reports whether s is a short lowercase slug: letters, digits and single hyphens, at most 40 characters. It is not
+// checked against the agent catalogue, which changes between releases and must not make an older host refuse a newer agent.
+func ValidAgentID(s string) bool {
+	if s == "" || len(s) > 40 || s[0] == '-' || s[len(s)-1] == '-' {
+		return false
+	}
+	for i, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' && s[i-1] != '-') {
+			return false
+		}
+	}
+	return true
+}
+
 func (e Execution) Valid() bool {
 	switch e.State {
-	case "queued", "running", "needs_input", "blocked", "completed", "failed", "canceled":
+	case "queued", "starting", "running", "needs_input", "blocked", "completed", "failed", "canceled":
 	default:
+		return false
+	}
+	if e.AgentID != "" && !ValidAgentID(e.AgentID) {
 		return false
 	}
 	terminal := e.State == "completed" || e.State == "failed" || e.State == "canceled"

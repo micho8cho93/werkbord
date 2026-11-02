@@ -172,7 +172,7 @@ func TestIntegrationExecutionStateProjection(t *testing.T) {
 	for _, tc := range []struct {
 		state domain.RunState
 		want  string
-	}{{domain.RunStarting, "queued"}, {domain.RunRunning, "running"}, {domain.RunWaitingForUser, "needs_input"}, {domain.RunBlocked, "blocked"}, {domain.RunCompleted, "completed"}, {domain.RunFailed, "failed"}, {domain.RunStopped, "canceled"}} {
+	}{{domain.RunStarting, "starting"}, {domain.RunRunning, "running"}, {domain.RunWaitingForUser, "needs_input"}, {domain.RunBlocked, "blocked"}, {domain.RunCompleted, "completed"}, {domain.RunFailed, "failed"}, {domain.RunStopped, "canceled"}} {
 		t.Run(tc.want, func(t *testing.T) {
 			r := domain.Run{State: tc.state, CreatedAt: time.Now(), Prompt: "secret", Reason: "secret", Activity: "secret"}
 			out := executionMetadata(r)
@@ -312,5 +312,23 @@ func TestRegisterForRefusesAFolderOfAnotherRepository(t *testing.T) {
 	}
 	if _, err := f.projects.RegisterFor(ctx, "/repos/elsewhere", "", "/not/a/repository"); !errors.Is(err, domain.ErrInvalid) {
 		t.Fatal(err)
+	}
+}
+
+func TestIntegrationExecutionNamesTheAgentByItsSlugOnly(t *testing.T) {
+	r := domain.Run{State: domain.RunRunning, CreatedAt: time.Now(), AgentID: "codex", Model: "secret-model", Prompt: "secret"}
+	out := executionMetadata(r)
+	if out.AgentID != "codex" || !out.Valid() {
+		t.Fatal(out)
+	}
+	raw, _ := json.Marshal(out)
+	if strings.Contains(string(raw), "secret") {
+		t.Fatal("projection leaked local text")
+	}
+	// An agent id that is not a plain slug is left out, so one odd custom agent cannot make the whole snapshot invalid.
+	r.AgentID = "My Agent/../x"
+	out = executionMetadata(r)
+	if out.AgentID != "" || !out.Valid() {
+		t.Fatalf("%+v", out)
 	}
 }
