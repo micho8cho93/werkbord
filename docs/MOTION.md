@@ -49,8 +49,12 @@ Deck keys keep their existing icons and tactile press. Swaps animate between the
 
 Workflow motion reflects reported stage and result changes. The banner can resolve to its observed terminal state, checks acknowledge newly reported stages, and saved findings remain drafts for review. Loading old history does not recreate past accomplishments. Team phone access remains a read-only summary.
 
+## Agent rings
+
+The ring around an agent's logo (`identity.css`) is the one place a running agent is shown moving. It rotates only for a confirmed, fresh running state: one `transform` on a pseudo-element, 1.8 s linear, compositor-only, so it neither reflows nor adds polling. It runs only under `prefers-reduced-motion: no-preference` and pauses while the document is hidden (`data-motion-paused`, set by `motion.js`). Reduced motion keeps a static 270° arc. Starting, waiting, blocked, completed, failed, stopped, stale and unknown are static; a stale or unknown report never animates and never turns into "done". The ring's box is reserved, so a state change moves nothing. State is always also in words and in the accessible name.
+
 ## Accessibility and checks
 
 Every new spatial effect has a reduced-motion path. Text, exact values, status, focus and recovery remain available. Visual loops stop when hidden; controller work continues independently. No new animation dependency is required.
 
-`make check` covers the unit, type, lint, architecture and build checks. `make test-motion-browser` checks real saved board transitions, initial-load baselines, all six streaming studies, offscreen/reduced-motion behaviour, real Git fetch/push results, partial attachment readiness and recovery, Stop acknowledgement, chart inspection on desktop/phone, reduced motion and Team coordination against disposable data. The existing Assistant, phone, planning and analytics browser suites cover the surrounding workflows.
+`make check` covers the unit, type, lint, architecture and build checks. `make test-motion-browser` checks real saved board transitions, initial-load baselines, all six streaming studies, offscreen/reduced-motion behaviour, real Git fetch/push results, partial attachment readiness and recovery, Stop acknowledgement, the agent rings (turning only when running, one box for every state, paused when hidden, static under reduced motion), chart inspection on desktop/phone, reduced motion and Team coordination against disposable data. The existing Assistant, phone, planning and analytics browser suites cover the surrounding workflows.

@@ -270,6 +270,32 @@ let browser;
   await teamPage.waitForFunction(() => !document.querySelector('[aria-hidden="true"][inert].work-card'));
   await teamPage.screenshot({ path: path.join(artifacts, 'motion-team-board.png') });
   await teamContext.close();
+
+  // Agent identity (identity.css): only the confirmed running ring turns, only with motion allowed and the document visible, and a
+  // state change moves nothing. Drawn from the shared files on a bare page, so it covers Personal, Team and the shell alike.
+  const asset = name => fs.readFileSync(path.join(__dirname, '../internal/uipresentation/static', name), 'utf8');
+  const rings = ['running', 'starting', 'waiting', 'blocked', 'queued', 'completed', 'failed', 'stopped', 'stale', 'unknown'];
+  const identityContext = await browser.newContext({ viewport: { width: 600, height: 300 } });
+  const identity = await identityContext.newPage();
+  await identity.setContent(`<!doctype html><html><head><style>${asset('tokens.css')}${asset('identity.css')}</style></head><body>${rings.map(r => `<span id="r-${r}" class="wb-agent" data-ring="${r}" data-size="md"><span class="wb-agent-tile letter">C</span></span>`).join(' ')}</body></html>`);
+  await identity.addScriptTag({ content: asset('identity.js') });
+  const turning = () => identity.evaluate(rings => Object.fromEntries(rings.map(r => [r, getComputedStyle(document.getElementById('r-' + r), '::before').animationName])), rings);
+  const before = await turning();
+  assert.equal(before.running, 'wb-agent-turn', 'a confirmed running ring turns');
+  for (const r of rings.filter(r => r !== 'running')) assert.equal(before[r], 'none', r + ' ring does not turn');
+  const sample = () => identity.evaluate(() => getComputedStyle(document.getElementById('r-running'), '::before').transform);
+  const first = await sample(); await identity.waitForTimeout(250);
+  assert.notEqual(await sample(), first, 'the running ring is actually rotating');
+  const boxes = await identity.evaluate(rings => rings.map(r => { const b = document.getElementById('r-' + r).getBoundingClientRect(); const t = document.querySelector('#r-' + r + ' .wb-agent-tile').getBoundingClientRect(); return [b.width, b.height, t.width, t.height].join('x'); }), rings);
+  assert.equal(new Set(boxes).size, 1, 'every state reserves the same box and tile, so a state change shifts nothing: ' + boxes[0]);
+  await identity.evaluate(() => document.documentElement.setAttribute('data-motion-paused', ''));
+  assert.equal(await identity.evaluate(() => getComputedStyle(document.getElementById('r-running'), '::before').animationPlayState), 'paused', 'a hidden document pauses the ring');
+  await identity.evaluate(() => document.documentElement.removeAttribute('data-motion-paused'));
+  await identity.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal((await turning()).running, 'none', 'reduced motion keeps the static arc');
+  assert.notEqual(await identity.evaluate(() => getComputedStyle(document.getElementById('r-running'), '::before').borderTopColor), 'rgba(0, 0, 0, 0)', 'the static arc stays drawn');
+  await identity.screenshot({ path: path.join(artifacts, 'identity-rings.png') });
+  await identityContext.close();
   assert.deepEqual(errors, []);
-  console.log('PASS motion: initial loads, saved board moves, exact chart values, desktop/phone, six streaming marks, transfer results, file approval/readiness/recovery, Stop acknowledgement, reduced motion and Team coordination');
+  console.log('PASS motion: initial loads, saved board moves, exact chart values, desktop/phone, six streaming marks, transfer results, file approval/readiness/recovery, Stop acknowledgement, agent rings, reduced motion and Team coordination');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => { await browser?.close(); });

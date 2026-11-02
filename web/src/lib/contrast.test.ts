@@ -102,3 +102,34 @@ describe.each(palettes)('%s surface ladder', (name, tokens) => {
     expect(ratio(tokens.bg, frame)).toBeGreaterThan(ratio(tokens.bg, tray));
   });
 });
+
+// Identity (identity.css): the ring and its arc are graphics, which need 3:1 against the page (WCAG 1.4.11); the initials on an avatar
+// and the letter on a neutral tile are text, which need 4.5:1; a white logo tile has to stand apart from the ground in the dark styles.
+describe.each(palettes)('%s identity', (_name, tokens) => {
+  const RING = ['accent', 'warn', 'block', 'text-2'];
+  for (const fg of RING)
+    for (const bg of GROUND)
+      it(`the ${fg} ring reads on ${bg}`, () => {
+        expect(ratio(tokens[fg], tokens[bg])).toBeGreaterThanOrEqual(3);
+      });
+  it('the completed, failed and stopped badges carry a surface-coloured glyph', () => {
+    for (const fill of ['ok-text', 'danger-text', 'text-2']) expect(ratio(tokens.surface, tokens[fill])).toBeGreaterThanOrEqual(3);
+  });
+  it('the waiting dot reads against the surface it sits on', () => {
+    expect(ratio(tokens.warn, tokens.surface)).toBeGreaterThanOrEqual(3);
+  });
+  it('initials read on every avatar tone', () => {
+    const accentBlock = mix(tokens.accent, tokens.block, 0.5);
+    const tones = [tokens.ok, tokens.warn, tokens.block, tokens['text-2'], accentBlock, mix(tokens.ok, tokens.accent, 0.5)];
+    for (const tone of tones) for (const ground of GROUND) expect(ratio(tokens.text, mix(tone, tokens[ground], 0.16))).toBeGreaterThanOrEqual(4.5);
+  });
+  it('the viewer\'s own avatar reads, accent on its tint', () => {
+    expect(ratio(tokens.accent, tokens.tint)).toBeGreaterThanOrEqual(4.5);
+  });
+  it('the letter on a neutral tile reads on surface-2', () => {
+    expect(ratio(tokens.text, tokens['surface-2'])).toBeGreaterThanOrEqual(4.5);
+  });
+  it('the white logo tile is distinct from a dark ground', () => {
+    if (_name.endsWith('dark')) expect(ratio('#ffffff', tokens.surface)).toBeGreaterThanOrEqual(3);
+  });
+});

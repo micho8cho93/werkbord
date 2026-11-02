@@ -133,6 +133,25 @@ No button underlines its label. A lone button needs none.
 The tones are defined once in `app.css` and mirrored in the Team console's `console.css`. Use them where several buttons stand
 together (a page header, a card's actions, a menu); the label decides the tone, not the position.
 
+### Agent marks, state rings and avatars
+
+`identity.css`, `identity.js` and `identity.d.ts` (shared by Personal, Team and the shell) draw who is on a piece of work. The Svelte
+wrappers are `AgentMark`, `Avatar` and `AssigneeChip`; `agent-marks.ts` holds the logos (Simple Icons, CC0, the same source and
+trademark note as `brand-marks.ts`). Codex has no mark there, so it and any other unmarked agent get a neutral letter tile; no mark
+is invented.
+
+- **Mark.** The logo on a white circular tile in every style and theme, 18, 24 or 28 px. The logo never moves. The ring is a reserved
+  box (26, 32 or 36 px), so a state change shifts nothing.
+- **Ring.** A faint full-circle track with a 2 px arc. `identity.js` resolves the state for every renderer: only a confirmed, fresh
+  running state turns (accent); starting is a static dashed accent ring; waiting is amber with a dot; blocked is a dashed purple ring
+  (`--block`); completed, failed and stopped are a tick, cross or dash badge; stale and unknown are a neutral, faded ring that never
+  animates and never becomes "done" or "offline". Whoever calls decides `fresh`: the controller for own work, the server for a peer.
+  Every state is also in the `aria-label` ("Codex, running", "Codex, last reported 6m ago").
+- **Avatar.** Initials on a disc, 20, 24 or 34 px, toned from a hash of the member id (six tones from theme tokens), cobalt for the
+  viewer. No photo and no upload. People are shown by role and by what is assigned to them, never by whether they are online.
+- **Assignment.** `[ringed mark] Codex running` and `[avatar] Held by Maya` are two separate groups, the agent first.
+- **Contrast.** `contrast.test.ts` holds the ring and arc at 3:1, avatar and letter-tile text at 4.5:1, in all seven styles and both themes.
+
 ## Layout
 
 - Standalone browser desktop (≥900px): a 220px rail (Workspace, projects with live counts, runners, Analytics, Help and Settings)

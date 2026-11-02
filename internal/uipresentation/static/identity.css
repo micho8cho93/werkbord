@@ -1,0 +1,69 @@
+/* Agent marks, state rings and avatars, shared by Personal, Team and the shell. Colours come only from tokens.css, so every style
+   and both themes follow. The state itself is resolved in identity.js; this draws it.
+
+   .wb-agent is a reserved box, so a state change never moves a neighbour. The logo sits on a white tile (as BrandMark does, so a
+   dark mark stays readable on a dark page) and never moves. The ring is the box's ::before: a faint full-circle track with a
+   270 degree accent arc. Only data-ring='running' rotates, one transform on the pseudo-element, under no-preference motion, and
+   it pauses while the document is hidden (motion.js sets data-motion-paused). Reduced motion keeps the static arc. */
+
+.wb-agent { --wb-tile: 18px; --wb-box: 26px; --wb-line: 2px; flex: none; position: relative; display: inline-grid; place-items: center; width: var(--wb-box); height: var(--wb-box); vertical-align: middle; }
+.wb-agent[data-size='md'] { --wb-tile: 24px; --wb-box: 32px; }
+.wb-agent[data-size='lg'] { --wb-tile: 28px; --wb-box: 36px; }
+
+.wb-agent-tile { display: grid; place-items: center; width: var(--wb-tile); height: var(--wb-tile); border-radius: 50%; background: #fff; border: 1px solid var(--border); box-sizing: border-box; color: #202329; font-size: calc(var(--wb-tile) * 0.5); font-weight: 600; line-height: 1; overflow: hidden; }
+.wb-agent-tile svg { width: 62%; height: 62%; display: block; }
+.wb-agent-tile.letter { background: var(--surface-2); color: var(--text); }
+
+.wb-agent::before { content: ''; position: absolute; inset: 0; border-radius: 50%; box-sizing: border-box; border: var(--wb-line) solid transparent; pointer-events: none; }
+/* The ring colours are non-text graphics: each reads at 3:1 or better on the page in every palette (contrast.test.ts). */
+.wb-agent[data-ring='running']::before { border-color: var(--accent) var(--accent) var(--accent) color-mix(in srgb, var(--accent) 22%, transparent); }
+.wb-agent[data-ring='starting']::before { border: var(--wb-line) dashed var(--accent); }
+.wb-agent[data-ring='waiting']::before { border-color: var(--warn); }
+.wb-agent[data-ring='blocked']::before { border: var(--wb-line) dashed var(--block); }
+.wb-agent[data-ring='queued']::before { border: var(--wb-line) dashed var(--text-2); opacity: 0.7; }
+.wb-agent[data-ring='completed']::before, .wb-agent[data-ring='failed']::before, .wb-agent[data-ring='stopped']::before { border-color: transparent; }
+.wb-agent[data-ring='stale']::before, .wb-agent[data-ring='unknown']::before { border-color: var(--text-2); }
+.wb-agent[data-ring='stale'], .wb-agent[data-ring='unknown'] { opacity: 0.6; }
+
+/* Badges: one corner disc for the states that end or wait, with the glyph drawn from gradients (no font glyphs). Decorative: the state
+   is always also in the label and in the text beside it. The glyph is --surface on a status fill, which reads in every palette. */
+.wb-agent[data-ring='waiting']::after, .wb-agent[data-ring='completed']::after, .wb-agent[data-ring='failed']::after, .wb-agent[data-ring='stopped']::after {
+  --wb-fill: var(--text-2); --wb-ink: linear-gradient(var(--surface), var(--surface));
+  content: ''; position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--surface);
+  background-color: var(--wb-fill); background-repeat: no-repeat;
+}
+.wb-agent[data-ring='waiting']::after { --wb-fill: var(--warn); }
+.wb-agent[data-ring='completed']::after {
+  --wb-fill: var(--ok-text); background-image: linear-gradient(to top right, transparent calc(50% - 0.7px), var(--surface) calc(50% - 0.7px) calc(50% + 0.7px), transparent calc(50% + 0.7px)), linear-gradient(to bottom right, transparent calc(50% - 0.7px), var(--surface) calc(50% - 0.7px) calc(50% + 0.7px), transparent calc(50% + 0.7px));
+  background-size: 2.5px 2.5px, 4.5px 4.5px; background-position: 1.5px 3.5px, 3.5px 1.5px;
+}
+.wb-agent[data-ring='failed']::after {
+  --wb-fill: var(--danger-text);
+  background-image: linear-gradient(to bottom right, transparent calc(50% - 0.7px), var(--surface) calc(50% - 0.7px) calc(50% + 0.7px), transparent calc(50% + 0.7px)), linear-gradient(to top right, transparent calc(50% - 0.7px), var(--surface) calc(50% - 0.7px) calc(50% + 0.7px), transparent calc(50% + 0.7px));
+  background-size: 4px 4px; background-position: center;
+}
+.wb-agent[data-ring='stopped']::after { --wb-fill: var(--text-2); background-image: var(--wb-ink); background-size: 4px 1.5px; background-position: center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .wb-agent[data-ring='running']::before { animation: wb-agent-turn 1.8s linear infinite; will-change: transform; }
+  :root[data-motion-paused] .wb-agent[data-ring='running']::before { animation-play-state: paused; }
+}
+@keyframes wb-agent-turn { to { transform: rotate(360deg); } }
+
+/* A person: initials on a tinted disc. The tone is a hash of the member id, so one member looks the same everywhere. The viewer's
+   own disc keeps the cobalt tint. Text is --text on a light mix of a status colour, which reads in every palette. */
+.wb-avatar { --wb-av: 24px; --wb-tone: var(--text-2); flex: none; display: inline-grid; place-items: center; width: var(--wb-av); height: var(--wb-av); border-radius: 50%; box-sizing: border-box; background: color-mix(in srgb, var(--wb-tone) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--wb-tone) 34%, var(--surface)); color: var(--text); font-size: calc(var(--wb-av) * 0.42); font-weight: 600; line-height: 1; vertical-align: middle; user-select: none; }
+.wb-avatar[data-size='sm'] { --wb-av: 20px; }
+.wb-avatar[data-size='lg'] { --wb-av: 34px; }
+.wb-avatar[data-tone='0'] { --wb-tone: var(--ok); }
+.wb-avatar[data-tone='1'] { --wb-tone: var(--warn); }
+.wb-avatar[data-tone='2'] { --wb-tone: var(--block); }
+.wb-avatar[data-tone='3'] { --wb-tone: var(--text-2); }
+.wb-avatar[data-tone='4'] { --wb-tone: color-mix(in srgb, var(--accent) 50%, var(--block)); }
+.wb-avatar[data-tone='5'] { --wb-tone: color-mix(in srgb, var(--ok) 50%, var(--accent)); }
+.wb-avatar[data-self] { background: var(--tint); border-color: color-mix(in srgb, var(--accent) 40%, var(--surface)); color: var(--accent); }
+
+/* Who holds it, and which agent is on it: two separate groups, the agent first. */
+.wb-assign { display: inline-flex; align-items: center; gap: 10px; min-width: 0; font-size: 12px; color: var(--text-2); }
+.wb-assign-group { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.wb-assign-group > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
