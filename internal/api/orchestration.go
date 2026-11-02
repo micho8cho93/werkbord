@@ -124,3 +124,45 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, run)
 }
+
+// fallbackView is a project's automatic-fallback choices with what it has done. Nothing in it names a prompt or a path.
+type fallbackView struct {
+	domain.FallbackSettings
+	Ledger []domain.FallbackEntry `json:"ledger"`
+}
+
+func (s *Server) handleFallback(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Scheduler == nil {
+		writeError(w, 503, "unavailable", "scheduler is not enabled")
+		return
+	}
+	cfg, e := s.opt.Scheduler.FallbackSettings(r.Context(), r.PathValue("pid"))
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	l, e := s.opt.Scheduler.FallbackLedger(r.Context(), r.PathValue("pid"))
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	writeJSON(w, 200, fallbackView{cfg, l.Entries})
+}
+func (s *Server) handleSetFallback(w http.ResponseWriter, r *http.Request) {
+	if s.opt.Scheduler == nil {
+		writeError(w, 503, "unavailable", "scheduler is not enabled")
+		return
+	}
+	var in domain.FallbackSettings
+	if e := decode(w, r, &in); e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	out, e := s.opt.Scheduler.SetFallbackSettings(r.Context(), r.PathValue("pid"), in)
+	if e != nil {
+		s.fail(w, r, e)
+		return
+	}
+	l, _ := s.opt.Scheduler.FallbackLedger(r.Context(), r.PathValue("pid"))
+	writeJSON(w, 200, fallbackView{out, l.Entries})
+}

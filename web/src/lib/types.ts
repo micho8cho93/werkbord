@@ -200,7 +200,7 @@ export interface Run {
   pendingRequests?: ('send' | 'respond' | 'stop' | 'finish')[];
  runnerId?: string; remote?: boolean; branch?: string; baseCommit?: string; headCommit?: string; uncommitted?: boolean; usage?: Usage;
  attempt?: number;
- parentRunId?: string; purpose?: string; scheduleKey?: string; handoff?: Handoff;
+ parentRunId?: string; origin?: string; purpose?: string; scheduleKey?: string; handoff?: Handoff;
   id: string;
   taskId: string;
   projectId: string;

@@ -92,3 +92,28 @@ func TestPlanRunAPIPreviewRunAndHold(t *testing.T) {
 		t.Fatal("missing plan", code)
 	}
 }
+
+func TestFallbackAPIIsOffByDefaultAndValidated(t *testing.T) {
+	ts := newTestServer(t, func(o *Options) { o.Scheduler = &service.Scheduler{Deps: o.Tasks.Deps} })
+	var p service.ProjectDetail
+	if code := do(t, "POST", ts.URL+"/api/projects", `{"path":`+jsonString(gitRepo(t))+`}`, &p); code != 201 {
+		t.Fatal(code)
+	}
+	url := ts.URL + "/api/projects/" + p.ID + "/fallback"
+	var got struct {
+		domain.FallbackSettings
+		Ledger []domain.FallbackEntry `json:"ledger"`
+	}
+	if code := do(t, "GET", url, "", &got); code != 200 || got.Enabled || got.Ledger == nil {
+		t.Fatal(code, got)
+	}
+	if code := do(t, "PUT", url, `{"enabled":true,"providers":[]}`, nil); code != 400 {
+		t.Fatal("enabling with nobody to hand over to", code)
+	}
+	if code := do(t, "PUT", url, `{"enabled":true,"providers":["codex"],"maxSwitches":2,"dailyLimit":5}`, &got); code != 200 || !got.Enabled || got.MaxSwitches != 2 || got.DailyLimit != 5 {
+		t.Fatal(code, got)
+	}
+	if code := do(t, "GET", ts.URL+"/api/projects/prj_missing/fallback", "", nil); code != 404 {
+		t.Fatal(code)
+	}
+}

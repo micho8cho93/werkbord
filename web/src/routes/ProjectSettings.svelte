@@ -8,6 +8,7 @@
   import ProjectRelationships from '../lib/ProjectRelationships.svelte';
   import ProjectLifecycle from '../lib/ProjectLifecycle.svelte';
   import ProjectMemory from '../lib/ProjectMemory.svelte';
+  import FallbackSettings from '../lib/FallbackSettings.svelte';
   import { app } from '../lib/state.svelte';
   import type { ExecutionConfig, Project } from '../lib/types';
 
@@ -77,7 +78,7 @@
       saving = false;
     }
   }
-  let section = $state<'defaults' | 'capacity' | 'repository' | 'memory' | 'relationships' | 'history'>('defaults');
+  let section = $state<'defaults' | 'capacity' | 'fallback' | 'repository' | 'memory' | 'relationships' | 'history'>('defaults');
 </script>
 
 {#if isPhone()}
@@ -100,6 +101,7 @@
   <nav class="sections" aria-label="Project settings sections">
     <button class="btn" aria-pressed={section === 'defaults'} onclick={() => section = 'defaults'}><Icon name="defaults" />Task defaults</button>
     <button class="btn" aria-pressed={section === 'capacity'} onclick={() => section = 'capacity'}><Icon name="runner" />Capacity</button>
+    <button class="btn" aria-pressed={section === 'fallback'} onclick={() => section = 'fallback'}><Icon name="runner" />Fallback</button>
     <button class="btn" aria-pressed={section === 'repository'} onclick={() => section = 'repository'}><Icon name="git" />Repository</button>
     <button class="btn" aria-pressed={section === 'relationships'} onclick={() => section = 'relationships'}>Relationships</button>
     <button class="btn" aria-pressed={section === 'history'} onclick={() => section = 'history'}>Project history</button>
@@ -132,6 +134,8 @@
     </div>
   </section>
 
+{:else if section === 'fallback'}
+  <FallbackSettings projectId={project.id} />
 {:else if section === 'capacity'}
 <section class="pn">
  <h3>Concurrent runs</h3><label for="concurrency">Concurrent sessions in this project</label><input id="concurrency" class="input narrow" type="number" min="1" max="16" bind:value={concurrency} disabled={concurrencyBusy || savedConcurrency === null} />

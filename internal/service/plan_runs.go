@@ -29,6 +29,7 @@ const (
 // Step actions in a preview.
 const (
 	PlanStepStart = "start" // will be armed
+	PlanStepRetry = "retry" // its last session failed or was stopped; a new one will be armed
 	PlanStepArmed = "armed" // already armed and waiting for the scheduler
 	PlanStepSkip  = "skip"  // left alone, with the reason
 )
@@ -152,8 +153,8 @@ func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, pla
 			step.Action, step.Why = PlanStepSkip, "Already done."
 		case ran && latest.State.Active():
 			step.Action, step.Why = PlanStepSkip, "An agent session is already running."
-		case ran:
-			step.Action, step.Why = PlanStepSkip, "It has an earlier session ("+string(latest.State)+"). Review it and start it yourself."
+		case ran && latest.State != domain.RunFailed && latest.State != domain.RunStopped:
+			step.Action, step.Why = PlanStepSkip, "Its session finished ("+string(latest.State)+"). Review it; later steps wait for it to be done."
 		case o.RunID != "":
 			step.Action, step.Why = PlanStepSkip, "Its scheduled run has already started."
 		case !t.Mode().AllowsAgent():
@@ -165,6 +166,10 @@ func (s *Scheduler) planRunRead(ctx context.Context, tx store.Tx, projectID, pla
 				step.Action = PlanStepArmed
 			} else {
 				step.Action = PlanStepStart
+				if ran {
+					// The last session ended badly. Running the plan, which you reviewed, is the explicit request for a new one.
+					step.Action, step.Why = PlanStepRetry, "Its last session "+string(latest.State)+"; a new session will be started."
+				}
 				out.ToStart++
 			}
 		}
@@ -257,12 +262,12 @@ func (s *Scheduler) RunPlan(ctx context.Context, projectID, planID string, in Pl
 			if st.Action == PlanStepSkip {
 				continue
 			}
-			if st.Action == PlanStepStart {
+			if st.Action == PlanStepStart || st.Action == PlanStepRetry {
 				t := byID[st.TaskID]
 				task := t
 				o := task.Orchestration
 				o.Enabled = true
-				if !(o.Key != "" && o.RunID == "" && !o.Missed && o.Error == "") {
+				if st.Action == PlanStepRetry || !(o.Key != "" && o.RunID == "" && !o.Missed && o.Error == "") {
 					o.Rearm = true
 				}
 				if pv.Mode == domain.PlanModeInOrder {

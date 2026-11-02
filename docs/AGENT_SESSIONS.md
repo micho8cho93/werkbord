@@ -144,7 +144,26 @@ proposed provider, and dispatches nothing until **Approve**. Approve (which stat
 available only when the previous run is confirmed stopped (a finished run on a reachable runner), a handoff has been captured and
 another agent is usable. `recovery: intervention`, a blocked session that is still open and an unreachable runner all count as not
 stopped. It uses the existing continuation, which starts a new run from the handoff and never replays commands. Automatic fallback
-is not built.
+is a separate, opt-in setting (below).
+
+### Automatic fallback (opt-in)
+
+Project settings → **Fallback** lets a project hand a failed run to another agent without asking. It is off by default and bounded:
+
+- **Which runs:** only a run that has already *ended* as failed, on this computer, whose retained provider blocker is a rate limit or
+  exhausted allowance, within the last 24 hours. A session that is still open (blocked), an unknown stop (`recovery: intervention`),
+  a remote run, authentication, a full context window and unknown errors all stay with you.
+- **Which agent:** the first of the project's chosen agents, in its order, that can start now and has not already worked on the task.
+- **Verified handoff:** the controller captures the handoff itself and reads the worktree's Git state. It must be a clean reading
+  (no conflicts, no Git operation in progress) with recorded work (changed files, or a reported summary) to continue from.
+  Otherwise nothing starts and the ledger says why.
+- **Budget:** at most 1 to 3 automatic switches per task and 1 to 20 per project per 24 hours. These count starts, not money:
+  Werkbord does not know what a provider bills, and each continuation bills to that agent's own account.
+- **Idempotency:** the failed run's ID is the key. A claim is written before anything starts, so polls, restarts and crashes cannot
+  start a second continuation of it. The cost is that a crash between claim and start leaves that run for you to continue by hand; the
+  ledger records it as reserved. A refusal for a passing reason (capacity, an operation in progress) is retried; every other outcome is final.
+- The new run is an ordinary continuation (a fresh conversation from the handoff, never a replay of commands) with origin
+  `fallback:<failed run>`, and its task says it was started automatically.
 
 ## Limits
 

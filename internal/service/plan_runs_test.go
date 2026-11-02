@@ -249,3 +249,37 @@ func TestPlanEditsCannotWriteTheRunState(t *testing.T) {
 		t.Fatal("a plan edit must not clear the run state", cleared.Run, err)
 	}
 }
+
+func TestRunPlanRetriesAFailedStepOnlyWhenTheReviewedPreviewSaysSo(t *testing.T) {
+	f, s, pid, plan, tasks := planFixture(t)
+	ctx := context.Background()
+	run, err := f.runs.Create(ctx, NewRun{TaskID: tasks[0].ID, AgentID: "fake", Prompt: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.deps.Store.Update(ctx, func(tx store.Tx) error {
+		r, e := tx.Runs().Get(ctx, run.ID)
+		if e != nil {
+			return e
+		}
+		r.State, r.Reason = domain.RunFailed, "provider error"
+		return tx.Runs().Update(ctx, r)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	pv, _ := s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if pv.Steps[0].Action != PlanStepRetry || pv.Steps[0].Why == "" || pv.ToStart != 3 {
+		t.Fatalf("%+v", pv.Steps[0])
+	}
+	if _, err := s.RunPlan(ctx, pid, plan.ID, PlanRunInput{Version: plan.Version, Digest: pv.Digest}); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := f.tasks.Get(ctx, tasks[0].ID)
+	if !first.Orchestration.Enabled || first.Orchestration.Key == "" || first.Orchestration.RunID != "" {
+		t.Fatalf("the failed step was not armed again: %+v", first.Orchestration)
+	}
+	again, _ := s.PlanRunPreview(ctx, pid, plan.ID, "")
+	if again.Steps[0].Action != PlanStepArmed {
+		t.Fatalf("an armed retry is waiting for the scheduler, not to be retried again: %+v", again.Steps[0])
+	}
+}

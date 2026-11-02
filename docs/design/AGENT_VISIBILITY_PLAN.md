@@ -340,8 +340,8 @@ Built 2 November 2026 on local `main` `0cac704`. Findings that change the plan:
 - Show Interrupted or Blocked with provider and `ProviderKind`; stop the ring only when the stop is confirmed (`Recovery =
   intervention` means unknown, not stopped). Offer Review handoff, Choose another provider (existing continuation, which never
   replays), or Wait. Implements section 4.9.
-- **Phase 9b** (bounded automatic fallback) is deferred until 9a is proven: it needs per-project opt-in, a verified handoff, a
-  budget cap and an idempotency key.
+- **Phase 9b** (bounded automatic fallback) is built: per-project opt-in, a controller-verified handoff, switch and daily caps, and the
+  failed run's ID as the idempotency key. See `AGENT_SESSIONS.md`.
 
 ## 7. Risks and tradeoffs
 
@@ -361,7 +361,7 @@ Built 2 November 2026 on local `main` `0cac704`. Findings that change the plan:
 7. **Unverified assumptions to check first:** Simple Icons coverage for each provider; the shape of `GitLocal`; how the
    console loads shared `uipresentation` assets; the adapters' tool-kind taxonomy.
 8. **Simplifications taken:** no run ID to peers, no new endpoint, table or poller for awareness, no avatar upload, People
-   reuses `Board.People`, one shared popover, Schedule tab and Phase 9b deferred.
+   reuses `Board.People`, one shared popover, Schedule tab deferred.
 
 ## 8. Releases
 
@@ -371,7 +371,7 @@ Built 2 November 2026 on local `main` `0cac704`. Findings that change the plan:
 | R2 Team execution awareness | Phases 4b, 5 | Medium: new shared data, version skew |
 | R3 Agents and tools | Phases 6, 7 | Low to medium: stream taxonomy |
 | R4 Guided plan run | Phase 8 | High: dispatch semantics |
-| R5 Provider continuity | Phase 9a (9b later) | Medium to high |
+| R5 Provider continuity | Phases 9a and 9b | Medium to high |
 
 ## 9. Acceptance scenarios
 

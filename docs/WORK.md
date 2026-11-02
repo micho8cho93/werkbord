@@ -69,14 +69,18 @@ the existing scheduler loop, so the unique `(task_id, schedule_key)` claim keeps
   concurrency limit, and notes on billing, review and interruption. Its digest covers the plan version, mode and each task's version
   and action, not live capacity.
 - **Run** is refused (409) if the plan version or the digest differs from what was reviewed. Asking again when nothing is left to
-  arm changes nothing. **In order** adds a dependency on the nearest earlier open task; **as each becomes ready** adds none. Tasks
-  with an earlier session are never re-armed: review and start those yourself.
+  arm changes nothing. **In order** adds a dependency on the nearest earlier open task; **as each becomes ready** adds none.
+- A step whose last session **failed or was stopped** shows as *Will start again*, with the reason; running the plan you reviewed is
+  the request for one new session. It is armed once: an armed retry shows as waiting, and the scheduler's unique claim keeps it to
+  one run. A step whose session *completed* is left alone for you to review, and later steps wait for it.
 - **Pause after current task** disarms steps this run armed that have not dispatched. A running agent is never touched (the
   adapters stop and restart; they do not pause). **Resume** re-arms after a fresh preview. One control cycles Run plan, Pause after
   current task, Resume.
 - A step finishing moves its task to Review; the next step waits for the run before it to *complete*, not for approval.
 - The run state lives in the plan document (`run`), writable only by this service; a plan edit keeps it.
 - Team plans have no such control: Team never executes. Each member starts their own ticket from its Agent controls.
+  `internal/archtest/plan_run_test.go` pins this: Team's build does not link the services or the runner, and no Team source names the
+  plan-run or fallback operations or routes.
 
 ## Validation
 

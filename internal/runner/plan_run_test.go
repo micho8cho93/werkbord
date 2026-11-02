@@ -80,3 +80,34 @@ func TestRunPlanDispatchesInOrderOnceAcrossRestarts(t *testing.T) {
 		t.Fatal("a paused plan started its next step")
 	}
 }
+
+// A step whose session failed is started again only because the reviewed preview said so, and only once.
+func TestRunPlanStartsAFailedStepAgainOnce(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	a := e.task("first")
+	failed := e.start(a)
+	e.session().Exit(1, "crashed")
+	eventually(t, "first run failed", func() bool { r, _ := e.runs.Get(ctx, failed.ID); return r.State == domain.RunFailed })
+	plan, err := e.tasks.SaveWorkPlan(ctx, e.project.ID, "", domain.WorkPlan{Title: "Release", TaskIDs: []string{a.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := e.mgr.opt.Scheduler
+	pv, _ := s.PlanRunPreview(ctx, e.project.ID, plan.ID, "")
+	if pv.Steps[0].Action != service.PlanStepRetry {
+		t.Fatalf("%+v", pv.Steps[0])
+	}
+	if _, err := s.RunPlan(ctx, e.project.ID, plan.ID, service.PlanRunInput{Version: plan.Version, Digest: pv.Digest}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := e.mgr.ScheduleOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rs, _ := e.runs.ListByTask(ctx, a.ID); len(rs) != 2 {
+		t.Fatalf("expected one new session, got %d runs", len(rs))
+	}
+}

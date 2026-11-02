@@ -35,6 +35,9 @@ func (m *Manager) ScheduleOnce(ctx context.Context) error {
 		if !p.HasRepository() {
 			continue // no agent works on a project with no repository
 		}
+		if err := m.fallbackProject(ctx, p.ID); err != nil {
+			return err
+		}
 		plan, err := m.opt.Scheduler.Plan(ctx, p.ID)
 		if err != nil {
 			return err

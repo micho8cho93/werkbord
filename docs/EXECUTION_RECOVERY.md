@@ -77,6 +77,8 @@ When a CLI supplies only error text, classification is conservative and based on
 recognised phrases. Unknown failures remain `other`; numeric HTTP 429 with quota
 wording is quota exhaustion. Ordinary agent/tool output is not parsed as a failure.
 A failed scheduled turn is never automatically finished as a successful turn.
+A project can opt in to [automatic fallback](AGENT_SESSIONS.md#automatic-fallback-opt-in) for rate limits and exhausted allowance only; the table's
+"no automatic provider switch" holds for every other category and for every project that has not opted in.
 A session that then exits retains its blocker with its terminal execution record.
 
 The safe default is **Pause for intervention**, with zero automatic retries.

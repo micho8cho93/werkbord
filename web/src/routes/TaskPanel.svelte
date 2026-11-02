@@ -632,6 +632,10 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                 {#if !needsYou && (!status.active || status.tone !== 'work')}
                   <p class="note">{status.hint}</p>
                 {/if}
+                {#if run.origin?.startsWith('fallback:')}
+                  {@const from = history.find(r => r.id === run.parentRunId)}
+                  <p class="note" data-testid="fallback-note">Started automatically after {from ? agentName(app.agents, from.agentId) : 'the previous agent'} stopped, from its handoff. Fallback is set per project in Project settings.</p>
+                {/if}
                 {#if continuity?.needsReview}
                   <p class="note" data-testid="continuity">{continuity.headline} <button class="btn small" type="button" onclick={() => continuing = true}>Continue with another agent…</button></p>
                 {/if}
