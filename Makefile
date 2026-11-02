@@ -338,3 +338,4 @@ test-work-order-browser: web web-embed web-shell build-team
 	BROWSER_SCRIPT=scripts/browser-work-order.cjs node scripts/test-browser.cjs
 	BROWSER_SCRIPT=scripts/browser-plan-steps.cjs node scripts/test-browser.cjs
 	BROWSER_SCRIPT=scripts/browser-team-work-order.cjs node scripts/test-browser.cjs
+	BROWSER_SCRIPT=scripts/browser-team-agents.cjs node scripts/test-browser.cjs

@@ -239,8 +239,8 @@ creator, or `tickets.edit`); defining the labels is `labels.manage`. Human work 
 work, and nothing here moves a ticket or a date: `GET /projects/{id}/timeline` only reports what contradicts itself. A project
 without a repository runs the whole workflow with no Git report.
 
-The ticket panel lays each of these out as a box of its own: Description, Requirements and context, the agent (yours; for anyone else
-who owns it and whether it is active), **Comments** (type `@` to mention someone on the project), and a side rail with Status, **Dates** (start,
+The ticket panel lays each of these out as a box of its own: Description, Requirements and context, the agent (yours in full; for anyone else
+who holds it, which agent and whether it is running now), **Comments** (type `@` to mention someone on the project), and a side rail with Status, **Dates** (start,
 due or a milestone, edited in place by whoever may edit the ticket; Calendar shows them), and branch and pull request.
 
 The legal moves are written once, in `domain.TicketStatus.CanTransitionTo`:
@@ -661,7 +661,7 @@ the member, and so the workspace: no URL names one. Errors are `{"error": {"code
 | `PUT /projects/{id}/members/{memberId}` `{role?}` | project `members.manage` | idempotent; `role` (owner, reviewer, member) sets or changes their project role |
 | `DELETE /projects/{id}/members/{memberId}` | project `members.manage` | their tickets in progress go back on the board |
 | `GET /projects/{id}/people` | on the project | members with their project roles |
-| `GET /projects/{id}/board` | on the project | project, `revision`, columns, active `tickets`, `archived` tickets, people, your project role and what it allows |
+| `GET /projects/{id}/board` | on the project | project, `revision`, columns, active `tickets`, `archived` tickets, people, your project role and what it allows, `active` and `agents` (what teammates' agents are doing, read only) |
 | `GET /overview` | any member | the projects you can see with their counts, everyone's work in progress, and what is available |
 | `GET /my-work` | any member | your tickets, pull requests, what needs your attention, and your branches' state |
 | `GET /reviews` | any member | tickets in review you may review or submitted, with mergeability and blockers |
@@ -762,10 +762,23 @@ approval still happens locally. Questions, messages, activity, stop/restart and 
 controller and refresh in your ticket. When your agent finishes a run, the ticket moves to Review by itself (agent work
 only: a person finishes human and hybrid work and submits it), and reviewing and marking it done stay the team's.
 
-What the rest of the team sees of your agent is one yes-or-no, **active now** or **not active**, on the ticket and its card:
-`Board.active` names the tickets in progress whose owner's agent has a queued, running or waiting run reported within the last
-two minutes. `GET …/tickets/{tid}/progress` (what each of your devices reported) answers the owner alone and is empty for
-everyone else, the workspace owner included: what an agent does, asks and writes is nobody else's.
+What the rest of the team sees of your agent is read only and small. `Board.agents` gives, for each in-progress ticket you hold that
+has an agent run reported, four things: which agent it is (`id`), its state, when the server last heard (`observedAt`, the server's
+clock) and whether that is current (`fresh`). It is drawn as the agent's mark with a ring that turns only for a fresh running state,
+beside a "Held by" avatar; a stale report reads "last reported 6m ago" and is never shown as done or offline. It never carries the run
+ID, branch, summary, question, prompt, path, usage or whether your runner is connected, and it grants no control: a teammate's agent can
+be seen, never opened or steered. A report counts only if it belongs to the ticket's present claim, from your enrolled device, and is
+the newest such one, so switching agent replaces the old mark and an old replay cannot bring it back. `fresh` is the server's word:
+the report is no more than two minutes old and says your runner was online. `Board.active` (the older yes-or-no) is derived from the
+same projection, so the two cannot disagree. The Overview queue carries the same reference. Plan steps show their holder and agent and
+the plan lists its participants by project role and tasks held; nothing anywhere says whether a person is online.
+**Show teammates which coding agent runs my work** (Computer settings, on by default) lets you withhold the agent's name: teammates then
+see a neutral mark with the true state. `GET …/tickets/{tid}/progress` (what each of your devices reported) answers the owner alone and
+is empty for everyone else, the workspace owner included: what an agent does, asks and writes is nobody else's.
+
+A connector built with this sends the agent and the `starting` state. A Workspace Host from before it refuses unknown fields with a 400;
+the connector then repeats the report without them and keeps speaking the older shape to that host for 15 minutes before trying again, so
+progress reporting never stops during a rolling update.
 
 Claiming and starting preserve the same assignment interval, local task, repository and working branch. The existing
 handoff asks the agent to commit, push and open a PR on that branch, and to leave merging to the reviewer. Reported agent-only

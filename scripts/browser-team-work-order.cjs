@@ -74,7 +74,7 @@ let browser;
   await row(boPage, 'queue:next', 'Bravo').getByRole('button', { name: 'Claim', exact: true }).click();
   await boPage.waitForFunction(() => document.querySelectorAll('ul[data-order-scope="queue:now"] > [data-order-item]').length === 2);
   const mine = row(boPage, 'queue:now', 'Alpha');
-  assert.equal(await mine.locator('.owner-chip[data-me]').textContent(), 'BB');
+  assert.equal(await mine.locator('.wb-avatar[data-self]').textContent(), 'BB');
   assert.equal(await mine.locator('[data-order-handle]').count(), 1, 'the owner of a claimed ticket may order it');
   await drag(boPage, row(boPage, 'queue:now', 'Alpha'), row(boPage, 'queue:now', 'Bravo'), 'after');
   await boPage.waitForFunction(() => [...document.querySelectorAll('ul[data-order-scope="queue:now"] .title')].map(e => e.textContent).join() === 'Bravo,Alpha');
@@ -86,8 +86,8 @@ let browser;
   const held = row(cyPage, 'queue:now', 'Alpha');
   assert.equal(await held.locator('[data-order-handle]').count(), 0);
   assert.match(await held.locator('.order-lock').getAttribute('aria-label'), /Held by Bo Builder\. Only they or an editor can reorder it\./);
-  assert.equal(await held.locator('.owner-chip').textContent(), 'BB');
-  assert.equal(await held.locator('.owner-chip[data-me]').count(), 0);
+  assert.equal(await held.locator('.wb-avatar').textContent(), 'BB');
+  assert.equal(await held.locator('.wb-avatar[data-self]').count(), 0);
   assert.equal(await held.getByRole('button', { name: 'Claim', exact: true }).count(), 0, 'held work cannot be claimed');
   // A move the service refuses leaves the order alone and says so.
   const refused = await fetch(`${team}/api/team/v1/projects/${project.id}/tickets/${A.id}/position`, { method: 'PUT', headers: { Authorization: 'Bearer ' + cy.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ position: 99 }) });
@@ -96,7 +96,7 @@ let browser;
   // An editor still sees and may move what Bo holds.
   await ownerPage.reload(); await ownerPage.getByRole('heading', { name: 'Now', exact: true }).waitFor();
   assert.equal(await row(ownerPage, 'queue:now', 'Alpha').locator('[data-order-handle]').count(), 1);
-  assert.equal(await row(ownerPage, 'queue:now', 'Alpha').locator('.owner-chip[data-me]').count(), 0);
+  assert.equal(await row(ownerPage, 'queue:now', 'Alpha').locator('.wb-avatar[data-self]').count(), 0);
   console.log('PASS Team Work: held work shows its owner and a lock to other contributors; editors may still move it');
 
   // Narrow and dark.

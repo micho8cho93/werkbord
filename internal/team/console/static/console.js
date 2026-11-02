@@ -1403,10 +1403,27 @@ function canArchiveTicket(k) {
 
 // What the person holding a ticket sees of their own agent on the board. Everyone else sees only whether it is active.
 const AGENT_STATE = { queued: 'Agent starting', starting: 'Agent starting', running: 'Agent running', needs_input: 'Agent needs your answer', blocked: 'Agent blocked', completed: 'Agent finished', failed: 'Agent failed', canceled: 'Agent stopped' };
-// Whether the owner's agent is working on a ticket: a yes or a no, drawn the same for everyone.
-function presence(active) {
-  return h('span', { class: 'presence' + (active ? ' on' : ''), title: active ? 'Their agent is working on it right now.' : 'Their agent is not working on it right now.' },
-    h('span', { class: 'dot', 'aria-hidden': 'true' }), active ? 'Active now' : 'Not active');
+// The agent on a ticket, as a reference for the shared mark. The person's own report when they hold it; otherwise what the server says
+// of a peer's agent (Board.agents: which agent, a state, when, and whether that is current). Read only: nothing here opens a runner.
+function agentRef(d, k) {
+  if (k.status !== 'in_progress' || (k.workMode || 'agent') === 'human') return null;
+  if (k.assigneeId === state.me.member.id) {
+    const p = ownAgentRun(d, k).progress;
+    return p && p.execution.runId ? { id: p.execution.agentId || '', state: p.execution.state, observedAt: p.reportedAt, fresh: !p.stale && !!p.execution.runnerOnline } : null;
+  }
+  return (d.board.agents || {})[k.id] || null;
+}
+// Who holds a ticket: an assignment on a claim, "Assigned to" where someone is named but has not claimed it.
+function holderOf(d, k) {
+  if (!k.assigneeId) return null;
+  const mine = k.assigneeId === state.me.member.id;
+  return { id: k.assigneeId, name: mine ? state.me.member.name : personName(d, k.assigneeId), self: mine };
+}
+// The agent first, then the person: `[ringed mark] Codex running` and `[avatar] Held by Maya`. A stale report reads "last reported"
+// and is never drawn as done or offline.
+function assignmentOf(d, k) {
+  const holder = holderOf(d, k);
+  return WerkbordTeamIdentity.assignment(agentRef(d, k), holder, k.status === 'available' ? 'Assigned to' : 'Held by');
 }
 function ownAgentRun(d, k) {
   const records = d.progressReports?.find(r => r.ticket.id === k.id)?.progress || (d.ticket && d.ticket.id === k.id ? d.progress || [] : []);
@@ -1442,22 +1459,15 @@ function card(d, k) {
   return h('article',{class:'card work-card'+(mine?' mine':'')+(k.id===state.ticketId?' open':''),'data-task-id':k.id,'data-work-state':k.status,'aria-busy':pendingTickets.has(k.id)},
     h('span',{class:'work-task-marker'+(active?' active':'')+(k.status==='done'?' complete':''),'aria-label':status},k.status==='done'?icon('check'):''),
     h('div',{class:'work-task-content'},h('button',{class:'link title',onclick:()=>{state.ticketId=k.id===state.ticketId?null:k.id;state.handoff=null;remember();render();}},k.title),
-      h('div',{class:'muted small work-meta'},k.key+' · '+status,k.assigneeId?' · '+(mine?'You':personName(d,k.assigneeId)):'',k.plan?.start?' · '+k.plan.start:'',k.status==='in_progress'&&agentWork&&!mine?presence(active):''),
+      h('div',{class:'muted small work-meta'},k.key+' · '+status,k.assigneeId?' · '+(mine?'You':personName(d,k.assigneeId)):'',k.plan?.start?' · '+k.plan.start:'',''),
       progress?.stale?h('p',{class:'work-detail'},'Last reported '+ago(progress.reportedAt)):'',
       blocked.length?h('p',{class:'work-blocked'},'Blocked by ',blocked.map(id=>{const dep=d.board.tickets.find(t=>t.id===id);return dep?h('button',{class:'link',onclick:()=>openTicket(d.id,id)},dep.title):'Unavailable task';})): '',
       flags.length?h('div',{class:'flags'},flags):''),
-    h('div',{class:'work-row-actions'},k.assigneeId&&k.status!=='done'?ownerChip(d,k):'',k.status==='review'?h('button',{class:'plain open small',onclick:open},'Review work'):'',
+    h('div',{class:'work-row-actions'},k.assigneeId&&k.status!=='done'?assignmentOf(d,k):'',k.status==='review'?h('button',{class:'plain open small',onclick:open},'Review work'):'',
       canStartAgent?h('button',{class:'primary small','data-start-agent':k.id,onclick:()=>startAgent(k)},['completed','failed','canceled'].includes(run)?'Start agent again':'Start agent'):'',
       ['available','in_progress'].includes(k.status)&&mine?h('button',{class:'plain open small',onclick:open},'Open work'):'',
       k.status==='available'&&!k.assigneeId&&d.board.member&&pcan('tickets.claim')?h('button',{class:'plain small',onclick:()=>act(()=>api('POST',projectPath(k)+'/claim'))},'Claim'):'',
       k.status==='done'&&!k.archivedAt&&canArchiveTicket(k)?h('button',{class:'plain open small',onclick:()=>act(()=>api('POST',projectPath(k)+'/archive',{version:k.version,archived:true}))},'Archive'):''));
-}
-
-// Who holds a ticket, as initials: the person's own is tinted. The name is also in the card's text and in the chip's label.
-function ownerChip(d, k) {
-  const mine = k.assigneeId === state.me.member.id, name = mine ? 'You' : personName(d, k.assigneeId);
-  const initials = (name === 'You' ? state.me.member.name : name).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
-  return h('span', { class: 'owner-chip', 'data-me': mine ? true : null, role: 'img', 'aria-label': 'Held by ' + name, title: 'Held by ' + name }, initials);
 }
 
 function projectPath(k) { return '/projects/' + state.projectId + '/tickets/' + k.id; }
@@ -1656,7 +1666,8 @@ function ticketPanel(d, k) {
   const owner = k.assigneeId ? (mine ? 'You' : personName(d, k.assigneeId)) : 'Unassigned';
   const facts = h('dl', { class: 'facts' },
     h('dt', {}, 'Status'), h('dd', {}, (k.archivedAt ? 'Archived · ' : '') + statusLabel(b, k.status)),
-    h('dt', {}, 'Owner'), h('dd', {}, owner, k.status === 'in_progress' && agentWork ? [' ', presence(active)] : ''),
+    h('dt', {}, 'Owner'), h('dd', {}, owner),
+    agentRef(d, k) ? [h('dt', {}, 'Agent'), h('dd', {}, WerkbordTeamIdentity.assignment(agentRef(d, k), null))] : '',
     h('dt', {}, 'Created by'), h('dd', {}, personName(d, k.creatorId), ' ', when(k.createdAt)),
     k.claimedAt && k.assigneeId ? [h('dt', {}, 'Claimed'), h('dd', {}, when(k.claimedAt))] : '',
     k.submittedAt ? [h('dt', {}, 'Submitted'), h('dd', {}, when(k.submittedAt), k.reviewerId ? ' · reviewer ' + personName(d, k.reviewerId) : '')] : '',
@@ -2253,6 +2264,18 @@ window.addEventListener('message', async event => {
   } catch (error) { event.source.postMessage({ type: 'werkbord.planning.result', id: m.id, ok: false, error: error.message }, event.origin); }
 });
 
+// Who is on a plan: each person who holds one of its tasks, by their role on the project and how many they hold. Nothing here says
+// whether anyone is around; people are shown by what is assigned to them.
+function participants(tickets, people, names) {
+  const held = new Map();
+  for (const k of tickets) if (k.assigneeId && k.status !== 'done') held.set(k.assigneeId, (held.get(k.assigneeId) || 0) + 1);
+  if (!held.size) return h('p', { class: 'muted small' }, 'No one holds a task in this plan yet.');
+  return h('ul', { class: 'plan-people' }, [...held].map(([id, n]) => {
+    const self = id === state.me.member.id, name = self ? state.me.member.name : (people.get(id) || {}).name || names.get(id) || 'a former member', role = (people.get(id) || {}).projectRole;
+    return h('li', {}, WerkbordTeamIdentity.avatar(id, name, self, 'sm'), h('span', { class: 'plan-person' }, h('strong', {}, self ? name + ' (you)' : name), h('span', { class: 'muted small' }, (role ? role + ' · ' : '') + plural(n, 'task') + ' held')));
+  }));
+}
+
 // Initiatives coordinate references; project boards remain the place to work.
 let initiativeEditor;
 let initiativeEditorIdentity;
@@ -2326,12 +2349,17 @@ async function initiativesView(projectId) {
   if(selected){
     const v=selected,i=v.initiative;
     const owned=v.tickets.filter(k=>k.assigneeId===state.me.member.id).map(k=>({k,...ownAgentRun(state.data||{},k)})).filter(r=>r.progress?.execution.runId);
-    const taskRows=h('ol',{class:'plan-tasks'},v.tickets.map(k=>h('li',{},h('span',{class:'plan-task-marker'+(k.status==='done'?' complete':'')},k.status==='done'?icon('check'):''),h('div',{},h('button',{class:'link plan-task-title',onclick:()=>openTicket(k.projectId,k.id)},k.title),h('p',{class:'muted small'},statusName(k.status)),(k.dependencies||[]).length?h('p',{class:'work-blocked'},'Depends on '+k.dependencies.map(id=>v.tickets.find(t=>t.id===id)?.title||id).join(', ')):'',k.pullRequest?extLink(k.pullRequest.url,'PR · '+k.pullRequest.state):''))));
+    // Each step shows its holder and, from a fresh or last-reported record, the agent on it. Both are read only, and a step in a project
+    // whose board is not the one open shows its holder alone.
+    const pd=state.data,pdBoard=pd&&pd.board,pdPeople=new Map(((pdBoard&&pdBoard.people)||[]).map(p=>[p.id,p]));
+    const stepWho=k=>{if(pdBoard&&pdBoard.project.id===k.projectId)return assignmentOf(pd,k);const mine=k.assigneeId===state.me.member.id;return k.assigneeId?WerkbordTeamIdentity.assignment(null,{id:k.assigneeId,name:mine?state.me.member.name:ownerNames.get(k.assigneeId)||'a former member',self:mine},k.status==='available'?'Assigned to':'Held by'):null;};
+    const stepLine=(k,n)=>{const after=n>0&&(k.dependencies||[]).includes(v.tickets[n-1].id)?' · After step '+n:'';return 'Step '+(n+1)+' of '+v.tickets.length+after;};
+    const taskRows=h('ol',{class:'plan-tasks'},v.tickets.map((k,n)=>h('li',{},h('span',{class:'plan-task-marker'+(k.status==='done'?' complete':'')},k.status==='done'?icon('check'):''),h('div',{},h('button',{class:'link plan-task-title',onclick:()=>openTicket(k.projectId,k.id)},k.title),h('p',{class:'muted small'},statusName(k.status)+' · '+stepLine(k,n)),k.assigneeId&&k.status!=='done'?h('p',{class:'plan-task-who'},stepWho(k)):'',(k.dependencies||[]).length?h('p',{class:'work-blocked'},'Depends on '+k.dependencies.map(id=>v.tickets.find(t=>t.id===id)?.title||id).join(', ')):'',k.pullRequest?extLink(k.pullRequest.url,'PR · '+k.pullRequest.state):''))));
     const content=state.workPlanTab==='sessions'?h('div',{},h('p',{class:'muted small section-note'},'Recent session reports for tasks you own.'),owned.length?owned.map(r=>h('div',{class:'row'},h('div',{class:'grow'},h('strong',{},r.k.title),h('p',{class:'muted small'},(r.progress.stale?'Last reported · ':'')+(AGENT_STATE[r.run]||r.run))),h('button',{class:'plain small',onclick:()=>openTicket(r.k.projectId,r.k.id)},'Open task session'))):h('p',{class:'muted section-note'},'Open a task to inspect its reported session.'))
       :state.workPlanTab==='decisions'?h('div',{class:'plan-prose'},h('h2',{},'Decisions'),h('p',{class:'prose'},i.decisions||'No decisions recorded yet.'),v.memories.length?h('div',{},h('h3',{},'Shared context'),v.memories.map(m=>h('p',{},m.content.summary))):'')
       :state.workPlanTab==='questions'?h('div',{class:'plan-prose'},h('h2',{},'Open questions'),h('p',{class:'prose'},i.questions||'No open questions recorded.')):taskRows;
     body=h('div',{class:'plan-body'},h('button',{class:'plain small plan-back',onclick:back},icon('left'),'Back to Work'),h('div',{class:'plan-detail-layout'},h('div',{class:'plan-main'},h('div',{class:'plan-title'},h('h1',{},i.title),h('span',{class:'plan-standing'+(v.blockers.length?' attention':'')},v.done===v.tickets.length&&v.done>0?'Complete':v.blockers.length?'Needs attention':v.done?'In progress':'Ready')),h('p',{class:'muted plan-description'},i.objective),h('div',{class:'plan-progress'},h('progress',{max:v.tickets.length||1,value:v.done,'aria-label':'Plan progress'}),h('span',{class:'muted small'},v.done+' of '+v.tickets.length+' tasks complete')),h('nav',{class:'plan-tabs','aria-label':'Plan sections'},[['tasks','Tasks'],['sessions','Sessions'],['decisions','Decisions'],['questions','Questions']].map(([id,label])=>h('button',{'aria-current':state.workPlanTab===id?'page':null,onclick:()=>{state.workPlanTab=id;render();}},label))),content),
-      h('aside',{class:'plan-info','aria-label':'Plan information'},h('h2',{},'Plan info'),h('dl',{},h('dt',{},'Project'),h('dd',{},v.projects.map(p=>p.name).join(', ')),h('dt',{},'Created'),h('dd',{},new Date(i.createdAt).toLocaleDateString()),h('dt',{},'Owner'),h('dd',{},ownerNames.get(i.ownerId)||'Former member'),h('dt',{},'Tasks'),h('dd',{},v.tickets.length+' total · '+v.done+' complete')),h('h2',{},'Actions'),i.ownerId===state.me.member.id||can('projects.manage')?h('button',{class:'plain',onclick:()=>edit(i).catch(e=>{state.error=e.message;render();})},'Edit plan'):'',FRAMED&&projectId?h('button',{class:'plain',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:i.id},'*')},'Edit with Salie'):'',h('button',{class:'plain',onclick:()=>openProject(projectId||v.projects[0].id,'calendar')},'View in Calendar'),h('details',{},h('summary',{},'Dependencies and context'),v.blockers.map(b=>h('p',{class:'small'},b)),h('ul',{},v.nextActions.map(a=>h('li',{class:'small'},a)))),h('details',{},h('summary',{},'Activity and changes'),v.activity.map(a=>h('p',{class:'small'},a.kind+' · '+a.ticketKey+' · ',when(a.createdAt))),i.history.map(a=>h('p',{class:'small'},a.kind+' · ',when(a.at)))))));
+      h('aside',{class:'plan-info','aria-label':'Plan information'},h('h2',{},'Plan info'),h('dl',{},h('dt',{},'Project'),h('dd',{},v.projects.map(p=>p.name).join(', ')),h('dt',{},'Created'),h('dd',{},new Date(i.createdAt).toLocaleDateString()),h('dt',{},'Owner'),h('dd',{},ownerNames.get(i.ownerId)||'Former member'),h('dt',{},'Tasks'),h('dd',{},v.tickets.length+' total · '+v.done+' complete')),h('h2',{},'Participants'),participants(v.tickets,pdPeople,ownerNames),h('h2',{},'Actions'),i.ownerId===state.me.member.id||can('projects.manage')?h('button',{class:'plain',onclick:()=>edit(i).catch(e=>{state.error=e.message;render();})},'Edit plan'):'',FRAMED&&projectId?h('button',{class:'plain',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'work_salie',projectId,planId:i.id},'*')},'Edit with Salie'):'',h('button',{class:'plain',onclick:()=>openProject(projectId||v.projects[0].id,'calendar')},'View in Calendar'),h('details',{},h('summary',{},'Dependencies and context'),v.blockers.map(b=>h('p',{class:'small'},b)),h('ul',{},v.nextActions.map(a=>h('li',{class:'small'},a)))),h('details',{},h('summary',{},'Activity and changes'),v.activity.map(a=>h('p',{class:'small'},a.kind+' · '+a.ticketKey+' · ',when(a.createdAt))),i.history.map(a=>h('p',{class:'small'},a.kind+' · ',when(a.at)))))));
   }
   if(editor.childElementCount)view.dataset.editing='true';
   view.append(editor,body);return view;

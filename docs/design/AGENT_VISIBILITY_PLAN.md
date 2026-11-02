@@ -397,8 +397,8 @@ tag or push unless asked (`AGENTS.md`). Use British English in new copy and "Sal
 - [ ] 6. `Hub.svelte`: remove the stat grid and CSS, fold counts into headers, add agent and holder to rows and the decision card, set the right column.
 - [x] 7. `TaskCard`, `WorkPlans` (ordered steps, Tasks and Execution tabs), `work-steps.ts`. Run `make test-work-order-browser` and `browser-work*.cjs`.
 - [x] 8. **4a:** `AgentID` and `starting` in `integration.Execution`; tolerant host decode. Nothing visible.
-- [ ] 9. **4b** (D1 opt-out setting, D2 no run ID): peer projection and `Board.Agents` with a batched query; version-gated connector send; all Phase 4 tests including the presence guard.
-- [ ] 10. **5:** console card, plan detail, Participants panel, own-items-only decision card, rename `presence`; run `browser-team*.cjs` and `make test-team-desktop-browser`.
+- [x] 9. **4b** (D1 opt-out setting, D2 no run ID): peer projection and `Board.Agents` with a batched query; version-gated connector send; all Phase 4 tests including the presence guard.
+- [x] 10. **5:** console card, plan detail, Participants panel, own-items-only decision card, rename `presence`; run `browser-team*.cjs` and `make test-team-desktop-browser`.
 - [ ] 11. **6 and 7:** `SessionCard`, `AgentSessions` (plan sub-headers), `Agents.svelte` strip, session Work context panel, feed grouping after the taxonomy audit, `ConnectedTools`.
 - [ ] 12. **8** (D3 plan-run column and migration, D4 Team "review my steps"): `PlanRun` preview, run, hold; restart and duplicate-run tests; Execution tab.
 - [ ] 13. **9a:** interrupted-state UI and the handoff dialog.
