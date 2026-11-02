@@ -168,7 +168,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       if (m.from === undefined) d.agentSession?.(m.key as string | undefined);
       else d.agentSession?.(m.key as string | undefined, m.from as string);
     }
-    else if (m.event === 'page' && !frame.hosted && !frame.surface && (m.page === 'overview' || frame.id === 'personal' && (m.page === 'inbox' || m.page === 'calendar' || m.page === 'reported'))) d.page?.(m.page);
+    else if (m.event === 'page' && !frame.hosted && !frame.surface && (m.page === 'overview' || m.page === 'inbox' || frame.id === 'personal' && (m.page === 'calendar' || m.page === 'reported'))) d.page?.(m.page);
     else if (m.event === 'salie' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.conversation === undefined || typeof m.conversation === 'string' && /^[\w-]{1,80}$/.test(m.conversation))) d.openSalie?.(typeof m.conversation === 'string' ? m.conversation : undefined);
     else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
       const problem = await d.reauth?.(frame.id, m.manual === true);

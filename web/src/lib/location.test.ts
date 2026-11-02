@@ -232,3 +232,10 @@ describe('a team repository opened in the person\'s own Werkbord', () => {
     expect(parse('#/github/octo').view).toBe('projects');
   });
 });
+
+describe('the window\'s New project address', () => {
+  it('is the Projects page with `new` in its query, which the page reads to show only the form', () => {
+    expect(parse('#/projects?new=project').view).toBe('projects');
+    expect(queryOf('#/projects?new=project')).toBe('new=project');
+  });
+});

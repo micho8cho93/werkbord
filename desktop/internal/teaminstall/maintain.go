@@ -132,6 +132,31 @@ type maintenanceTarget struct {
 	Before    maintenanceState `json:"-"`
 	Backup    string           `json:"backup"`
 	BackupDir string           `json:"backupDir"`
+	// HoldsDatabase: this computer keeps a copy of the workspace's database. A device that only joined the team holds its
+	// identity and nothing else; the Workspace Hosts hold the data, so there is nothing here to back up (a backup asked of it
+	// is made on a host's disk, never in this computer's backup directory).
+	HoldsDatabase bool `json:"holdsDatabase"`
+}
+
+// holdsDatabase says whether the workspace in dir keeps a database copy on this computer. It errs towards yes: only a
+// directory that plainly has none of the places a host keeps its data is treated as a member's.
+func holdsDatabase(dir string) bool {
+	for _, name := range []string{"storage.json", "storage", "team.db", "team.db-wal", "team.db-shm"} {
+		if _, err := os.Lstat(filepath.Join(dir, name)); !errors.Is(err, os.ErrNotExist) {
+			return true
+		}
+	}
+	return false
+}
+
+// needsBackup says whether any of the workspaces keeps a database here, so a backup directory and a backup are required.
+func needsBackup(targets []maintenanceTarget) bool {
+	for _, t := range targets {
+		if t.HoldsDatabase {
+			return true
+		}
+	}
+	return false
 }
 
 var maintenanceSlotPattern = regexp.MustCompile(`^[a-z0-9_]{1,24}$`)
@@ -179,7 +204,7 @@ func maintenanceTargets(ctx context.Context, data, base, key string) ([]maintena
 		if err := beforeMaintenance(before); err != nil {
 			return nil, fmt.Errorf("workspace %s: %w", slot, err)
 		}
-		targets = append(targets, maintenanceTarget{Slot: slot, Base: address, Before: before})
+		targets = append(targets, maintenanceTarget{Slot: slot, Base: address, Before: before, HoldsDatabase: holdsDatabase(dirs[slot])})
 	}
 	if len(targets) == 0 {
 		return nil, ErrNothingToMaintain

@@ -8,8 +8,14 @@
   import { activitySummary, attentionCount, shortPath } from '../lib/projects';
   import Icon from '../lib/Icon.svelte';
   import { phone } from '../lib/mobile/phone.svelte';
+  import { embedded } from '../lib/embed';
   import { projectHref, router, switchedTo } from '../lib/router.svelte';
   import { app } from '../lib/state.svelte';
+
+  /** The window's New project asks for this page with `?new`: just the way to add one, with no list beside it. */
+  const adding = $derived(embedded() && /(^|&)new(=|&|$)/.test(router.query));
+  /** Back to where the person was: the window's Work. */
+  const cancel = () => window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'inbox' }, '*');
 
   let source = $state<'local' | 'github' | 'work'>('local');
   let github = $state<GitHubStatusInfo | null>(null);
@@ -71,7 +77,8 @@
   const activity = (id: string) => app.overview?.projects.find((p) => p.projectId === id);
 </script>
 
-<div class="layout">
+<div class="layout" class:adding>
+  {#if !adding}
   <section class="pn">
     {#if !app.remote}<a class="btn" href="#/settings?history">Project history</a>{/if}
     <div class="ph">Projects<span class="chip">{app.projects.length}</span></div>
@@ -98,10 +105,16 @@
       <p class="muted">{#if app.remote}No projects yet. Add projects on the controller, then refresh this workspace.{:else}No projects yet. Register a local Git repository to get a board, a calendar and its Git, or start a work project for anything that is not code.{/if}</p>
     {/if}
   </section>
+  {/if}
 
   {#if !isPhone() && !app.remote}
   <section class="pn register" id="add-project">
+    {#if adding}
+      <div class="head"><h3>New personal project</h3><button class="btn" type="button" onclick={cancel}>Cancel</button></div>
+      <p class="muted lead">It lives on this Mac, and your agents work on it here. Only you can see it.</p>
+    {:else}
     <h3>Add a project</h3>
+    {/if}
     <div class="seg" role="group" aria-label="Project source">
       <button aria-pressed={source === 'local'} onclick={() => source = 'local'}>Local folder</button>
       <button aria-pressed={source === 'github'} onclick={() => source = 'github'}>GitHub repository</button>
@@ -151,6 +164,22 @@
     gap: 20px;
     width: 100%;
     align-items: start;
+  }
+
+  .layout.adding {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .lead {
+    margin: 0;
   }
 
   .list {
@@ -238,7 +267,7 @@
   }
 
   @media (min-width: 1000px) {
-    .layout {
+    .layout:not(.adding) {
       grid-template-columns: minmax(0, 1fr) minmax(380px, 0.8fr);
     }
   }

@@ -68,6 +68,9 @@
   </div>
 </header>
 
+<!-- In the window, Work and Git are entries of the sidebar: a second row of the same two names above the page is only a way to lose
+     one's place. Outside it (a browser, a phone) the row is how a project's sections are reached. -->
+{#if !framed || phone.on}
 <TabRow
   label="{project.name} sections"
   tabs={[
@@ -77,6 +80,7 @@
   current={active}
   deck={phone.on}
 />
+{/if}
 </div>
 
 <style>

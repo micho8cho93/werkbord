@@ -4,6 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('../web/node_modules/playwright');
+// The project context is a list of buttons in the window's own style, not a native select: open it, then press the project's row.
+const chooseProject = async (page, value) => {
+  await page.getByTestId('project-context').click();
+  await page.locator(`#project-listbox [role="option"][data-value='${value}']`).click();
+};
 const root = path.resolve(__dirname, '../desktop/frontend/dist/shell');
 const artifacts = path.resolve(__dirname, '../output/playwright/project-context');
 const workspace = (id, kind = 'personal', state = 'ready') => ({ id, kind, state, name: kind === 'personal' ? 'Personal' : id.replace('team:', ''), source: 'fixture', role: 'member' });
@@ -46,28 +51,30 @@ const server = http.createServer(async (req, res) => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const url = `http://127.0.0.1:${server.address().port}/`;
-    const picker = page.getByRole('combobox', { name: 'Project context', exact: true });
-    const load = async () => { await page.goto(url); await picker.waitFor(); await page.waitForFunction(() => document.querySelector('[data-testid="project-context"]')?.textContent.includes('Project one')); };
+    const picker = page.getByTestId('project-context');
+    const value = () => picker.getAttribute('data-value');
+    const optionCount = async () => { await picker.click(); const n = await page.locator('#project-listbox [role="option"]').count(); await page.keyboard.press('Escape'); return n; };
+    const load = async () => { await page.goto(url); await picker.waitFor(); await picker.click(); await page.locator('#project-listbox').getByText('Project one').first().waitFor(); await page.keyboard.press('Escape'); };
     await load();
     assert.deepEqual((await page.locator('[data-testid="sidebar"] .destinations button').allTextContents()).map(s => s.trim()), ['Work', 'Calendar', 'Git', 'Agents', 'Analytics']);
-    assert.equal(await picker.locator('option').count(), 2);
+    assert.equal(await optionCount(), 2);
     for (const scenario of [
       { name: 'multiple personal', items: [workspace('personal')] },
       { name: 'multiple team', items: [workspace('team:Design', 'team'), workspace('team:Platform', 'team')] },
       { name: 'mixed', items: [workspace('personal'), workspace('team:Platform', 'team')] },
     ]) {
       items = scenario.items; projects = ['one', 'two']; await load();
-      assert.equal(await picker.locator('option').count(), 1 + items.length * 2);
+      assert.equal(await optionCount(), 1 + items.length * 2);
       const selected = JSON.stringify([items.at(-1).id, 'two']);
-      await picker.selectOption(selected);
+      await chooseProject(page, selected);
       for (const destination of ['Calendar', 'Agents', 'Analytics', 'Work']) {
         await page.getByTestId('sidebar').getByRole('button', { name: destination, exact: true }).click();
-        assert.equal(await picker.inputValue(), selected);
+        assert.equal(await value(), selected);
       }
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
-      assert.equal(await picker.inputValue(), selected);
+      assert.equal(await value(), selected);
       await page.getByTestId('sidebar').getByRole('button', { name: 'Work', exact: true }).click();
-      await load(); assert.equal(await picker.inputValue(), selected);
+      await load(); assert.equal(await value(), selected);
       await page.getByRole('button', { name: 'Agents', exact: true }).click();
       // Agents lists the person's own sessions itself (their frame), so only what Team workspaces report is shown above them: Personal's
       // own reports are not listed twice. The project context applies to what is shown either way.
@@ -76,21 +83,21 @@ const server = http.createServer(async (req, res) => {
       assert.equal((await shown()).includes(`${items.at(-1).name} two`), reported(items.at(-1)));
       assert.ok(!(await shown()).includes('one'));
       assert.equal(await page.getByText('Reported in this context').count(), 0, 'the strip has no heading of its own to repeat');
-      await picker.selectOption('');
+      await chooseProject(page, '');
       for (const w of items) assert.equal((await shown()).includes(`${w.name} one`), reported(w));
       console.log('PASS ' + scenario.name + ': destinations, persistence, composite IDs and All Projects');
     }
     items = [workspace('personal'), workspace('team:Platform', 'team', 'offline')];
     await load();
     assert.ok((await page.locator('[aria-label="Current project"]').innerText()).includes('excluded'));
-    await picker.selectOption(JSON.stringify(['personal', 'two']));
+    await chooseProject(page, JSON.stringify(['personal', 'two']));
     // Permission-filtered summaries remove the project; do not retain cached rows.
     projects = ['one']; await load();
-    await page.waitForFunction(() => document.querySelector('[data-testid="project-context"]').value === '');
+    await page.waitForFunction(() => document.querySelector('[data-testid="project-context"]').dataset.value === '');
     assert.ok(!(await picker.innerText()).includes('two'));
     console.log('PASS offline and revoked project contexts');
     items = [workspace('personal'), workspace('team:Platform', 'team')]; projects = ['one', 'two']; await load();
-    await picker.selectOption(JSON.stringify(['team:Platform', 'two']));
+    await chooseProject(page, JSON.stringify(['team:Platform', 'two']));
     await page.getByRole('button', { name: 'Analytics', exact: true }).click();
     await page.waitForFunction(() => document.querySelector('#analytics-h'));
     await page.waitForTimeout(200);
@@ -99,14 +106,14 @@ const server = http.createServer(async (req, res) => {
     await page.getByTestId('sidebar-salie').click();
     await page.frameLocator('[data-testid="assistant-frame"]').getByText('Salie · Project two · Platform', { exact: true }).waitFor();
     await load();
-    assert.equal(await picker.inputValue(), JSON.stringify(['team:Platform', 'two']));
+    assert.equal(await value(), JSON.stringify(['team:Platform', 'two']));
     console.log('PASS Salie receives the selected composite project context');
     fs.mkdirSync(artifacts, { recursive: true });
     await page.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true });
     // Under All Projects the window's own Queue & Plans lists every project's work; with a project chosen it opens that workspace's page.
-    await picker.selectOption('');
+    await chooseProject(page, '');
     await page.getByRole('navigation', { name: 'Work sections' }).getByRole('button', { name: /^Queue/ }).click();
     await page.getByRole('heading', { name: 'Plans', exact: true }).waitFor();
     assert.ok((await page.locator('main').innerText()).includes('Ship two'));

@@ -13,7 +13,7 @@ describe('what Settings lists', () => {
     const acme = groupsFor({ kind: 'team', id: 'team:a' }, items).map((g) => g.label);
     expect(personal).toEqual(['General', 'Projects & workspaces', 'Work', 'Machines', 'Connections']);
     expect(acme).toEqual(['General', 'Projects & workspaces', 'Work', 'Machines', 'Connections', 'Workspace', 'Advanced']);
-    expect(labels({ kind: 'personal' }).slice(0, 5)).toEqual(['Appearance', 'Alerts', 'Plan', 'Workspaces', 'Project history']);
+    expect(labels({ kind: 'personal' }).slice(0, 7)).toEqual(['Appearance', 'Alerts', 'Keyboard shortcuts', 'Updates & about', 'Plan', 'Workspaces', 'Project history']);
     expect(labels({ kind: 'personal' })).toContain('Task defaults');
     expect(labels({ kind: 'personal' })).toContain('Personal memory');
     expect(labels({ kind: 'personal' })).not.toContain('Labels');

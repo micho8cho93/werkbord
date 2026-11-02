@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contextKey, parseContext, projectInHref, projectOptions, scopedOverview } from './project-context';
+import { contextKey, parseContext, projectGroups, projectInHref, projectOptions, scopedOverview } from './project-context';
 import type { Item, Overview, Summary } from './types';
 const workspace = (id: string, kind: Item['kind'] = 'personal', state: Item['state'] = 'ready'): Item => ({ id, kind, state, name: id, source: 'fixture' });
 const summary = (w: Item, ids: string[]): Summary => ({ schema: 'workspace-summary/v1', workspace: w, at: '', projects: ids.map(id => ({ id, name: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/work` : `?tab=board&project=${id}` })), work: ids.map(id => ({ id: `task-${id}`, title: id, status: 'doing', execution: 'running', project: 'Same name', href: w.kind === 'personal' ? `#/p/${id}/task/x` : `?tab=board&project=${id}&ticket=x` })), attention: ids.map(id => ({ id, kind: 'review', severity: 'info', title: id, href: w.kind === 'personal' ? `#/p/${id}/git` : `?tab=board&project=${id}` })), schedule: [], planned: [] });
@@ -52,4 +52,26 @@ it('scopes Work queue and plans without hiding ready work in All Projects', () =
  expect(scopedOverview(o,items,null)?.entries.flatMap(e=>e.summary?.queue??[])).toHaveLength(8);
  const selected=scopedOverview(o,items,{workspace:'team:main',project:'b'})!;
  expect(selected.entries[0].summary?.queue?.map(q=>q.title)).toEqual(['Ready b','Plan b']);
+});
+
+describe('the project picker', () => {
+  const named = (id: string, name: string, kind: Item['kind'] = 'team', state: Item['state'] = 'ready'): Item => ({ id, kind, state, name, source: 'fixture' });
+  const option = (workspace: string, project: string, name: string) => ({ workspace, project, name, owner: workspace, kind: 'team' as const });
+  const items = [named('team:one', 'Smith & Co'), named('personal', 'Universal', 'personal'), named('team:two', 'Empty team'), named('team:setup', 'Joining', 'team', 'setup')];
+  const options = [option('personal', 'a', 'Website'), option('personal', 'b', 'Api'), option('team:one', 'c', 'Launch'), option('team:one', 'd', 'Website')];
+
+  it('lists Personal first, then each team, and keeps a team with no project in view', () => {
+    const groups = projectGroups(items, options);
+    expect(groups.map((g) => [g.label, g.projects.length])).toEqual([['Personal', 2], ['Smith & Co', 2], ['Empty team', 0]]);
+  });
+  it('narrows by every typed word in the project or its place, and drops places with no match', () => {
+    expect(projectGroups(items, options, 'website').map((g) => [g.label, g.projects.map((p) => p.name)])).toEqual([['Personal', ['Website']], ['Smith & Co', ['Website']]]);
+    expect(projectGroups(items, options, 'smith launch').map((g) => g.projects.map((p) => p.name))).toEqual([['Launch']]);
+    expect(projectGroups(items, options, 'nothing like it')).toEqual([]);
+  });
+  it('marks a place that does not answer instead of hiding its projects', () => {
+    const groups = projectGroups([named('personal', 'Universal', 'personal'), named('team:one', 'Smith & Co', 'team', 'offline')], options);
+    expect(groups.map((g) => g.ready)).toEqual([true, false]);
+    expect(groups[1].projects).toHaveLength(2);
+  });
 });

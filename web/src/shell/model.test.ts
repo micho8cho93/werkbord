@@ -46,6 +46,36 @@ describe('Team activation', () => {
     expect(model.busy).toBe('');
   });
 
+  it('asks once as the window opens when the service was left behind by an update, and is quiet when the person says not now', async () => {
+    const store: Record<string, string> = {};
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; }, removeItem: (k: string) => { delete store[k]; } });
+    const model = new Model();
+    model.view = { ...view([individual]), team: { state: 'outdated', detail: 'older' } };
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    native.app.Overview = async () => ({ entries: [], at: '' });
+    let asked = 0;
+    native.app.ActivateTeam = async () => { asked++; throw new Error('Team was not set up'); };
+    await model.offerTeamUpdate();
+    expect(asked).toBe(1);
+    expect(model.error).toBe('');
+    await model.offerTeamUpdate();
+    expect(asked).toBe(1);
+    // A different window, answered yes, says so.
+    delete store['werkbord.shell.team-update-asked'];
+    native.app.ActivateTeam = async () => { asked++; return { state: 'ready', detail: '' }; };
+    await model.offerTeamUpdate();
+    expect(asked).toBe(2);
+    expect(model.notice).toContain('Team is updated');
+    // A service that is current, or one that cannot be installed from this build, is never offered an update.
+    delete store['werkbord.shell.team-update-asked'];
+    model.view = view([individual]);
+    await model.offerTeamUpdate();
+    model.view = { ...view([individual]), team: { state: 'outdated', detail: '' }, teamInstaller: false };
+    await model.offerTeamUpdate();
+    expect(asked).toBe(2);
+    vi.unstubAllGlobals();
+  });
+
   it('says set up when nothing is installed', async () => {
     const model = new Model();
     model.view = { ...view([individual]), team: { state: 'not_installed', detail: '' } };
@@ -177,6 +207,59 @@ describe('startup', () => {
       await model.refresh();
       expect(model.page).toBe('inbox');
     } finally { model.stop(); }
+  });
+});
+
+
+describe('New project', () => {
+  const target = (id: string) => ({ id, kind: id === 'personal' ? 'personal' as const : 'team' as const, url: 'http://127.0.0.1:1/', origin: 'http://127.0.0.1:1' });
+  const project = (id: string, name: string) => ({ id, name, href: `#/p/${id}/work` });
+  const summaryOf = (w: typeof individual | typeof team, ids: [string, string][]) => ({ schema: 'workspace-summary/v1' as const, workspace: w, at: '', projects: ids.map(([id, name]) => project(id, name)), work: [], attention: [], schedule: [], planned: [] });
+
+  it('goes straight to the form when Personal is the only place, and asks where to make it when a team is ready too', async () => {
+    const model = new Model();
+    const opened: string[] = [];
+    native.app.OpenWorkspace = async (id: string) => { opened.push(id); return target(id); };
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    model.view = view([individual]);
+    model.newProject();
+    await vi.waitFor(() => expect(model.frames.personal?.pending).toBe('#/projects?new=project'));
+    expect(model.newProjectOpen).toBe(false);
+
+    model.view = view([individual, team]);
+    model.newProject();
+    expect(model.newProjectOpen).toBe(true);
+    await model.startNewProject(team.id);
+    expect(model.newProjectOpen).toBe(false);
+    expect(model.frames[team.id].pending).toBe('?tab=projects&new=project');
+    expect(opened).toEqual(['personal', 'team:main']);
+  });
+
+  it('does not offer a place that is not connected, and says so when none is', () => {
+    const model = new Model();
+    model.view = view([individual, { ...team, state: 'offline' }]);
+    expect(model.projectHomes.map((i) => i.id)).toEqual(['personal']);
+    model.view = view([{ ...individual, state: 'unavailable' }]);
+    model.newProject();
+    expect(model.newProjectOpen).toBe(false);
+    expect(model.error).toMatch(/No workspace is ready/);
+  });
+
+  it('chooses the project the form made as soon as the window has been told it exists', async () => {
+    const model = new Model();
+    model.view = view([individual]);
+    native.app.OpenWorkspace = async (id: string) => target(id);
+    native.app.Workspaces = async () => model.view as WorkspaceView;
+    let made = false;
+    native.app.Overview = async () => ({ entries: [{ workspace: individual, summary: summaryOf(individual, made ? [['prj_new', 'Launch']] : []) }], at: '' });
+    await model.refreshOverview();
+    await model.startNewProject('personal');
+    model.page = 'workspace';
+    model.current = 'personal';
+    expect(model.selectedProject).toBeNull();
+    made = true;
+    model.setPlace('personal', '#/p/prj_new/work');
+    await vi.waitFor(() => expect(model.selectedProject).toEqual({ workspace: 'personal', project: 'prj_new' }));
   });
 });
 

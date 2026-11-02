@@ -3,7 +3,7 @@
   import Mark from '../lib/Mark.svelte';
   import AssistantGlyph from '../lib/AssistantGlyph.svelte';
   import { model, type Page } from './model.svelte';
-  import { contextKey, parseContext } from './project-context';
+  import ProjectPicker from './ProjectPicker.svelte';
   import { sidebar } from './nav-fold.svelte';
   import { railBadges } from './rail';
 
@@ -29,8 +29,6 @@
   });
   const helpUnavailable = $derived(model.view?.items.find((i) => i.id === 'personal')?.state === 'unavailable');
   let salieButton: HTMLButtonElement | undefined = $state();
-  const selected = $derived(contextKey(model.selectedProject));
-  const missing = $derived(!!selected && !model.projects.some(p => contextKey(p) === selected));
   const salieLabel = $derived(model.assistant.waiting ? `Salie · ${model.assistant.waiting} ${model.assistant.waiting === 1 ? 'request is' : 'requests are'} waiting for you` : 'Salie');
   $effect(() => {
     model.assistantSidebarButton = salieButton;
@@ -57,20 +55,7 @@
     </button>
   </div>
   <div class="body" id="sidebar-body">
-    <label class="project-picker">
-      <span class="sr-only">Project context</span><span class="picker-icon"><Icon name="folder" /></span>
-      <select value={selected} onchange={e => model.selectProject(parseContext(e.currentTarget.value))} title={model.contextLabel} aria-label="Project context" data-testid="project-context">
-        <option value="">All Projects</option>
-        {#each ['personal', 'team'] as kind (kind)}
-          <optgroup label={kind === 'personal' ? 'Personal projects' : 'Team projects'}>
-            {#each model.projects.filter(p => p.kind === kind) as p (contextKey(p))}
-              <option value={contextKey(p)}>{p.name}{kind === 'team' ? ` · ${p.owner}` : ''}{model.view?.items.find(i => i.id === p.workspace)?.state !== 'ready' ? ' · Offline' : ''}</option>
-            {/each}
-          </optgroup>
-        {/each}
-        {#if missing}<option value={selected}>Project unavailable</option>{/if}
-      </select>
-    </label>
+    <ProjectPicker />
     <!-- Salie sits under the project it is working in, and is drawn as a filled button so it reads as someone to ask, not a page to visit. -->
     <button bind:this={salieButton} class="salie" class:waiting={!!model.assistant.waiting} class:busy={!model.assistant.waiting && !!model.assistant.running} type="button" aria-haspopup="dialog" aria-expanded={model.assistantShown} aria-label={salieLabel} title={model.remotePersonal ? 'Salie requires the local controller' : salieLabel} disabled={model.remotePersonal || model.view?.items.find(i => i.id === 'personal')?.state === 'unavailable'} onclick={() => {
       const rect = salieButton?.getBoundingClientRect();
@@ -103,10 +88,6 @@
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px; border: 0; background: transparent; color: var(--text); cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; }
   .fold { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); cursor: pointer; transition: background 120ms, color 120ms; }
   .fold:hover { background: color-mix(in srgb, var(--text) 6%, var(--frame)); color: var(--text); }
-  .project-picker { display: block; min-width: 0; position: relative; }
-  .picker-icon { display: none; }
-  select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; text-overflow: ellipsis; transition: border-color 120ms; }
-  select:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
   .destinations { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .nav { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer; white-space: nowrap; transition: background 120ms, color 120ms, transform 160ms var(--ease); }
   .nav :global(svg) { transition: transform 200ms var(--ease); }
@@ -118,7 +99,7 @@
   .nav::before { content: ''; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--accent); transform: translateY(-50%); transition: height 200ms var(--ease); }
   .nav[aria-current='page']::before { height: 20px; }
   .nav:disabled { cursor: default; color: var(--text-2); }
-  button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   .salie { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 8px 12px; border: 1px solid var(--pri-bd, var(--accent)); border-radius: var(--radius-sm); background: var(--pri-bg); color: var(--pri-text, var(--accent-text)); box-shadow: var(--pri-sh); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; transition: transform 160ms var(--ease), filter 160ms, box-shadow 200ms; }
   /* A slow sheen crosses it when you point at it or Salie is working: a hint that she is alive, never a loop on an idle page. */
@@ -160,9 +141,6 @@
   .side.collapsed .count { padding: 0 5px; font-size: 11px; line-height: 16px; }
   .side.collapsed .bottom { flex-direction: column; }
   .side.collapsed .nav, .side.collapsed .salie { justify-content: center; padding-inline: 8px; gap: 0; }
-  .side.collapsed select { font-size: 16px; color: transparent; appearance: none; cursor: pointer; }
-  .side.collapsed option, .side.collapsed optgroup { color: var(--text); }
-  .side.collapsed .picker-icon { display: flex; position: absolute; inset: 0; align-items: center; justify-content: center; pointer-events: none; color: var(--text); }
   @media (max-width: 640px) {
     /* A window this narrow is always folded. */
     .side { width: 64px; padding: 16px 8px; gap: 16px; }
@@ -172,10 +150,7 @@
     .count, .working { position: absolute; top: 4px; right: 4px; margin: 0; min-width: 0; }
     .bottom { flex-direction: column; }
     .nav, .salie { justify-content: center; padding-inline: 8px; gap: 0; }
-    select { font-size: 16px; color: transparent; appearance: none; cursor: pointer; }
-    option, optgroup { color: var(--text); }
-    .picker-icon { display: flex; position: absolute; inset: 0; align-items: center; justify-content: center; pointer-events: none; color: var(--text); }
-  }
+    }
   @media (prefers-reduced-motion: reduce) {
     .side, .nav, .nav :global(svg), .nav::before, .salie, .fold { transition: none; }
     .salie::after, .salie .glyph :global(svg), .salie.waiting, .working { animation: none !important; }

@@ -1,5 +1,6 @@
 // Presentation-only context. Workspace summaries remain the authority for accessible projects.
 import type { Item, Overview, OverviewEntry } from './types';
+import { sectionItems } from './nav';
 
 export interface ProjectIdentity { workspace: string; project: string }
 export interface ProjectOption extends ProjectIdentity { name: string; owner: string; kind: Item['kind'] }
@@ -45,4 +46,33 @@ export function scopedOverview(overview: Overview | null, items: readonly Item[]
     } };
   });
   return { ...overview, entries };
+}
+
+/** A place that holds projects, with the ones to list from it. */
+export interface ProjectGroup {
+  id: string;
+  /** "Personal", or the team's name. */
+  label: string;
+  kind: Item['kind'];
+  /** The place answers; a project of one that does not is still listed, so it can be chosen, but is marked. */
+  ready: boolean;
+  detail: string;
+  projects: ProjectOption[];
+}
+
+/**
+ * What the project picker lists: Personal first, then each team, with the projects each holds, narrowed to those every typed word
+ * appears in (the name, or the team's name). While something is typed a place with no match is left out; otherwise every place is
+ * there, empty or not, so a team with no project yet is still seen.
+ */
+export function projectGroups(items: readonly Item[], options: readonly ProjectOption[], query = ''): ProjectGroup[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return sectionItems(items)
+    .map((i): ProjectGroup => {
+      const label = i.kind === 'personal' ? 'Personal' : i.name;
+      const all = options.filter((p) => p.workspace === i.id);
+      const projects = words.length ? all.filter((p) => words.every((w) => `${p.name} ${label}`.toLowerCase().includes(w))) : all;
+      return { id: i.id, label, kind: i.kind, ready: i.state === 'ready', detail: i.detail ?? '', projects };
+    })
+    .filter((g) => !words.length || g.projects.length > 0);
 }

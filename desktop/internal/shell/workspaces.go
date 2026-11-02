@@ -208,10 +208,10 @@ func (s *Shell) ActivateTeam() (teamlink.Status, error) {
 	yes := "Set up Team"
 	if updating {
 		yes = "Update Team"
-		dialog.Title = "Update the Team service on this Mac?"
-		dialog.Message = "Team's background service on this Mac is older than this app. Updating replaces it, with your administrator password.\n\n" +
-			"If the service belongs to a Team workspace, the update first takes a verified backup, checks that this app can read it, and preserves the workspace and its keys. " +
-			"The previous programs are restored if the updated service does not become healthy. A workspace being created, joined or left must settle first.\n\nNothing is replaced until you choose Update."
+		dialog.Title = "Update Team on this Mac?"
+		dialog.Message = "Werkbord was updated, and Team's background service on this Mac still runs the earlier version. Updating it takes your administrator password once and brings your teams back as they were.\n\n" +
+			"Your teams, their data and this Mac's place in them are kept. If this Mac holds a copy of a team's data, the update first takes a verified backup and checks that this version can read it. " +
+			"The earlier programs are put back if the new ones do not start cleanly. A team being created, joined or left must settle first.\n\nNothing is replaced until you choose Update."
 		dialog.Buttons = []string{yes, "Not now"}
 	}
 	if s.o.UI.Ask(dialog) != yes {

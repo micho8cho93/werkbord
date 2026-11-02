@@ -56,6 +56,7 @@ const state = {
   handoff: null,  // a handoff the member just opened
   showArchived: false, newTicketOpen: false, workSection: 'queue', workPlanId: '', workQuery: '', workPlanTab: 'tasks', repoSection: 'attention', wsSegment: 'all',
   advancedSettings: false, archiveProjectId: '',
+  addingProject: false, // the window's New project: the Projects page shows only the way to make one
   settingsPart: '', // which part of This computer's page a section of Settings shows: computer, phones or memory
   calendarAnchor: null,
   online: true,   // whether the live connection to the server is up
@@ -876,7 +877,29 @@ function projectHistoryPanel() {
 }
 
 
+// The window's New project: one form, for this team, with nothing else on the page. Making it opens it on Work.
+function newProjectPage() {
+  const leave = () => { state.addingProject = false; window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'inbox' }, '*'); };
+  const head = h('div', { class: 'section-head' }, h('h2', {}, 'New project in ' + state.me.workspace.name), h('button', { type: 'button', class: 'plain small', onclick: leave }, 'Cancel'));
+  if (!can('projects.create')) {
+    return h('div', { class: 'projects-page' }, h('section', { class: 'panel' }, head,
+      h('p', { class: 'muted' }, 'Only an administrator of this team can create projects. Ask one to create it, or to give you the role.')));
+  }
+  const name = h('input', { name: 'p-name', required: true, maxlength: 80, placeholder: 'Website relaunch', autocomplete: 'off' });
+  const desc = h('input', { name: 'p-desc', maxlength: 2000 });
+  const repo = h('input', { name: 'p-repo', placeholder: 'https://github.com/owner/repo', maxlength: 2048, autocomplete: 'off', spellcheck: 'false' });
+  setTimeout(() => { if (name.isConnected) name.focus(); }, 0);
+  return h('div', { class: 'projects-page' }, h('section', { class: 'panel new-project' }, head,
+    h('p', { class: 'muted' }, 'Everyone you add to it can see and work on it. Add people from the project once it exists.'),
+    h('form', { onsubmit: (e) => { e.preventDefault(); act(async () => {
+        const p = await api('POST', '/projects', { name: name.value, description: desc.value, repository: repo.value });
+        state.addingProject = false; state.projectId = p.id; state.tab = 'work'; state.data = null; remember(); }); } },
+      field('Name', name), field('Description (optional)', desc), field('Repository (optional)', repo),
+      h('div', { class: 'actions' }, h('button', { class: 'primary' }, 'Create project'), h('button', { type: 'button', class: 'plain', onclick: leave }, 'Cancel')))));
+}
+
 async function projectsView() {
+  if (state.addingProject) return newProjectPage();
   const projects = state.ov.projects.filter(({ project }) => !project.archived);
   const rows = projects.map(p => h('article', { class: 'project-card' },
     h('header', {}, h('button', { class: 'link project-card-title', onclick: () => openProject(p.project.id, 'work') }, p.project.name),
@@ -1058,7 +1081,7 @@ function choiceGroup(label, choices, isOn, pick, cls = 'inline', small = true) {
 
 // The team's own sub-areas, under its entry in the window's sidebar. Outside the window the rail lists them, so there is no second row.
 function workspaceTabs() {
-  if (!FRAMED || !WORKSPACE_TABS.includes(state.tab)) return '';
+  if (!FRAMED || !WORKSPACE_TABS.includes(state.tab) || state.addingProject) return '';
   return tabNav('Workspace sections', 'workspace-tab-', WORKSPACE_TABS.map((id) => [id, TABS.find(([t]) => t === id)[1], 0]), (id) => state.tab === id, (id) => go(id));
 }
 
@@ -1929,6 +1952,7 @@ function readLocation() {
  state.tab = [...TABS, ...ADMIN_TABS].some(x => x[0] === tab) || tab === 'project-settings' ? tab : 'workspace';
  if (FRAMED && !HOSTED && ADMIN_TABS.some(x => x[0] === state.tab)) state.tab = 'workspace'; // the window's own Settings shows these
  state.settingsPart = SETTINGS_PARTS.has(q.get('part')) ? q.get('part') : '';
+ state.addingProject = FRAMED && !HOSTED && state.tab === 'projects' && q.get('new') === 'project';
  state.projectId = q.get('project') || null;
  state.ticketId = q.get('ticket') || null;
  state.workPlanId = q.get('plan') || '';

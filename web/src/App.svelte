@@ -272,7 +272,7 @@
           </div>
         </header>
         <!-- The workspace's own sub-areas, under its entry in the window's sidebar: the same row a project and a team have. -->
-        {#if framed && !deck && (router.view === 'control' || router.view === 'projects')}
+        {#if framed && !deck && (router.view === 'control' || router.view === 'projects' && !/(^|&)new(=|&|$)/.test(router.query))}
           <TabRow label="Workspace sections" current={router.view} tabs={WORKSPACE_TABS.map((t) => ({ ...t, href: globalHref(t.id) }))} />
         {/if}
       {/if}

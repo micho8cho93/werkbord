@@ -110,29 +110,37 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 		return nil // already current
 	}
 
-	// A verified backup, before any change to the service.
+	// A verified backup, before any change to the service. A computer that only joined a team keeps no database, so there is
+	// nothing here to back up and the update is just a replacement of the programs.
 	backups := filepath.Join(SystemDir, "backups")
-	if err := os.MkdirAll(backups, 0700); err != nil {
-		return err
-	}
-	if err := os.Chmod(backups, 0700); err != nil {
-		return err
-	}
-	oldPlist, err := os.ReadFile(ServicePlist)
-	if err != nil {
-		return err
-	}
-	newPlist, backupDir, err := withBackupDir(oldPlist, backups)
-	if err != nil {
-		return err
-	}
-	if string(newPlist) != string(oldPlist) {
-		// The service needs a backup directory to back up into, and has none. Its only other change is that argument.
-		if err := restartWith(ctx, newPlist, oldPlist, key, targets); err != nil {
+	backupDir := backups
+	if needsBackup(targets) {
+		if err := os.MkdirAll(backups, 0700); err != nil {
 			return err
+		}
+		if err := os.Chmod(backups, 0700); err != nil {
+			return err
+		}
+		oldPlist, err := os.ReadFile(ServicePlist)
+		if err != nil {
+			return err
+		}
+		newPlist, dir, err := withBackupDir(oldPlist, backups)
+		if err != nil {
+			return err
+		}
+		backupDir = dir
+		if string(newPlist) != string(oldPlist) {
+			// The service needs a backup directory to back up into, and has none. Its only other change is that argument.
+			if err := restartWith(ctx, newPlist, oldPlist, key, targets); err != nil {
+				return err
+			}
 		}
 	}
 	for i := range targets {
+		if !targets[i].HoldsDatabase {
+			continue
+		}
 		started := time.Now().Add(-2 * time.Second)
 		if err := requestBackup(ctx, targets[i].Base, key); err != nil {
 			return fmt.Errorf("workspace %s: %w", targets[i].Slot, err)
@@ -154,7 +162,7 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 		targets[i].Backup = backup
 		targets[i].BackupDir = retained
 	}
-	if err := writeMaintenanceRecord(SystemDir, map[string]any{"from": before.Version, "to": nativeVersion, "backupDir": backupDir, "workspaces": targets, "verified": true}); err != nil {
+	if err := writeMaintenanceRecord(SystemDir, map[string]any{"from": before.Version, "to": nativeVersion, "backupDir": backupDir, "workspaces": targets, "verified": needsBackup(targets)}); err != nil {
 		return err
 	}
 

@@ -151,7 +151,7 @@ func (l *Link) StatusOf(err error) Status {
 	case errors.Is(err, ErrInstallInterrupted):
 		return Status{State: "outdated", Detail: "Team's installation was interrupted, so its service refuses changes such as creating a team. Set up Team again to recover it."}
 	case errors.Is(err, workspaces.ErrOutdated):
-		return Status{State: "outdated", Detail: "Team's background service does not match this app. Update it in Devices & Hosting to load the current Team interface."}
+		return Status{State: "outdated", Detail: "Team's background service is still the version from before this update. Choose Update Team (Settings → Devices & Hosting) to reconnect your teams."}
 	case errors.Is(err, workspaces.ErrRefused):
 		return Status{State: "refused", Detail: "Team's service did not accept this app. It may be installed for another user of this Mac."}
 	case errors.Is(err, workspaces.ErrNoCredential), errors.Is(err, workspaces.ErrNotRunning):

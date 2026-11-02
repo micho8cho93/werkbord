@@ -5,6 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('../web/node_modules/playwright');
+// The project context is a list of buttons in the window's own style, not a native select: open it, then press the project's row.
+const chooseProject = async (page, value) => {
+  await page.getByTestId('project-context').click();
+  await page.locator(`#project-listbox [role="option"][data-value='${value}']`).click();
+};
 const root = path.resolve(__dirname, '../desktop/frontend/dist/shell');
 const artifacts = path.resolve(__dirname, '../output/playwright/agent-header');
 const minutesAgo = m => new Date(Date.now() - m * 60_000).toISOString();
@@ -100,23 +105,23 @@ const server = http.createServer(async (req, res) => {
     assert.equal(await page.locator('.work-view .wb-agent[data-ring="running"]').count() > 0, true, 'running rows carry the ringed mark');
 
     // Git of a Personal project, and a Team's report with its provenance.
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
+    await chooseProject(page, JSON.stringify(['personal', 'one']));
     await page.getByTestId('header-git').waitFor();
     assert.match(await page.getByTestId('header-git').innerText(), /main/);
     await page.getByTestId('header-git').locator('.trigger').click();
     assert.match(await page.getByRole('group', { name: /^Git:/ }).innerText(), /main · a1b2c3d/);
     await page.keyboard.press('Escape');
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['team:Platform', 'two']));
+    await chooseProject(page, JSON.stringify(['team:Platform', 'two']));
     await page.getByTestId('header-git').waitFor();
     await page.getByTestId('header-git').locator('.trigger').click();
     assert.match(await page.getByRole('group', { name: /^Git:/ }).innerText(), /Reported \d+m ago · unverified/);
     await page.keyboard.press('Escape');
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption('');
+    await chooseProject(page, '');
     assert.equal(await page.getByTestId('header-git').count(), 0, 'several repositories invent no global branch');
 
     // Agents & connections: the person's own setup, only in a Personal context, with the detected state and the usage as reported.
     assert.equal(await page.getByTestId('header-tools').count(), 0, 'All Projects has no single setup to show');
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
+    await chooseProject(page, JSON.stringify(['personal', 'one']));
     await page.getByTestId('header-tools').waitFor();
     await page.getByTestId('header-tools').locator('.trigger').click();
     const tools = page.getByTestId('connected-tools');
@@ -130,12 +135,12 @@ const server = http.createServer(async (req, res) => {
     assert.doesNotMatch(said.replace('Balances and reset times are not available.', ''), /remain|reset|allowance|balance|online|offline/i, 'no allowance and no presence');
     assert.equal(await tools.getByRole('button', { name: 'Settings' }).count(), 1);
     await page.keyboard.press('Escape');
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['team:Platform', 'two']));
+    await chooseProject(page, JSON.stringify(['team:Platform', 'two']));
     assert.equal(await page.getByTestId('header-tools').count(), 0, 'a Team context shows none of the person\'s own setup');
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
+    await chooseProject(page, JSON.stringify(['personal', 'one']));
 
     // The breadcrumb gets its depth from the page in the frame.
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
+    await chooseProject(page, JSON.stringify(['personal', 'one']));
     await page.getByRole('navigation', { name: 'Work sections' }).getByRole('button', { name: /^Queue/ }).click();
     await page.waitForFunction(() => [...document.querySelectorAll('iframe')].some(f => f.src.includes('/frame')));
     const frames = page.frames().filter(f => f.url().includes('/frame'));
@@ -147,7 +152,7 @@ const server = http.createServer(async (req, res) => {
     assert.deepEqual(await page.locator('.crumbs .crumb').allInnerTexts(), ['Project one · Personal', 'Work', 'Plans', 'Authentication overhaul']);
     for (const frame of frames) await frame.evaluate(() => parent.postMessage({ type: 'werkbord.frame', event: 'title', title: '' }, '*'));
     await page.waitForFunction(() => !document.querySelector('.crumbs')?.textContent.includes('Authentication overhaul'));
-    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption('');
+    await chooseProject(page, '');
 
     // Five widths: nothing overflows, the header stays one tidy row, and below 640px one button holds every section.
     for (const width of [1440, 1280, 900, 640, 390]) {

@@ -17,6 +17,7 @@
   $effect(() => { catchUpSession.ingest(model.overview); });
   import Workspaces from './Workspaces.svelte';
   import AddTeam from './AddTeam.svelte';
+  import NewProject from './NewProject.svelte';
   import AssistantFrame from './AssistantFrame.svelte';
   import SettingsNav from './SettingsNav.svelte';
   import SettingsNative from './SettingsNative.svelte';
@@ -152,6 +153,7 @@
   </div>
   {#if model.paletteOpen}<Palette />{/if}
   {#if model.addOpen}<AddTeam />{/if}
+  {#if model.newProjectOpen}<NewProject />{/if}
 </div>
 <AssistantFrame />
 <ConfirmDialog />

@@ -125,6 +125,31 @@ export class Model {
   /** The window is wide enough for the list and a detail side by side; a narrower one gives the detail the whole page, as it always did. */
   wide = $state(typeof window === 'undefined' ? true : window.innerWidth >= PANE_MIN);
   addOpen = $state(false);
+
+  /** The "Where should it live?" dialog of New project. */
+  newProjectOpen = $state(false);
+  /** A workspace whose New project form is on show, so the project it makes is chosen as soon as the window learns of it. */
+  private creatingIn = '';
+  /** Where a project can be made: the person's own Werkbord, and every team that answers. */
+  get projectHomes(): Item[] {
+    return (this.view?.items ?? []).filter((i) => i.state === 'ready' && (i.kind === 'personal' || i.kind === 'team'));
+  }
+  /**
+   * New project, from anywhere. With one place to make it (only Personal) it goes straight to the form; with teams as well the person
+   * says where it lives first, because it cannot be moved afterwards without a transfer.
+   */
+  newProject(): void {
+    const homes = this.projectHomes;
+    if (homes.length === 1) void this.startNewProject(homes[0].id);
+    else if (homes.length > 1) this.newProjectOpen = true;
+    else this.error = 'No workspace is ready to hold a project yet. Wait for Personal or your team to connect, then try again.';
+  }
+  /** Shows the form that makes a project in that workspace, with nothing else around it. */
+  async startNewProject(id: string): Promise<void> {
+    this.newProjectOpen = false;
+    this.creatingIn = id;
+    await this.open(id, id === 'personal' ? '#/projects?new=project' : '?tab=projects&new=project');
+  }
   loaded = $state(false);
   setupRequired = $state(false);
   setupPaused = $state(false);
@@ -258,6 +283,13 @@ export class Model {
       const kind = this.view?.items.find(i => i.id === id)?.kind;
       const project = kind && projectInHref(kind, place);
       if (project && this.projects.some(p => p.workspace === id && p.project === project)) this.selectProjectFromRoute(id, project);
+      // The form just made a project the window has not been told about yet: ask, then choose it.
+      else if (project && this.creatingIn === id) {
+        this.creatingIn = '';
+        void this.refreshOverview().then(() => {
+          if (this.projects.some(p => p.workspace === id && p.project === project)) this.selectProjectFromRoute(id, project);
+        });
+      }
     }
   }
 
@@ -488,6 +520,36 @@ export class Model {
     if (this.view?.invitation) this.addOpen = true;
     else await this.restoreView();
     this.viewRestored = true;
+    void this.offerTeamUpdate();
+  }
+
+  private static readonly TEAM_UPDATE_ASKED = 'werkbord.shell.team-update-asked';
+
+  /**
+   * After Werkbord itself is updated (in the app or by installing a newer copy), Team's background service is still the earlier
+   * version until it is replaced, which needs an administrator's password. Rather than leave the teams unavailable until the person
+   * finds Update Team, ask once as the window opens. Declining is remembered for this window; opening Werkbord again asks again, and
+   * Devices & Hosting always has the button.
+   */
+  async offerTeamUpdate(): Promise<void> {
+    if (this.view?.team.state !== 'outdated' || !this.view.teamInstaller || this.busy) return;
+    try {
+      if (sessionStorage.getItem(Model.TEAM_UPDATE_ASKED)) return;
+      sessionStorage.setItem(Model.TEAM_UPDATE_ASKED, '1');
+    } catch { /* Not remembered: the worst case is being asked again after a reload. */ }
+    this.busy = 'Updating Team…';
+    try {
+      await ask((a) => a.ActivateTeam());
+      this.notice = 'Team is updated and your teams are back.';
+    } catch (e) {
+      // "Not now" is an answer, not a failure. Anything else the installer said is shown as it is.
+      const message = (e as Error).message;
+      if (message !== 'Team was not set up') this.error = message;
+    } finally {
+      this.busy = '';
+      await this.refresh();
+      void this.refreshOverview();
+    }
   }
 
   /**

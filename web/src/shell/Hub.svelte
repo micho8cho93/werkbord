@@ -116,11 +116,14 @@
 <section class="work work-view" class:compact aria-labelledby="work-h">
   <header class="work-heading"><div><h1 id="work-h">Work</h1><p class="muted">Your tasks, plans and agent activity.</p></div><div class="actions work-actions">
     <label class="work-search"><Icon name="search" size={15} /><span class="visually-hidden">Search work</span><input type="search" bind:value={search} placeholder="Search work…" /></label>
-    <button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
+    <button class="btn" type="button" onclick={() => model.newProject()} data-testid="work-new-project"><Icon name="plus" size={15} />New project</button><button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
     {#if creating}<div class="project-choices" role="group" aria-label="Choose a project for new work"><div><strong>New {creating}</strong><button class="btn quiet small" onclick={() => creating = ''} aria-label="Close project choices"><Icon name="close" size={14} /></button></div><p class="muted">Choose the project for this {creating}.</p>{#each choices as choice (choice.workspace + choice.project.id)}<button onclick={() => openCreate(creating as 'task' | 'plan', choice)}>{choice.title}<Icon name="right" size={13} /></button>{/each}</div>{/if}
   </div></header>
   <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'overview' ? 'page' : undefined} onclick={() => section = 'overview'}>Overview</button><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => model.selectedProject ? model.openProjectWork() : section = 'queue'}>Queue &amp; Plans<span>{queueCount}</span></button></nav>
   {#if !overview}<p role="status" class="empty">Loading work…</p>{/if}
+  {#if overview && !choices.length && !overview.entries.some(e => e.error || !e.summary)}
+    <div class="first-project" data-testid="first-project"><div><strong>Start with a project</strong><p class="muted">A project holds your tasks, plans, agent runs, calendar and Git. Make one for yourself, or for a team.</p></div><button class="btn primary" type="button" onclick={() => model.newProject()}><Icon name="plus" size={15} />New project</button></div>
+  {/if}
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
   {#if section === 'overview'}
@@ -293,4 +296,6 @@
  @media(prefers-reduced-motion:no-preference){
   .decision.urgent{animation:wb-breathe 2.6s ease-in-out infinite;}
  }
+  .first-project { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 16px; padding: 14px 16px; border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); background: var(--tray); }
+  .first-project p { margin: 2px 0 0; font-size: 13px; }
 </style>

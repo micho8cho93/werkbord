@@ -39,6 +39,7 @@
     close();
     if ('page' in d.go) model.go(d.go.page);
     else if ('workspace' in d.go) void model.goTo(d.go.workspace, d.go.place);
+    else if ('newProject' in d.go) model.newProject();
     else model.addOpen = true;
   }
 

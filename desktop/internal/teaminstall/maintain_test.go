@@ -290,3 +290,46 @@ func TestMaintenanceRetainsDistinctBackupsEvenWhenNamesCollide(t *testing.T) {
 		}
 	}
 }
+
+func TestADeviceThatOnlyJoinedATeamHasNoDatabaseToBackUp(t *testing.T) {
+	data := t.TempDir()
+	member := filepath.Join(data, "slots", "member")
+	host := filepath.Join(data, "slots", "host")
+	for _, dir := range []string{member, host} {
+		if err := os.MkdirAll(filepath.Join(dir, "workspace"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if holdsDatabase(member) {
+		t.Fatal("a joined member's directory was taken for a host's")
+	}
+	// Every place a host keeps its data counts, and so does one that cannot be looked at: when unsure, back up.
+	for _, name := range []string{"storage.json", "storage", "team.db"} {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if !holdsDatabase(dir) {
+			t.Fatalf("%s did not count as a database", name)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(host, "storage.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	targets, err := maintenanceTargets(context.Background(), data, service(t, map[string]string{
+		"/w/member/api/device/v1/state": `{"daemon":true,"version":"5.4.0","enrolled":true,"workspace":{"id":"one"}}`,
+		"/w/host/api/device/v1/state":   `{"daemon":true,"version":"5.4.0","enrolled":true,"workspace":{"id":"two"}}`,
+	}), testKey)
+	if err != nil || len(targets) != 2 {
+		t.Fatalf("%+v %v", targets, err)
+	}
+	if !needsBackup(targets) {
+		t.Fatalf("a host's database was not counted: %+v", targets)
+	}
+	if targets[0].Slot != "host" || !targets[0].HoldsDatabase || targets[1].Slot != "member" || targets[1].HoldsDatabase {
+		t.Fatalf("only the host's workspace has a database: %+v", targets)
+	}
+	if needsBackup(targets[1:]) {
+		t.Fatal("a member alone needs no backup")
+	}
+}

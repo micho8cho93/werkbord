@@ -272,12 +272,16 @@ it('takes where a session was opened from only as a chain of known origins, and 
   expect(d.agentSession).toHaveBeenLastCalledWith('run:run_a', from);
   await handle([surface],say(assistantWindow,surface.origin,{event:'agent_session',key:'run:run_a',from:'salie:ast_k3j9x2m4q7p1a8z5'}),d);
   expect(d.agentSession).toHaveBeenLastCalledWith('run:run_a', 'salie:ast_k3j9x2m4q7p1a8z5');
-  // Back to Work or Calendar: from the main frame of the person's own Werkbord, to those two pages only.
-  for (const frame of [frames[1],hosted,surface]) await handle([frame],say(frame.window!,frame.origin,{event:'page',page:'inbox'}),d);
+  // Back to Work or Calendar: from the main frame of the person's own Werkbord, to those two pages only. A team's page may also go
+  // back to Work (leaving its New project form), but not to Calendar.
+  for (const frame of [hosted,surface]) await handle([frame],say(frame.window!,frame.origin,{event:'page',page:'inbox'}),d);
+  await handle([frames[1]],say(frames[1].window!,frames[1].origin,{event:'page',page:'calendar'}),d);
   for (const page of ['settings','agents','workspace','','../x',5,undefined]) await handle(frames,say(individual,frames[0].origin,{event:'page',page}),d);
   await handle(frames,say(individual,'https://other.example',{event:'page',page:'inbox'}),d);
   expect(d.page).not.toHaveBeenCalled();
   await handle(frames,say(individual,frames[0].origin,{event:'page',page:'inbox'}),d);
   await handle(frames,say(individual,frames[0].origin,{event:'page',page:'calendar'}),d);
   expect(d.page.mock.calls).toEqual([['inbox'],['calendar']]);
+  await handle([frames[1]],say(frames[1].window!,frames[1].origin,{event:'page',page:'inbox'}),d);
+  expect(d.page).toHaveBeenLastCalledWith('inbox');
 });

@@ -3,8 +3,14 @@
   let gesture = null, suppress = null;
   const dayAt = d => Date.parse(d + 'T12:00:00Z');
   const add = (d, n) => new Date(dayAt(d) + n * 86400000).toISOString().slice(0, 10);
+  // The day under a point. An item that spans several days is one bar laid over their cells, not a part of any one, so the cell is
+  // looked for through whatever is on top of it.
+  function dayUnder(x, y) {
+    for (const el of document.elementsFromPoint(x, y)) { const day = el.closest('[data-plan-day]'); if (day) return day; }
+    return null;
+  }
   function target(g, x, y) {
-    const day = document.elementFromPoint(x, y)?.closest('[data-plan-day]');
+    const day = dayUnder(x, y);
     let delta;
     if (day && day.closest('[data-plan-surface]') === g.item.closest('[data-plan-surface]')) delta = Math.round((dayAt(day.dataset.planDay) - dayAt(g.start)) / 86400000) - g.offset;
     else return null;
@@ -29,7 +35,7 @@
     const rect = item.getBoundingClientRect();
     const preview = document.createElement('div');
     preview.className = 'planning-preview'; preview.setAttribute('role', 'status');
-    const day = item.closest('[data-plan-day]')?.dataset.planDay;
+    const day = (item.closest('[data-plan-day]') || dayUnder(event.clientX, event.clientY))?.dataset.planDay;
     gesture = { item, preview, x: event.clientX, y: event.clientY, start: item.dataset.planStart, end: item.dataset.planEnd || item.dataset.planStart,
       offset: day ? Math.round((dayAt(day) - dayAt(item.dataset.planStart)) / 86400000) : 0,
       yOffset: item.hasAttribute('data-plan-scheduled') && item.closest('[data-plan-minute-scale]') ? event.clientY - rect.top : 0,
@@ -49,7 +55,7 @@
     g.preview.style.left = Math.max(8, Math.min(innerWidth - 260, event.clientX + 12)) + 'px';
     g.preview.style.top = Math.min(innerHeight - 50, event.clientY + 18) + 'px';
     document.querySelectorAll('.planning-over').forEach(el => el.classList.remove('planning-over'));
-    document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-plan-day]')?.classList.add('planning-over');
+    dayUnder(event.clientX, event.clientY)?.classList.add('planning-over');
     const scroll = g.item.closest('.scroll, .grid');
     if (scroll) { const r = scroll.getBoundingClientRect(); if (event.clientX > r.right - 36) scroll.scrollLeft += 16; if (event.clientX < r.left + 36) scroll.scrollLeft -= 16; }
   });

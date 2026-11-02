@@ -2,6 +2,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium, webkit } = require('../web/node_modules/playwright');
+// The project context is a list of buttons in the window's own style, not a native select: open it, then press the project's row.
+const chooseProject = async (page, value) => {
+  await page.getByTestId('project-context').click();
+  await page.locator(`#project-listbox [role="option"][data-value='${value}']`).click();
+};
 const personalURL = process.env.PERSONAL_BROWSER_URL, teamURL = process.env.TEAM_BROWSER_URL;
 const token = 'disposable-browser-credential', teamToken = fs.readFileSync(process.env.TEAM_BROWSER_TOKEN_FILE, 'utf8').trim();
 const artifacts = process.env.BROWSER_ARTIFACT_DIR;
@@ -151,7 +156,7 @@ let browser, server, debugPage;
   },{items,personalURL,teamURL,token,teamToken});
   await page.goto('http://127.0.0.1:'+server.address().port+'/shell/index.html');
   const side=page.getByRole('navigation',{name:'Werkbord',exact:true});
-  await side.getByLabel('Project context').selectOption('');
+  await chooseProject(page, '');
   await side.getByRole('button',{name:'Calendar',exact:true}).click();
   await page.getByRole('heading',{name:'Calendar',exact:true}).waitFor();
   for (const [workspace,id,getter] of [['personal',task.id,getTask]]) {

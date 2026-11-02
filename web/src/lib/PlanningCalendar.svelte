@@ -34,7 +34,7 @@
   let project = $state('');
   let trayOpen = $state(true);
   let pending = $state<Record<string, boolean>>({});
-  let open = $state<Record<string, boolean>>({});
+  let openWeeks = $state<Record<number, boolean>>({});
   let error = $state('');
   const MAX = 3;
   const today = $derived(localToday(Date.now()));
@@ -65,9 +65,40 @@
   const title = $derived(view === 'month' ? long(anchor, { month: 'long', year: 'numeric' }) : view === 'week' ? `${long(days[0], { month: 'short', day: 'numeric' })} – ${long(days[6], { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Upcoming');
   const dow = (d: string) => long(d, { weekday: 'short' });
 
-  const onDay = (r: CalendarRow, d: string) => r.start <= d && r.end >= d;
-  /** A day's items: those with no time first (they are for the day, not an hour of it), then by time. */
-  const itemsOn = (d: string) => filtered.filter(r => onDay(r, d)).sort((a, b) => (a.time ? 1 : 0) - (b.time ? 1 : 0) || (a.time ?? '').localeCompare(b.time ?? '') || a.title.localeCompare(b.title));
+  // An item that lasts several days is one bar across them, with one title, not a chip on each day. Each week is laid out on its own:
+  // an item takes the columns of the days it covers in that week and the first row that is free over them, so a long item keeps
+  // its row and the short ones fill in beside it. An item that crosses into the next week continues there, with square ends to say so.
+  interface Bar { r: CalendarRow; col: number; span: number; lane: number; continues: boolean; goesOn: boolean }
+  const dayNumber = (week: string[], d: string) => Math.round((Date.parse(d + 'T12:00Z') - Date.parse(week[0] + 'T12:00Z')) / 86_400_000);
+  function lay(week: string[]): Bar[] {
+    const first = week[0], last = week[6];
+    const placed = filtered
+      .filter(r => r.start <= last && r.end >= first)
+      .map(r => {
+        const from = dayNumber(week, r.start < first ? first : r.start), to = dayNumber(week, r.end > last ? last : r.end);
+        return { r, col: from, span: to - from + 1, continues: r.start < first, goesOn: r.end > last };
+      })
+      // Left to right, the longer first, then items with no time (they are for the day, not an hour of it), then by time.
+      .sort((a, b) => a.col - b.col || b.span - a.span || (a.r.time ? 1 : 0) - (b.r.time ? 1 : 0) || (a.r.time ?? '').localeCompare(b.r.time ?? '') || a.r.title.localeCompare(b.r.title));
+    const ends: number[] = [];
+    return placed.map(b => {
+      let lane = ends.findIndex(end => end < b.col);
+      if (lane < 0) lane = ends.length;
+      ends[lane] = b.col + b.span - 1;
+      return { ...b, lane };
+    });
+  }
+  const laid = $derived(weeks.map(lay));
+  /** What a week draws: its bars, how many rows they take, and (in a month) what is folded away on each day. */
+  function weekShape(bars: Bar[], index: number) {
+    const lanes = bars.reduce((n, b) => Math.max(n, b.lane + 1), 0);
+    const folded = view === 'month' && !openWeeks[index] && lanes > MAX;
+    const rows = folded ? MAX : lanes;
+    const hidden = Array.from({ length: 7 }, (_, i) => folded ? bars.filter(b => b.lane >= MAX && b.col <= i && i < b.col + b.span).length : 0);
+    const control = view === 'month' && lanes > MAX;
+    return { shown: bars.filter(b => b.lane < rows), rows, hidden, control, template: `30px${' auto'.repeat(rows + (control ? 1 : 0))} minmax(6px, 1fr)` };
+  }
+  const span = (r: CalendarRow) => `${long(r.start, { month: 'short', day: 'numeric' })}${r.end !== r.start ? ` to ${long(r.end, { month: 'short', day: 'numeric' })}` : ''}`;
   const upcoming = $derived(filtered.filter(r => r.end >= today).sort((a, b) => a.start.localeCompare(b.start) || (a.time ?? '').localeCompare(b.time ?? '')).slice(0, 120));
   const inRange = $derived(view === 'list' ? upcoming.length : filtered.filter(r => r.start <= days[days.length - 1] && r.end >= days[0]).length);
 
@@ -95,12 +126,13 @@
   $effect(() => surface && listenDates(surface, drop => move(drop)));
 </script>
 
-{#snippet chip(r: CalendarRow, d: string, full: boolean)}
+{#snippet chip(r: CalendarRow, continues: boolean, goesOn: boolean, full: boolean, at?: { col: number; span: number; lane: number })}
   <button
-    class="event cc" class:full class:continues={r.start < d} class:goes-on={r.end > d} class:done={r.status === 'done'}
+    class="event cc" class:full class:continues class:goes-on={goesOn} class:done={r.status === 'done'} class:placed={!!at}
     style:--bar={colour(r.project)}
+    style:grid-column={at ? `${at.col + 1} / span ${at.span}` : undefined} style:grid-row={at ? at.lane + 2 : undefined}
     data-status={r.status} data-kind={r.kind} data-plan-item={onmove ? r.id : undefined} data-plan-start={r.start} data-plan-end={r.end}
-    aria-busy={pending[r.id] || false} title="{r.title} · {r.project}" onclick={() => openItem(r)}
+    aria-busy={pending[r.id] || false} aria-label="{r.title}, {r.project}, {span(r)}" title="{r.title} · {r.project} · {span(r)}" onclick={() => openItem(r)}
   >
     <span class="line">
       {#if r.time}<span class="at">{clock(r.time)}</span>{/if}
@@ -143,22 +175,26 @@
       {#if view === 'list'}
         <ol class="list">
           {#each upcoming as r (r.id)}
-            <li><span class="when">{long(r.start, { weekday: 'short', month: 'short', day: 'numeric' })}{r.end !== r.start ? ` – ${long(r.end, { month: 'short', day: 'numeric' })}` : ''}</span>{@render chip(r, r.start, true)}</li>
+            <li><span class="when">{long(r.start, { weekday: 'short', month: 'short', day: 'numeric' })}{r.end !== r.start ? ` – ${long(r.end, { month: 'short', day: 'numeric' })}` : ''}</span>{@render chip(r, false, false, true)}</li>
           {/each}
         </ol>
       {:else}
         {#if view === 'month'}<div class="dows" aria-hidden="true">{#each weeks[0] ?? [] as d (d)}<span>{dow(d)}</span>{/each}</div>{/if}
         <div class="grid" class:month={view === 'month'}>
-          {#each days as d (d)}
-            {@const items = itemsOn(d)}
-            {@const all = open[d] || view === 'week'}
-            <section class="day" class:today={d === today} class:outside={view === 'month' && monthOf(d) !== monthOf(anchor)} data-plan-day={d} aria-label={long(d, { weekday: 'long', month: 'long', day: 'numeric' })}>
-              <h3><span class="n">{view === 'month' ? Number(d.slice(8)) : `${dow(d)} ${Number(d.slice(8))}`}</span>{#if view === 'month' && Number(d.slice(8)) === 1}<span class="m">{long(d, { month: 'short' })}</span>{/if}</h3>
-              {#each (all ? items : items.slice(0, MAX)) as r (r.id + d)}{@render chip(r, d, view === 'week')}{/each}
-              {#if view === 'month' && items.length > MAX}
-                <button class="more" onclick={() => (open[d] = !open[d])} aria-expanded={!!open[d]}>{open[d] ? 'Show less' : `${items.length - MAX} more`}</button>
-              {/if}
-            </section>
+          {#each weeks as week, wi (week[0])}
+            {@const shape = weekShape(laid[wi] ?? [], wi)}
+            <div class="week" style:grid-template-rows={shape.template}>
+              {#each week as d, i (d)}
+                <section class="day" class:today={d === today} class:outside={view === 'month' && monthOf(d) !== monthOf(anchor)} data-plan-day={d} aria-label={long(d, { weekday: 'long', month: 'long', day: 'numeric' })} style:grid-column={i + 1}>
+                  <h3><span class="n">{view === 'month' ? Number(d.slice(8)) : `${dow(d)} ${Number(d.slice(8))}`}</span>{#if view === 'month' && Number(d.slice(8)) === 1}<span class="m">{long(d, { month: 'short' })}</span>{/if}</h3>
+                </section>
+              {/each}
+              {#each shape.shown as b (b.r.id + week[0])}{@render chip(b.r, b.continues, b.goesOn, view === 'week', b)}{/each}
+              {#each shape.hidden as n, i (i)}
+                {#if n}<button class="more" style:grid-column={i + 1} style:grid-row={shape.rows + 2} onclick={() => (openWeeks[wi] = true)}>{n} more</button>{/if}
+              {/each}
+              {#if shape.control && openWeeks[wi]}<button class="more less" style:grid-column="1 / -1" style:grid-row={shape.rows + 2} onclick={() => (openWeeks[wi] = false)} aria-expanded="true">Show less</button>{/if}
+            </div>
           {/each}
         </div>
       {/if}
@@ -194,13 +230,16 @@
 
   .dows { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--tray); position: sticky; top: 0; z-index: 1; }
   .dows span { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); }
-  .grid { display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); min-height: 100%; }
-  .grid.month { grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: minmax(7.5rem, 1fr); }
-  .day { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; background: var(--surface); }
+  /* A week is one grid: a row of day numbers, then a row for each lane of bars, with the day cells behind all of it so a bar lies
+     across the days it covers instead of repeating in each. */
+  .grid { display: flex; flex-direction: column; min-height: 100%; }
+  .week { flex: 1 0 auto; display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); min-width: 1050px; min-height: 7.5rem; }
+  .grid.month .week { grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
+  .day { grid-row: 1 / -1; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 6px 0; display: flex; flex-direction: column; min-width: 0; background: var(--surface); }
   .day:nth-child(7n) { border-right: 0; }
   .day.outside { background: var(--tray); }
   .day.outside h3 .n { color: var(--text-2); }
-  .day h3 { margin: 0 0 2px; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 600; font-family: var(--font); text-transform: none; letter-spacing: 0; color: var(--text); }
+  .day h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 600; font-family: var(--font); text-transform: none; letter-spacing: 0; color: var(--text); }
   .day .m { color: var(--text-2); font-weight: 500; }
   .day.today h3 .n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-text); }
 
@@ -215,11 +254,15 @@
   .cc.done strong { text-decoration: line-through; }
   .cc.continues { border-top-left-radius: 0; border-bottom-left-radius: 0; }
   .cc.goes-on { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  /* A bar sits in its week's grid, over the day cells: inset from the cell edges, and flush with them where it carries on into another week. */
+  .cc.placed { width: auto; align-self: stretch; margin: 0 5px 3px; }
+  .cc.placed.continues { margin-left: 0; border-left-width: 0; box-shadow: none; }
+  .cc.placed.goes-on { margin-right: 0; border-right-width: 0; }
   .cc.full { padding: 7px 10px 7px 12px; }
   .cc.full strong { white-space: normal; }
   .cc small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12px; text-transform: capitalize; }
   .cc[data-kind='scheduled'] { background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
-  .more { align-self: flex-start; border: 0; background: none; padding: 0 4px; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
+  .more { align-self: start; justify-self: start; margin: 0 5px; border: 0; background: none; padding: 0 4px; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
   .more:hover { color: var(--text); text-decoration: underline; }
 
   .list { list-style: none; margin: 0; padding: 8px 12px; display: grid; gap: 6px; }
@@ -230,5 +273,5 @@
   .tray-list { list-style: none; margin: 0; padding: 8px; display: grid; gap: 6px; }
   .hint { margin: 0; font-size: 12px; color: var(--text-2); line-height: 1.5; }
   @media (max-width: 1000px) { .stage.with-tray { grid-template-columns: minmax(0, 1fr); } .nodate { position: static; } }
-  @media (max-width: 899px) { .planning-calendar { padding: 16px; min-height: 480px; } .tools button { min-height: 44px; } .grid.month { grid-template-columns: repeat(7, minmax(88px, 1fr)); } }
+  @media (max-width: 899px) { .planning-calendar { padding: 16px; min-height: 480px; } .tools button { min-height: 44px; } .grid.month .week { grid-template-columns: repeat(7, minmax(88px, 1fr)); min-width: 616px; } }
 </style>

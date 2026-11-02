@@ -65,7 +65,7 @@ func (s *Service) List(ctx context.Context) ([]workspace.Listed, error) {
 		if err := s.Check(ctx); err != nil {
 			for i := range l.Workspaces {
 				l.Workspaces[i].Entry.State = workspace.StateUnavailable
-				l.Workspaces[i].Entry.Detail = "Update the service in Devices & Hosting to load this app’s interface."
+				l.Workspaces[i].Entry.Detail = "Update Team (Settings → Devices & Hosting) to reconnect this team."
 			}
 			return l.Workspaces, err
 		}

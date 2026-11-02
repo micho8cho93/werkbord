@@ -219,7 +219,13 @@ export interface App {
   Analytics(id: string, project: string, days: number): Promise<unknown>;
   Premium(): Promise<PremiumStatus>;
   UnlockPremium(key: string): Promise<PremiumStatus>;
-  Info(): Promise<{ version: string; platform: string }>;
+  Info(): Promise<{ version: string; platform: string; updater?: boolean }>;
+  /** "Check for updates": asks the person in the app's own dialogs and says in a sentence how it went. */
+  RequestUpdate(): Promise<{ ok: boolean; declined?: boolean; message?: string }>;
+  /** Writes what to look at when something is wrong to a private file and opens it. */
+  ShowDiagnostics(): Promise<void>;
+  /** Shows the controller's log in the Finder. */
+  OpenLogs(): Promise<void>;
   AlertStatus(): Promise<string>;
   Alert(title: string, body: string, urgent: boolean): Promise<boolean>;
   TestAlert(): Promise<boolean>;

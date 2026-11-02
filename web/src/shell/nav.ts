@@ -71,7 +71,8 @@ export interface Destination {
   go:
     | { page: 'inbox' | 'calendar' | 'agents' | 'reviews' | 'analytics' | 'workspaces' | 'settings' }
     | { workspace: string; place: string }
-    | { addTeam: true };
+    | { addTeam: true }
+    | { newProject: true };
 }
 
 /** Every place the palette can go to: the window's own pages, and for each workspace its home, projects and places. */
@@ -95,6 +96,7 @@ export function destinations(items: readonly Item[] | undefined, overview: Overv
   out.push(
     { id: 'page:workspaces', title: 'Devices & Hosting', hint: 'This computer, hosts and runners', go: { page: 'workspaces' } },
     { id: 'page:settings', title: 'Settings', hint: 'Appearance, alerts, plan and more', go: { page: 'settings' } },
+    { id: 'new-project', title: 'New project…', hint: 'For yourself, or for a team', go: { newProject: true } },
     { id: 'add-team', title: 'New team or join…', hint: 'Create a team, or join one with a link', go: { addTeam: true } },
   );
   return out;

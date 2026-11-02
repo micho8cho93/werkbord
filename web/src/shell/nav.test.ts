@@ -59,6 +59,7 @@ describe('the go-to palette', () => {
     expect(all.find((d) => d.id === 'page:analytics')?.go).toEqual({ page: 'analytics' });
     expect(all.some((d) => d.id.startsWith('place:') && /reviews|analytics/.test(d.id))).toBe(false);
     expect(all.at(-1)).toMatchObject({ id: 'add-team', go: { addTeam: true } });
+    expect(all.find((d) => d.id === 'new-project')).toMatchObject({ title: 'New project…', go: { newProject: true } });
   });
 
   it('matches every word typed, titles first', () => {
