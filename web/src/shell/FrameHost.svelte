@@ -86,6 +86,7 @@
       // The assistant has a frame of its own (AssistantFrame); a workspace's page has nothing to say about it.
       assistant: () => {},
       palette: () => model.togglePalette(),
+      title: (id, title) => model.setFrameTitle(id, title),
       leave: () => { if (model.page === 'help' || model.page === 'settings') model.leaveSettings(); },
       workSalie: (workspace, project, plan, ask) => {
         const pid = workspace === 'personal' ? project : `workspace:${workspace}/${project}`;

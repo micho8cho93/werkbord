@@ -259,6 +259,15 @@ export interface RepoChangeReport {
   mine?: boolean;
 }
 
+/**
+ * Tells the window what this page is showing (a plan's or a task's title), so its header can say where the person is. Send '' when the
+ * page shows no such thing. A title is a label only: plain, short, and read by the window as text.
+ */
+export function reportTitle(title: string): void {
+  if (!isEmbedded()) return;
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'title', title: title.replace(/\s+/g, ' ').trim().slice(0, 80) }, '*');
+}
+
 /** Tells the window where every branch of a team repository is on GitHub, so it can pass that to the team. */
 export function reportRepoHeads(repo: string, heads: { name: string; sha: string }[]): void {
   if (!isEmbedded()) return;

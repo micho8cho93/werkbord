@@ -49,10 +49,18 @@ export interface Target {
   place?: string;
 }
 
+/** A member of a project by the role they hold there. Never whether they are around: the contract has no field for it. */
+export interface Person { id: string; name: string; role?: string }
+
+/** The agent on a piece of work and what it was last seen doing. `fresh` is the source's word, never worked out from the time here. */
+export interface AgentRef { id?: string; state: Execution; observedAt: string; fresh: boolean }
+
 export interface Project {
   id: string;
   name: string;
   href: string;
+  /** The members of a Team project (at most 12), by project role. */
+  people?: Person[];
   /** The project's repository address, when the workspace holds one. */
   repository?: string;
   /** The workspace asks that the repository is not shown live from members' own GitHub sign-ins. */
@@ -68,6 +76,7 @@ export interface WorkItem {
   href: string;
   updatedAt?: string;
   report?: ExecutionReport;
+  agent?: AgentRef;
 }
 
 export interface ExecutionReport {
@@ -122,7 +131,7 @@ export interface Infra {
 export interface Change { id: string; key: string; kind: 'completed' | 'pr_merged'; title: string; href: string; origin?: string; at: string }
 export interface RecentChanges { since: string; through: string; cursor: number; items: Change[]; incomplete: boolean }
 
-export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string; owner?: string; mine?: boolean; plan?: string; priority?: 'low' | 'normal' | 'high' }
+export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string; owner?: string; mine?: boolean; plan?: string; priority?: 'low' | 'normal' | 'high'; agent?: AgentRef }
 export interface Summary {
  queue?: QueueItem[];
  /** Recent moves of branches of the workspace's repositories, as members reported them. */
@@ -184,6 +193,8 @@ export interface App {
   PreviewProjectMove(source: string, destination: string, project: string): Promise<ProjectMovePreview>;
   ConfirmProjectMove(token: string): Promise<ProjectMoveResult>;
   Workspaces(): Promise<WorkspaceView>;
+  /** The branch and short commit of one of the person's own projects, for the header. A read, and nothing else about the repository. */
+  ProjectHead(project: string): Promise<{ branch: string; commit: string; detached?: boolean; unborn?: boolean }>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;
   AssistantWorkspaces(): Promise<{ id: string; name: string }[]>;

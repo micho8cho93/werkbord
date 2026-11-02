@@ -73,14 +73,15 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
  const page=await ctx.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
  try {
   await page.goto(shellOrigin+'/shell/shell/index.html');
-  // Work opens on its Overview: where things stand, what waits for the person, and the catch-up.
+  // Work opens on its Overview: what is running,  what waits for the person, and the catch-up.
   const tabs=page.getByRole('navigation',{name:'Work sections'});
   await tabs.getByRole('button',{name:'Overview',exact:true}).waitFor();
   assert.equal(await tabs.locator('[aria-current=page]').innerText(),'Overview');
-  await page.getByTestId('work-stats').waitFor();
-  assert.equal(await page.getByTestId('work-stats').locator('li').count(),5,'five numbers');
+  await page.getByTestId('next-decision').waitFor();
+  assert.equal(await page.getByTestId('work-stats').count(),0,'the stat cards are gone: counts sit in the headings');
+  await page.getByTestId('running-count').waitFor();
   const brief=page.getByTestId('work-brief'); await brief.scrollIntoViewIfNeeded();
-  console.log('PASS Work opens on Overview with where things stand');
+  console.log('PASS Work opens on Overview with what is running and what waits');
 
   // A brief is written in the card: Salie is not opened, and what she wrote never reaches this page.
   await brief.getByRole('button',{name:'Last day',exact:true}).click();
@@ -102,7 +103,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
   await page.screenshot({path:O+'work-queue-plans.png'});
   // The tab is remembered while the window stays open.
   await tabs.getByRole('button',{name:'Overview',exact:true}).click();
-  await page.getByTestId('work-stats').waitFor();
+  await page.getByTestId('next-decision').waitFor();
   console.log('PASS Queue & Plans holds the queue with the plans beside it');
 
   // Calendar: a month of whole weeks with chips (untimed first, then by time), "more" for a crowded day, filters, a week, a list, and a No date tray.

@@ -40,6 +40,8 @@ export interface Deps {
   /** Agents asks to go back to Salie, to the conversation that started the session when it names one. */
   openSalie?(conversation?: string): void;
   onboarding?(required: boolean, paused: boolean): void;
+  /** The page in a workspace's frame says what it is showing (a plan's or a task's title), or '' when it shows no such thing. For the header's breadcrumb only. */
+  title?(id: string, title: string): void;
   /** The person's own Werkbord says where each branch of a team's repository is on GitHub. */
   repoHeads?(repo: string, heads: { name: string; sha: string }[]): void;
   /** The person's own Werkbord saw a team's repository change on GitHub. */
@@ -154,6 +156,8 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     // Werkbord or a validated Team ticket route.
     if (frame.surface && m.event !== 'assistant' && m.event !== 'brief' && m.event !== 'open' && m.event !== 'agent_session') return;
     if (m.event === 'onboarding' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.required === 'boolean' && typeof m.paused === 'boolean') d.onboarding?.(m.required, m.paused);
+    // Only a workspace's own page, not the assistant's frame and not a frame that is only showing Settings or Help, says what it shows.
+    else if (m.event === 'title' && !frame.surface && !frame.hosted && (m.title === '' || plain(m.title, 80) !== undefined)) d.title?.(frame.id, m.title === '' ? '' : plain(m.title, 80)!);
     else if (m.event === 'palette' && !frame.surface) d.palette?.();
     else if (m.event === 'leave' && !frame.surface) d.leave?.();
     else if (m.event === 'work_salie' && !frame.hosted && !frame.surface && typeof m.projectId === 'string' && /^[\w-]{1,120}$/.test(m.projectId) && (m.planId === undefined || typeof m.planId === 'string' && /^[\w-]{1,120}$/.test(m.planId))) d.workSalie?.(frame.id, m.projectId, typeof m.planId === 'string' ? m.planId : '', m.ask === 'chain' ? 'chain' : undefined);

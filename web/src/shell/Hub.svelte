@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick as afterRender } from 'svelte';
   import Icon from '../lib/Icon.svelte';
   import Inbox from './Inbox.svelte';
   import CatchUp from './CatchUp.svelte';
@@ -15,8 +14,12 @@
   import * as answering from './answering';
   import type { Question } from '../lib/types';
   import { runKey } from '../lib/agent-sessions';
+  import { agentName } from '../lib/agent-marks';
   import { timeAgo } from '../lib/format';
   import WorkspaceTag from './WorkspaceTag.svelte';
+  import AgentMark from '../lib/AgentMark.svelte';
+  import Avatar from '../lib/Avatar.svelte';
+  import { describeParticipant, participants } from './context-header';
   import type { Overview, QueueItem } from './types';
 
   // `compact`: the list sits beside an open task or session, so it is one column and the decisions come first.
@@ -65,23 +68,10 @@
 
   // What most deserves a look, counted by why, above the queue: each says how many and takes you to the first.
   const flags = $derived(flagCounts(queueRows));
-  // Overview: where things stand in five numbers (each takes you to the first of its kind in the queue), what is running, and what is next.
+  // Overview: what is running and what is next. The counts sit in the headings of what they count; the chips on Queue & Plans take you to the first of each kind.
   const running = $derived(queueRows.filter(r => r.state === 'running'));
   const upNext = $derived((sections.find(s => s.id === 'next')?.rows ?? []).slice(0, 5));
-  const flagN = (flag: Flag) => flags.find(f => f.flag === flag)?.count ?? 0;
-  const stats = $derived<{ id: string; n: number; label: string; tone: string; flag?: Flag }[]>([
-    { id: 'ask', n: waiting.length || flagN('ask'), label: 'Need your answer', tone: 'ask', flag: 'ask' },
-    { id: 'running', n: running.length, label: 'Running', tone: 'work' },
-    { id: 'review', n: flagN('review'), label: 'Ready for review', tone: 'ok', flag: 'review' },
-    { id: 'failed', n: flagN('failed'), label: 'Failed or blocked', tone: 'block', flag: 'failed' },
-    { id: 'ready', n: readyCount(queueRows), label: 'Ready to start', tone: '' },
-  ]);
-  async function showFlag(flag?: Flag) {
-    if (!flag) return;
-    section = 'queue';
-    await afterRender();
-    seek(flag);
-  }
+  const people = $derived(participants(overview));
   function seek(flag: Flag) {
     const el = document.querySelector<HTMLElement>(`.work-view [data-flag="${flag}"]`);
     el?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
@@ -105,7 +95,6 @@
     const p = parseContext(context);
     if (p) { model.selectProject(p); void model.openGit(); }
   }
-  const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
   const plans = $derived(rows.filter(r => r.item.group === 'plan'));
   const queueCount = $derived(all.filter(r => !['done', 'plan'].includes(r.item.group)).length);
   const completed = $derived(rowsOf(overview, rows.filter(r => r.item.group === 'done').map(r => ({ workspace: r.workspace.id, item: r.item }))));
@@ -137,18 +126,6 @@
   {#if section === 'overview'}
     <div class="work-grid overview">
       <div class="work-main">
-        {#if repoNews.length}
-          <section class="tray" aria-labelledby="repo-news-h" data-testid="repo-news">
-            <header><h2 id="repo-news-h" class="section-title">Repository</h2><span class="tray-note">changed on GitHub</span>{#each repoTeams as t (t.id)}<button class="btn quiet small" type="button" aria-pressed={model.mutedTeams.includes(t.id)} onclick={() => model.setTeamMuted(t.id, !model.mutedTeams.includes(t.id))}>{model.mutedTeams.includes(t.id) ? 'Unmute' : 'Mute'} {t.name}</button>{/each}</header>
-            <ul class="tray-card rows">{#each repoNews as c (c.repo + c.branch + c.sha)}<li><button class="task" onclick={() => openRepo(c.context)}><span class="task-content"><strong>{c.project}: {c.created ? 'new branch ' + c.branch : c.isDefault && c.count ? c.count + (c.count === 1 ? ' new commit on ' : ' new commits on ') + c.branch : c.branch + ' updated'}</strong><span class="context">{c.authors?.length ? c.authors.join(', ') + ' · ' : ''}{timeAgo(new Date(c.at).toISOString(), now)}</span></span><span class="open-icon"><Icon name="right" size={14} /></span></button></li>{/each}</ul>
-          </section>
-        {/if}
-        <section class="tray stats" aria-labelledby="stats-h" data-testid="work-stats">
-          <header><h2 id="stats-h" class="section-title">Where things stand</h2><span class="tray-note">{model.selectedProject ? model.contextLabel : 'all projects'}</span></header>
-          <ul class="stat-grid">
-            {#each stats as s (s.id)}<li class="tray-card stat" data-tone={s.tone} data-zero={s.n === 0 ? '' : undefined}><button type="button" class="stat-button" disabled={!s.flag} onclick={() => showFlag(s.flag)}><span class="stat-n">{s.n}</span><span class="stat-label">{s.label}</span></button></li>{/each}
-          </ul>
-        </section>
         {@render decisionBlock()}
         <BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}</BriefCard>
     <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
@@ -156,14 +133,26 @@
       </div>
       <div class="work-side">
         <section class="tray" aria-labelledby="running-h">
-          <header><h2 id="running-h" class="section-title">Running now</h2><span class="tray-note">{running.length}</span></header>
+          <header><h2 id="running-h" class="section-title">Running now<span class="head-count" data-testid="running-count">{running.length}</span></h2></header>
           <ul class="tray-card rows">{#each running.slice(0, 5) as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No agent is working right now.</li>{/each}</ul>
         </section>
         <section class="tray" aria-labelledby="next-h">
-          <header><h2 id="next-h" class="section-title">Up next</h2><button type="button" class="link" onclick={() => section = 'queue'}>See all</button></header>
+          <header><h2 id="next-h" class="section-title">Up next<span class="head-count">· {readyCount(queueRows)} ready</span></h2><button type="button" class="link" onclick={() => section = 'queue'}>See all</button></header>
           <ul class="tray-card rows">{#each upNext as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No tasks ready to pick up.</li>{/each}</ul>
         </section>
         {@render plansTray(3, 'plans-o-h')}
+        {#if repoNews.length}
+          <section class="tray" aria-labelledby="repo-news-h" data-testid="repo-news">
+            <header><h2 id="repo-news-h" class="section-title">Git activity</h2><span class="tray-note">changed on GitHub</span>{#each repoTeams as t (t.id)}<button class="btn quiet small" type="button" aria-pressed={model.mutedTeams.includes(t.id)} onclick={() => model.setTeamMuted(t.id, !model.mutedTeams.includes(t.id))}>{model.mutedTeams.includes(t.id) ? 'Unmute' : 'Mute'} {t.name}</button>{/each}</header>
+            <ul class="tray-card rows">{#each repoNews as c (c.repo + c.branch + c.sha)}<li><button class="task" onclick={() => openRepo(c.context)}><span class="task-content"><strong>{c.project}: {c.created ? 'new branch ' + c.branch : c.isDefault && c.count ? c.count + (c.count === 1 ? ' new commit on ' : ' new commits on ') + c.branch : c.branch + ' updated'}</strong><span class="context">{c.authors?.length ? c.authors.join(', ') + ' · ' : ''}{timeAgo(new Date(c.at).toISOString(), now)}</span></span><span class="open-icon"><Icon name="right" size={14} /></span></button></li>{/each}</ul>
+          </section>
+        {/if}
+        {#if people.length}
+          <section class="tray" aria-labelledby="people-h" data-testid="participants">
+            <header><h2 id="people-h" class="section-title">Participants<span class="head-count">{people.length}</span></h2></header>
+            <ul class="tray-card rows">{#each people as p (p.key)}<li class="person"><Avatar id={p.id} name={p.name} size="sm" /><span class="task-content"><strong>{p.name}</strong><span class="context">{describeParticipant(p)}</span></span></li>{/each}</ul>
+          </section>
+        {/if}
       </div>
     </div>
   {:else}
@@ -206,7 +195,7 @@
             <dl class="decision-facts">
               <div><dt>Task</dt><dd>{d.task || 'Task'}</dd></div>
               <div><dt>Project</dt><dd>{d.project || 'Project'}{#if showWhere} <WorkspaceTag workspace={d.workspace} />{/if}</dd></div>
-              {#if d.agent}<div><dt>Agent</dt><dd>{d.agent}</dd></div>{/if}
+              {#if d.agent}<div><dt>Agent</dt><dd class="agent-fact"><AgentMark agentId={d.agent} state="needs_input" fresh={here} observedAt={d.askedAt} decorative /><span>{agentName(d.agent)}</span></dd></div>{/if}
               {#if d.askedAt}<div><dt>Asked</dt><dd>{timeAgo(d.askedAt, now)}</dd></div>{/if}
             </dl>
             {#if !here}<p class="decision-note" role="status">{d.workspace.name} is not answering. This is as last reported; it stays here until the workspace confirms it was answered.</p>{/if}
@@ -229,7 +218,7 @@
 {#snippet plansTray(limit: number, id: string)}
   <section class="tray" aria-labelledby={id}>
     <header><h2 {id} class="section-title">Plans</h2><span class="tray-note">{plans.length}</span></header>
-    <ul class="tray-card rows plans">{#each (limit ? plans.slice(0, limit) : plans) as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project}{#if showWhere} · {row.workspace.name}{/if}</span></span><span class="plan-progress">{row.item.detail}</span></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
+    <ul class="tray-card rows plans">{#each (limit ? plans.slice(0, limit) : plans) as row (row.workspace.id + row.item.href)}<li><button class="task" onclick={() => open(row.workspace.id, row.item.href)}><span class="task-content"><strong>{row.item.title}</strong><span class="context">{row.item.project}{#if showWhere}{' · ' + row.workspace.name}{/if}</span></span><span class="plan-progress">{row.item.detail}</span></button></li>{:else}<li class="empty">{search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
   </section>
 {/snippet}
 {#snippet task(row: Row, index: number = 0)}
@@ -237,9 +226,10 @@
   <li data-flag={row.flag} class="wb-rise" style:--i={index}><button class="task" data-state={row.state} data-flag={row.flag} aria-current={openHere(row.workspace, row.item.href) ? 'true' : undefined} onclick={() => open(row.workspace, row.item.href)}>
     <span class="task-content"><strong>{row.item.title}</strong><span class="context"><span class="proj">{row.item.project}</span>{#if row.item.plan}<span class="sep" aria-hidden="true">›</span><span class="plan">{row.item.plan}</span>{/if}{#if showWhere && entryOf(row.workspace)}<WorkspaceTag workspace={entryOf(row.workspace)!} />{/if}{#if live}<span class="detail" class:blocked={row.state === 'blocked'}>{live}</span>{/if}</span></span>
     {#if row.asking}<span class="ask-chip">Decision</span>{:else if row.flag}<span class="flag" data-flag={row.flag}>{FLAG_LABEL[row.flag]}</span>{/if}
+    {#if row.item.agent && row.item.group !== 'done'}<AgentMark agentId={row.item.agent.id} state={row.item.agent.state} fresh={row.item.agent.fresh} observedAt={row.item.agent.observedAt} {now} />{/if}
     <span class="state" data-state={row.state}>{STATE_LABEL[row.state]}</span>
-    {#if row.item.owner && row.item.group !== 'done'}<span class="owner-chip" data-me={row.item.mine ? '' : undefined} role="img" aria-label={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner} title={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner}>{initials(row.item.owner)}</span>{/if}
-    <span class="task-state" data-state={row.state} aria-hidden="true">{#if row.state === 'done'}<Icon name="check" size={14} />{:else if row.state === 'running'}<span class="spin"></span>{/if}</span>
+    {#if row.item.owner && row.item.group !== 'done'}<span class="holder" title={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner}><Avatar id={row.item.owner} name={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner} self={row.item.mine} size="sm" /></span>{/if}
+    <span class="task-state" data-state={row.state} aria-hidden="true">{#if row.state === 'done'}<Icon name="check" size={14} />{/if}</span>
     <span class="open-icon"><Icon name="right" size={14} /></span>
   </button></li>
 {/snippet}
@@ -251,15 +241,8 @@
  .queue-note{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
  .context{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;}.context .sep{opacity:.6;}.context .plan{color:var(--text-2);}.context .detail::before{content:'·';margin-right:8px;}
  .task-state[data-state=action]::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--amber);}.task-state[data-state=blocked]::before{content:'';width:10px;height:10px;border-radius:50%;border:2px dashed var(--block);}.task-state[data-state=done]{color:var(--ok);}
- /* Overview: five numbers on a tray, then trays for what is running, what is next and the plans. */
- .stat-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5rem,1fr));gap:10px;}
- .stat-grid>li+li{border-top:0;}.stat{padding:0;overflow:clip;}
- .stat-button{display:grid;gap:2px;width:100%;padding:12px 14px;text-align:left;background:transparent;border:0;color:var(--text);font:inherit;cursor:pointer;}
- .stat-button:disabled{cursor:default;}.stat-button:not(:disabled):hover{background:var(--hover);}.stat-button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
- .stat-n{font-size:var(--fs-page);font-weight:600;letter-spacing:-.025em;line-height:1.1;font-variant-numeric:tabular-nums;}
- .stat-label{font-size:var(--fs-meta);color:var(--text-2);}
- .stat[data-tone=ask] .stat-n{color:var(--warn-text);}.stat[data-tone=work] .stat-n{color:var(--accent);}.stat[data-tone=ok] .stat-n{color:var(--ok-text);}.stat[data-tone=block] .stat-n{color:var(--block-text,var(--text));}
- .stat[data-zero] .stat-n{color:var(--text-2);}
+ /* Overview: trays for what is running, what is next, the plans, Git activity and participants. */
+ .head-count{margin-left:8px;font-size:var(--fs-meta);font-weight:500;color:var(--text-2);font-variant-numeric:tabular-nums;}.agent-fact{display:flex;align-items:center;gap:8px;}.holder{display:inline-flex;}.person{display:flex;align-items:center;gap:10px;padding:10px 14px;}
  .rows{overflow:clip;}.rows .empty{padding:14px 16px;}.rows .task{padding:12px 14px;}
  .link{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--fs-meta);cursor:pointer;padding:0;}.link:hover{text-decoration:underline;}
  .decision.urgent{background:var(--tray-ask);border-color:var(--tray-ask-edge);}

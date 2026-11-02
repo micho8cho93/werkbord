@@ -40,6 +40,17 @@ describe('what a frame may say about the window', () => {
     for (const style of ['', 'neon', 1, null, undefined]) await handle(frames, say(individual, frames[0].origin, { event: 'style', style }), d);
     expect(vi.mocked(d.style).mock.calls).toEqual([['personal', 'paper'], ['personal', 'graphite'], ['personal', 'classic'], ['personal', 'cloud'], ['personal', 'moss'], ['personal', 'dune'], ['personal', 'plum']]);
   });
+  it('lets a workspace\'s own page say what it shows, as short plain text, and no other frame', async () => {
+    const d = { ...deps(), title: vi.fn() };
+    await handle([surface], say(assistantWindow, surface.origin, { event: 'title', title: 'Plan' }), d);
+    await handle([hosted], say(hosted.window as Window, hosted.origin, { event: 'title', title: 'Plan' }), d);
+    await handle(frames, say(team, 'https://evil.example', { event: 'title', title: 'Plan' }), d);
+    for (const title of [7, null, undefined, 'x'.repeat(81), '   ']) await handle(frames, say(individual, frames[0].origin, { event: 'title', title }), d);
+    expect(d.title).not.toHaveBeenCalled();
+    await handle(frames, say(individual, frames[0].origin, { event: 'title', title: 'Authentication\u0007 overhaul' }), d);
+    await handle(frames, say(team, frames[1].origin, { event: 'title', title: '' }), d);
+    expect(vi.mocked(d.title).mock.calls).toEqual([['personal', 'Authentication overhaul'], ['team:main', '']]);
+  });
   it('lets Individual say something happened, in plain short words, and no one else', async () => {
     const d = deps();
     const alert = { event: 'notify', key: 'seq-12', title: 'Needs you', body: 'Shop · Fix login' };

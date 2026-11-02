@@ -5,12 +5,19 @@
   import type { ProjectScope } from '../lib/scope.svelte';
   import type { Project } from '../lib/types';
   import TaskPanel from './TaskPanel.svelte';
+  import { reportTitle } from '../lib/embed';
 
   // The task panel behind an error boundary: something in a task that cannot be drawn costs the panel, not the board
   // or the rest of the app, and says so with a way out.
 
   let { scope, project }: { scope: ProjectScope; project: Project } = $props();
   const boardHref = $derived(projectHref(project.id, 'work') + (new URLSearchParams(router.query).get('plan') ? '?plan=' + encodeURIComponent(new URLSearchParams(router.query).get('plan')!) : ''));
+
+  // The window's header names the open task; closing the panel says there is none.
+  $effect(() => {
+    reportTitle(scope.tasks.find(t => t.id === router.taskId)?.title ?? '');
+    return () => reportTitle('');
+  });
 
   let failedHeading = $state<HTMLElement>();
   $effect(() => {

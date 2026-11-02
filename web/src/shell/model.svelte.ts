@@ -52,6 +52,11 @@ export class Model {
   view = $state<WorkspaceView | null>(null);
   overview = $state<Overview | null>(null);
   page = $state<Page>('inbox');
+  /** What the page in each workspace's frame says it is showing (a plan's or a task's title), for the header's breadcrumb. Empty when it shows none. */
+  private frameTitles = $state<Record<string, string>>({});
+  setFrameTitle(id: string, title: string): void { if ((this.frameTitles[id] ?? '') !== title) this.frameTitles = { ...this.frameTitles, [id]: title }; }
+  /** The title the workspace on show gave its page, only while that workspace's page is what the person is looking at. */
+  get frameTitle(): string { return this.page === 'workspace' ? this.frameTitles[this.current] ?? '' : ''; }
   selectedProject = $state<ProjectIdentity | null>((() => {
     try { return parseContext(localStorage.getItem('werkbord.shell.project') ?? ''); } catch { return null; }
   })());

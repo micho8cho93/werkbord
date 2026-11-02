@@ -282,6 +282,45 @@ func (p *Individual) AnswerQuestion(ctx context.Context, project, question, answ
 	}{res.StatusCode, raw})
 }
 
+// ProjectHead reads where one project's repository stands: the branch checked out and the short commit, from the same Git overview the
+// project's own page reads. Only those two facts and whether HEAD is detached are returned; no path, remote, diff or file name leaves.
+func (p *Individual) ProjectHead(ctx context.Context, project string) (json.RawMessage, error) {
+	if !workspace.ValidID(project) {
+		return nil, errors.New("that is not a project")
+	}
+	a, err := p.Access(ctx)
+	if err != nil {
+		return nil, err
+	}
+	base, err := CheckBase(a.Base)
+	if err != nil {
+		return nil, err
+	}
+	var overview struct {
+		Local struct {
+			Head struct {
+				Branch   string `json:"branch"`
+				Commit   string `json:"commit"`
+				Detached bool   `json:"detached"`
+				Unborn   bool   `json:"unborn"`
+			} `json:"head"`
+		} `json:"local"`
+	}
+	if err := p.send(ctx, base, a.Token, http.MethodGet, "/api/projects/"+url.PathEscape(project)+"/git", nil, &overview); err != nil {
+		return nil, err
+	}
+	h := overview.Local.Head
+	if len(h.Commit) > 7 {
+		h.Commit = h.Commit[:7]
+	}
+	return json.Marshal(struct {
+		Branch   string `json:"branch"`
+		Commit   string `json:"commit"`
+		Detached bool   `json:"detached,omitempty"`
+		Unborn   bool   `json:"unborn,omitempty"`
+	}{h.Branch, h.Commit, h.Detached, h.Unborn})
+}
+
 // Analytics reads the person's own analytics report (the same endpoint their page reads), for the window's one Analytics page. It is a
 // read: no credential, address or path is chosen by the caller, only a project and a number of days the shell has already checked.
 func (p *Individual) Analytics(ctx context.Context, project string, days int) (json.RawMessage, error) {

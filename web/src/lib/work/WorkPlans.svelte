@@ -4,6 +4,7 @@
   import { app } from '../state.svelte';
   import { assistant } from '../assistant/sessions.svelte';
   import { projectHref, taskHref } from '../location';
+  import { reportTitle } from '../embed';
   import { router } from '../router.svelte';
   import Icon from '../Icon.svelte';
   import type { WorkPlan } from '../work-queue';
@@ -34,6 +35,12 @@
   const taskHrefFor = (id: string) => withChain(taskHref(project.id, id) + '?plan=' + encodeURIComponent(selected), here);
   const tone: Record<StepKind, string> = { done: 'ok', running: 'work', attention: 'ask', review: 'ok', blocked: 'block', waiting: 'neutral', ready: 'neutral', missing: 'neutral' };
   const scheduleHref = $derived(withChain(projectHref(project.id, 'calendar'), here));
+
+  // The window's header names the open plan; leaving it (or the page) says there is none.
+  $effect(() => {
+    reportTitle(current?.title ?? '');
+    return () => reportTitle('');
+  });
 
   $effect(() => {
     void revision;

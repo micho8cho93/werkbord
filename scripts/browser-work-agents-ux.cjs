@@ -107,7 +107,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
     // Work opens on its Overview, where what stands in the way is counted; the queue and its flags are on the next tab.
     await sections.getByRole('button', { name: 'Overview', exact: true }).waitFor();
     assert.equal(await sections.locator('[aria-current=page]').innerText(), 'Overview', 'Work opens on Overview');
-    await page.getByTestId('work-stats').waitFor();
+    await page.getByTestId('running-count').waitFor();
     await sections.getByRole('button', { name: /^Queue/ }).click();
     const flags = page.getByTestId('work-flags');
     await flags.waitFor();
