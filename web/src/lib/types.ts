@@ -1181,3 +1181,39 @@ export interface MCPTaskPlanChange {
   dependencies?: string[];
   sourceRef?: string;
 }
+
+// ---- a team's repository as the person's own GitHub sign-in sees it (internal/github/repoview.go) ----
+
+export interface RepoPermissions { admin: boolean; maintain: boolean; push: boolean; triage: boolean; pull: boolean }
+export interface RepoView {
+  fullName: string;
+  description?: string;
+  url: string;
+  private: boolean;
+  defaultBranch: string;
+  pushedAt?: string;
+  permissions: RepoPermissions;
+  branches: { name: string; sha: string; protected: boolean }[];
+  commits: { sha: string; message: string; author: string; at?: string; url?: string }[];
+  pullRequests: GitHubPR[];
+}
+export interface RepoAction {
+  repo: string; confirmRepo: string;
+  action: 'create_branch' | 'delete_branch' | 'create_pr' | 'comment' | 'review' | 'merge' | 'update_branch' | 'set_role' | 'remove_collaborator' | 'protect_branch' | 'unprotect_branch' | 'enable_pages';
+  user?: string; confirmTarget?: string; role?: 'read' | 'triage' | 'write' | 'maintain' | 'admin'; reviews?: number;
+  branch?: string; from?: string; base?: string; title?: string; body?: string; draft?: boolean; number?: number;
+  event?: 'approve' | 'request_changes' | 'comment'; method?: 'merge' | 'squash' | 'rebase'; sha?: string;
+}
+export interface RepoActionResult { action: string; outcome: 'done' | 'refused' | 'rejected' | 'unverified' | 'failed'; ok: boolean; message: string; pullRequest?: GitHubPR; url?: string }
+/** live: GitHub shows it. no_access: signed in, not shown. not_connected: gh missing or signed out. error: GitHub unreachable. */
+export interface RepoState { state: 'live' | 'no_access' | 'not_connected' | 'error'; message?: string; repo?: RepoView; viewer?: string }
+
+export interface RepoAdmin {
+  canAdmin: boolean;
+  collaborators: { login: string; role: string }[];
+  collabNote?: string;
+  branch: string;
+  protection?: { protected: boolean; requiredReviews: number };
+  protectNote?: string;
+  pages?: { enabled: boolean; url?: string };
+}

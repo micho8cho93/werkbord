@@ -37,6 +37,7 @@ type summaryInputs struct {
 	// Schedules are the shared schedule requests, by project.
 	Schedules map[string][]domain.Schedule
 	Changes   *workspace.RecentChanges
+	Pushes    []workspace.Push
 	Queue     []workspace.QueueItem
 	Planned   []workspace.Planned
 	Progress  map[string]*domain.ProgressRecord
@@ -138,6 +139,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 		Planned: in.Planned,
 		Queue:   in.Queue,
 		Changes: in.Changes,
+		Pushes:  in.Pushes,
 	}
 	if out.Workspace.Name == "" {
 		out.Workspace.Name = "Team"
@@ -152,7 +154,7 @@ func buildSummary(in summaryInputs) workspace.Summary {
 				continue
 			}
 			projectNames[p.Project.ID] = p.Project.Name
-			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=work&project=" + p.Project.ID})
+			out.Projects = append(out.Projects, workspace.Project{ID: p.Project.ID, Name: p.Project.Name, Href: "?tab=work&project=" + p.Project.ID, Repository: p.Project.Repository, LiveOff: p.Project.GitHubLiveOff})
 		}
 	}
 	if in.MyWork != nil {
@@ -423,6 +425,10 @@ func (d *Daemon) gatherSummary(ctx context.Context) workspace.Summary {
 	var changes workspace.RecentChanges
 	if err := host.Do(ctx, http.MethodGet, "/catch-up", nil, &changes); err == nil {
 		in.Changes = &changes
+	}
+	var pushes []workspace.Push
+	if err := host.Do(ctx, http.MethodGet, "/pushes", nil, &pushes); err == nil {
+		in.Pushes = pushes
 	}
 	var rq service.ReviewQueue
 	if err := host.Do(ctx, http.MethodGet, "/reviews", nil, &rq); err == nil {

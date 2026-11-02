@@ -7,7 +7,7 @@
 //                   #/projects         every registered repository, and registering one
 //                   #/help             bundled task guidance and keyboard shortcuts
 //                   #/sessions[/<key>] Agents: every coding-agent session, and one of them open (key is run:<id> or terminal:<id>)
-//   in a project    #/p/<id>/work     (also: overview, calendar, git, runs, defaults)
+//   in a project    #/p/<id>/work     (also: git, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
 //                   #/p/<id>/task/<id> a task, which belongs to the board
 //
@@ -15,7 +15,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'analytics' | 'sessions' | PhoneView;
+export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'github' | 'analytics' | 'sessions' | PhoneView;
 /**
  * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
  * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
@@ -24,9 +24,11 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
 export type ProjectSection = 'overview' | 'work' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
+/** Pages a project no longer has: Work is its one page, Calendar is the window's own and runs are Agents. An old address to one still lands (App.svelte settles it). */
+export const RETIRED_SECTIONS: readonly ProjectSection[] = ['overview', 'calendar', 'runs'];
 export type View = GlobalView | ProjectSection | 'task';
 
-export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | PhoneView>; label: string; short: string }[] = [
+export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'github' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Workspace', short: 'Workspace' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'sessions', label: 'Agents', short: 'Agents' },
@@ -36,14 +38,11 @@ export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | Pho
 ];
 
 /** Direct-only pages: first-time setup. */
-const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding'];
+const HIDDEN_GLOBAL: readonly GlobalView[] = ['onboarding', 'github'];
 
 export const PROJECT_SECTIONS: readonly { id: ProjectSection; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
   { id: 'work', label: 'Work' },
-  { id: 'calendar', label: 'Calendar' },
   { id: 'git', label: 'Git' },
-  { id: 'runs', label: 'Runs' },
   { id: 'analytics', label: 'Analytics' },
   // The project's defaults (agent, model, reasoning, interaction, priority). Its address says "defaults" so
   // that it cannot be mistaken for the app's own Settings page, which is global.
@@ -89,9 +88,10 @@ export interface Location {
 const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id === v) || (HIDDEN_GLOBAL as readonly string[]).includes(v) || (PHONE_VIEWS as readonly string[]).includes(v);
 /** Whether a page is one of the phone's own. */
 export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readonly string[]).includes(v);
-const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v);
+const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v) || (RETIRED_SECTIONS as readonly string[]).includes(v);
 
 /** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
+/** Sections that were renamed: an old link still lands. */
 const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'calendar', 'product-map': 'overview' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
@@ -117,6 +117,11 @@ export function parse(hash: string): Location {
 
   // Agents names the session it has open in the address (a session key: run:<id> or terminal:<id>), so a reload or a link lands on it.
   if (first === 'sessions') return second && decode(second) ? { view: 'sessions', projectId: '', taskId: '', sub: decode(second) } : { view: 'sessions', projectId: '', taskId: '' };
+  // A team's repository, opened in the person's own Werkbord: #/github/<owner>/<name>.
+  if (first === 'github') {
+    const named = [second, third, fourth].filter(Boolean).map(decode);
+    return named.length >= 2 && named.every(Boolean) ? { view: 'github', projectId: '', taskId: '', sub: named.join('/') } : { view: 'projects', projectId: '', taskId: '' };
+  }
   if (isGlobal(first)) return { view: first, projectId: '', taskId: '' };
 
   if (first === 'p' && decode(second)) {
@@ -170,6 +175,7 @@ export function taskHref(projectId: string, taskId: string, runId = ''): string 
 /** The address of a location. A project page whose project is not known yet has none to give. */
 export function hrefOf(loc: Location): string {
   if (loc.view === 'sessions') return sessionsHref(loc.sub);
+  if (loc.view === 'github' && loc.sub) return `#/github/${loc.sub.split('/').map(enc).join('/')}`;
   if (loc.view === 'task') return taskHref(loc.projectId, loc.taskId, loc.runId);
   if (isGlobal(loc.view)) return globalHref(loc.view);
   if (loc.view === 'git' && loc.sub) return `${projectHref(loc.projectId, 'git')}/${loc.sub}`;
@@ -184,7 +190,8 @@ export function hrefOf(loc: Location): string {
  * its board.
  */
 export function switchedTo(from: Location, projectId: string): Location {
-  const section: ProjectSection = !isGlobal(from.view) && isSection(from.view) ? from.view : 'work';
+  const kept = !isGlobal(from.view) && isSection(from.view) && !RETIRED_SECTIONS.includes(from.view);
+  const section: ProjectSection = kept ? (from.view as ProjectSection) : 'work';
   return { view: section, projectId, taskId: '' };
 }
 
@@ -203,7 +210,7 @@ export function resolved(loc: Location, projectIds: readonly string[], lastUsed:
 
 /** A page the phone's "More" sheet reaches: the ones the tab bar has no room for. */
 export interface MoreEntry {
-  id: 'analytics' | 'overview' | 'projects' | 'defaults' | 'settings' | 'help';
+  id: 'analytics' | 'projects' | 'defaults' | 'settings' | 'help';
   label: string;
   href: string;
 }
@@ -216,8 +223,6 @@ export function moreEntries(projectId: string): MoreEntry[] {
   return [
     ...(projectId
       ? ([
-          { id: 'overview', label: 'Overview', href: projectHref(projectId, 'overview') },
-
           { id: 'defaults', label: 'Project settings', href: projectHref(projectId, 'defaults') },
         ] as MoreEntry[])
       : []),
@@ -230,5 +235,5 @@ export function moreEntries(projectId: string): MoreEntry[] {
 
 /** Whether the page shown is one of those behind More, so the tab can say where you are. */
 export function inMore(view: View): boolean {
-  return view === 'analytics' || view === 'overview' || view === 'defaults' || view === 'projects' || view === 'settings' || view === 'help';
+  return view === 'analytics' || view === 'defaults' || view === 'projects' || view === 'settings' || view === 'help';
 }

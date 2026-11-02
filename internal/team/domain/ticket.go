@@ -518,6 +518,8 @@ const (
 	ActMemberJoined        ActivityKind = "project.member_joined"
 	ActHandedOff           ActivityKind = "ticket.handed_off"
 	ActPullRequestMerged   ActivityKind = "ticket.pull_request_merged"
+	// ActBranchPushed: a member saw a branch of the project's repository move. Detail is "branch@short-sha".
+	ActBranchPushed ActivityKind = "repository.branch_pushed"
 )
 
 // Activity is one entry in a project's history: who did what to which ticket.

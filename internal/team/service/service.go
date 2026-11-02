@@ -470,6 +470,8 @@ type ProjectPatch struct {
 	Description *string
 	Repository  *string
 	Archived    *bool
+	// GitHubLiveOff turns the live GitHub view of the project's repository off or on for its members.
+	GitHubLiveOff *bool
 }
 
 // UpdateProject edits or archives a project.
@@ -496,6 +498,9 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, id string, patch P
 			if p.Repository, err = domain.CleanRepository(*patch.Repository); err != nil {
 				return err
 			}
+		}
+		if patch.GitHubLiveOff != nil {
+			p.GitHubLiveOff = *patch.GitHubLiveOff
 		}
 		if patch.Archived != nil {
 			if p.Archived != *patch.Archived {

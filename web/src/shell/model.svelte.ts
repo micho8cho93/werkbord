@@ -4,16 +4,18 @@
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
 import { decisions } from './decisions.svelte';
+import { alerts } from './alerts.svelte';
+import { viewState } from './view-state.svelte';
 import { ask } from './native';
 import { contextKey, parseContext, projectOptions, projectInHref, scopedOverview, type ProjectIdentity } from './project-context';
-import { surfaceUrl } from './frames';
+import { surfaceUrl, type RepoChange } from './frames';
 import { agentsPlace, isAgentsPlace, scopedAgentsPlace } from './nav';
 import { chainOf, pushed, withChain, type Origin } from '../lib/origin';
 import { frameOf, groupsFor, pick, scopeOf, sectionForPlace, type Group, type Scope, type Section } from './settings';
 import type { App, Item, Overview, Target, WorkspaceView } from './types';
 import { readWanted, writeWanted, type TeamSetupProgress } from './teamsetup';
 
-export type Page = 'workspace' | 'calendar' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'agents';
+export type Page = 'workspace' | 'calendar' | 'git' | 'inbox' | 'reviews' | 'analytics' | 'workspaces' | 'settings' | 'help' | 'agents';
 
 /** Where the assistant grows out of: the button that opened it, in the window's coordinates. */
 export interface Anchor {
@@ -63,8 +65,12 @@ export class Model {
     this.selectedProject = selected;
     this.pane = null; // a task of the old project must not stay beside the list of the new one
     try { localStorage.setItem('werkbord.shell.project', contextKey(selected)); } catch { /* Selection still works. */ }
-    // Detail screens are contextual Work; switching projects returns to the shared Work surface.
-    if (this.page === 'workspace') this.go('inbox');
+    // Detail screens are contextual Work; switching projects returns to the shared Work surface. A person's own project's Work
+    // (its queue and plans, which can be reordered) and its Git stay where they are, on the new project.
+    if (this.page === 'workspace' && this.onGit && selected) void this.openGit();
+    else if (this.page === 'workspace' && this.onProjectWork && selected) this.openProjectWork();
+    else if (this.page === 'git') void this.openGit();
+    else if (this.page === 'workspace') this.go('inbox');
     // Agents lists the sessions of the project context: the list follows it, and an open session stays open.
     else if (this.agentsInFrame && this.frames.personal) void this.openAgents();
     this.departed = null;
@@ -569,6 +575,7 @@ export class Model {
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
       this.overview = { ...overview, entries: this.accessibleEntries(overview) };
       decisions.sync(this.overview);
+      this.notePushes(this.overview);
       const selected = this.selectedProject;
       const source = selected && this.overview.entries.find(e => e.workspace.id === selected.workspace);
       if (selected && source?.summary && !source.error && this.view?.items.find(i => i.id === selected.workspace)?.state === 'ready' && !source.summary.projects.some(p => p.id === selected.project)) {
@@ -632,6 +639,12 @@ export class Model {
     const f = hosted ? this.hosted[id] : this.frames[id];
     if (!f) return undefined;
     f.ready = true;
+    if (!hosted && this.queuedReports[id]?.length && this.flushReports) {
+      const send = this.flushReports;
+      const queued = this.queuedReports[id];
+      delete this.queuedReports[id];
+      queueMicrotask(() => queued.forEach(m => send(id, m)));
+    }
     const p = f.pending;
     f.pending = undefined;
     return p;
@@ -758,6 +771,152 @@ export class Model {
     void this.host('personal', '#/help');
   }
 
+  /** Where a project's Git is in its workspace's own page: the person's own Werkbord has a page for it, a team has its repository tab. */
+  private gitPlace(p: ProjectIdentity, reported = false): string {
+    const live = !reported && p.workspace !== 'personal' && this.personalReady ? this.githubRepoOf(p) : '';
+    if (live) return `#/github/${live.split('/').map(encodeURIComponent).join('/')}`;
+    return p.workspace === 'personal' ? `#/p/${encodeURIComponent(p.project)}/git` : `?tab=repository&project=${encodeURIComponent(p.project)}`;
+  }
+  /** The team repositories on GitHub that the person's own Werkbord watches for pushes, once each. */
+  get watchedRepos(): string[] {
+    const out = new Set<string>();
+    for (const p of this.projects) if (p.workspace !== 'personal') { const r = this.githubRepoOf(p); if (r) out.add(r); }
+    return [...out].sort();
+  }
+  /** Teams whose pushes the person does not want to be told of. The card still lists them. */
+  mutedTeams = $state<string[]>((() => { try { return JSON.parse(localStorage.getItem('werkbord.shell.repo-mute') ?? '[]') as string[]; } catch { return []; } })());
+  setTeamMuted(workspace: string, muted: boolean): void {
+    this.mutedTeams = muted ? [...new Set([...this.mutedTeams, workspace])] : this.mutedTeams.filter(w => w !== workspace);
+    try { localStorage.setItem('werkbord.shell.repo-mute', JSON.stringify(this.mutedTeams)); } catch { /* Kept for this window only. */ }
+  }
+  private lastHeads: Record<string, { fingerprint: string; at: number }> = {};
+  private pushesSeen: Set<string> | null = null;
+  /**
+   * Pushes a team reports, whoever saw them first: told here to a member who has no GitHub, or whose own Werkbord has not yet. The
+   * first look only learns what is already there, so opening the window is not a burst of old news.
+   */
+  private notePushes(overview: Overview): void {
+    const fresh: { workspace: string; push: NonNullable<NonNullable<Overview['entries'][number]['summary']>['pushes']>[number] }[] = [];
+    const first = this.pushesSeen === null;
+    const seen = this.pushesSeen ?? new Set<string>();
+    for (const e of overview.entries) for (const push of e.summary?.pushes ?? []) {
+      if (seen.has(push.key)) continue;
+      seen.add(push.key);
+      fresh.push({ workspace: e.workspace.id, push });
+    }
+    this.pushesSeen = seen;
+    for (const { workspace, push } of fresh.reverse()) {
+      const project = projectInHref('team', push.href);
+      const found = project ? this.projects.find(p => p.workspace === workspace && p.project === project) : undefined;
+      const context = found ? contextKey(found) : '';
+      // The person's own Werkbord may have told it already, from GitHub itself.
+      if (this.repoChanges.some(c => c.context === context && c.branch === push.branch && (c.sha.startsWith(push.sha) || push.sha.startsWith(c.sha)))) continue;
+      this.repoChanges = [{ repo: '', branch: push.branch, sha: push.sha, at: Date.parse(push.at) || Date.now(), project: found?.name ?? push.project, context, workspace }, ...this.repoChanges].slice(0, 20);
+      if (!first && !push.mine && !this.mutedTeams.includes(workspace)) void alerts.tell({ key: `team-push:${push.key}`, title: found?.name ?? push.project, body: `${push.branch} was updated` });
+    }
+  }
+  private queuedReports: Record<string, Record<string, unknown>[]> = {};
+  /**
+   * Tells each team that has a project on this repository where its branches are on GitHub, as the person's own Werkbord just saw
+   * them, so the team can tell every member (also those without GitHub) when one moves. A team's page that is not open yet is
+   * opened out of sight for it. Only what changed since the last time is sent.
+   */
+  passHeadsToTeams(repo: string, heads: { name: string; sha: string }[], send: (workspace: string, message: Record<string, unknown>) => void): void {
+    const fingerprint = JSON.stringify(heads);
+    // Told again after a few minutes even if nothing moved: a team's page that was not signed in yet drops what it is sent.
+    const last = this.lastHeads[repo];
+    if (last?.fingerprint === fingerprint && Date.now() - last.at < 5 * 60_000) return;
+    this.lastHeads[repo] = { fingerprint, at: Date.now() };
+    const branches = heads.map(h => ({ name: h.name, sha: h.sha }));
+    for (const p of this.projects) {
+      if (p.workspace === 'personal' || this.githubRepoOf(p) !== repo) continue;
+      const message = { type: 'werkbord.reportbranches', project: p.project, branches };
+      const frame = this.frames[p.workspace];
+      if (frame?.ready) { send(p.workspace, message); continue; }
+      this.queuedReports[p.workspace] = [...(this.queuedReports[p.workspace] ?? []).filter(m => m.project !== p.project), message];
+      if (!frame) void ask(a => a.LoadWorkspace(p.workspace)).then(target => { if (!this.frames[p.workspace]) this.frames[p.workspace] = { target, ready: false }; }).catch(() => { /* Told again at the next look. */ });
+    }
+    this.flushReports = send;
+  }
+  private flushReports: ((workspace: string, message: Record<string, unknown>) => void) | null = null;
+
+  /** Recent pushes to those repositories, newest first. What the Overview shows. */
+  repoChanges = $state<(RepoChange & { at: number; project: string; context: string; workspace: string })[]>([]);
+  noteRepoChange(c: RepoChange): string {
+    const found = this.projects.find(p => p.workspace !== 'personal' && this.githubRepoOf(p) === c.repo);
+    const project = found?.name ?? c.repo;
+    this.repoChanges = [{ ...c, at: Date.now(), project, context: found ? contextKey(found) : '', workspace: found?.workspace ?? '' }, ...this.repoChanges.filter(x => !(x.repo === c.repo && x.branch === c.branch && x.sha === c.sha))].slice(0, 20);
+    return project;
+  }
+
+  /** owner/name of a team project's GitHub repository, from the address its workspace reports; '' when it has none, or not on github.com. */
+  private githubRepoOf(p: ProjectIdentity): string {
+    const entry = this.overview?.entries.find(e => e.workspace.id === p.workspace)?.summary?.projects.find(x => x.id === p.project);
+    if (entry?.liveOff) return '';
+    const address = entry?.repository ?? '';
+    const m = /^https:\/\/([A-Za-z0-9.-]+)\/([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9._][A-Za-z0-9._-]*?)(?:\.git)?\/?$/.exec(address.trim());
+    // github.com, or a company's GitHub host (one with "github" in its name; the person's gh must be signed in to it). Any other host is not asked.
+    if (m && m[1] !== 'github.com' && !m[1].toLowerCase().includes('github')) return '';
+    return m ? (m[1] === 'github.com' ? `${m[2]}/${m[3]}` : `${m[1]}/${m[2]}/${m[3]}`) : '';
+  }
+  private workPlace(p: ProjectIdentity): string {
+    return p.workspace === 'personal' ? `#/p/${encodeURIComponent(p.project)}/work` : `?tab=work&project=${encodeURIComponent(p.project)}`;
+  }
+  private onTab(personal: RegExp, team: string): boolean {
+    if (this.page !== 'workspace') return false;
+    const place = this.places[this.current] ?? '';
+    return this.current === 'personal' ? personal.test(place) : place.startsWith('?') && new URLSearchParams(place.slice(1)).get('tab') === team && !!new URLSearchParams(place.slice(1)).get('project');
+  }
+  /** A workspace's page is showing a project's Git. */
+  get onGit(): boolean {
+    if (this.page === 'workspace' && this.current === 'personal' && /^#\/github\//.test(this.places.personal ?? '')) return true;
+    return this.onTab(/^#\/p\/[^/?#]+\/git(?:[/?#]|$)/, 'repository');
+  }
+  /** A workspace's page is showing a project's Work (its queue and plans). */
+  get onProjectWork(): boolean {
+    return this.onTab(/^#\/p\/[^/?#]+\/work(?:[/?#]|$)/, 'work');
+  }
+
+  /**
+   * The queue and plans of the selected project. That page is the one that saves a new order, so it is shown as it is; its Overview
+   * tab brings the window's Overview back.
+   */
+  openProjectWork(): void {
+    const sel = this.selectedProject;
+    if (sel) void this.goTo(sel.workspace, this.workPlace(sel));
+  }
+
+  /** Back to the window's Work, on its Overview. */
+  showOverview(): void {
+    viewState.work = { ...viewState.work, section: 'overview' };
+    this.go('inbox');
+  }
+
+  /** The team's own report of a project's repository, for a member who cannot see it on GitHub. */
+  async openReportedGit(): Promise<void> {
+    const sel = this.selectedProject;
+    if (sel) await this.goTo(sel.workspace, this.gitPlace(sel, true));
+  }
+
+  /**
+   * Git: the selected project's own, in the page of the workspace it belongs to. With every project selected there is no one
+   * repository to show, so the window lists them.
+   */
+  async openGit(): Promise<void> {
+    const sel = this.selectedProject;
+    this.salieReturn = null;
+    this.departed = null;
+    this.pane = null;
+    if (sel) {
+      await this.goTo(sel.workspace, this.gitPlace(sel));
+      return;
+    }
+    this.universal = true;
+    this.leaveAssistant();
+    this.page = 'git';
+    void this.refreshOverview();
+  }
+
   /** Shows a page of the shell's own. */
   go(p: Page): void {
     this.salieReturn = null;
@@ -772,6 +931,7 @@ export class Model {
       void this.refreshOverview();
       return this.openSettings('general/workspaces');
     }
+    if (p === 'git') return void this.openGit();
     if (p === 'agents' && this.personalReady) return void this.openAgents();
     if (['calendar', 'inbox', 'reviews', 'analytics', 'agents'].includes(p)) this.universal = true;
     this.leaveAssistant();

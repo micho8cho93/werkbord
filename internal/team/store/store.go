@@ -256,14 +256,14 @@ func (t *sqlTx) SetMemberRole(ctx context.Context, workspaceID, id string, role 
 
 // ---- projects ----
 
-const projectCols = `id, workspace_id, name, description, repository, archived, created_at, updated_at, revision`
+const projectCols = `id, workspace_id, name, description, repository, archived, created_at, updated_at, revision, github_live_off`
 
 func scanProject(s interface{ Scan(...any) error }) (domain.Project, error) {
 	var p domain.Project
-	var archived int
+	var archived, liveOff int
 	var created, updated int64
-	err := s.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Description, &p.Repository, &archived, &created, &updated, &p.Revision)
-	p.Archived, p.CreatedAt, p.UpdatedAt = archived == 1, fromMS(created), fromMS(updated)
+	err := s.Scan(&p.ID, &p.WorkspaceID, &p.Name, &p.Description, &p.Repository, &archived, &created, &updated, &p.Revision, &liveOff)
+	p.Archived, p.CreatedAt, p.UpdatedAt, p.GitHubLiveOff = archived == 1, fromMS(created), fromMS(updated), liveOff == 1
 	return p, err
 }
 
@@ -276,8 +276,8 @@ func b2i(b bool) int {
 
 // InsertProject stores a new project.
 func (t *sqlTx) InsertProject(ctx context.Context, p domain.Project) error {
-	_, err := t.q.ExecContext(ctx, `INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.WorkspaceID, p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.CreatedAt), ms(p.UpdatedAt), p.Revision)
+	_, err := t.q.ExecContext(ctx, `INSERT INTO projects (`+projectCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.WorkspaceID, p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.CreatedAt), ms(p.UpdatedAt), p.Revision, b2i(p.GitHubLiveOff))
 	if isUnique(err) {
 		return fmt.Errorf("%w: a project named %q already exists in this workspace", domain.ErrConflict, p.Name)
 	}
@@ -318,8 +318,8 @@ func (t *sqlTx) Projects(ctx context.Context, workspaceID, onlyMemberID string) 
 // UpdateProject writes a project's editable fields.
 func (t *sqlTx) UpdateProject(ctx context.Context, p domain.Project) error {
 	res, err := t.q.ExecContext(ctx,
-		`UPDATE projects SET name = ?, description = ?, repository = ?, archived = ?, updated_at = ? WHERE workspace_id = ? AND id = ?`,
-		p.Name, p.Description, p.Repository, b2i(p.Archived), ms(p.UpdatedAt), p.WorkspaceID, p.ID)
+		`UPDATE projects SET name = ?, description = ?, repository = ?, archived = ?, github_live_off = ?, updated_at = ? WHERE workspace_id = ? AND id = ?`,
+		p.Name, p.Description, p.Repository, b2i(p.Archived), b2i(p.GitHubLiveOff), ms(p.UpdatedAt), p.WorkspaceID, p.ID)
 	if isUnique(err) {
 		return fmt.Errorf("%w: a project named %q already exists in this workspace", domain.ErrConflict, p.Name)
 	}

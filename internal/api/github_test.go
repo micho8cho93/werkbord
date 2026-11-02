@@ -100,3 +100,141 @@ func TestCreateRepoAndPagesEndpointsRefuseWhatIsNotConfirmedOrValid(t *testing.T
 		t.Fatalf("a bad repo = %d", code)
 	}
 }
+
+func TestRepositoryEndpointTellsLiveFromNoAccessFromNotConnected(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	var st service.RepoState
+	if code := do(t, "GET", url+"/api/github/repository?repo=octo/live", "", &st); code != 200 || st.State != "not_connected" {
+		t.Fatalf("signed out = %d %+v", code, st)
+	}
+	gh.SignIn()
+	if code := do(t, "GET", url+"/api/github/repository?repo=octo/live", "", &st); code != 200 || st.State != "live" || st.Repo == nil {
+		t.Fatalf("signed in = %d %+v", code, st)
+	}
+	if r := st.Repo; r.DefaultBranch != "main" || !r.Permissions.Push || r.Permissions.Admin || r.Permissions.Role() != "write" || len(r.Branches) != 2 || len(r.Commits) != 1 || r.Commits[0].Message != "Fix the thing" || r.Commits[0].Author != "ana" {
+		t.Fatalf("the view = %+v", r)
+	}
+	var hidden service.RepoState
+	if code := do(t, "GET", url+"/api/github/repository?repo=octo/secret", "", &hidden); code != 200 || hidden.State != "no_access" {
+		t.Fatalf("a repository GitHub does not show = %d %+v", code, hidden)
+	}
+	var out map[string]any
+	if code := do(t, "GET", url+"/api/github/repository?repo=--bad", "", &out); code != 400 {
+		t.Fatalf("a bad name = %d", code)
+	}
+}
+
+func TestRepositoryHeadsAreOneCheapReadAndNeverFailTheWatcher(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	var out struct {
+		Branches []struct{ Name, SHA string } `json:"branches"`
+	}
+	if code := do(t, "GET", url+"/api/github/repository/heads?repo=octo/live", "", &out); code != 200 || len(out.Branches) != 0 {
+		t.Fatalf("signed out = %d %+v", code, out)
+	}
+	gh.SignIn()
+	if code := do(t, "GET", url+"/api/github/repository/heads?repo=octo/live", "", &out); code != 200 || len(out.Branches) != 2 || out.Branches[0].SHA != "aaa111" {
+		t.Fatalf("signed in = %d %+v", code, out)
+	}
+	var bad map[string]any
+	if code := do(t, "GET", url+"/api/github/repository/heads?repo=--bad", "", &bad); code != 400 {
+		t.Fatalf("a bad name = %d", code)
+	}
+}
+
+func TestRepositoryHeadsAskWithTheEntityTagAndKeepTheLastAnswerWhenUnchanged(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	gh.SignIn()
+	var out struct {
+		Branches []struct{ Name, SHA string } `json:"branches"`
+	}
+	for i := 0; i < 2; i++ {
+		if code := do(t, "GET", url+"/api/github/repository/heads?repo=octo/live", "", &out); code != 200 || len(out.Branches) != 2 {
+			t.Fatalf("look %d = %d %+v", i, code, out)
+		}
+	}
+	if !strings.Contains(gh.Calls(), `If-None-Match: "tag1"`) {
+		t.Fatalf("the second look did not ask with the tag:\n%s", gh.Calls())
+	}
+}
+
+func TestRepositoryActionsAreConfirmedByNameCheckedAndReadBack(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	gh.SignIn()
+	act := func(body string) service.RepoActionResult {
+		t.Helper()
+		var out service.RepoActionResult
+		if code := do(t, "POST", url+"/api/github/repository/actions", body, &out); code != 200 {
+			t.Fatalf("%s = %d", body, code)
+		}
+		return out
+	}
+	if r := act(`{"repo":"octo/live","action":"create_branch","branch":"topic"}`); r.Outcome != "refused" || r.OK {
+		t.Fatalf("no confirmation by name = %+v", r)
+	}
+	if r := act(`{"repo":"octo/live","confirmRepo":"octo/live","action":"create_branch","branch":"bad..name"}`); r.Outcome != "refused" {
+		t.Fatalf("a bad branch name = %+v", r)
+	}
+	if r := act(`{"repo":"octo/live","confirmRepo":"octo/live","action":"delete_branch","branch":"main"}`); r.Outcome != "refused" || !strings.Contains(r.Message, "default") {
+		t.Fatalf("the default branch is not deleted = %+v", r)
+	}
+	if r := act(`{"repo":"octo/live","confirmRepo":"octo/live","action":"create_branch","branch":"topic"}`); r.Outcome != "done" || !r.OK {
+		t.Fatalf("create = %+v", r)
+	}
+	if r := act(`{"repo":"octo/live","confirmRepo":"octo/live","action":"comment","number":7,"body":"Looks good"}`); r.Outcome != "done" || r.URL == "" {
+		t.Fatalf("comment = %+v", r)
+	}
+	var out map[string]any
+	if code := do(t, "POST", url+"/api/github/repository/actions", `{"repo":"octo/live","confirmRepo":"octo/live","action":"format_disk"}`, &out); code != 400 {
+		t.Fatalf("an unknown action = %d", code)
+	}
+	if code := do(t, "POST", url+"/api/github/repository/actions", `{"repo":"octo/live","confirmRepo":"octo/live","action":"comment","extra":1}`, &out); code != 400 {
+		t.Fatalf("an unknown field = %d", code)
+	}
+}
+
+func TestAdminActionsNeedTheAdminRoleAndTheTargetTypedAndAreReadBack(t *testing.T) {
+	url, gh := newGitHubServer(t)
+	gh.SignIn()
+	act := func(body string) service.RepoActionResult {
+		t.Helper()
+		var out service.RepoActionResult
+		if code := do(t, "POST", url+"/api/github/repository/actions", body, &out); code != 200 {
+			t.Fatalf("%s = %d", body, code)
+		}
+		return out
+	}
+	// A write role is not enough.
+	if r := act(`{"repo":"octo/live","confirmRepo":"octo/live","action":"protect_branch","branch":"main","reviews":1}`); r.Outcome != "refused" || !strings.Contains(r.Message, "admin") {
+		t.Fatalf("a writer protecting a branch = %+v", r)
+	}
+	// The target is typed again, and is never oneself.
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"set_role","user":"ana","role":"write"}`); r.Outcome != "refused" {
+		t.Fatalf("no typed confirmation = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"set_role","user":"octo","confirmTarget":"octo","role":"read"}`); r.Outcome != "refused" || !strings.Contains(r.Message, "own") {
+		t.Fatalf("changing oneself = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"set_role","user":"../x","confirmTarget":"../x","role":"read"}`); r.Outcome != "refused" {
+		t.Fatalf("a bad user name = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"set_role","user":"ana","confirmTarget":"ana","role":"write"}`); r.Outcome != "done" || !r.OK {
+		t.Fatalf("set role = %+v", r)
+	}
+	var adm service.RepoAdmin
+	if code := do(t, "GET", url+"/api/github/repository/admin?repo=octo/ops", "", &adm); code != 200 || !adm.CanAdmin || len(adm.Collaborators) != 2 || adm.Protection == nil || adm.Protection.Protected {
+		t.Fatalf("admin view = %d %+v", code, adm)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"protect_branch","branch":"main","reviews":2}`); r.Outcome != "done" {
+		t.Fatalf("protect = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"protect_branch","branch":"main","reviews":9}`); r.Outcome != "refused" {
+		t.Fatalf("too many reviews = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"unprotect_branch","branch":"main"}`); r.Outcome != "done" {
+		t.Fatalf("unprotect = %+v", r)
+	}
+	if r := act(`{"repo":"octo/ops","confirmRepo":"octo/ops","action":"remove_collaborator","user":"ana","confirmTarget":"ana"}`); r.Outcome != "done" {
+		t.Fatalf("remove = %+v", r)
+	}
+}

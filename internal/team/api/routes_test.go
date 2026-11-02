@@ -64,6 +64,7 @@ var projectRoutes = []string{
 // workspaceRoutes act on the signed-in member's own workspace, whichever project.
 var workspaceRoutes = []string{
 	"GET /catch-up",
+	"GET /pushes",
 	"GET /initiatives", "GET /initiatives/{iid}", "POST /initiatives", "PUT /initiatives/{iid}", // metadata only; no execution
 	// Closed memory DTOs only; exact body scopes are authorized inside each transaction.
 	"POST /memory/delivery", // bounded signed projection events and durable receipts; no file/process access

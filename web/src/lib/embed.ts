@@ -5,6 +5,7 @@
  * window's sidebar and told to the page. Outside the app, or in the app's old single-window mode, nothing here does anything.
  */
 
+import { REPO_NAME } from './repowatch';
 import { isEmbedded, isWorkspaceHref, onNavigate, onStyle, onTheme, reportFrame } from '../../../internal/nativebridge/bridge.js';
 import { look, theme } from './theme.svelte';
 import { followPlanning } from './planningBridge';
@@ -220,4 +221,52 @@ export interface AssistantReport {
 export function reportAssistant(r: AssistantReport): void {
   if (!isEmbedded()) return;
   window.parent.postMessage({ type: 'werkbord.frame', event: 'assistant', open: r.open, waiting: Math.max(0, Math.floor(r.waiting)), running: r.running }, '*');
+}
+
+// ---- team repositories to watch, between the window and the person's own Werkbord ----
+
+/** Parses the window's list of team repositories to watch for pushes. Only the parent is believed, and only exactly this shape. */
+export function parseWatchRepos(data: unknown): string[] | null {
+  const m = data as { type?: unknown; repos?: unknown } | null;
+  if (!m || m.type !== 'werkbord.watchrepos' || Object.keys(m).some(k => k !== 'type' && k !== 'repos')) return null;
+  if (!Array.isArray(m.repos) || m.repos.length > 20 || !m.repos.every(r => typeof r === 'string' && REPO_NAME.test(r))) return null;
+  return m.repos as string[];
+}
+
+/** Calls handler when the window tells this page which team repositories to watch. */
+export function onWatchRepos(handler: (repos: string[]) => void): () => void {
+  if (!isEmbedded()) return () => {};
+  const listener = (event: MessageEvent) => {
+    if (event.source !== window.parent) return;
+    const repos = parseWatchRepos(event.data);
+    if (repos) handler(repos);
+  };
+  window.addEventListener('message', listener);
+  return () => window.removeEventListener('message', listener);
+}
+
+export interface RepoChangeReport {
+  repo: string;
+  branch: string;
+  sha: string;
+  previous?: string;
+  created?: boolean;
+  /** Who made the new commits on the default branch, and how many, when that could be told. */
+  authors?: string[];
+  count?: number;
+  isDefault?: boolean;
+  /** Every new commit on the default branch is by the person themselves. */
+  mine?: boolean;
+}
+
+/** Tells the window where every branch of a team repository is on GitHub, so it can pass that to the team. */
+export function reportRepoHeads(repo: string, heads: { name: string; sha: string }[]): void {
+  if (!isEmbedded()) return;
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'repo_heads', repo, heads: heads.slice(0, 100) }, '*');
+}
+
+/** Tells the window a team repository changed on GitHub. Does nothing outside the desktop app. */
+export function reportRepoChange(c: RepoChangeReport): void {
+  if (!isEmbedded()) return;
+  window.parent.postMessage({ type: 'werkbord.frame', event: 'repo_change', ...c }, '*');
 }

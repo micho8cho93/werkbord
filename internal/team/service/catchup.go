@@ -80,3 +80,44 @@ func (s *Service) CatchUp(ctx context.Context, a Actor) (*workspace.RecentChange
 	}
 	return out, nil
 }
+
+// RecentPushes are the branch moves members have reported on the projects this person is on, newest first, for the last week. It uses
+// the same permissions as the activity log, so nobody hears of a project they cannot see.
+func (s *Service) RecentPushes(ctx context.Context, a Actor) ([]workspace.Push, error) {
+	ctx = AuthenticatedContext(ctx, a)
+	now := s.stamp()
+	since := now.AddDate(0, 0, -7)
+	projects, err := s.ListProjects(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	out := []workspace.Push{}
+	for i, p := range projects {
+		if p.Archived {
+			continue
+		}
+		if i >= workspace.MaxProjects {
+			break
+		}
+		acts, err := s.ListActivity(ctx, a, p.ID, 0, MaxActivityPage)
+		if err != nil {
+			continue
+		}
+		for _, e := range acts {
+			if e.Kind != domain.ActBranchPushed || e.CreatedAt.Before(since) || e.CreatedAt.After(now) {
+				continue
+			}
+			at := strings.LastIndex(e.Detail, "@")
+			if at <= 0 {
+				continue
+			}
+			branch, sha := e.Detail[:at], e.Detail[at+1:]
+			out = append(out, workspace.Push{ID: fmt.Sprintf("push-%d", e.ID), Key: "push:" + p.ID + ":" + e.Detail + fmt.Sprintf(":%d", e.ID), Project: p.Name, Branch: branch, SHA: sha, Href: "?tab=repository&project=" + p.ID, At: e.CreatedAt, Mine: e.ActorID == a.Member.ID})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].At.After(out[j].At) })
+	if len(out) > workspace.MaxPushes {
+		out = out[:workspace.MaxPushes]
+	}
+	return out, nil
+}

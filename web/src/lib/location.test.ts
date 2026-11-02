@@ -92,7 +92,7 @@ describe('links', () => {
 // entry to it is all the shell, the switcher and the tab bar need.
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
-    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'runs', 'analytics', 'defaults']);
+    expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['work', 'git', 'analytics', 'defaults']);
     expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'sessions', 'analytics', 'settings', 'help']);
   });
 
@@ -105,15 +105,15 @@ describe('navigation is data, so it can grow', () => {
 
 describe('a work project has no repository to show', () => {
   it('keeps planning pages but excludes repository analysis', () => {
-    expect(sectionsFor('work').map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'runs', 'analytics', 'defaults']);
-    expect(tabsFor('work').map((s) => s.id)).toEqual(['overview', 'work', 'calendar', 'git', 'runs']);
+    expect(sectionsFor('work').map((s) => s.id)).toEqual(['work', 'git', 'analytics', 'defaults']);
+    expect(tabsFor('work').map((s) => s.id)).toEqual(['work', 'git']);
   });
 
   it('shows a repository project, or one of an older controller, everything', () => {
     expect(sectionsFor('repository')).toEqual(PROJECT_SECTIONS);
     expect(sectionsFor(undefined)).toEqual(PROJECT_SECTIONS);
     expect(sectionApplies('git', undefined)).toBe(true);
-    expect(sectionApplies('calendar', 'work')).toBe(true);
+    expect(sectionApplies('work', 'work')).toBe(true);
   });
 
   it('settles old timeline links to Calendar', () => {
@@ -125,7 +125,7 @@ describe('a work project has no repository to show', () => {
 describe('switching projects', () => {
   it('stays in the same section, in the new project', () => {
     expect(switchedTo({ view: 'git', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'git', projectId: 'prj_b', taskId: '' });
-    expect(switchedTo({ view: 'runs', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'runs', projectId: 'prj_b', taskId: '' });
+    expect(switchedTo({ view: 'runs', projectId: 'prj_a', taskId: '' }, 'prj_b')).toEqual({ view: 'work', projectId: 'prj_b', taskId: '' });
     expect(hrefOf(switchedTo(parse('#/p/prj_a/git'), 'prj_b'))).toBe('#/p/prj_b/git');
   });
 
@@ -182,10 +182,9 @@ describe('renamed sections', () => {
 });
 
 describe('the phone\'s More entry', () => {
-  it('reaches Overview, project settings, app Settings and Help from a project', () => {
+  it('reaches project settings, app Settings and Help from a project', () => {
     const e = moreEntries('prj_a');
-    expect(e.map((m) => m.id)).toEqual(['overview', 'defaults', 'projects', 'analytics', 'settings', 'help']);
-    expect(e.find((m) => m.id === 'overview')?.href).toBe('#/p/prj_a/overview');
+    expect(e.map((m) => m.id)).toEqual(['defaults', 'projects', 'analytics', 'settings', 'help']);
     expect(e.find((m) => m.id === 'settings')?.href).toBe('#/settings');
     expect(e.find((m) => m.id === 'help')?.href).toBe('#/help');
     for (const m of e) expect(parse(m.href).view).toBe(m.id);
@@ -196,7 +195,7 @@ describe('the phone\'s More entry', () => {
   });
 
   it('marks the tab current on those pages only', () => {
-    for (const v of ['overview', 'defaults', 'projects', 'analytics', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
+    for (const v of ['defaults', 'projects', 'analytics', 'settings', 'help'] as const) expect(inMore(v)).toBe(true);
     for (const v of ['control', 'work', 'task', 'calendar', 'git', 'runs'] as const) expect(inMore(v)).toBe(false);
   });
 });
@@ -219,5 +218,17 @@ describe('the phone\u2019s own pages', () => {
 
   it('keeps them out of the desktop navigation', () => {
     expect(GLOBAL_VIEWS.map((g) => g.id)).not.toContain('deck');
+  });
+});
+
+describe('a team repository opened in the person\'s own Werkbord', () => {
+  it('names the owner and the repository, and round-trips', () => {
+    const loc = parse('#/github/octo/live');
+    expect(loc).toEqual({ view: 'github', projectId: '', taskId: '', sub: 'octo/live' });
+    expect(hrefOf(loc)).toBe('#/github/octo/live');
+  });
+  it('lands on Projects when it names no repository', () => {
+    expect(parse('#/github').view).toBe('projects');
+    expect(parse('#/github/octo').view).toBe('projects');
   });
 });

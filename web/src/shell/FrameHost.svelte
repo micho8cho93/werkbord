@@ -46,6 +46,12 @@
     sendTo(id, hosted, { type: 'werkbord.navigate', href });
   }
 
+  // The person's own Werkbord does the watching, so it is told which repositories whenever they change and when it first is ready.
+  $effect(() => {
+    const repos = model.watchedRepos;
+    if (model.frames.personal?.ready) sendTo('personal', false, { type: 'werkbord.watchrepos', repos });
+  });
+
   function onMessage(e: MessageEvent): void {
     void handle(refs(), e, {
       onboarding: (required, paused) => { model.setupRequired = required; model.setupPaused = paused; },
@@ -58,8 +64,18 @@
         // The frame that sent this is the one whose window it came from; both frames of a workspace say the same words.
         const hosted = refs().find((r) => r.id === id && r.window === e.source)?.hosted ?? false;
         tell(id, hosted);
+        if (id === 'personal' && !hosted) sendTo(id, false, { type: 'werkbord.watchrepos', repos: model.watchedRepos });
         const place = model.frameReady(id, hosted);
         if (place) navigate(id, place, hosted);
+      },
+      repoHeads: (repo, heads) => model.passHeadsToTeams(repo, heads, (id, message) => sendTo(id, false, message)),
+      repoChange: (c) => {
+        const project = model.noteRepoChange(c);
+        const who = c.authors?.length ? ' by ' + c.authors.join(', ') : '';
+        const what = c.created ? `New branch ${c.branch}` : c.isDefault && c.count ? `${c.count} new ${c.count === 1 ? 'commit' : 'commits'} on ${c.branch}${who}` : `${c.branch} was updated`;
+        const team = model.repoChanges[0]?.workspace ?? '';
+        // The person's own pushes, and teams they muted, are on the card but are not announced.
+        if (!c.mine && !model.mutedTeams.includes(team)) void alerts.tell({ key: `repo:${c.repo}:${c.branch}:${c.sha}`, title: project, body: what });
       },
       reply: (frame, message) => sendTo(frame.id, !!frame.hosted, message),
       reauth: (id, manual) => model.reauth(id, manual),
@@ -77,7 +93,7 @@
         void model.explainCatchUp(plan ? `Help me edit Work plan ${plan} in project ${pid}. Read list_work_plans and the associated tasks first.` : `Help me organise work in project ${pid}. Read its tasks and plans first.`);
       },
       agentSession: (key, from) => { void model.openAgents(key, from ? parseChain(from) : []); },
-      page: page => model.returnTo(page),
+      page: page => (page === 'overview' ? model.showOverview() : page === 'reported' ? void model.openReportedGit() : model.returnTo(page)),
       openSalie: conversation => { void model.openSalie(conversation); },
       // The theme is chosen in one place for the whole window: a page that offers its own tells the sidebar, which tells the rest.
       theme: (_id, choice) => theme.set(choice),

@@ -130,6 +130,64 @@ func (s *Server) handleGitHubPages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, st)
 }
 
+// handleGitHubRepository reads a repository, named owner/name, as the person's own GitHub sign-in sees it. It only reads.
+func (s *Server) handleGitHubRepository(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	st, err := s.opt.GitHub.Repository(r.Context(), r.URL.Query().Get("repo"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
+// handleGitHubRepositoryAction does one write to a team's repository. The request names the repository twice (the second is the
+// confirmation), and a result is only called done once GitHub has been read again.
+func (s *Server) handleGitHubRepositoryAction(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	var req service.RepoAction
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	res, err := s.opt.GitHub.ActOnRepository(r.Context(), req)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// handleGitHubRepositoryAdmin reads who has access to a repository and its branch rule and Pages site, as far as the person's role shows.
+func (s *Server) handleGitHubRepositoryAdmin(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	out, err := s.opt.GitHub.RepositoryAdmin(r.Context(), r.URL.Query().Get("repo"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleGitHubHeads is where each branch of a repository is now.
+func (s *Server) handleGitHubHeads(w http.ResponseWriter, r *http.Request) {
+	if !s.githubReady(w) {
+		return
+	}
+	heads, err := s.opt.GitHub.RepoHeads(r.Context(), r.URL.Query().Get("repo"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"branches": heads})
+}
+
 // handleLocalExample makes the example repository on this computer, for a person
 // who is not using GitHub.
 func (s *Server) handleLocalExample(w http.ResponseWriter, r *http.Request) {

@@ -349,6 +349,10 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
 
   githubCreateRepo: (req: { name: string; description: string; private: boolean }) =>
     request<{ repository: { fullName: string; url: string; private: boolean }; project: Project | null; pagesUrl?: string; pagesError?: string }>('POST', '/api/github/repos/create', req),
+  githubRepository: (repo: string) => request<import('./types').RepoState>('GET', `/api/github/repository?${new URLSearchParams({ repo })}`),
+  githubRepositoryAction: (req: import('./types').RepoAction) => request<import('./types').RepoActionResult>('POST', '/api/github/repository/actions', req),
+  githubRepositoryAdmin: (repo: string) => request<import('./types').RepoAdmin>('GET', `/api/github/repository/admin?${new URLSearchParams({ repo })}`),
+  githubHeads: (repo: string) => request<{ branches: { name: string; sha: string }[] }>('GET', `/api/github/repository/heads?${new URLSearchParams({ repo })}`),
   githubPages: (repo: string) => request<{ enabled: boolean; url?: string; state: 'disabled' | 'waiting' | 'live' }>('GET', `/api/github/pages?${new URLSearchParams({ repo })}`),
 
   // Global: the projects, and the one view that looks across all of them.

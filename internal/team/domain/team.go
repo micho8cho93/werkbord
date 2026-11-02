@@ -71,6 +71,9 @@ type Project struct {
 	Description string `json:"description,omitempty"`
 	Repository  string `json:"repository,omitempty"`
 	Archived    bool   `json:"archived"`
+	// GitHubLiveOff: members are not shown the repository live from their own GitHub sign-in, and their Werkbords do not watch it. The
+	// reported view remains.
+	GitHubLiveOff bool `json:"githubLiveOff,omitempty"`
 	// Revision moves whenever the project's board or reported repository state changes.
 	Revision  int64     `json:"revision"`
 	CreatedAt time.Time `json:"createdAt"`

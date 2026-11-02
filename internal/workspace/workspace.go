@@ -103,6 +103,11 @@ type Project struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Href string `json:"href"`
+	// Repository is the project's repository address as the workspace holds it, if it has one: how the window finds the
+	// project's GitHub repository without asking the workspace again.
+	Repository string `json:"repository,omitempty"`
+	// LiveOff: the workspace asks that this project's repository is not shown live from members' own GitHub sign-ins.
+	LiveOff bool `json:"liveOff,omitempty"`
 }
 
 // Execution is where a piece of the person's work stands as an agent run, if there is one. The words are the same in
@@ -437,16 +442,18 @@ type Summary struct {
 	QueueIncomplete bool        `json:"queueIncomplete,omitempty"`
 	Queue           []QueueItem `json:"queue,omitempty"`
 
-	Changes   *RecentChanges `json:"changes,omitempty"`
-	Schema    string         `json:"schema"`
-	Workspace Entry          `json:"workspace"`
-	Projects  []Project      `json:"projects"`
-	Work      []Item         `json:"work"`
-	Attention []Attention    `json:"attention"`
-	Schedule  []Scheduled    `json:"schedule"`
-	Planned   []Planned      `json:"planned,omitempty"`
-	Infra     *Infra         `json:"infra,omitempty"`
-	At        time.Time      `json:"at"`
+	Changes *RecentChanges `json:"changes,omitempty"`
+	// Pushes are recent moves of branches of the workspace's repositories, so a member who cannot see GitHub hears of them too.
+	Pushes    []Push      `json:"pushes,omitempty"`
+	Schema    string      `json:"schema"`
+	Workspace Entry       `json:"workspace"`
+	Projects  []Project   `json:"projects"`
+	Work      []Item      `json:"work"`
+	Attention []Attention `json:"attention"`
+	Schedule  []Scheduled `json:"schedule"`
+	Planned   []Planned   `json:"planned,omitempty"`
+	Infra     *Infra      `json:"infra,omitempty"`
+	At        time.Time   `json:"at"`
 }
 
 var (
@@ -502,6 +509,9 @@ func Clip(s string, max int) string { return clip(s, max) }
 func (s Summary) Validate() error {
 	if !s.Changes.valid() {
 		return errors.New("workspace: invalid recent changes")
+	}
+	if !validPushes(s.Pushes) {
+		return errors.New("workspace: invalid recent pushes")
 	}
 	if s.Schema != Schema {
 		return fmt.Errorf("workspace: schema %q is not %q", s.Schema, Schema)
@@ -594,6 +604,10 @@ func (s Summary) Clean() (Summary, int) {
 	out := s
 	if !out.Changes.valid() {
 		out.Changes = nil
+		dropped++
+	}
+	if !validPushes(out.Pushes) {
+		out.Pushes = nil
 		dropped++
 	}
 	out.Projects = make([]Project, 0, len(s.Projects))
@@ -715,6 +729,9 @@ func Decode(r io.Reader, want string) (Summary, int, error) {
 	s.Workspace.Detail = clip(s.Workspace.Detail, 500)
 	if !s.Changes.valid() {
 		return Summary{}, 0, errors.New("workspace: invalid recent changes")
+	}
+	if !validPushes(s.Pushes) {
+		return Summary{}, 0, errors.New("workspace: invalid recent pushes")
 	}
 	if s.Schema != Schema {
 		return Summary{}, 0, fmt.Errorf("workspace: schema %q is not %q", s.Schema, Schema)

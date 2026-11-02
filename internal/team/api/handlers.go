@@ -163,16 +163,17 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		Repository  *string `json:"repository"`
-		Archived    *bool   `json:"archived"`
+		Name          *string `json:"name"`
+		Description   *string `json:"description"`
+		Repository    *string `json:"repository"`
+		Archived      *bool   `json:"archived"`
+		GitHubLiveOff *bool   `json:"githubLiveOff"`
 	}
 	if !s.decode(w, r, &in) {
 		return
 	}
 	p, err := s.opt.Service.UpdateProject(r.Context(), actorOf(r), r.PathValue("id"),
-		service.ProjectPatch{Name: in.Name, Description: in.Description, Repository: in.Repository, Archived: in.Archived})
+		service.ProjectPatch{Name: in.Name, Description: in.Description, Repository: in.Repository, Archived: in.Archived, GitHubLiveOff: in.GitHubLiveOff})
 	if err != nil {
 		s.fail(w, r, err)
 		return

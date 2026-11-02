@@ -17,7 +17,7 @@
   import NewTaskDialog from './lib/NewTaskDialog.svelte';
   import ProjectSwitcher from './lib/ProjectSwitcher.svelte';
   import { pageTitle } from './lib/questions';
-  import { GLOBAL_VIEWS, globalHref, hrefOf, inMore, inProject, isPhoneView, moreEntries, projectHref, resolved, router, sectionApplies } from './lib/router.svelte';
+  import { GLOBAL_VIEWS, globalHref, hrefOf, inMore, inProject, isPhoneView, moreEntries, projectHref, resolved, RETIRED_SECTIONS, router, sectionApplies } from './lib/router.svelte';
   import Sheet from './lib/Sheet.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
@@ -42,17 +42,17 @@
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import Work from './routes/Work.svelte';
-  import Scheduling from './routes/Scheduling.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
+  import TeamRepo from './routes/TeamRepo.svelte';
+  import { createRepoWatcher } from './lib/repowatch';
+  import { onWatchRepos, reportRepoChange, reportRepoHeads } from './lib/embed';
+  import { api as gitHubApi } from './lib/api';
   import Help from './routes/Help.svelte';
   import Onboarding from './routes/Onboarding.svelte';
   import Tour from './lib/Tour.svelte';
   import ProjectSettings from './routes/ProjectSettings.svelte';
-  import ProjectOverview from './routes/ProjectOverview.svelte';
-  import WorkOverview from './routes/WorkOverview.svelte';
   import Projects from './routes/Projects.svelte';
-  import Runs from './routes/Runs.svelte';
   import AgentSessions from './routes/AgentSessions.svelte';
   import Analytics from './routes/Analytics.svelte';
   import Settings from './routes/Settings.svelte';
@@ -97,6 +97,18 @@
       app.lastProjectId,
     );
     if (hrefOf(fixed) !== hrefOf(loc)) router.go(fixed, true);
+  });
+
+  // Overview, Calendar and Runs are no longer pages of a project. Calendar is the window's own; the others are Work.
+  $effect(() => {
+    const v = router.view;
+    if (!project || !(RETIRED_SECTIONS as readonly string[]).includes(v)) return;
+    if (v === 'calendar' && framed) {
+      window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'calendar' }, '*');
+      history.back();
+      return;
+    }
+    router.go({ view: 'work', projectId: project.id, taskId: '' }, true);
   });
 
   // A work project has no calendar, Git or runs: an address that names one lands on its board.
@@ -176,6 +188,32 @@
     }
   }
 
+  // The window says which team repositories to watch. A push to one is told to the window, with who made the commits when that can be told.
+  $effect(() => {
+    if (!framed || hosted) return;
+    const watcher = createRepoWatcher({
+      heads: async (repo) => (await gitHubApi.githubHeads(repo)).branches,
+      seen: (repo, heads) => reportRepoHeads(repo, heads),
+      report: (c) => {
+        void (async () => {
+          let extra: { authors?: string[]; count?: number; isDefault?: boolean; mine?: boolean } = {};
+          try {
+            const answer = await gitHubApi.githubRepository(c.repo);
+            const v = answer.repo;
+            if (v && v.defaultBranch === c.branch) {
+              const at = c.previous ? v.commits.findIndex((k) => k.sha === c.previous) : -1;
+              const fresh = at === -1 ? v.commits.slice(0, 1) : v.commits.slice(0, at);
+              extra = { isDefault: true, count: fresh.length, authors: [...new Set(fresh.map((k) => k.author))].slice(0, 3), mine: !!answer.viewer && fresh.length > 0 && fresh.every((k) => k.author === answer.viewer) };
+            }
+          } catch { /* The change is still told, without who. */ }
+          reportRepoChange({ ...c, ...extra });
+        })();
+      },
+    });
+    const stopListening = onWatchRepos((repos) => { watcher.set(repos); void watcher.tick(); });
+    return () => { stopListening(); watcher.stop(); };
+  });
+
   /** The phone's tabs, as on the identity sheet: what needs you first, then the project's sections. */
   let moreOpen = $state(false);
   const more = $derived(moreEntries(project?.id ?? '').filter((e) => !isPhone() || e.id !== 'defaults'));
@@ -187,11 +225,11 @@
 
   const phoneTabs = $derived<{ id: string; label: string; icon: IconName; href: string; current: boolean; count?: number }[]>([
     { id: 'control', label: 'Workspace', icon: 'control', href: globalHref('control'), current: router.view === 'control', count: app.needsYou },
-    ...(['work', 'calendar', 'git', 'runs'] as const)
+    ...(['work', 'git'] as const)
       .filter((s) => sectionApplies(s, project?.kind))
       .map((s) => ({
       id: s,
-      label: { work: 'Work', calendar: 'Calendar', git: 'Git', runs: 'Runs' }[s],
+      label: { work: 'Work', git: 'Git' }[s],
       icon: s,
       href: project ? projectHref(project.id, s) : globalHref('projects'),
       current: inside && (router.view === s || (s === 'work' && router.view === 'task')),
@@ -277,6 +315,8 @@
           <ControlCenter />
         {:else if router.view === 'sessions'}
           <AgentSessions />
+        {:else if router.view === 'github'}
+          <TeamRepo repo={router.sub ?? ''} />
         {:else if router.view === 'analytics'}
           <Analytics />
         {:else if router.view === 'projects'}
@@ -304,18 +344,10 @@
           <!-- Each project's page is its own: nothing typed or open in one carries over to another. -->
           {#key project.id}
             <ScheduleWatch {scope} />
-            {#if router.view === 'overview'}
-              {#if project.kind === 'work'}<WorkOverview {scope} {project} />{:else}<ProjectOverview {scope} {project} />{/if}
-            {:else if router.view === 'calendar'}
-              <Scheduling {scope} {project} />
-            {:else if router.view === 'git' && project.kind === 'work'}
+            {#if router.view === 'git' && project.kind === 'work'}
               <p class="empty">This project has no Git repository. Add a repository project to inspect Git changes.</p>
-            {:else if router.view === 'runs' && project.kind === 'work'}
-              <p class="empty">This project has no execution history. Work is tracked in Work and Calendar.</p>
             {:else if router.view === 'git'}
               {#if app.remote}<div class="page"><DeviceGit {project} /></div>{:else if router.sub && !router.sub.startsWith('?')}<div class="page"><Git {project} /></div>{:else}<Git {project} />{/if}
-            {:else if router.view === 'runs'}
-              <Runs {scope} {project} />
             {:else if router.view === 'defaults'}
               <div class="page"><ProjectSettings {project} /></div>
             {:else}

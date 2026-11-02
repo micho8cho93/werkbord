@@ -5,6 +5,7 @@
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
   import Calendar from './Calendar.svelte';
+  import GitProjects from './GitProjects.svelte';
   import Analytics from './Analytics.svelte';
   import Reviews from './Reviews.svelte';
   import Agents from './Agents.svelte';
@@ -77,13 +78,6 @@
   });
   /** What the pane shows, named for the bar over it. */
   const paneTitle = $derived(model.pane && model.pane.place.includes('/task/') ? 'Task' : model.pane && /sessions/.test(model.pane.place) ? 'Agent session' : 'Details');
-  function expandPane(): void {
-    const open = model.pane;
-    if (!open) return;
-    const where = model.places[open.workspace] || open.place;
-    model.pane = null;
-    void model.goTo(open.workspace, where.replace(/([?&])pane=1&?/, '$1').replace(/[?&]$/, ''));
-  }
   function key(e: KeyboardEvent): void {
     // Escape leaves Settings for where it was opened from, unless something typed into, a menu or a dialog has a use for it.
     if (e.key === 'Escape' && !e.defaultPrevented && (model.page === 'settings' || model.page === 'help') && model.settingsReturn && !model.paletteOpen && !model.addOpen &&
@@ -130,7 +124,6 @@
             {#if model.paneOpen}
               <header class="pane-bar" data-testid="work-pane-bar">
                 <span class="pane-title">{paneTitle}</span>
-                <button class="pane-btn" type="button" onclick={expandPane} aria-label="Open {paneTitle.toLowerCase()} as a full page" title="Open as a full page"><Icon name="expand" size={14} /></button>
                 <button class="pane-btn" type="button" onclick={() => model.closePane()} aria-label="Close {paneTitle.toLowerCase()}" title="Close" data-testid="work-pane-close"><Icon name="close" size={14} /></button>
               </header>
             {/if}
@@ -145,6 +138,7 @@
         {:else if model.page !== 'workspace' && !model.agentsInFrame && !hostedWorkspace}
           <div class="page-area" use:remembered={model.page}>
             {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
+            {:else if model.page === 'git'}<GitProjects />
             {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />
             {:else if model.page === 'analytics'}<Analytics />

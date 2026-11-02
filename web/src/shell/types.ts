@@ -53,6 +53,10 @@ export interface Project {
   id: string;
   name: string;
   href: string;
+  /** The project's repository address, when the workspace holds one. */
+  repository?: string;
+  /** The workspace asks that the repository is not shown live from members' own GitHub sign-ins. */
+  liveOff?: boolean;
 }
 
 export interface WorkItem {
@@ -121,6 +125,8 @@ export interface RecentChanges { since: string; through: string; cursor: number;
 export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string; owner?: string; mine?: boolean; plan?: string; priority?: 'low' | 'normal' | 'high' }
 export interface Summary {
  queue?: QueueItem[];
+ /** Recent moves of branches of the workspace's repositories, as members reported them. */
+ pushes?: { id: string; key: string; project: string; branch: string; sha: string; href: string; at: string; mine?: boolean }[];
  queueIncomplete?: boolean;
   changes?: RecentChanges;
   schema: string;

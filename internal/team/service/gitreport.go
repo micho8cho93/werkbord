@@ -227,6 +227,9 @@ type BranchInput struct {
 	BranchState
 }
 
+// maxPushesTold bounds how many pushes one report tells the team about.
+const maxPushesTold = 5
+
 // MaxBranchesPerReport bounds one ReportBranches call.
 const MaxBranchesPerReport = 200
 
@@ -245,6 +248,17 @@ func (s *Service) ReportBranches(ctx context.Context, a Actor, projectID string,
 			return forbidden("report branches for a project you are not on")
 		}
 		now := s.stamp()
+		// A branch that moved, or a new one, is told to the team as a push, once the project has a baseline of reported branches:
+		// the first report of a repository is its starting point, not news. At most a few are told from one report.
+		known, err := tx.Branches(ctx, a.Workspace.ID, projectID)
+		if err != nil {
+			return err
+		}
+		heads := make(map[string]string, len(known))
+		for _, k := range known {
+			heads[k.Name] = k.HeadSHA
+		}
+		told := 0
 		for _, in := range branches {
 			name, err := domain.CleanBranch(in.Name)
 			if err != nil {
@@ -257,6 +271,16 @@ func (s *Service) ReportBranches(ctx context.Context, a Actor, projectID string,
 			}
 			if err := tx.UpsertBranch(ctx, a.Workspace.ID, b); err != nil {
 				return err
+			}
+			if was, seen := heads[name]; len(known) > 0 && b.HeadSHA != "" && (!seen || was != b.HeadSHA) && told < maxPushesTold {
+				told++
+				short := b.HeadSHA
+				if len(short) > 7 {
+					short = short[:7]
+				}
+				if err := tx.AddActivity(ctx, a.Workspace.ID, domain.Activity{ProjectID: projectID, ActorID: a.Member.ID, Kind: domain.ActBranchPushed, Detail: name + "@" + short, CreatedAt: now}); err != nil {
+					return err
+				}
 			}
 		}
 		for _, name := range gone {

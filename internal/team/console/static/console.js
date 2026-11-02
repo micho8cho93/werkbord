@@ -963,12 +963,14 @@ async function projectScopedView() {
   const cur = currentProject();
   if (!cur) return h('div', { class: 'panel' }, h('h2', {}, 'No project yet'),
     h('p', { class: 'muted' }, can('projects.create') ? 'Create a project under Projects to get started.' : 'You are not on any project yet. Ask for an invite code.'));
+  // In the window a project has one page, Work: its Overview is the window's, its Git is the sidebar's, and runs are Agents.
+  if (FRAMED && ['overview', 'calendar', 'activity'].includes(state.tab)) state.tab = 'work';
   const d = await loadProject();
   const p = d.board.project;
   const switcher = h('select', { name: 'project-switch', 'aria-label': 'Project', onchange: (e) => openProject(e.target.value, state.tab) },
     state.ov.projects.map((x) => h('option', { value: x.project.id, selected: x.project.id === p.id }, x.project.name + (x.project.archived ? ' (archived)' : ''))));
   const mine = state.ov.projects.find((x) => x.project.id === p.id);
-  const tabs = projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['work', 'Work', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
+  const tabs = FRAMED && !HOSTED ? '' : projectTabs(p.id, [['overview', 'Overview', mine?.mentions || 0], ['work', 'Work', mine?.counts.available || 0], ['calendar', 'Calendar', 0], ['repository', 'Git', mine?.problems || 0], ['activity', 'Runs', 0]]);
   const calendarLacking = state.tab === 'calendar' && d.timeline === null ? await hostOutdatedView() : null;
   const content = state.tab === 'overview' ? projectOverviewTab(d) : state.tab === 'calendar' ? calendarLacking || calendarTab(d) : state.tab === 'repository' ? repositoryTab(d) : state.tab === 'activity' ? activityTab(d) : state.tab === 'people' ? h('div', { class: 'project-settings' }, peopleTab(d)) : state.tab === 'project-settings' ? projectSettingsTab(d) : workTab(d);
   const gear = h('button', { class: 'plain icon-button', type: 'button', name: 'project-settings', 'aria-label': 'Project settings: ' + p.name, title: 'Project settings', 'aria-current': ['project-settings', 'people'].includes(state.tab) ? 'page' : null, onclick: () => openProject(p.id, 'project-settings') }, icon('defaults'));
@@ -1027,7 +1029,11 @@ function projectSettingsTab(d) {
   const archive = can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-archive-h' }, h('h2', { id: 'project-archive-h' }, p.archived ? 'Unarchive project' : 'Archive project'),
     h('p', { class: 'muted' }, p.archived ? 'Put this project back among the active ones. Its tickets are as they were.' : 'An archived project leaves the sidebar and cannot take new tickets. Nothing is deleted: you can unarchive it.'),
     projectArchiveControl(p, 'Unarchive project')) : '';
-  return h('div', { class: 'project-settings' }, details, h('section', { class: 'panel' }, relationshipSettings(p)), peopleTab(d), archive);
+  // Members with GitHub see the repository live through their own sign-in; someone who manages projects can turn that off for everyone.
+  const live = p.repository && can('projects.manage') ? h('section', { class: 'panel', 'aria-labelledby': 'project-live-h' }, h('h2', { id: 'project-live-h' }, 'Live GitHub view'),
+    h('p', { class: 'muted' }, p.githubLiveOff ? 'Off. Members see only what the team has reported about this repository, and their Werkbords do not watch it for pushes.' : 'On. A member whose own GitHub sign-in can see this repository is shown it live, and their Werkbord watches it for pushes. Everyone else sees what the team has reported.'),
+    h('button', { type: 'button', name: 'github-live-toggle', onclick: () => act(() => api('PATCH', '/projects/' + p.id, { githubLiveOff: !p.githubLiveOff })) }, p.githubLiveOff ? 'Turn live view on' : 'Turn live view off')) : '';
+  return h('div', { class: 'project-settings' }, details, live, h('section', { class: 'panel' }, relationshipSettings(p)), peopleTab(d), archive);
 }
 
 // One row of tabs for the sub-areas of a major part. The sidebar lists the major parts; this is the only other navigation, and the
@@ -1329,7 +1335,7 @@ function workTab(d) {
  const filter=()=>{for(const el of view.querySelectorAll('.work-result')) el.hidden=!el.dataset.search.includes(state.workQuery.toLowerCase());for(const group of view.querySelectorAll('.work-group')){const count=group.querySelectorAll('.work-result:not([hidden])').length;group.querySelector('.group-count').textContent=String(count);group.querySelector('.work-empty').hidden=count>0;}};
  const search=h('input',{type:'search','aria-label':'Search work',placeholder:state.workSection==='plans'?'Search plans…':'Search tasks…',value:state.workQuery,oninput:e=>{state.workQuery=e.target.value;filter();}});
  const toolbar=h('header',{class:'work-heading'},h('div',{},h('h1',{},'Work'),h('p',{class:'muted'},'Your tasks, plans and agent activity.')),h('label',{class:'work-search'},icon('search'),search));
- const tabs=h('nav',{class:'work-tabs','aria-label':'Work sections'},[['queue','Queue'],['plans','Plans']].map(([id,label])=>h('button',{'aria-current':state.workSection===id?'page':null,onclick:()=>{state.workSection=id;state.workPlanId='';state.ticketId=null;state.workQuery='';remember();render();}},label)),h('button',{class:'work-archive','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;state.workSection='queue';state.workPlanId='';remember();render();}},state.showArchived?'Back to queue':'Archive ('+(b.archived||[]).length+')'));
+ const tabs=h('nav',{class:'work-tabs','aria-label':'Work sections'},FRAMED&&!HOSTED?h('button',{type:'button',class:'tab-overview',onclick:()=>window.parent.postMessage({type:'werkbord.frame',event:'page',page:'overview'},'*')},'Overview'):'',[['queue','Queue'],['plans','Plans']].map(([id,label])=>h('button',{'aria-current':state.workSection===id?'page':null,onclick:()=>{state.workSection=id;state.workPlanId='';state.ticketId=null;state.workQuery='';remember();render();}},label)),h('button',{class:'work-archive','aria-pressed':state.showArchived,onclick:()=>{state.showArchived=!state.showArchived;state.workSection='queue';state.workPlanId='';remember();render();}},state.showArchived?'Back to queue':'Archive ('+(b.archived||[]).length+')'));
  const group=k=>{const own=k.assigneeId===state.me.member.id?ownAgentRun(d,k):null;return WerkbordWork.group({done:k.status==='done',active:k.status==='in_progress',attention:k.status==='review'||['blocked','failed','needs_input'].includes(own?.run),blocked:(k.dependencies||[]).some(id=>b.tickets.find(t=>t.id===id)?.status!=='done'),start:k.plan?.start});};
  const mineId=state.me.member.id,canOrder=pcan('tickets.edit');
  const placeable=k=>k.assigneeId===mineId||canOrder;
@@ -1952,6 +1958,16 @@ window.addEventListener('message', e => {
   closeSearch(false); captureDrafts();
   history.pushState(null, '', location.pathname + m.href);
   readLocation(); reportPlace(); focusMain = true; state.data = null; state.handoff = null; render();
+});
+// The window reports where a project's repository branches are on GitHub, as a member's own Werkbord just saw them. Team records it as
+// the member's report (the first one is the baseline; a branch that moves after it is told to the team as a push). Only the window
+// that framed this page is believed, and only well-formed names; a refusal is not worth showing, the next look reports again.
+window.addEventListener('message', e => {
+  if (window.parent === window || e.source !== window.parent || !state.token) return;
+  const m = e.data;
+  if (!m || m.type !== 'werkbord.reportbranches' || typeof m.project !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(m.project) || !Array.isArray(m.branches) || m.branches.length < 1 || m.branches.length > 100) return;
+  const branches = m.branches.filter(b => b && typeof b.name === 'string' && b.name.length <= 200 && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(b.sha)).map(b => ({ name: b.name, headSha: b.sha }));
+  if (branches.length) api('POST', '/projects/' + m.project + '/repository/branches', { branches }).catch(() => {});
 });
 document.addEventListener('click', e => { app.querySelectorAll('.member-manage[open]').forEach(menu => { if (!menu.contains(e.target)) menu.open = false; }); });
 function reportPlace() {

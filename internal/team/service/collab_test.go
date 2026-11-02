@@ -11,6 +11,7 @@ import (
 
 	"werkbord/internal/team/domain"
 	"werkbord/internal/team/store"
+	"werkbord/internal/workspace"
 )
 
 // team is a workspace with a project and four people on it: Ada (owner), Bo and
@@ -1296,4 +1297,60 @@ func TestReservedWorkHasOneOwnerAndStartingPreservesExecutionFence(t *testing.T)
 	}
 	_, err = tm.svc.StartWork(bg, tm.bo, tm.pid(), k.ID)
 	wantErr(t, err, domain.ErrConflict) // review may only reopen through request-changes
+}
+
+func TestAMovedBranchIsToldToTheTeamOnceTheProjectHasABaseline(t *testing.T) {
+	tm := newTeam(t)
+	sha := func(c string) string { return strings.Repeat(c, 40) }
+	report := func(a Actor, name, head string) {
+		t.Helper()
+		if err := tm.svc.ReportBranches(bg, a, tm.pid(), []BranchInput{{Name: name, BranchState: BranchState{HeadSHA: head}}}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pushes := func(a Actor) []workspace.Push {
+		t.Helper()
+		out, err := tm.svc.RecentPushes(bg, a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	report(tm.bo, "main", sha("a"))
+	if got := pushes(tm.cy); len(got) != 0 {
+		t.Fatalf("the first report is a baseline, not news: %+v", got)
+	}
+	report(tm.bo, "main", sha("a"))
+	if got := pushes(tm.cy); len(got) != 0 {
+		t.Fatalf("an unchanged branch is no news: %+v", got)
+	}
+	report(tm.bo, "main", sha("b"))
+	report(tm.bo, "feature/x", sha("c"))
+	got := pushes(tm.cy)
+	if len(got) != 2 {
+		t.Fatalf("a moved branch and a new one: %+v", got)
+	}
+	branches := map[string]string{}
+	for _, p := range got {
+		branches[p.Branch] = p.SHA
+	}
+	if branches["main"] != sha("b")[:7] || branches["feature/x"] != sha("c")[:7] {
+		t.Fatalf("pushes = %+v", got)
+	}
+}
+
+func TestOnlyWhoManagesProjectsTurnsTheLiveGitHubViewOff(t *testing.T) {
+	tm := newTeam(t)
+	off := true
+	if _, err := tm.svc.UpdateProject(bg, tm.bo, tm.pid(), ProjectPatch{GitHubLiveOff: &off}); err == nil {
+		t.Fatal("a member must not turn it off")
+	}
+	p, err := tm.svc.UpdateProject(bg, tm.owner, tm.pid(), ProjectPatch{GitHubLiveOff: &off})
+	if err != nil || !p.GitHubLiveOff {
+		t.Fatalf("owner = %+v %v", p, err)
+	}
+	got, err := tm.svc.GetProject(bg, tm.cy, tm.pid())
+	if err != nil || !got.GitHubLiveOff {
+		t.Fatalf("a member reads it as off: %+v %v", got, err)
+	}
 }

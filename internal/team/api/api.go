@@ -185,6 +185,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/team/v1/projects/{id}/repository/branches", s.handleReportBranches)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/activity", s.handleActivity)
 	api.HandleFunc("GET /api/team/v1/catch-up", s.handleCatchUp)
+	api.HandleFunc("GET /api/team/v1/pushes", s.handlePushes)
 	api.HandleFunc("GET /api/team/v1/projects/{id}/product-map", s.handleProductMaps)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/product-map/proposals", s.handleProposeProductMap)
 	api.HandleFunc("POST /api/team/v1/projects/{id}/product-map/proposals/{mid}/review", s.handleReviewProductMap)

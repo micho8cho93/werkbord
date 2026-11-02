@@ -5,6 +5,7 @@
   import CatchUp from './CatchUp.svelte';
   import BriefCard from './BriefCard.svelte';
   import { model } from './model.svelte';
+  import { contextKey, parseContext } from './project-context';
   import { viewState } from './view-state.svelte';
   import { executionLabel, standing } from './aggregate';
   import { current, pending, type Decision } from './decisions';
@@ -97,6 +98,13 @@
   const answerWith = (q: Question, answer: string) => answering.answerWith(q, answer, model.overview, tick);
   const onSettled = (q: Question) => answering.settled(q);
 
+  // Pushes to the team repositories the person's own Werkbord is watching, for the project in view.
+  const repoNews = $derived(model.repoChanges.filter(c => !model.selectedProject || c.context === contextKey(model.selectedProject)).slice(0, 5));
+  const repoTeams = $derived([...new Set(repoNews.map(c => c.workspace).filter(Boolean))].map(id => ({ id, name: model.view?.items.find(i => i.id === id)?.name ?? 'team' })));
+  function openRepo(context: string) {
+    const p = parseContext(context);
+    if (p) { model.selectProject(p); void model.openGit(); }
+  }
   const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
   const plans = $derived(rows.filter(r => r.item.group === 'plan'));
   const queueCount = $derived(all.filter(r => !['done', 'plan'].includes(r.item.group)).length);
@@ -122,13 +130,19 @@
     <button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
     {#if creating}<div class="project-choices" role="group" aria-label="Choose a project for new work"><div><strong>New {creating}</strong><button class="btn quiet small" onclick={() => creating = ''} aria-label="Close project choices"><Icon name="close" size={14} /></button></div><p class="muted">Choose the project for this {creating}.</p>{#each choices as choice (choice.workspace + choice.project.id)}<button onclick={() => openCreate(creating as 'task' | 'plan', choice)}>{choice.title}<Icon name="right" size={13} /></button>{/each}</div>{/if}
   </div></header>
-  <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'overview' ? 'page' : undefined} onclick={() => section = 'overview'}>Overview</button><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => section = 'queue'}>Queue &amp; Plans<span>{queueCount}</span></button></nav>
+  <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'overview' ? 'page' : undefined} onclick={() => section = 'overview'}>Overview</button><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => model.selectedProject ? model.openProjectWork() : section = 'queue'}>Queue &amp; Plans<span>{queueCount}</span></button></nav>
   {#if !overview}<p role="status" class="empty">Loading work…</p>{/if}
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
   {#if section === 'overview'}
     <div class="work-grid overview">
       <div class="work-main">
+        {#if repoNews.length}
+          <section class="tray" aria-labelledby="repo-news-h" data-testid="repo-news">
+            <header><h2 id="repo-news-h" class="section-title">Repository</h2><span class="tray-note">changed on GitHub</span>{#each repoTeams as t (t.id)}<button class="btn quiet small" type="button" aria-pressed={model.mutedTeams.includes(t.id)} onclick={() => model.setTeamMuted(t.id, !model.mutedTeams.includes(t.id))}>{model.mutedTeams.includes(t.id) ? 'Unmute' : 'Mute'} {t.name}</button>{/each}</header>
+            <ul class="tray-card rows">{#each repoNews as c (c.repo + c.branch + c.sha)}<li><button class="task" onclick={() => openRepo(c.context)}><span class="task-content"><strong>{c.project}: {c.created ? 'new branch ' + c.branch : c.isDefault && c.count ? c.count + (c.count === 1 ? ' new commit on ' : ' new commits on ') + c.branch : c.branch + ' updated'}</strong><span class="context">{c.authors?.length ? c.authors.join(', ') + ' · ' : ''}{timeAgo(new Date(c.at).toISOString(), now)}</span></span><span class="open-icon"><Icon name="right" size={14} /></span></button></li>{/each}</ul>
+          </section>
+        {/if}
         <section class="tray stats" aria-labelledby="stats-h" data-testid="work-stats">
           <header><h2 id="stats-h" class="section-title">Where things stand</h2><span class="tray-note">{model.selectedProject ? model.contextLabel : 'all projects'}</span></header>
           <ul class="stat-grid">

@@ -41,6 +41,49 @@ api)
     for a in "$@"; do case "$a" in repos/*/pages) name="${a#repos/octo/}"; name="${name%/pages}" ;; esac; done
     [ -f "$D/pages_denied" ] && { echo "gh: Your current plan does not support GitHub Pages for this repository. (HTTP 422)" >&2; exit 1; }
     echo "{\"html_url\":\"https://octo.github.io/$name/\",\"build_type\":\"workflow\"}" | tee "$D/pages.$name" ; exit 0 ;;
+  *"-X PUT"*"repos/octo/ops/collaborators/"*)
+    who=""; for a in "$@"; do case "$a" in repos/octo/ops/collaborators/*) who="${a#repos/octo/ops/collaborators/}" ;; esac; done
+    perm=""; for a in "$@"; do case "$a" in permission=*) perm="${a#permission=}" ;; esac; done
+    [ "$perm" = push ] && perm=write; [ "$perm" = pull ] && perm=read
+    echo "$perm" > "$D/collab.$who"; echo '{}'; exit 0 ;;
+  *"-X DELETE"*"repos/octo/ops/collaborators/"*)
+    who=""; for a in "$@"; do case "$a" in repos/octo/ops/collaborators/*) who="${a#repos/octo/ops/collaborators/}" ;; esac; done
+    rm -f "$D/collab.$who"; exit 0 ;;
+  *"repos/octo/ops/collaborators"*)
+    out='[{"login":"boss","role_name":"admin"}'
+    for f in "$D"/collab.*; do [ -f "$f" ] || continue; w="${f##*/collab.}"; out="$out,{\"login\":\"$w\",\"role_name\":\"$(cat "$f")\"}"; done
+    echo "$out]"; exit 0 ;;
+  *"-X PUT"*"repos/octo/ops/branches/main/protection"*)
+    f=""; prev=""; for a in "$@"; do [ "$prev" = "--input" ] && f="$a"; prev="$a"; done
+    sed -n 's/.*"required_approving_review_count":\([0-9]*\).*/\1/p' "$f" > "$D/protection"; echo '{}'; exit 0 ;;
+  *"-X DELETE"*"repos/octo/ops/branches/main/protection"*)
+    rm -f "$D/protection"; exit 0 ;;
+  *"repos/octo/ops/branches/main/protection"*)
+    if [ -f "$D/protection" ]; then echo "{\"required_pull_request_reviews\":{\"required_approving_review_count\":$(cat "$D/protection")}}"; exit 0; fi
+    echo "gh: Branch not protected (HTTP 404)" >&2; exit 1 ;;
+  *"repos/octo/ops/git/ref/heads/main"*)
+    echo '{"object":{"sha":"aaa111"}}'; exit 0 ;;
+  *"repos/octo/ops")
+    echo '{"full_name":"octo/ops","html_url":"https://github.com/octo/ops","private":true,"default_branch":"main","permissions":{"admin":true,"maintain":true,"push":true,"triage":true,"pull":true}}'; exit 0 ;;
+  *"-X POST"*"repos/octo/live/git/refs"*)
+    : > "$D/newbranch"; echo '{}'; exit 0 ;;
+  *"-X POST"*"repos/octo/live/issues/7/comments"*)
+    echo '{"id":5,"html_url":"https://github.com/octo/live/pull/7#issuecomment-5"}'; exit 0 ;;
+  *"repos/octo/live/git/ref/heads/main"*)
+    echo '{"object":{"sha":"aaa111"}}'; exit 0 ;;
+  *"repos/octo/live/git/ref/heads/topic"*)
+    if [ -f "$D/newbranch" ]; then echo '{"object":{"sha":"aaa111"}}'; exit 0; fi
+    echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  *"repos/octo/live/branches"*)
+    case "$*" in *'If-None-Match: "tag1"'*) echo "gh: HTTP 304" >&2; exit 1 ;; esac
+    case "$*" in *" -i "*) printf 'HTTP/2.0 200 OK\r\nEtag: "tag1"\r\n\r\n' ;; esac
+    echo '[{"name":"main","protected":true,"commit":{"sha":"aaa111"}},{"name":"feature","protected":false,"commit":{"sha":"bbb222"}}]'; exit 0 ;;
+  *"repos/octo/live/commits"*)
+    echo '[{"sha":"aaa111","html_url":"https://github.com/octo/live/commit/aaa111","commit":{"message":"Fix the thing","author":{"name":"Ana","date":"2026-11-02T10:00:00Z"}},"author":{"login":"ana"}}]'; exit 0 ;;
+  *"repos/octo/live")
+    echo '{"full_name":"octo/live","description":"A team repo","html_url":"https://github.com/octo/live","private":true,"default_branch":"main","pushed_at":"2026-11-02T10:00:00Z","permissions":{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}}'; exit 0 ;;
+  *"repos/octo/secret"*)
+    echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
   *"/pages"*)
     name=""
     for a in "$@"; do case "$a" in repos/*/pages) name="${a#repos/octo/}"; name="${name%/pages}" ;; esac; done

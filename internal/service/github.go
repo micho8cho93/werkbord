@@ -39,6 +39,10 @@ type GitHubSetup struct {
 	// Probe overrides how a published address is checked (tests).
 	Probe func(ctx context.Context, url string) bool
 
+	// headsSeen is the last answer, and its entity tag, for each repository being watched for pushes.
+	headsMu   sync.Mutex
+	headsSeen map[string]cachedHeads
+
 	mu        sync.Mutex
 	account   *github.Account
 	accountAt time.Time

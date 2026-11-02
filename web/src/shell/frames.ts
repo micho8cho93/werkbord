@@ -4,6 +4,7 @@
 // do something (the app then decides, by the kind of workspace the frame is) or say where in itself the person is.
 
 import { parseChain } from '../lib/origin';
+import { REPO_NAME } from '../lib/repowatch';
 
 export interface FrameRef {
   /** The workspace the frame shows: the app's identity for it, never anything the page says. */
@@ -35,10 +36,14 @@ export interface Deps {
   /** A page of the person's own Werkbord, or Salie, asks to open a coding-agent session in Agents. The key is a validated session key. */
   agentSession?(key?: string, from?: string): void;
   /** A page of the person's own Werkbord goes back to one of the window's own pages (Work, Calendar), as it was left. */
-  page?(page: 'inbox' | 'calendar'): void;
+  page?(page: 'inbox' | 'calendar' | 'overview' | 'reported'): void;
   /** Agents asks to go back to Salie, to the conversation that started the session when it names one. */
   openSalie?(conversation?: string): void;
   onboarding?(required: boolean, paused: boolean): void;
+  /** The person's own Werkbord says where each branch of a team's repository is on GitHub. */
+  repoHeads?(repo: string, heads: { name: string; sha: string }[]): void;
+  /** The person's own Werkbord saw a team's repository change on GitHub. */
+  repoChange?(change: RepoChange): void;
   relay(id: string, method: string, args: unknown[]): Promise<unknown>;
   remember(id: string, place: string): Promise<void>;
   ready(id: string): void;
@@ -68,6 +73,19 @@ export interface Deps {
   reauth?(id: string, manual: boolean): Promise<string | null>;
 }
 
+/** A push to a team's repository, as the person's own Werkbord saw it on GitHub. */
+export interface RepoChange {
+  repo: string;
+  branch: string;
+  sha: string;
+  previous?: string;
+  created?: boolean;
+  authors?: string[];
+  count?: number;
+  isDefault?: boolean;
+  mine?: boolean;
+}
+
 export interface Alert {
   /** What happened, once: a repeat of the same key is not told again. */
   key: string;
@@ -78,6 +96,7 @@ export interface Alert {
 }
 
 const KEY = /^[A-Za-z0-9_.:-]{1,64}$/;
+const REPO = REPO_NAME;
 /** Text for a system notification: plain, short, with nothing that could be taken for anything else. */
 function plain(v: unknown, max: number): string | undefined {
   if (typeof v !== 'string') return undefined;
@@ -145,7 +164,7 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
       if (m.from === undefined) d.agentSession?.(m.key as string | undefined);
       else d.agentSession?.(m.key as string | undefined, m.from as string);
     }
-    else if (m.event === 'page' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.page === 'inbox' || m.page === 'calendar')) d.page?.(m.page);
+    else if (m.event === 'page' && !frame.hosted && !frame.surface && (m.page === 'overview' || frame.id === 'personal' && (m.page === 'inbox' || m.page === 'calendar' || m.page === 'reported'))) d.page?.(m.page);
     else if (m.event === 'salie' && frame.id === 'personal' && !frame.hosted && !frame.surface && (m.conversation === undefined || typeof m.conversation === 'string' && /^[\w-]{1,80}$/.test(m.conversation))) d.openSalie?.(typeof m.conversation === 'string' ? m.conversation : undefined);
     else if (m.event === 'reauth' && frame.id === 'personal' && !frame.surface) {
       const problem = await d.reauth?.(frame.id, m.manual === true);
@@ -156,6 +175,22 @@ export async function handle(frames: readonly FrameRef[], e: MessageLike, d: Dep
     else if (m.event === 'place' && isPlace(m.place) && !frame.hosted) await d.remember(frame.id, m.place).catch(() => {});
     else if (m.event === 'theme' && (m.theme === 'light' || m.theme === 'dark' || m.theme === '') && !frame.surface) d.theme(frame.id, m.theme);
     else if (m.event === 'style' && (m.style === 'paper' || m.style === 'graphite' || m.style === 'classic' || m.style === 'cloud' || m.style === 'moss' || m.style === 'dune' || m.style === 'plum') && !frame.surface) d.style?.(frame.id, m.style);
+    else if (m.event === 'repo_heads' && frame.id === 'personal' && !frame.hosted && !frame.surface && typeof m.repo === 'string' && REPO.test(m.repo) && Array.isArray(m.heads) && m.heads.length > 0 && m.heads.length <= 100) {
+      const heads = m.heads.flatMap((h: { name?: unknown; sha?: unknown }) => {
+        const name = plain(h?.name, 200);
+        return name && typeof h.sha === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(h.sha) ? [{ name, sha: h.sha }] : [];
+      });
+      if (heads.length) d.repoHeads?.(m.repo, heads);
+    }
+    else if (m.event === 'repo_change' && frame.id === 'personal' && !frame.hosted && !frame.surface) {
+      const repo = typeof m.repo === 'string' && REPO.test(m.repo) ? m.repo : '';
+      const sha = (v: unknown) => (typeof v === 'string' && /^[0-9a-f]{7,64}$/.test(v) ? v : undefined);
+      const branch = plain(m.branch, 200);
+      if (repo && branch && sha(m.sha)) {
+        const authors = Array.isArray(m.authors) ? m.authors.map((a) => plain(a, 60)).filter((a): a is string => !!a).slice(0, 3) : undefined;
+        d.repoChange?.({ repo, branch, sha: sha(m.sha)!, previous: sha(m.previous), created: m.created === true, authors, count: typeof m.count === 'number' && m.count >= 0 && m.count <= 1000 ? Math.floor(m.count) : undefined, isDefault: m.isDefault === true, mine: m.mine === true });
+      }
+    }
     else if (m.event === 'notify' && frame.id === 'personal' && !frame.surface && typeof m.key === 'string' && KEY.test(m.key)) {
       const title = plain(m.title, 80);
       const body = plain(m.body, 200);

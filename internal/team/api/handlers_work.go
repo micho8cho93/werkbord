@@ -379,3 +379,9 @@ func (s *Server) handleCatchUp(w http.ResponseWriter, r *http.Request) {
 	out, err := s.opt.Service.CatchUp(r.Context(), actorOf(r))
 	s.respond(w, r, http.StatusOK, out, err)
 }
+
+// handlePushes lists the recent moves of branches that members reported, for the projects the caller is on.
+func (s *Server) handlePushes(w http.ResponseWriter, r *http.Request) {
+	out, err := s.opt.Service.RecentPushes(r.Context(), actorOf(r))
+	s.respond(w, r, http.StatusOK, out, err)
+}
