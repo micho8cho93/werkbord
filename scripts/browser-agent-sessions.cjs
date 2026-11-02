@@ -139,17 +139,7 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   assert.equal((await taskRuns()).length, 1);
   ok('Open Session on a Work task opens the very same session; still one run');
 
-  // The Calendar reaches the same session through its task.
-  const today = new Date().toISOString().slice(0, 10);
-  const listed = await api('GET', `/api/projects/${project.id}/tasks`), current = (listed.tasks ?? listed).find(t => t.id === task.id) ?? task;
-  await api('PATCH', `/api/projects/${project.id}/tasks/${task.id}`, { version: current.version, plan: { start: today, end: today } });
-  await page.goto(web + `/#/p/${project.id}/calendar`);
-  await page.locator('.planned-task', { hasText: 'Fix the login' }).first().click();
-  await page.getByTestId('task-session').getByRole('button', { name: 'Open session' }).click();
-  await page.waitForFunction(k => decodeURIComponent(location.hash).split('?')[0] === '#/sessions/' + k, key);
-  await page.getByRole('region', { name: 'Live task session' }).waitFor();
-  assert.equal((await taskRuns()).length, 1);
-  ok('the Calendar opens the task’s session through the task sheet; still one run');
+  // The Calendar is the window's own page (browser-shell-agents.cjs); here a task reaches its session from its own page, above.
   await page.goto(web + '/#/sessions');
   async function openTerminal(taskTitle) {
     await page.evaluate(() => { location.hash = '#/sessions'; });

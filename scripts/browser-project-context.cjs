@@ -105,11 +105,11 @@ const server = http.createServer(async (req, res) => {
     await page.screenshot({ path: path.join(artifacts, 'desktop.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: path.join(artifacts, 'mobile.png'), fullPage: true });
+    // Under All Projects the window's own Queue & Plans lists every project's work; with a project chosen it opens that workspace's page.
+    await picker.selectOption('');
     await page.getByRole('navigation', { name: 'Work sections' }).getByRole('button', { name: /^Queue/ }).click();
     await page.getByRole('heading', { name: 'Plans', exact: true }).waitFor();
     assert.ok((await page.locator('main').innerText()).includes('Ship two'));
-    await page.getByRole('navigation', { name: 'Work sections' }).getByRole('button', { name: /^Queue/ }).click();
-    await picker.selectOption('');
     await page.getByRole('navigation', { name: 'Work sections' }).getByRole('button', { name: 'Overview', exact: true }).click();
     await page.getByText('Since you were last here', { exact: true }).waitFor();
     await page.getByRole('button', { name: /items need attention now/ }).click();

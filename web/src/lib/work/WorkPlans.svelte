@@ -164,7 +164,7 @@
       {#each tabs as t (t.id)}<button type="button" role="tab" id="plan-tab-{t.id}" aria-selected={tab === t.id} aria-controls="plan-panel-{t.id}" tabindex={tab === t.id ? 0 : -1} onclick={() => tab = t.id} onkeydown={tabKey}>{t.label}</button>{/each}
     </div>
     {#if tab === 'tasks'}
-    <section id="plan-panel-tasks" role="tabpanel" aria-labelledby="plan-tab-tasks">
+    <div id="plan-panel-tasks" role="tabpanel" aria-labelledby="plan-tab-tasks">
       <h2 id="plan-tasks-h" class="section-title">Tasks in order</h2>
       <ol class="plan-tasks">{#each steps as s (s.id)}{@const task = s.task}{@const step = s.step}
         <li data-step={step.kind} data-task-id={s.id}>
@@ -182,21 +182,21 @@
           </div>
         </li>
       {:else}<li class="empty">No tasks in this plan yet. Edit the plan to add existing tasks.</li>{/each}</ol>
-    </section>
+    </div>
     <section class="context" aria-label="Plan context">
       <details open={!!current.decisions}><summary>Decisions</summary><p class="description">{current.decisions || 'No decisions recorded yet.'}</p></details>
       <details open={!!current.questions}><summary>Open questions</summary><p class="description">{current.questions || 'No open questions recorded.'}</p></details>
       <p class="muted meta">Created {date(current.createdAt)} · Updated {date(current.updatedAt)}</p>
     </section>
     {:else}
-    <section id="plan-panel-execution" role="tabpanel" aria-labelledby="plan-tab-execution" data-testid="plan-execution">
+    <div id="plan-panel-execution" role="tabpanel" aria-labelledby="plan-tab-execution" data-testid="plan-execution">
       <h2 class="section-title">Execution</h2>
       <p class="muted exec-note">Each task is started on its own. Running a whole plan in order, and pausing it after the current task, is not available yet.</p>
       <ul class="session-list">{#each steps.filter(x => x.agent) as s (s.id)}{@const run = scope.latestRun[s.id]}<li><div><strong>{s.number}. {s.task?.title ?? 'Unavailable task'}</strong><span class="muted">{agentName(s.agent!.agentId)} · {run.state.replaceAll('_', ' ')}{run.state !== 'running' && !s.agent!.fresh ? ' · last reported ' + timeAgo(run.updatedAt, app.now) : ''}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No agent has worked on this plan yet.</li>{/each}</ul>
       <details class="past"><summary>All sessions<span class="count">{sessions.length}</span></summary>
         <ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
       </details>
-    </section>
+    </div>
     {/if}
     </div>
     <aside class="plan-side" aria-label="Plan context">
@@ -224,7 +224,7 @@
   .plan-tasks>li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:14px;align-items:start;padding:16px 4px;border-bottom:1px solid var(--border);}.task-mark{width:22px;height:22px;border:1px solid var(--text-2);border-radius:50%;display:grid;place-items:center;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}.task-mark[data-tone=ok]{background:var(--ok);border-color:var(--ok);color:var(--surface);}.task-mark[data-tone=work]{border-color:var(--accent);color:var(--accent);}.task-mark[data-tone=ask],.task-mark[data-tone=block]{border-color:var(--block);color:var(--block-text);}
   .task-body{display:grid;gap:5px;min-width:0;}.task-title{color:var(--text);text-decoration:none;font-weight:500;line-height:1.5;overflow-wrap:anywhere;}a.task-title:hover{text-decoration:underline;}.task-status{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:0;font-size:12px;}.chip{padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-2);}.chip[data-tone=ok]{color:var(--ok-text);background:color-mix(in srgb,var(--ok) 10%,var(--surface));}.chip[data-tone=work]{color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--surface));}.chip[data-tone=ask],.chip[data-tone=block]{color:var(--block-text);background:color-mix(in srgb,var(--block) 9%,var(--surface));}.reason{color:var(--text-2);overflow-wrap:anywhere;}.dependency{margin:0;font-size:12px;color:var(--text-2);}.dependency a{color:var(--text-2);}
   .task-acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}li[data-step=done] .task-title{color:var(--text-2);}
-  .context{margin-top:28px;display:grid;gap:2px;max-width:78ch;}.context details{border-top:1px solid var(--border);padding:4px 0;}.context summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.context .count{color:var(--text-2);font-weight:400;font-size:12px;}.context details>p{margin-top:2px;}.meta{font-size:12px;margin-top:12px;}
+  .context{margin-top:28px;display:grid;gap:2px;max-width:78ch;}.context details{border-top:1px solid var(--border);padding:4px 0;}.context summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.context details>p{margin-top:2px;}.meta{font-size:12px;margin-top:12px;}
   .list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}.list-heading h2{font-size:16px;margin:0;}.plan-list>li+li{border-top:1px solid var(--border);}.plan-link{display:flex;align-items:center;gap:14px;padding:18px 12px;color:var(--text);text-decoration:none;border-radius:6px;}.plan-link:hover{background:var(--surface-2);}.plan-symbol{color:var(--text);width:32px;height:32px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 7%,var(--surface));border-radius:6px;}.plan-text{display:grid;gap:5px;flex:1;min-width:0;}.plan-text strong{font-size:14px;font-weight:500;}.plan-text>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.plan-count{display:grid;gap:8px;min-width:80px;font-size:12px;color:var(--text-2);text-align:right;}.empty{color:var(--text-2);padding:24px 4px;line-height:1.6;}
   form{max-width:820px;display:grid;gap:20px;}form header{margin-bottom:8px;}label{display:grid;gap:8px;}textarea{min-height:92px;resize:vertical;}.context-fields{display:grid;grid-template-columns:1fr 1fr;gap:20px;}fieldset{border:1px solid var(--border);padding:16px;min-width:0;border-radius:6px;}legend{font-weight:500;}fieldset label{margin-top:14px;}.ordered{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}.ordered>span{display:flex;gap:12px;align-items:center;}.number{color:var(--text-2);font-size:12px;}.actions{display:flex;gap:8px;flex-wrap:wrap;}.session-list>li{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);}.session-list>li>div{display:grid;gap:5px;}.session-list strong{font-weight:500;}.session-list .muted{font-size:12px;}
   .plans{container-type:inline-size;}.plan-body{display:grid;gap:28px;}.plan-main{min-width:0;}.plan-side{display:grid;gap:22px;align-content:start;}.plan-side h3{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--text-2);font-weight:500;margin:0 0 8px;}.side-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;}.side-list>li{display:flex;gap:10px;align-items:flex-start;min-width:0;}.side-list>li>span{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;}.side-list code{font-family:var(--mono);font-size:12px;}.side-list .muted{font-size:12px;}
