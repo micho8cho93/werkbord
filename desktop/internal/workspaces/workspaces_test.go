@@ -547,3 +547,76 @@ func TestIndividualAnswerKeepsControllerSemantics(t *testing.T) {
 		})
 	}
 }
+
+// The popover in the header gets names, yes-or-no answers, counts and two cost figures, never a command, an environment, a secret, a
+// path or a full address.
+func TestAgentsAndConnectionsAreReducedBeforeTheyLeave(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer CTL" {
+			w.WriteHeader(401)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/agents/catalog":
+			_, _ = w.Write([]byte(`{"agents":[{"id":"codex","name":"Codex","installed":true,"signIn":"signed_in","coding":true,"command":"/Users/me/bin/codex"},{"id":"claude-code","name":"Claude Code","installed":true,"signIn":"unknown","coding":true},{"id":"gone","name":"Gone","installed":false,"coding":true},{"id":"chat","name":"Chat","installed":true,"coding":false},{"id":"off","name":"Off","installed":true,"coding":true}]}`))
+		case "/api/settings/selection":
+			_, _ = w.Write([]byte(`{"agents":{"off":{"enabled":false},"codex":{"enabled":true}}}`))
+		case "/api/connections":
+			_, _ = w.Write([]byte(`{"connections":[{"id":"c1","name":"Notion","url":"https://user:pw@mcp.notion.com/mcp?token=SECRET#x","enabled":true,"testedAt":"2026-10-30T10:00:00Z","environment":{"KEY":"SECRET"},"command":"npx","args":["x"]},{"id":"c2","name":"Local","command":"/bin/tool","enabled":true,"lastError":"refused"},{"id":"c3","name":"Off","enabled":false}]}`))
+		case "/api/agent-sessions":
+			if r.URL.Query().Get("live") != "1" {
+				t.Errorf("all sessions were asked for: %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"sessions":[{"agentId":"codex","live":true,"title":"private task","key":"run:1"},{"agentId":"codex","live":false}]}`))
+		case "/api/analytics":
+			if r.URL.Query().Get("project") != "prj_a" || r.URL.Query().Get("days") != "30" {
+				t.Errorf("analytics query = %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"actualCostUsd":1.25,"estimatedCostUsd":null,"remaining":40,"executions":[{"provider":"codex","limitEvents":2,"model":"m"}]}`))
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
+	raw, err := p.AgentsAndConnections(bg, "prj_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"agents":[{"id":"codex","name":"Codex","signedIn":true,"active":1,"limitEvents":2},{"id":"claude-code","name":"Claude Code","signedIn":false,"active":0,"limitEvents":0}],` +
+		`"tools":[{"id":"c1","name":"Notion","service":"https://mcp.notion.com/mcp","state":"verified"},{"id":"c2","name":"Local","state":"failed"}],"usage":{"reported":1.25,"estimated":null}}`
+	if string(raw) != want {
+		t.Fatalf("got  %s\nwant %s", raw, want)
+	}
+	for _, leak := range []string{"SECRET", "/Users/me", "npx", "private task", "run:1", "remaining", "pw"} {
+		if strings.Contains(string(raw), leak) {
+			t.Errorf("%q left the app", leak)
+		}
+	}
+	if _, err := p.AgentsAndConnections(bg, "../x"); err == nil {
+		t.Error("a path was accepted as a project")
+	}
+}
+
+func TestAgentsAndConnectionsNeedTheAgentsButNotTheRest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/agents/catalog":
+			_, _ = w.Write([]byte(`{"agents":[{"id":"codex","name":"Codex","installed":true,"coding":true}]}`))
+		case "/api/settings/selection":
+			_, _ = w.Write([]byte(`{"agents":{}}`))
+		default:
+			w.WriteHeader(500)
+		}
+	}))
+	defer srv.Close()
+	p := NewIndividual(func(context.Context) (Access, error) { return Access{Base: srv.URL, Token: "CTL"}, nil })
+	raw, err := p.AgentsAndConnections(bg, "prj_a")
+	if err != nil || string(raw) != `{"agents":[{"id":"codex","name":"Codex","signedIn":false,"active":0,"limitEvents":0}],"tools":[],"usage":null}` {
+		t.Fatalf("%s %v", raw, err)
+	}
+	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) })
+	if _, err := p.AgentsAndConnections(bg, "prj_a"); err == nil {
+		t.Error("an unreadable catalog was reported as having no agents")
+	}
+}

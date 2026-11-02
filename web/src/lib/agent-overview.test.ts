@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { canRetry, controlsFor, hasTaskContext, isTrouble, matches, outcomeOf, overviewOf, providersOf, reportedLine, sessionState, summaryOf } from './agent-overview';
+import { canRetry, controlsFor, hasTaskContext, isTrouble, matches, nextAfter, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, reportedLine, sessionAgent, sessionState, summaryOf } from './agent-overview';
+import { resolveAgentState } from './identity';
 import { isSessionKey, runKey, terminalKey, unique, type AgentSession } from './agent-sessions';
 import { chainOf, pushed, withChain } from './origin';
 import { originHref } from './origin-nav';
@@ -140,5 +141,54 @@ describe('a session that ended badly is called out and can be tried again', () =
     expect(canRetry(s({ live: true, state: 'running' }))).toBe(false);
     expect(canRetry(s({ live: false, state: 'failed', taskId: undefined }))).toBe(false);
     expect(canRetry(s({ kind: 'terminal', live: false, state: 'interrupted' }))).toBe(false);
+  });
+});
+
+describe('a session is drawn with a ringed mark that turns only when the controller confirms it', () => {
+  it('turns only for a live, confirmed running session', () => {
+    const a = sessionAgent(s({}), false);
+    expect(a).toMatchObject({ agentId: 'codex', state: 'running', fresh: true });
+    expect(resolveAgentState({ ...a, now: Date.now() }).animate).toBe(true);
+    // The controller cannot be reached (or the run's runner is offline): the last report, not a turning ring.
+    const stale = sessionAgent(s({}), true);
+    expect(resolveAgentState({ ...stale, now: Date.now() }).animate).toBe(false);
+    expect(resolveAgentState({ ...stale, now: Date.now() }).kind).toBe('stale');
+  });
+  it('says waiting, starting and blocked as themselves', () => {
+    expect(sessionAgent(s({ waiting: true }), false).state).toBe('needs_input');
+    expect(sessionAgent(s({ state: 'starting' }), false).state).toBe('starting');
+    expect(sessionAgent(s({ state: 'blocked' }), false).state).toBe('blocked');
+  });
+  it('shows an ended session by how it ended, and an interrupted one as unconfirmed rather than stopped', () => {
+    expect(sessionAgent(s({ live: false, state: 'completed' }), false).state).toBe('completed');
+    expect(sessionAgent(s({ live: false, state: 'exited', kind: 'terminal' }), false).state).toBe('completed');
+    expect(sessionAgent(s({ live: false, state: 'failed' }), false).state).toBe('failed');
+    expect(sessionAgent(s({ live: false, state: 'stopped' }), false).state).toBe('stopped');
+    const cut = sessionAgent(s({ live: false, state: 'interrupted' }), false);
+    expect(resolveAgentState({ ...cut, now: Date.now() })).toMatchObject({ kind: 'stale', animate: false });
+  });
+});
+
+describe('plan sub-headers keep the group in its order', () => {
+  const known = new Set(['plan1', 'plan2']);
+  const keys = (blocks: ReturnType<typeof planBlocks>) => blocks.map(b => `${b.planId || '-'}:${b.sessions.map(x => x.id).join('')}`);
+  it('puts a plan where its first session is and leaves standalone sessions where they are', () => {
+    const list = [s({ id: 'a', planIds: ['plan1'] }), s({ id: 'b', taskId: undefined }), s({ id: 'c', planIds: ['plan2'] }), s({ id: 'd', planIds: ['plan1'] }), s({ id: 'e', taskId: undefined })];
+    expect(keys(planBlocks(list, known))).toEqual(['plan1:ad', '-:b', 'plan2:c', '-:e']);
+  });
+  it('lists no sub-header for a plan it does not know, and uses the first known of several', () => {
+    expect(keys(planBlocks([s({ id: 'a', planIds: ['gone'] }), s({ id: 'b', planIds: ['gone', 'plan2'] })], known))).toEqual(['-:a', 'plan2:b']);
+  });
+  it('never drops or repeats a session', () => {
+    const list = [s({ id: 'a', planIds: ['plan1'] }), s({ id: 'b' }), s({ id: 'c', planIds: ['plan1'] })];
+    expect(planBlocks(list, known).flatMap(b => b.sessions.map(x => x.id)).sort()).toEqual(['a', 'b', 'c']);
+  });
+  it('words the heading and finds what comes next after a task', () => {
+    expect(planHeading({ title: 'Authentication overhaul' }, { done: 2, total: 5 })).toBe('Authentication overhaul · 2 of 5 tasks complete');
+    expect(planHeading({ title: 'One' }, { done: 0, total: 1 })).toBe('One · 0 of 1 task complete');
+    const plan = { taskIds: ['a', 'b', 'c', 'd'] };
+    expect(nextAfter(plan, 'a', id => id === 'b')).toBe('c');
+    expect(nextAfter(plan, 'd', () => false)).toBeUndefined();
+    expect(nextAfter(plan, 'zzz', () => false)).toBeUndefined();
   });
 });

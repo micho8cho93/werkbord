@@ -5,6 +5,8 @@
   import { executionLabel, reportedActivity } from './aggregate';
   import { reportedLine } from '../lib/agent-overview';
   import { model } from './model.svelte';
+  import AgentMark from '../lib/AgentMark.svelte';
+  import { agentName } from '../lib/agent-marks';
   // `strip`: shown above the person's own sessions (Agents). The sessions below it are this computer's own and are listed there, so the
   // strip carries what is reported and shown nowhere else: the activity of Team workspaces in the selected context, whose members'
   // sessions run on their computers and are not opened here. Without the sessions (the page below), everything reported is listed.
@@ -21,7 +23,7 @@
     <section aria-label={g.workspace.name}>
       <WorkspaceTag workspace={g.workspace} />
       <p class="kind" data-testid="reported-note">Reported activity · view only. It runs on a member’s computer.</p>
-      <ul>{#each g.items as w (w.id)}{@const r = reportedLine(w.report, now, available(g))}<li data-freshness={r.freshness}><button class="btn quiet" type="button" onclick={() => model.goTo(g.workspace.id, w.href)}>{w.title}</button><span>{executionLabel(w.execution ?? '')} · {r.label}</span></li>{/each}</ul>
+      <ul>{#each g.items as w (w.id)}{@const r = reportedLine(w.report, now, available(g))}<li data-freshness={r.freshness}><button class="btn quiet" type="button" onclick={() => model.goTo(g.workspace.id, w.href)}>{#if w.agent}<AgentMark agentId={w.agent.id} state={w.agent.state} fresh={w.agent.fresh} observedAt={w.agent.observedAt} {now} decorative />{/if}{w.title}</button><span>{w.agent?.id ? agentName(w.agent.id) + ' · ' : ''}{executionLabel(w.execution ?? '')} · {r.label}</span></li>{/each}</ul>
     </section>
   {/each}
 {/snippet}
@@ -44,6 +46,7 @@
   li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
   .kind { margin: 4px 0 0; font-size: 12px; color: var(--text-2); }
   li[data-freshness='stale'] span, li[data-freshness='unknown'] span { font-style: italic; }
+  li :global(.wb-agent) { margin-right: 8px; vertical-align: middle; }
   li span { color: var(--text-2); font-size: 13px; }
   .strip { max-height: 30%; overflow-y: auto; padding: 8px 24px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 13px; }
   .strip section { margin-top: 8px; }

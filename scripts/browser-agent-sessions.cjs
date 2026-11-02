@@ -198,6 +198,28 @@ const until = async (fn, message, tries = 100) => { for (let i = 0; i < tries; i
   assert.equal((await sessions()).length, 3);
   await page.evaluate(() => { location.hash = '#/sessions'; });
   ok('a terminal opens standalone or for a task, through the same terminal renderer, and is listed once');
+
+  // ---- 4b. Identity: a ringed mark on every card, plan sub-headers, and the open session's plan and execution context ----
+  await api('POST', `/api/projects/${project.id}/work-plans`, { id: '', projectId: project.id, title: 'Login overhaul', description: '', taskIds: [task.id], decisions: '', questions: '', version: 0 });
+  await page.goto(web + '/#/sessions'); await page.reload();
+  await until(async () => (await page.locator('[data-session]').count()) === 3, 'the sessions are listed');
+  assert.equal(await page.locator('[data-session] .head .dot, [data-session] .head .spin').count(), 0, 'the dot and the spinner are gone');
+  assert.equal(await page.locator('[data-session] .head .wb-agent[data-ring]').count(), 3, 'every card carries the agent mark with its state ring');
+  assert.ok((await page.locator('[data-session] .head .wb-agent').first().getAttribute('aria-hidden')) === 'true', 'the mark is decorative: the state is in the words beside it');
+  await until(async () => (await page.getByTestId('plan-head').count()) >= 1, 'a plan sub-header');
+  assert.match(await page.getByTestId('plan-head').first().innerText(), /^Login overhaul · \d+ of 1 task complete$/);
+  assert.equal(await page.getByTestId('plan-head').count(), 1, 'one sub-header for the one plan, even with a run and a terminal under it');
+  // The open session names its plan, how far it has got and where it runs.
+  await page.locator(`[data-session="${key}"] .open-card`).click();
+  await page.getByTestId('session-plan-progress').waitFor();
+  assert.match(await page.getByTestId('session-plan-progress').innerText(), /^\d+ of 1 task complete$/);
+  assert.match(await page.getByTestId('session-exec').innerText(), new RegExp(key));
+  assert.ok(await page.getByTestId('session-exec').isVisible(), 'the execution details show when the window is wide');
+  await page.setViewportSize({ width: 1100, height: 900 });
+  assert.equal(await page.getByTestId('session-exec').isVisible(), false, 'the execution details wait for a wide window');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => { location.hash = '#/sessions'; });
+  ok('cards carry the ringed agent mark, a plan heads its sessions, and the open session shows plan progress and execution details');
   await page.screenshot({ path: path.join(artifacts, 'agents-terminal.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await delay(250);

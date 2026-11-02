@@ -81,11 +81,19 @@ a second view in Salie. So does the **Calendar** (and Scheduling): a task's shee
   with its context in view), reply to an agent that is waiting, **Stop** (asked twice, the question lapses by itself) and **Retry**
   for a task run that failed, was interrupted or was stopped (`canRetry`). Running cards keep Stop out of the way until they are
   pointed at or focused; a question is never hidden.
+  Each card starts with the agent's **ringed mark** (the shared identity layer, [`MOTION.md`](MOTION.md)): the ring turns only for a
+  live session the controller confirms (and, for a remote run, whose runner is online); with the controller out of reach it reads as
+  the last report, and a session cut off by a restart is never shown as stopped (`sessionAgent`). Inside each group, **sessions on a
+  plan sit under a sub-header** ("Authentication overhaul · 2 of 5 tasks complete", linking to the plan); a plan's block sits where its
+  first session sits, so the urgency order never changes, and standalone sessions stay where they are with no header (`planBlocks`).
+  Plans are read once per project that has a planned session, not on the list's four-second refresh.
 - **A session** (`#/sessions/<key>`) opens **beside the list**, which keeps its place, filter and scroll; choosing another session
   changes only the address, inside the page, so nothing is rebuilt. On a window too narrow for both the session takes the page and
   closing it brings the list back as it was. Inside Work the page is shown with `?pane=1`: the one session alone, with no list.
   The session has Back and its trail, the title once, provider, repository and state as one line, and, only when it belongs to a
-  task, a small panel for the task, its state and its plans. A standalone session has no panel.
+  task, a small panel for the task, its state and its plans. A standalone session has no panel. For each plan the panel shows how many
+  of its tasks are complete and, in a window at least 1200px wide, **Next after this** (the first later task that is not done) and
+  **Execution details**: the runner, the branch, the session key and, when the run reported it, usage. Narrower windows leave those two out.
 - **Terminal first.** A terminal session is the agent's own command line (`TerminalSession.svelte`, xterm over the PTY, unchanged)
   and is what *New session* and a task's **Work on this in a terminal** (`lib/agents/TaskTerminal.svelte`) open; the terminal is
   linked to the task and nothing is typed for the person. A structured **run** (started by the scheduler, a task's *Start agent* or
@@ -95,8 +103,14 @@ a second view in Salie. So does the **Calendar** (and Scheduling): a task's shee
 - **What is offered follows what the controller can do** (`controlsFor`): instructions, answers, Stop and terminal input appear
   only for a live session whose capabilities say so and while the controller is reachable. Otherwise the session is shown with a
   line that says why, and a terminal's input is disabled.
+- **Agents & connections** (`shell/ConnectedTools.svelte`, a header popover in a Personal project context only): the coding agents the app
+  found (*Signed in* or *Installed*, only as detected, with the person's live sessions and *Limit unknown* unless usage reports a reached
+  limit), the tools that are connected (*Verified* only when tested) and the last thirty days of usage as two separate figures, reported
+  API charges and the estimated API equivalent, with the line that balances and reset times are not available. It comes from one read-only
+  bridge call, `AgentsAndConnections`, which the app reduces before anything reaches the window (no command, environment, secret, path or
+  full address; a connection's address without its query). Nothing here enters a Team report.
 - **Reported activity** from a Team workspace (the window's strip and page) is labelled view-only, with when it was reported, or
-  *Last reported* / *Unavailable · last known*. It opens the workspace's own page and has no controls here.
+  *Last reported* / *Unavailable · last known*. Each shows the reporting agent's mark with the ring the server's freshness allows. It opens the workspace's own page and has no controls here.
 - Switching sessions, or going to a task, a plan, Work or Salie and back, changes only the address. It starts, stops and attaches
   nothing; a session has one key and appears once.
 
@@ -114,6 +128,13 @@ restarts, runs are recovered by the runner as always, terminals are reloaded fro
 running is marked **interrupted** and its old process reaped; nothing is relaunched), and the same keys appear. An address
 that names a session (`#/sessions/run%3A…`) is remembered by the window and opens it again. A key that no longer exists
 says so and offers the list; it never creates anything.
+
+## The activity stream
+
+`lib/feed.ts` groups only what the controller can prove. Every adapter (Claude Code, Codex and the ACP agents) reports a tool call as a
+line of free text on the `tool` stream, with no tool kind, so the stream is **not** grouped into reads, edits, tests or Git: that would be
+guessing from words. Runs of tool lines are one collapsed item, standard error is its own collapsed item, and messages, questions,
+approvals and markers stay in order and are never collapsed. Group by kind only once an adapter reports one.
 
 ## Limits
 
@@ -133,6 +154,7 @@ says so and offers the list; it never creates anything.
 - `node scripts/browser-agent-sessions.cjs` (real controller, runner, scripted Salie, PTYs, Chromium): launch through Salie;
   open the same session in Agents; continue it; return to Salie; open it from a Work task; terminals standalone and for a
   task; restart the controller and reconnect, with no duplicates.
+- The same script checks the ringed marks, the plan sub-header and the session's plan progress and execution details. `node scripts/browser-agent-header.cjs` checks the Agents & connections popover (and that nothing about an allowance or presence is shown).
 - `node scripts/browser-shell-agents.cjs` (the same, through the desktop window's shell and frames, and Back along every route:
   [`NAVIGATION.md`](NAVIGATION.md)).
 - `node scripts/browser-salie-terminals.cjs` (terminals in Agents, and the phone's sessions in Salie).

@@ -342,3 +342,136 @@ func (p *Individual) Analytics(ctx context.Context, project string, days int) (j
 	}
 	return out, nil
 }
+
+// AgentsAndConnections reads what the "Agents & connections" popover in the window's header shows, from the endpoints the person's own
+// pages read: the coding agents found and whether they are signed in, the connected tools, which agents have a live session, and the
+// last thirty days of usage. It reduces them before anything leaves: no command line, environment, secret, path or full address, only
+// names, a yes or no, counts, the two cost figures and a connection's address without its query. The agents and the settings are needed;
+// a tool list, session list or usage report that cannot be read is simply absent. A read only.
+func (p *Individual) AgentsAndConnections(ctx context.Context, project string) (json.RawMessage, error) {
+	if !workspace.ValidID(project) {
+		return nil, errors.New("that is not a project")
+	}
+	a, err := p.Access(ctx)
+	if err != nil {
+		return nil, err
+	}
+	base, err := CheckBase(a.Base)
+	if err != nil {
+		return nil, err
+	}
+	get := func(path string, out any) error { return p.send(ctx, base, a.Token, http.MethodGet, path, nil, out) }
+	var catalog struct {
+		Agents []struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Installed bool   `json:"installed"`
+			SignIn    string `json:"signIn"`
+			Coding    bool   `json:"coding"`
+		} `json:"agents"`
+	}
+	var settings struct {
+		Agents map[string]struct {
+			Enabled bool `json:"enabled"`
+		} `json:"agents"`
+	}
+	if err := get("/api/agents/catalog", &catalog); err != nil {
+		return nil, err
+	}
+	if err := get("/api/settings/selection", &settings); err != nil {
+		return nil, err
+	}
+	var connections struct {
+		Connections []struct {
+			ID       string `json:"id"`
+			Name     string `json:"name"`
+			URL      string `json:"url"`
+			Enabled  bool   `json:"enabled"`
+			TestedAt string `json:"testedAt"`
+			LastErr  string `json:"lastError"`
+		} `json:"connections"`
+	}
+	_ = get("/api/connections", &connections)
+	var sessions struct {
+		Sessions []struct {
+			AgentID string `json:"agentId"`
+			Live    bool   `json:"live"`
+		} `json:"sessions"`
+	}
+	_ = get("/api/agent-sessions?live=1", &sessions)
+	var usage struct {
+		Actual     *float64 `json:"actualCostUsd"`
+		Estimated  *float64 `json:"estimatedCostUsd"`
+		Executions []struct {
+			Provider    string `json:"provider"`
+			LimitEvents int    `json:"limitEvents"`
+		} `json:"executions"`
+	}
+	usageErr := get("/api/analytics?"+url.Values{"project": {project}, "days": {"30"}}.Encode(), &usage)
+
+	type agentOut struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		SignedIn    bool   `json:"signedIn"`
+		Active      int    `json:"active"`
+		LimitEvents int    `json:"limitEvents"`
+	}
+	type toolOut struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Service string `json:"service,omitempty"`
+		State   string `json:"state"`
+	}
+	out := struct {
+		Agents []agentOut `json:"agents"`
+		Tools  []toolOut  `json:"tools"`
+		Usage  *struct {
+			Reported  *float64 `json:"reported"`
+			Estimated *float64 `json:"estimated"`
+		} `json:"usage"`
+	}{Agents: []agentOut{}, Tools: []toolOut{}}
+	for _, c := range catalog.Agents {
+		if !c.Coding || !c.Installed {
+			continue
+		}
+		if s, ok := settings.Agents[c.ID]; ok && !s.Enabled {
+			continue
+		}
+		row := agentOut{ID: c.ID, Name: c.Name, SignedIn: c.SignIn == "signed_in"}
+		for _, s := range sessions.Sessions {
+			if s.Live && s.AgentID == c.ID {
+				row.Active++
+			}
+		}
+		for _, e := range usage.Executions {
+			if e.Provider == c.ID {
+				row.LimitEvents += e.LimitEvents
+			}
+		}
+		out.Agents = append(out.Agents, row)
+	}
+	for _, c := range connections.Connections {
+		if !c.Enabled {
+			continue
+		}
+		state := "untested"
+		switch {
+		case c.LastErr != "":
+			state = "failed"
+		case c.TestedAt != "" && !strings.HasPrefix(c.TestedAt, "0001-"):
+			state = "verified"
+		}
+		tool := toolOut{ID: c.ID, Name: c.Name, State: state}
+		if u, err := url.Parse(c.URL); err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" {
+			tool.Service = u.Scheme + "://" + u.Host + u.Path
+		}
+		out.Tools = append(out.Tools, tool)
+	}
+	if usageErr == nil {
+		out.Usage = &struct {
+			Reported  *float64 `json:"reported"`
+			Estimated *float64 `json:"estimated"`
+		}{usage.Actual, usage.Estimated}
+	}
+	return json.Marshal(out)
+}

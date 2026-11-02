@@ -195,6 +195,8 @@ export interface App {
   Workspaces(): Promise<WorkspaceView>;
   /** The branch and short commit of one of the person's own projects, for the header. A read, and nothing else about the repository. */
   ProjectHead(project: string): Promise<{ branch: string; commit: string; detached?: boolean; unborn?: boolean }>;
+  /** What the header's "Agents & connections" popover shows for one of the person's own projects, already reduced by the app. */
+  AgentsAndConnections(project: string): Promise<AgentsAndConnections>;
   OpenWorkspace(id: string): Promise<Target>;
   LoadWorkspace(id: string): Promise<Target>;
   AssistantWorkspaces(): Promise<{ id: string; name: string }[]>;
@@ -229,3 +231,10 @@ export interface ProjectMovePreview {
   snapshot: { source: string; name: string; repository: string; tickets: {title: string; description: string}[] };
 }
 export interface ProjectMoveResult { id: string; archived: boolean; warning?: string; cancelled?: boolean }
+
+/** The reduced reading behind the "Agents & connections" popover: names, yes or no, counts and two cost figures, nothing else. */
+export interface AgentsAndConnections {
+  agents: { id: string; name: string; signedIn: boolean; active: number; limitEvents: number }[];
+  tools: { id: string; name: string; /** The connection's address without its query, to find its mark. */ service?: string; state: 'verified' | 'untested' | 'failed' }[];
+  usage: { reported: number | null; estimated: number | null } | null;
+}

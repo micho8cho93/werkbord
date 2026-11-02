@@ -19,11 +19,13 @@
   import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
   import { readAgentView, writeAgentView } from '../lib/agent-view';
   import { tick } from 'svelte';
-  import { controlsFor, hasTaskContext, isTrouble, OUTCOME_LABELS, outcomeOf, overviewOf, providersOf, sessionState, summaryOf } from '../lib/agent-overview';
+  import { controlsFor, hasTaskContext, isTrouble, nextAfter, OUTCOME_LABELS, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, sessionAgent, sessionState, summaryOf } from '../lib/agent-overview';
+  import AgentMark from '../lib/AgentMark.svelte';
+  import { measuredNumber } from '../lib/analytics';
   import SessionCard from '../lib/agents/SessionCard.svelte';
   import Icon from '../lib/Icon.svelte';
-  import { stepOf } from '../lib/work-steps';
-  import { timeAgo } from '../lib/format';
+  import { progressOf, stepOf } from '../lib/work-steps';
+  import { runReportStale, timeAgo } from '../lib/format';
   import { projectHref, sessionsHref } from '../lib/router.svelte';
 
   // Agents: every coding-agent session in one list, and the one that is open. A session is listed from the record that owns it
@@ -56,13 +58,25 @@
   // Back from a session goes where the person came from; a session opened from the list itself goes back to the list.
   const chain = $derived(chainOf(router.query));
   const trailChain = $derived<Origin[]>(chain.length ? chain : [{ kind: 'agents' }]);
-  // A plan in the route is named by its title; its project's plans are read once, only when the route has a plan in it.
-  let plans = $state<WorkPlan[]>([]);
+  // Plans are read once per project that has a session on a plan (and again on a reconnect), never on the list's own refresh. They
+  // name a plan in the route, head a plan's sessions in the list and fill the open session's plan panel.
+  let plansByProject = $state<Record<string, WorkPlan[]>>({});
+  // A plain record of what was asked, not state that is read while drawing.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const asked = new Set<string>();
+  function loadPlans(project: string, again = false): void {
+    if (!project || isPhone() || (asked.has(project) && !again)) return;
+    asked.add(project);
+    void api.workPlans(project).then(p => (plansByProject[project] = p), () => { asked.delete(project); });
+  }
+  const allPlans = $derived(Object.values(plansByProject).flat());
   $effect(() => {
     const plan = chain.find(o => o.kind === 'plan');
-    if (plan) void api.workPlans(plan.projectId).then(p => (plans = p), () => {});
+    if (plan) loadPlans(plan.projectId);
   });
-  const names: Names = { task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title, plan: (_p, id) => plans.find(x => x.id === id)?.title, session: k => { const found = list.find(s => s.key === k); return found ? `Session · ${agentName(app.agents, found.agentId)}` : undefined; } };
+  // A plan's heading counts its tasks, so the project's tasks are read too, without making it the current project.
+  $effect(() => { for (const x of list) if (x.planIds?.length) { loadPlans(x.projectId); app.warm(x.projectId); } });
+  const names: Names = { task: (p, t) => app.scopes.get(p)?.tasks.find(x => x.id === t)?.title, plan: (_p, id) => allPlans.find(x => x.id === id)?.title, session: k => { const found = list.find(s => s.key === k); return found ? `Session · ${agentName(app.agents, found.agentId)}` : undefined; } };
 
   const key = $derived(isSessionKey(router.sub) ? router.sub : '');
   const selected = $derived(key ? list.find(s => s.key === key) : undefined);
@@ -98,16 +112,29 @@
   const taskScope = $derived(selected?.taskId ? app.scopes.get(selected.projectId) : undefined);
   const task = $derived(selected?.taskId ? taskScope?.tasks.find(t => t.id === selected.taskId) : undefined);
   const taskStep = $derived(task && taskScope ? stepOf(task, taskScope.tasks, taskScope.latestRun) : undefined);
-  let sessionPlans = $state<WorkPlan[]>([]);
-  $effect(() => {
-    const id = selected?.taskId;
-    const project = selected?.projectId;
-    sessionPlans = [];
-    if (!id || !project || isPhone()) return;
-    let live = true;
-    void api.workPlans(project).then(p => { if (live) sessionPlans = p.filter(x => x.taskIds.includes(id)); }, () => {});
-    return () => { live = false; };
+  const sessionPlans = $derived(selected?.taskId ? (plansByProject[selected.projectId] ?? []).filter(x => x.taskIds.includes(selected.taskId!)) : []);
+  /** The run behind the open session, when this page has it: its runner, branch and usage. */
+  const sessionRun = $derived.by(() => {
+    const run = selected?.kind === 'run' && selected.taskId ? taskScope?.latestRun[selected.taskId] : undefined;
+    return run && run.id === selected?.id ? run : undefined;
   });
+  const runnerOf = (id?: string) => { const r = app.runners.find(x => x.id === id); return r ? app.runnerName(r) : ''; };
+  const knownPlans = $derived(new Set(allPlans.map(p => p.id)));
+  const planTitle = (id: string) => allPlans.find(p => p.id === id);
+  /** The sub-header of a plan's sessions: its title and how many of its tasks are complete, when the project's tasks are known. */
+  function heading(id: string): string {
+    const plan = planTitle(id);
+    if (!plan) return '';
+    const scope = app.scopes.get(plan.projectId);
+    return scope?.loaded ? planHeading(plan, progressOf(plan, scope.tasks, scope.latestRun)) : plan.title;
+  }
+  /** Whether the controller (and, for a remote run, its runner) confirms the session now: only then may its ring turn. */
+  function stale(x: AgentSession): boolean {
+    if (app.connection !== 'live') return true;
+    const run = x.kind === 'run' && x.taskId ? app.scopes.get(x.projectId)?.latestRun[x.taskId] : undefined;
+    return run && run.id === x.id ? runReportStale(run, true, app.runners) : false;
+  }
+  const agentFor = (x: AgentSession) => sessionAgent(x, stale(x));
   /** What a live session is doing, in a line: the run's latest activity when this page knows it, else its state. */
   const doing = (x: AgentSession): string => (x.kind === 'run' && x.taskId ? app.scopes.get(x.projectId)?.latestRun[x.taskId]?.activity : '') || sessionState(x);
   /** Other sessions to switch to from an open one. Switching only changes which one is shown: nothing is started, stopped or re-attached. */
@@ -154,7 +181,7 @@
     void refresh();
     void loadLaunchers();
     const timer = setInterval(() => { if (!document.hidden) void refresh(); }, 4000);
-    const stop = app.onReconnect(() => void refresh());
+    const stop = app.onReconnect(() => { void refresh(); for (const project of [...asked]) loadPlans(project, true); });
     return () => { clearInterval(timer); stop(); for (const v of runViews.values()) v.disconnect(); runViews.clear(); };
   });
 
@@ -208,7 +235,7 @@
 </script>
 
 {#snippet card(x: AgentSession, tone: 'needs' | 'trouble' | 'running' | 'done', index: number)}
-  <SessionCard session={x} {tone} {index} live={app.connection === 'live'} selected={x.key === key}
+  <SessionCard session={x} {tone} {index} agent={agentFor(x)} now={app.now} live={app.connection === 'live'} selected={x.key === key}
     title={taskTitle(x) || x.title}
     meta="{agentName(app.agents, x.agentId)} · {repoOf(x)}{x.taskId ? '' : ' · Standalone'}{x.kind === 'terminal' ? ' · Terminal' : ''}{x.launchedBy ? ' · Started by Salie' : ''}"
     doing={x.live
@@ -217,21 +244,30 @@
     onopen={() => select(x.key)} onchange={() => void refresh()} />
 {/snippet}
 
+{#snippet cardList(items: AgentSession[], tone: 'needs' | 'trouble' | 'running' | 'done')}
+  <ul class="cards">
+    {#each planBlocks(items, knownPlans) as b (b.planId || b.sessions[0].key)}
+      {#if b.planId}<li class="plan-head"><a href={withChain(`${projectHref(planTitle(b.planId)!.projectId, 'work')}?plan=${encodeURIComponent(b.planId)}`, trailChain)} data-testid="plan-head">{heading(b.planId)}</a></li>{/if}
+      {#each b.sessions as x, i (x.key)}{@render card(x, tone, i)}{/each}
+    {/each}
+  </ul>
+{/snippet}
+
 {#snippet groups()}
   {#if !shownCount}
     <p class="muted empty">{list.length ? 'No session matches this filter.' : 'No agent sessions yet. Start an agent on a task, ask Salie to, or open a new session.'}</p>
   {/if}
   {#if ov.needsYou.length}
-    <section class="tray" aria-labelledby="ag-needs" data-tone="ask"><header><h2 id="ag-needs" class="section-title" data-tone="needs">Needs you</h2><span class="tray-note">{ov.needsYou.length}</span></header><ul class="cards">{#each ov.needsYou as x, i (x.key)}{@render card(x, 'needs', i)}{/each}</ul></section>
+    <section class="tray" aria-labelledby="ag-needs" data-tone="ask"><header><h2 id="ag-needs" class="section-title" data-tone="needs">Needs you</h2><span class="tray-note">{ov.needsYou.length}</span></header>{@render cardList(ov.needsYou, 'needs')}</section>
   {/if}
   {#if trouble.length}
-    <section class="tray" aria-labelledby="ag-trouble"><header><h2 id="ag-trouble" class="section-title" data-tone="trouble">Needs a look</h2><span class="tray-note">{trouble.length}</span></header><ul class="cards">{#each trouble as x, i (x.key)}{@render card(x, 'trouble', i)}{/each}</ul></section>
+    <section class="tray" aria-labelledby="ag-trouble"><header><h2 id="ag-trouble" class="section-title" data-tone="trouble">Needs a look</h2><span class="tray-note">{trouble.length}</span></header>{@render cardList(trouble, 'trouble')}</section>
   {/if}
   {#if ov.running.length}
-    <section class="tray" aria-labelledby="ag-running"><header><h2 id="ag-running" class="section-title" data-tone="running">Running</h2><span class="tray-note">{ov.running.length}</span></header><ul class="cards">{#each ov.running as x, i (x.key)}{@render card(x, 'running', i)}{/each}</ul></section>
+    <section class="tray" aria-labelledby="ag-running"><header><h2 id="ag-running" class="section-title" data-tone="running">Running</h2><span class="tray-note">{ov.running.length}</span></header>{@render cardList(ov.running, 'running')}</section>
   {/if}
   {#if finished.length}
-    <section class="tray" aria-labelledby="ag-recent"><header><h2 id="ag-recent" class="section-title">Recently finished</h2><span class="tray-note">{finished.length}</span></header><ul class="cards">{#each finished.slice(0, 12) as x, i (x.key)}{@render card(x, 'done', i)}{/each}</ul></section>
+    <section class="tray" aria-labelledby="ag-recent"><header><h2 id="ag-recent" class="section-title">Recently finished</h2><span class="tray-note">{finished.length}</span></header>{@render cardList(finished.slice(0, 12), 'done')}</section>
   {/if}
   {#if !terminalsListed}<p class="muted fine">Terminals are listed only on the computer they run on.</p>{/if}
 {/snippet}
@@ -334,7 +370,7 @@
             <div class="who">
               <h2 class="session-title">{taskTitle(selected) || selected.title}</h2>
               <p class="metaline" data-testid="session-meta">
-                <span>{agentName(app.agents, selected.agentId)}</span><span>{repoOf(selected)}</span>
+                <span class="who-agent"><AgentMark agentId={selected.agentId} state={agentFor(selected).state} fresh={agentFor(selected).fresh} observedAt={agentFor(selected).observedAt} now={app.now} decorative />{agentName(app.agents, selected.agentId)}</span><span>{repoOf(selected)}</span>
                 <span class="state" data-waiting={!!selected.waiting} data-outcome={selected.live ? undefined : outcomeOf(selected)}>{sessionState(selected)}</span>
                 {#if !selected.taskId}<span>Standalone</span>{/if}
                 {#if app.connection !== 'live'}<span class="state" data-outcome="interrupted">Availability unknown</span>{/if}
@@ -374,10 +410,26 @@
                 <a class="ctitle" href={withChain(taskHref(selected.projectId, selected.taskId!), here)} data-testid="session-task">{task?.title ?? taskTitle(selected)}</a>
                 {#if taskStep}<p class="cstate"><strong>{taskStep.label}</strong>{taskStep.reason ? ` · ${taskStep.reason}` : ''}</p>{/if}
                 {#each sessionPlans as plan (plan.id)}
+                  {@const progress = taskScope?.loaded ? progressOf(plan, taskScope.tasks, taskScope.latestRun) : undefined}
+                  {@const next = taskScope?.loaded && selected.taskId ? nextAfter(plan, selected.taskId, id => taskScope.tasks.find(t => t.id === id)?.state === 'done') : undefined}
                   <span class="k">Plan</span>
                   <a class="ctitle" href={withChain(`${projectHref(selected.projectId, 'work')}?plan=${encodeURIComponent(plan.id)}`, here)} data-testid="session-plan">{plan.title}</a>
+                  {#if progress}
+                    <p class="cstate" data-testid="session-plan-progress">{progress.done} of {progress.total} {progress.total === 1 ? 'task' : 'tasks'} complete</p>
+                    <span class="bar-track" aria-hidden="true"><span class="bar-fill" style:width="{progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%"></span></span>
+                  {/if}
+                  {#if next}<span class="k wide-only">Next after this</span><a class="ctitle wide-only" href={withChain(taskHref(selected.projectId, next), here)} data-testid="session-next">{taskScope?.tasks.find(t => t.id === next)?.title ?? next}</a>{/if}
                 {/each}
                 <a class="btn small" class:primary={!selected.live && selected.kind === 'run'} href={withChain(taskHref(selected.projectId, selected.taskId!), here)} data-testid={!selected.live && selected.kind === 'run' ? 'session-resume' : undefined}>{!selected.live && selected.kind === 'run' ? 'Resume from task' : 'Open task'}</a>
+                <!-- What the controller knows of how the session runs: the run's own record, labelled as such, not a verdict on the work. -->
+                <dl class="exec wide-only" data-testid="session-exec" aria-label="Execution details">
+                  <div><dt>Runner</dt><dd>{(sessionRun && runnerOf(sessionRun.runnerId)) || selected.device || 'This computer'}</dd></div>
+                  {#if sessionRun?.branch}<div><dt>Branch</dt><dd class="mono">{sessionRun.branch}</dd></div>{/if}
+                  <div><dt>Session</dt><dd class="mono">{selected.key}</dd></div>
+                  {#if sessionRun?.usage && (sessionRun.usage.inputTokens != null || sessionRun.usage.outputTokens != null)}
+                    <div><dt>Usage{sessionRun.usage.partial ? ' (partial)' : ''}</dt><dd>{measuredNumber(sessionRun.usage.inputTokens)} in · {measuredNumber(sessionRun.usage.outputTokens)} out</dd></div>
+                  {/if}
+                </dl>
               </aside>
             {/if}
           </div>
@@ -414,6 +466,10 @@
   .summary li { padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--surface-2); color: var(--text-2); }
   .summary li[data-kind='needsYou'] { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--text); font-weight: 600; }
   .summary li[data-kind='failed'] { color: var(--danger-text); }
+  .plan-head { grid-column: 1 / -1; list-style: none; margin-top: 4px; font-size: 12px; font-weight: 600; }
+  .plan-head:first-child { margin-top: 0; }
+  .plan-head a { color: var(--text-2); text-decoration: none; }
+  .plan-head a:hover { color: var(--text); text-decoration: underline; }
   .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   /* Open with no session: the cards sit in a grid, two or three across, and a rail beside them says what is happening. */
   .wide { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem); gap: 16px; align-items: start; }
@@ -460,6 +516,15 @@
   .context { display: grid; align-content: start; gap: 6px; padding: 12px; border-left: 1px solid var(--border); background: var(--surface); font-size: 13px; overflow-y: auto; }
   .context .k { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--text-2); margin-top: 6px; }
   .context .k:first-child { margin-top: 0; }
+  .who-agent { display: inline-flex; align-items: center; gap: 6px; }
+  .bar-track { display: block; height: 5px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .bar-fill { display: block; height: 100%; background: var(--accent); }
+  .exec { margin: 8px 0 0; display: grid; gap: 6px; font-size: 12px; }
+  .exec div { display: grid; gap: 1px; }
+  .exec dt { color: var(--text-2); }
+  .exec dd { margin: 0; overflow-wrap: anywhere; }
+  .mono { font-family: var(--mono); font-size: 11px; }
+  @media (max-width: 1199px) { .wide-only { display: none; } }
   .ctitle { color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
   .cstate { margin: 0; font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
   .context .btn { justify-self: start; margin-top: 8px; }

@@ -11,6 +11,7 @@
   import { agentUses, crumbs, describeParticipant, participants, personalGit, runningCount, teamGit, type AgentUse } from './context-header';
   import { gitHead } from './git-head.svelte';
   import HeaderPopover from './HeaderPopover.svelte';
+  import ConnectedTools from './ConnectedTools.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
 
   // The header: where the person is, and what is going on in the project context in view. Everything here comes from the scoped overview
@@ -113,6 +114,12 @@
           {@render agentList()}
         </HeaderPopover>
       {/if}
+      {#if selected?.workspace === 'personal'}
+        <HeaderPopover label="Agents and connections" testid="header-tools">
+          {#snippet trigger()}<span>Agents & connections</span>{/snippet}
+          <ConnectedTools project={selected.project} />
+        </HeaderPopover>
+      {/if}
       {#if people.length}
         <HeaderPopover label="People on this project ({people.length})" testid="header-people">
           {#snippet trigger()}<span class="cluster">{#each people.slice(0, MARKS) as p (p.key)}<Avatar id={p.id} name={p.name} size="sm" />{/each}{#if people.length > MARKS}<span class="more">+{people.length - MARKS}</span>{/if}</span><span class="visually-hidden">People</span>{/snippet}
@@ -129,6 +136,7 @@
         <p class="heading">Git</p>{@render gitLines()}
         <p class="heading">Agents</p>{@render agentList()}
         {#if people.length}<p class="heading">People</p>{@render peopleList()}{/if}
+        {#if selected?.workspace === 'personal'}<p class="heading">Agents & connections</p><ConnectedTools project={selected.project} />{/if}
       </HeaderPopover>
     </div>
   </div>

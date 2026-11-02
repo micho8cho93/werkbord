@@ -39,6 +39,7 @@ const server = http.createServer(async (req, res) => {
     else if (method === 'Overview') result = { entries: items.map(w => ({ workspace: w, summary: w.kind === 'personal' ? personalSummary() : teamSummary() })), at: new Date().toISOString() };
     else if (method === 'LoadWorkspace' || method === 'OpenWorkspace') result = { id: 'personal', kind: 'personal', url: `http://127.0.0.1:${server.address().port}/frame`, origin: `http://127.0.0.1:${server.address().port}` };
     else if (method === 'Premium') result = { active: false, canCheck: false, buyUrl: '' };
+    else if (method === 'AgentsAndConnections') result = { agents: [{ id: 'codex', name: 'Codex', signedIn: true, active: 1, limitEvents: 0 }, { id: 'claude-code', name: 'Claude Code', signedIn: false, active: 0, limitEvents: 2 }], tools: [{ id: 'c1', name: 'Notion', service: 'https://mcp.notion.com/mcp', state: 'verified' }], usage: { reported: 1.25, estimated: null, remaining: 40, resetAt: '2026-11-05' } };
     else if (method === 'ProjectHead') result = { branch: 'main', commit: 'a1b2c3d' };
     res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(result)); return;
   }
@@ -112,6 +113,26 @@ const server = http.createServer(async (req, res) => {
     await page.keyboard.press('Escape');
     await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption('');
     assert.equal(await page.getByTestId('header-git').count(), 0, 'several repositories invent no global branch');
+
+    // Agents & connections: the person's own setup, only in a Personal context, with the detected state and the usage as reported.
+    assert.equal(await page.getByTestId('header-tools').count(), 0, 'All Projects has no single setup to show');
+    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
+    await page.getByTestId('header-tools').waitFor();
+    await page.getByTestId('header-tools').locator('.trigger').click();
+    const tools = page.getByTestId('connected-tools');
+    await tools.getByText('Coding agents').waitFor();
+    const said = await tools.innerText();
+    assert.match(said, /Codex[\s\S]*Signed in · 1 active · Limit unknown/);
+    assert.match(said, /Claude Code[\s\S]*Installed · Limit reached 2 times this period/);
+    assert.match(said, /Notion[\s\S]*Verified/);
+    assert.match(await page.getByTestId('connected-usage').innerText(), /Reported API charges\s*\$1\.25[\s\S]*Estimated API equivalent\s*Not reported/);
+    assert.match(said, /Balances and reset times are not available\./);
+    assert.doesNotMatch(said.replace('Balances and reset times are not available.', ''), /remain|reset|allowance|balance|online|offline/i, 'no allowance and no presence');
+    assert.equal(await tools.getByRole('button', { name: 'Settings' }).count(), 1);
+    await page.keyboard.press('Escape');
+    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['team:Platform', 'two']));
+    assert.equal(await page.getByTestId('header-tools').count(), 0, 'a Team context shows none of the person\'s own setup');
+    await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));
 
     // The breadcrumb gets its depth from the page in the frame.
     await page.getByRole('combobox', { name: 'Project context', exact: true }).selectOption(JSON.stringify(['personal', 'one']));

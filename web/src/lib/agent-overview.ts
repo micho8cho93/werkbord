@@ -2,6 +2,8 @@
 // records (agent-sessions.ts) and decides nothing about them. It never starts, stops or copies a session.
 
 import { stateLabel, type AgentSession } from './agent-sessions';
+import type { StepAgent } from './work-steps';
+import type { WorkPlan } from './work-queue';
 
 export type Show = 'all' | 'live' | 'task' | 'standalone';
 
@@ -121,3 +123,60 @@ export function reportedLine(report: { recordedAt?: string; stale: boolean } | u
 
 /** The state of a session for a line of text. */
 export const sessionState = (s: AgentSession): string => (s.live ? stateLabel(s) : OUTCOME_LABELS[outcomeOf(s)]);
+
+/**
+ * A session as the identity layer wants it. `stale` is the caller's word that the controller (or, for a remote run, its runner) can no
+ * longer confirm the session: only a confirmed live session turns the ring. A session that was cut off by a restart is not known to have
+ * stopped, so it reads as the last thing reported, never as stopped.
+ */
+export function sessionAgent(s: Pick<AgentSession, 'kind' | 'state' | 'live' | 'waiting' | 'agentId' | 'updatedAt'>, stale: boolean): StepAgent {
+  const observedAt = s.updatedAt;
+  if (s.live) {
+    const state = s.waiting ? 'needs_input' : s.state === 'starting' ? 'starting' : s.state === 'blocked' ? 'blocked' : 'running';
+    return { agentId: s.agentId, state, fresh: !stale, observedAt };
+  }
+  switch (outcomeOf(s)) {
+    case 'completed': return { agentId: s.agentId, state: 'completed', fresh: true, observedAt };
+    case 'failed': return { agentId: s.agentId, state: 'failed', fresh: true, observedAt };
+    case 'interrupted': return { agentId: s.agentId, state: 'running', fresh: false, observedAt };
+    default: return { agentId: s.agentId, state: 'stopped', fresh: true, observedAt };
+  }
+}
+
+/** A run of sessions under one plan, or sessions that belong to no plan (`planId` empty, no sub-header). */
+export interface PlanBlock { planId: string; sessions: AgentSession[] }
+
+/**
+ * Splits an already-ordered group into blocks, one per plan. A plan's block sits where its first session sits, so the group's order (most
+ * urgent first) is never rearranged; sessions with no known plan stay where they are, each block without a header. A session in several
+ * plans goes under the first of its plans that is known.
+ */
+export function planBlocks(sessions: readonly AgentSession[], known: ReadonlySet<string>): PlanBlock[] {
+  const blocks: PlanBlock[] = [];
+  const byPlan = new Map<string, PlanBlock>();
+  for (const s of sessions) {
+    const planId = s.planIds?.find(id => known.has(id)) ?? '';
+    if (!planId) {
+      const last = blocks[blocks.length - 1];
+      if (last && !last.planId) last.sessions.push(s);
+      else blocks.push({ planId: '', sessions: [s] });
+      continue;
+    }
+    const kept = byPlan.get(planId);
+    if (kept) kept.sessions.push(s);
+    else { const b = { planId, sessions: [s] }; byPlan.set(planId, b); blocks.push(b); }
+  }
+  return blocks;
+}
+
+/** "Authentication overhaul · 2 of 5 tasks complete". */
+export function planHeading(plan: Pick<WorkPlan, 'title'>, progress: { done: number; total: number }): string {
+  return `${plan.title} · ${progress.done} of ${progress.total} ${progress.total === 1 ? 'task' : 'tasks'} complete`;
+}
+
+/** The first task of the plan after this one that is not complete: what "Next after this" names. Nothing when this is the last open step. */
+export function nextAfter(plan: Pick<WorkPlan, 'taskIds'>, taskId: string, isDone: (id: string) => boolean): string | undefined {
+  const at = plan.taskIds.indexOf(taskId);
+  if (at < 0) return undefined;
+  return plan.taskIds.slice(at + 1).find(id => !isDone(id));
+}

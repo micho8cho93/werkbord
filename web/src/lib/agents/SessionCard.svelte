@@ -7,17 +7,22 @@
   import { terminalApi } from '../assistant/terminal';
   import QuestionCard from '../QuestionCard.svelte';
   import Icon from '../Icon.svelte';
+  import AgentMark from '../AgentMark.svelte';
+  import type { StepAgent } from '../work-steps';
 
   // One session in the list, drawn by how much it needs the person: a session waiting for an answer breathes in amber and carries its
   // question, a failure carries Retry, a live one shows it is live. What can be done here is what the controller says the session
   // offers (`capabilities`) and whether the controller is reachable; anything else is done in the open session beside the list.
-  let { session, tone, title, meta, doing, selected = false, index = 0, live = true, onopen, onchange }: {
+  let { session, tone, title, meta, doing, agent, now, selected = false, index = 0, live = true, onopen, onchange }: {
     session: AgentSession;
     tone: 'needs' | 'trouble' | 'running' | 'done';
     title: string;
     meta: string;
     /** The state word and what it is doing, already said. */
     doing: { state: string; detail: string; waiting?: boolean; outcome?: string };
+    /** The session's agent and where it stands, for the ringed mark; only a confirmed live session turns the ring. */
+    agent: StepAgent;
+    now: number;
     selected?: boolean;
     index?: number;
     /** The controller is reachable now: without it nothing here can be done to a session. */
@@ -87,10 +92,8 @@
 <li class="card wb-rise" class:selected data-tone={tone} data-session={session.key} data-outcome={session.live ? undefined : doing.outcome} style:--i={index}>
   <button type="button" class="open-card" onclick={onopen} aria-label="Open {title}" aria-current={selected ? 'true' : undefined}>
     <span class="head">
-      <span class="dot" data-tone={tone} aria-hidden="true"></span>
+      <AgentMark agentId={agent.agentId} state={agent.state} fresh={agent.fresh} observedAt={agent.observedAt} {now} decorative />
       <span class="title" {title}>{title}</span>
-      <!-- Working reads on the right, as a ring that turns, the same as on a task row. -->
-      {#if tone === 'running'}<span class="spin" role="img" aria-label="Working"></span>{/if}
       <span class="state" data-waiting={doing.waiting ? 'true' : undefined} data-outcome={doing.outcome}>{doing.state}</span>
     </span>
     <span class="meta">{meta}</span>
@@ -144,11 +147,6 @@
   .state[data-waiting='true'] { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--text); font-weight: 600; }
   .state[data-outcome='failed'], .state[data-outcome='interrupted'] { color: var(--danger-text); }
   .state[data-outcome='completed'] { color: var(--ok-text); }
-  .dot { position: relative; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--border); color: var(--text-2); }
-  .dot[data-tone='needs'] { background: var(--amber); color: var(--amber); }
-  .dot[data-tone='trouble'] { background: var(--danger); color: var(--danger); }
-  .dot[data-tone='running'] { background: var(--accent); color: var(--accent); }
-  .dot[data-tone='done'] { background: var(--ok); color: var(--ok); opacity: .7; }
   .inline { display: grid; gap: 8px; padding: 0 12px 10px 14px; }
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
     .inline.tucked { grid-template-rows: 0fr; padding-bottom: 0; overflow: hidden; transition: grid-template-rows 200ms var(--ease), padding 200ms var(--ease); }
@@ -168,7 +166,6 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   @media (prefers-reduced-motion: no-preference) {
     .card[data-tone='needs'] { animation: wb-breathe 2.6s ease-in-out infinite; }
-    .dot[data-tone='needs']::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; animation: wb-ping 2.2s ease-out infinite; }
   }
   @media (max-width: 899px) { .open-card, .btn { min-height: 44px; } }
 </style>

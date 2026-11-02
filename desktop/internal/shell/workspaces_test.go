@@ -169,10 +169,11 @@ func (i *fakeInstaller) Service(_ context.Context, a string) (teamlink.Result, e
 }
 
 type fakeGrants struct {
-	reads []string // "<project> <days>"
-	heads []string
-	names []string
-	err   error
+	reads  []string // "<project> <days>"
+	heads  []string
+	setups []string
+	names  []string
+	err    error
 }
 
 func (g *fakeGrants) Analytics(_ context.Context, project string, days int) (json.RawMessage, error) {
@@ -182,6 +183,10 @@ func (g *fakeGrants) Analytics(_ context.Context, project string, days int) (jso
 func (g *fakeGrants) ProjectHead(_ context.Context, project string) (json.RawMessage, error) {
 	g.heads = append(g.heads, project)
 	return json.RawMessage(`{"branch":"main","commit":"a1b2c3d"}`), nil
+}
+func (g *fakeGrants) AgentsAndConnections(_ context.Context, project string) (json.RawMessage, error) {
+	g.setups = append(g.setups, project)
+	return json.RawMessage(`{"agents":[],"tools":[],"usage":null}`), nil
 }
 func (g *fakeGrants) MintExecutionGrant(_ context.Context, name string) (string, string, error) {
 	g.names = append(g.names, name)

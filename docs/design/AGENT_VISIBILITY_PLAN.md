@@ -303,6 +303,16 @@ tag or push unless asked (`AGENTS.md`). Use British English in new copy and "Sal
 
 ### Phases 6 and 7: Agents, stream and connected tools
 
+Built 2 November 2026 on local `main` `0cac704`. Findings that change the plan:
+
+- **Tool-kind audit:** no adapter reports a tool kind (Claude, Codex and ACP all send free text on the `tool` stream), so the stream is
+  not grouped by kind. Existing collapsing (tool runs, diagnostics) stays; see `AGENT_SESSIONS.md`.
+- **Bridge:** the window cannot read the controller itself, so `ConnectedTools` uses one new read-only bridge call,
+  `AgentsAndConnections`, reduced in Go before it reaches the window (a deliberate addition to the page-callable surface, listed in
+  `shell_test.go`).
+- The task › plan line is the plan sub-header over the card, not a second line on it. The Execution details and "Next after this" show
+  at 1200px and wider.
+
 - Files: `SessionCard.svelte`, `AgentSessions.svelte`, `agent-overview.ts` (plan context), `FeedView.svelte`, `feed.ts`
   (grouping), `Agents.svelte`, new `ConnectedTools.svelte`.
 - First audit which tool-kind events the adapters actually emit (`feed.ts`); group only those.
@@ -399,7 +409,7 @@ tag or push unless asked (`AGENTS.md`). Use British English in new copy and "Sal
 - [x] 8. **4a:** `AgentID` and `starting` in `integration.Execution`; tolerant host decode. Nothing visible.
 - [x] 9. **4b** (D1 opt-out setting, D2 no run ID): peer projection and `Board.Agents` with a batched query; version-gated connector send; all Phase 4 tests including the presence guard.
 - [x] 10. **5:** console card, plan detail, Participants panel, own-items-only decision card, rename `presence`; run `browser-team*.cjs` and `make test-team-desktop-browser`.
-- [ ] 11. **6 and 7:** `SessionCard`, `AgentSessions` (plan sub-headers), `Agents.svelte` strip, session Work context panel, feed grouping after the taxonomy audit, `ConnectedTools`.
+- [x] 11. **6 and 7:** `SessionCard`, `AgentSessions` (plan sub-headers), `Agents.svelte` strip, session Work context panel, feed grouping after the taxonomy audit, `ConnectedTools`.
 - [ ] 12. **8** (D3 plan-run column and migration, D4 Team "review my steps"): `PlanRun` preview, run, hold; restart and duplicate-run tests; Execution tab.
 - [ ] 13. **9a:** interrupted-state UI and the handoff dialog.
 - [ ] 14. After each phase: `make check`; `make web web-embed web-shell`; `node scripts/measure-legibility.cjs`; `go test ./internal/team/... ./internal/workspace/... ./internal/archtest/...`; screenshots at 1440, 1280, 900, 640 and 390.
