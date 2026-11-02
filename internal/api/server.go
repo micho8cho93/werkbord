@@ -132,6 +132,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/projects/{pid}/work-plans", s.handleWorkPlans)
 	mux.HandleFunc("POST /api/projects/{pid}/work-plans", s.handleSaveWorkPlan)
 	mux.HandleFunc("PUT /api/projects/{pid}/work-plans/{plan}", s.handleSaveWorkPlan)
+	mux.HandleFunc("GET /api/projects/{pid}/work-plans/{plan}/run", s.handlePlanRunPreview)
+	mux.HandleFunc("POST /api/projects/{pid}/work-plans/{plan}/run", s.handleRunPlan)
+	mux.HandleFunc("POST /api/projects/{pid}/work-plans/{plan}/hold", s.handleHoldPlan)
 	s.productMapRoutes(mux)
 	s.deviceOperationRoutes(mux)
 	mux.HandleFunc("GET /api/device", func(w http.ResponseWriter, r *http.Request) {

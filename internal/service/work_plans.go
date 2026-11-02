@@ -50,6 +50,7 @@ func (s *Tasks) SaveWorkPlan(ctx context.Context, project, id string, in domain.
 		}
 		out.ProjectID = project
 		out.ID = id
+		out.Run = nil // only the plan-run service writes it
 		if id == "" {
 			if in.Version != 0 || len(plans) >= 200 {
 				return domain.ErrConflict
@@ -65,6 +66,7 @@ func (s *Tasks) SaveWorkPlan(ctx context.Context, project, id string, in domain.
 						return domain.ErrConflict
 					}
 					out.CreatedAt = old.CreatedAt
+					out.Run = old.Run
 				}
 			}
 			if !found {

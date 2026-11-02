@@ -97,7 +97,7 @@
 
 </script>
 
-<section class="handoff card" aria-label="Run handoff">
+<section class="handoff card" id="run-handoff" aria-label="Run handoff">
   <div class="heading">
     <h2>Run result</h2>
     <button class="btn small" disabled={busy} onclick={generate}

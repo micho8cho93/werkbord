@@ -236,6 +236,9 @@ function withoutExecution<T extends object>(body: T): T {
 
 export const api = {
   workPlans: (project: string) => request<import('./work-queue').WorkPlan[]>('GET', `${inProject(project)}/work-plans`),
+  planRunPreview: (project: string, plan: string, mode?: string) => request<import('./work-queue').PlanRunPreview>('GET', `${inProject(project)}/work-plans/${enc(plan)}/run${mode ? '?mode=' + enc(mode) : ''}`),
+  runPlan: (project: string, plan: string, body: { mode: string; version: number; digest: string }) => request<import('./work-queue').WorkPlan>('POST', `${inProject(project)}/work-plans/${enc(plan)}/run`, body),
+  holdPlan: (project: string, plan: string, version: number) => request<import('./work-queue').WorkPlan>('POST', `${inProject(project)}/work-plans/${enc(plan)}/hold`, { version }),
   saveWorkPlan: (project: string, plan: import('./work-queue').WorkPlan) => request<import('./work-queue').WorkPlan>(plan.id ? 'PUT' : 'POST', `${inProject(project)}/work-plans${plan.id ? '/' + enc(plan.id) : ''}`, plan),
   /** Suggested next steps for a project: the rules' answer, with its evidence. Reads only. */
   recommendations: (project: string, focus = '') =>

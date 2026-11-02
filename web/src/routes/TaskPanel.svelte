@@ -16,6 +16,8 @@
   import Settling from '../lib/Settling.svelte';
   import RunBadge from '../lib/RunBadge.svelte';
   import RunHandoff from '../lib/RunHandoff.svelte';
+  import ContinueWithAgent from '../lib/ContinueWithAgent.svelte';
+  import { continuityOf } from '../lib/continuity';
   import RunReviewSummary from '../lib/RunReviewSummary.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
 import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
@@ -86,6 +88,8 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const viewId = $derived(picked && history.some((r) => r.id === picked) ? picked : (latest?.id ?? ''));
   const run = $derived(viewId === latest?.id ? latest : history.find((r) => r.id === viewId));
   const status = $derived(run ? runStatus(run) : undefined);
+  const continuity = $derived(run ? continuityOf(run, app.connection === 'live' && (!run.remote || !!app.runners.find(r => r.id === run.runnerId)?.online)) : undefined);
+  let continuing = $state(false);
   const viewingLatest = $derived(!!run && run.id === latest?.id);
   const reviewFirst = $derived(task?.state === 'review' && !!run && !!status && !status.active && viewingLatest);
 
@@ -628,7 +632,11 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                 {#if !needsYou && (!status.active || status.tone !== 'work')}
                   <p class="note">{status.hint}</p>
                 {/if}
+                {#if continuity?.needsReview}
+                  <p class="note" data-testid="continuity">{continuity.headline} <button class="btn small" type="button" onclick={() => continuing = true}>Continue with another agent…</button></p>
+                {/if}
               </section>
+              {#if continuing}<ContinueWithAgent {run} {scope} onclose={() => continuing = false} onreview={() => document.getElementById('run-handoff')?.scrollIntoView({ block: 'center' })} />{/if}
             {/if}
 
             {#if run && status && !status.active && !reviewFirst}

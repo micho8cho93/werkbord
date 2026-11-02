@@ -136,6 +136,16 @@ line of free text on the `tool` stream, with no tool kind, so the stream is **no
 guessing from words. Runs of tool lines are one collapsed item, standard error is its own collapsed item, and messages, questions,
 approvals and markers stay in order and are never collapsed. Group by kind only once an adapter reports one.
 
+## Continuing with another agent
+
+A run that failed or was stopped on a provider error, is blocked, or was interrupted offers **Continue with another agent…** on its
+task. The dialog is an assessment: it shows the agent-reported handoff (completed work, what is still to verify), the branch and a
+proposed provider, and dispatches nothing until **Approve**. Approve (which states that the next agent bills to its own account) is
+available only when the previous run is confirmed stopped (a finished run on a reachable runner), a handoff has been captured and
+another agent is usable. `recovery: intervention`, a blocked session that is still open and an unreachable runner all count as not
+stopped. It uses the existing continuation, which starts a new run from the handoff and never replays commands. Automatic fallback
+is not built.
+
 ## Limits
 
 - A terminal's association with a task is kept by the controller that owns the terminal. On another execution device, a

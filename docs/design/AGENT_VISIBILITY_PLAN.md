@@ -410,6 +410,6 @@ Built 2 November 2026 on local `main` `0cac704`. Findings that change the plan:
 - [x] 9. **4b** (D1 opt-out setting, D2 no run ID): peer projection and `Board.Agents` with a batched query; version-gated connector send; all Phase 4 tests including the presence guard.
 - [x] 10. **5:** console card, plan detail, Participants panel, own-items-only decision card, rename `presence`; run `browser-team*.cjs` and `make test-team-desktop-browser`.
 - [x] 11. **6 and 7:** `SessionCard`, `AgentSessions` (plan sub-headers), `Agents.svelte` strip, session Work context panel, feed grouping after the taxonomy audit, `ConnectedTools`.
-- [ ] 12. **8** (D3 plan-run column and migration, D4 Team "review my steps"): `PlanRun` preview, run, hold; restart and duplicate-run tests; Execution tab.
-- [ ] 13. **9a:** interrupted-state UI and the handoff dialog.
+- [x] 12. **8** (D3 plan-run column and migration, D4 Team "review my steps"): `PlanRun` preview, run, hold; restart and duplicate-run tests; Execution tab.
+- [x] 13. **9a:** interrupted-state UI and the handoff dialog.
 - [ ] 14. After each phase: `make check`; `make web web-embed web-shell`; `node scripts/measure-legibility.cjs`; `go test ./internal/team/... ./internal/workspace/... ./internal/archtest/...`; screenshots at 1440, 1280, 900, 640 and 390.

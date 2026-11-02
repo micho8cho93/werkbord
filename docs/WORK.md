@@ -58,6 +58,26 @@ flow. Saves check current versions, task scope and permissions again. The deskto
 verifies an approved mutation against the controller's exact pending request before forwarding it. Cross-project Team
 plans can be edited through Work; Salie's plan save adapter handles single-project plans.
 
+### Running a plan (Personal)
+
+A plan's **Execution** tab runs it without owning any run. `GET …/work-plans/{plan}/run` previews what would happen;
+`POST …/run` arms the plan's eligible tasks as one-shot schedules in one transaction; `POST …/hold` pauses. Dispatch stays with
+the existing scheduler loop, so the unique `(task_id, schedule_key)` claim keeps restarts and reconnects duplicate-free.
+
+- **Preview** lists each task as *Will start*, *Waiting to start* or *Left alone* with the reason (done, archived, human work, already
+  running, an earlier session to review), its dependencies, resolved agent and runner, the scheduler's current reading, the project
+  concurrency limit, and notes on billing, review and interruption. Its digest covers the plan version, mode and each task's version
+  and action, not live capacity.
+- **Run** is refused (409) if the plan version or the digest differs from what was reviewed. Asking again when nothing is left to
+  arm changes nothing. **In order** adds a dependency on the nearest earlier open task; **as each becomes ready** adds none. Tasks
+  with an earlier session are never re-armed: review and start those yourself.
+- **Pause after current task** disarms steps this run armed that have not dispatched. A running agent is never touched (the
+  adapters stop and restart; they do not pause). **Resume** re-arms after a fresh preview. One control cycles Run plan, Pause after
+  current task, Resume.
+- A step finishing moves its task to Review; the next step waits for the run before it to *complete*, not for approval.
+- The run state lives in the plan document (`run`), writable only by this service; a plan edit keeps it.
+- Team plans have no such control: Team never executes. Each member starts their own ticket from its Agent controls.
+
 ## Validation
 
 `make check` covers the domain services, stores, API, assistant operations, desktop bridge, architectural boundaries,

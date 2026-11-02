@@ -11,7 +11,7 @@
   import { agentName } from '../agent-marks';
   import { runReportStale } from '../format';
   import { timeAgo } from '../format';
-  import type { WorkPlan } from '../work-queue';
+  import { planActionLabel, planControlLabel, type PlanMode, type PlanRunPreview, type WorkPlan } from '../work-queue';
   import { activeAgents, planBranches, planSteps, progressOf, stepPosition, type StepKind } from '../work-steps';
   import type { Project } from '../types';
   import type { ProjectScope } from '../scope.svelte';
@@ -35,13 +35,41 @@
   const branches = $derived(planBranches(steps, scope.latestRun));
   let tab = $state<'tasks' | 'execution'>('tasks');
   // A plan opens on its tasks, whichever tab the last one was left on.
-  $effect(() => { void selected; tab = 'tasks'; });
+  $effect(() => { void selected; tab = 'tasks'; mode = ''; runError = ''; });
   const tabs = [{ id: 'tasks', label: 'Tasks' }, { id: 'execution', label: 'Execution' }] as const;
   function tabKey(e: KeyboardEvent) {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     tab = tab === 'tasks' ? 'execution' : 'tasks';
     queueMicrotask(() => document.getElementById('plan-tab-' + tab)?.focus());
+  }
+  // Guided run (Execution tab): the preview is what the person reviews, and its digest is what a Run request is bound to.
+  let preview = $state<PlanRunPreview | null>(null);
+  let mode = $state<PlanMode | ''>('');
+  let runBusy = $state(false);
+  let runError = $state('');
+  $effect(() => {
+    const plan = current;
+    if (tab !== 'execution' || !plan) { preview = null; return; }
+    void revision; void plan.version;
+    let live = true;
+    api.planRunPreview(project.id, plan.id, mode || undefined).then(p => { if (live) { preview = p; if (!mode) mode = p.mode; } }, e => { if (live) runError = e.message; });
+    return () => { live = false; };
+  });
+  const runWords: Record<string, string> = { running: 'Running', held: 'Paused', idle: 'Not started' };
+  async function planControl() {
+    if (!current || !preview || runBusy) return;
+    runBusy = true; runError = '';
+    try {
+      const saved = preview.control === 'hold'
+        ? await api.holdPlan(project.id, current.id, current.version)
+        : await api.runPlan(project.id, current.id, { mode: preview.mode, version: current.version, digest: preview.digest });
+      plans = plans.map(p => p.id === saved.id ? saved : p);
+      preview = await api.planRunPreview(project.id, saved.id, preview.mode);
+    } catch (e) {
+      runError = e instanceof Error ? e.message : String(e);
+      if (current) api.planRunPreview(project.id, current.id, mode || undefined).then(p => preview = p, () => {});
+    } finally { runBusy = false; }
   }
   /** What the list row shows for a plan: its live agents (at most three) and whether anything wants the person. */
   const rowOf = (plan: WorkPlan) => { const ps = planSteps(plan, scope.tasks, scope.latestRun, stale); return { ...activeAgents(ps, 3), attention: progressOf(plan, scope.tasks, scope.latestRun).standing === 'attention' }; };
@@ -191,7 +219,21 @@
     {:else}
     <div id="plan-panel-execution" role="tabpanel" aria-labelledby="plan-tab-execution" data-testid="plan-execution">
       <h2 class="section-title">Execution</h2>
-      <p class="muted exec-note">Each task is started on its own. Running a whole plan in order, and pausing it after the current task, is not available yet.</p>
+      {#if preview}
+      <section class="run" data-testid="plan-run" aria-label="Run this plan">
+        <div class="run-head">
+          <p class="run-state" data-state={preview.state}><strong>{runWords[preview.state]}</strong><span class="muted">{preview.state === 'idle' ? `${preview.toStart} ${preview.toStart === 1 ? 'step' : 'steps'} ready to start` : `${preview.toStart} still to start`} · up to {preview.concurrency} at once</span></p>
+          <button class="btn primary" type="button" data-testid="plan-control" data-control={preview.control} disabled={runBusy || preview.control === 'none'} onclick={planControl}>{runBusy ? 'Working…' : planControlLabel[preview.control]}</button>
+        </div>
+        <fieldset class="mode" disabled={runBusy || preview.state === 'running'}><legend>Order</legend>
+          <label><input type="radio" name="plan-mode" value="in_order" bind:group={mode} />In order<span class="muted">Each step waits for the one before it.</span></label>
+          <label><input type="radio" name="plan-mode" value="as_ready" bind:group={mode} />As each becomes ready<span class="muted">Each step starts once its own dependencies allow.</span></label>
+        </fieldset>
+        {#if runError}<p class="error" role="alert">{runError}</p>{/if}
+        <ol class="run-steps">{#each preview.steps as st (st.taskId)}<li data-action={st.action}><span class="n">{st.number}</span><span class="what"><strong>{st.title || 'Unavailable task'}</strong><span class="muted">{planActionLabel(st.action)}{st.why ? ' · ' + st.why : ''}{st.after.length ? ' · after ' + st.after.join(', ') : ''}{st.agent ? ' · ' + agentName(st.agent) : ''}{st.action !== 'skip' && st.reason && st.decision !== 'runnable' ? ' · ' + st.reason : ''}</span></span></li>{/each}</ol>
+        <ul class="run-notes"><li>{preview.billing}</li><li>{preview.review}</li><li>{preview.interruption}</li></ul>
+      </section>
+      {/if}
       <ul class="session-list">{#each steps.filter(x => x.agent) as s (s.id)}{@const run = scope.latestRun[s.id]}<li><div><strong>{s.number}. {s.task?.title ?? 'Unavailable task'}</strong><span class="muted">{agentName(s.agent!.agentId)} · {run.state.replaceAll('_', ' ')}{run.state !== 'running' && !s.agent!.fresh ? ' · last reported ' + timeAgo(run.updatedAt, app.now) : ''}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No agent has worked on this plan yet.</li>{/each}</ul>
       <details class="past"><summary>All sessions<span class="count">{sessions.length}</span></summary>
         <ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
@@ -229,7 +271,8 @@
   form{max-width:820px;display:grid;gap:20px;}form header{margin-bottom:8px;}label{display:grid;gap:8px;}textarea{min-height:92px;resize:vertical;}.context-fields{display:grid;grid-template-columns:1fr 1fr;gap:20px;}fieldset{border:1px solid var(--border);padding:16px;min-width:0;border-radius:6px;}legend{font-weight:500;}fieldset label{margin-top:14px;}.ordered{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}.ordered>span{display:flex;gap:12px;align-items:center;}.number{color:var(--text-2);font-size:12px;}.actions{display:flex;gap:8px;flex-wrap:wrap;}.session-list>li{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);}.session-list>li>div{display:grid;gap:5px;}.session-list strong{font-weight:500;}.session-list .muted{font-size:12px;}
   .plans{container-type:inline-size;}.plan-body{display:grid;gap:28px;}.plan-main{min-width:0;}.plan-side{display:grid;gap:22px;align-content:start;}.plan-side h3{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--text-2);font-weight:500;margin:0 0 8px;}.side-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;}.side-list>li{display:flex;gap:10px;align-items:flex-start;min-width:0;}.side-list>li>span{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;}.side-list code{font-family:var(--mono);font-size:12px;}.side-list .muted{font-size:12px;}
   .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}.tabs button{appearance:none;border:0;background:none;color:var(--text-2);font:inherit;font-weight:500;padding:8px 12px;min-height:36px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}.tabs button:hover{color:var(--text);}.tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--accent);}.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px;}
-  .step-position{margin:0;font-size:12px;color:var(--text-2);display:flex;gap:8px;align-items:baseline;}.parallel{padding:0 7px;border-radius:999px;background:var(--surface-2);font-size:12px;}.step-agent{display:inline-flex;align-items:center;margin-right:2px;}.task-acts{align-items:center;}.exec-note{margin:0 0 16px;max-width:60ch;}.past{margin-top:20px;border-top:1px solid var(--border);padding-top:6px;}.past summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.past .count{color:var(--text-2);font-weight:400;font-size:12px;}
+  .step-position{margin:0;font-size:12px;color:var(--text-2);display:flex;gap:8px;align-items:baseline;}.parallel{padding:0 7px;border-radius:999px;background:var(--surface-2);font-size:12px;}.step-agent{display:inline-flex;align-items:center;margin-right:2px;}.task-acts{align-items:center;}.past{margin-top:20px;border-top:1px solid var(--border);padding-top:6px;}.past summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.past .count{color:var(--text-2);font-weight:400;font-size:12px;}
+  .run{display:grid;gap:14px;max-width:72ch;margin-bottom:22px;}.run-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}.run-state{margin:0;display:grid;gap:2px;}.run-state .muted{font-size:12px;}.mode{border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;gap:8px;margin:0;}.mode legend{font-weight:500;padding:0 6px;}.mode label{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;}.mode label .muted{grid-column:2;font-size:12px;}.run-steps{list-style:none;margin:0;padding:0;display:grid;}.run-steps>li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--border);}.run-steps .n{color:var(--text-2);font-size:12px;font-variant-numeric:tabular-nums;}.run-steps .what{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;}.run-steps .muted{font-size:12px;}.run-steps>li[data-action=skip] strong{color:var(--text-2);font-weight:400;}.run-notes{margin:0;padding-left:18px;color:var(--text-2);font-size:12px;display:grid;gap:4px;}
   .plan-agents{display:inline-flex;align-items:center;gap:2px;}.attn-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);margin-left:6px;}
   @container (min-width:900px){.plan-body{grid-template-columns:minmax(0,1fr) 280px;}}
   @media(max-width:800px){.progress{grid-template-columns:auto 1fr;}.progress>.count{grid-column:1/-1;}.context-fields{grid-template-columns:1fr;}.plan-tasks>li{grid-template-columns:22px minmax(0,1fr);}.task-acts{grid-column:2;justify-content:flex-start;}.task-acts .btn,.plan-actions .btn,.context summary{min-height:44px;}.plan-count{min-width:50px;}.plan-link{padding-inline:0;}.back{min-height:44px;}.ordered{flex-wrap:wrap;}.ordered .actions{margin-left:24px;}h1{font-size:22px;}}
