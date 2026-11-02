@@ -336,4 +336,5 @@ test-work-browser: web web-embed web-shell
 ## test-work-order-browser: Work queue cards, drag and keyboard ordering, plan order, and Team claims, locks and shared order
 test-work-order-browser: web web-embed web-shell build-team
 	BROWSER_SCRIPT=scripts/browser-work-order.cjs node scripts/test-browser.cjs
+	BROWSER_SCRIPT=scripts/browser-plan-steps.cjs node scripts/test-browser.cjs
 	BROWSER_SCRIPT=scripts/browser-team-work-order.cjs node scripts/test-browser.cjs

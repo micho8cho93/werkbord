@@ -395,7 +395,7 @@ tag or push unless asked (`AGENTS.md`). Use British English in new copy and "Sal
 - [ ] 4. Personal summary: set the agent from the latest run; `starting` as its own state.
 - [ ] 5. Build the header (summary text, clusters, popovers, breadcrumb depth, frame title message) and its breakpoint tests.
 - [ ] 6. `Hub.svelte`: remove the stat grid and CSS, fold counts into headers, add agent and holder to rows and the decision card, set the right column.
-- [ ] 7. `TaskCard`, `WorkPlans` (ordered steps, Tasks and Execution tabs), `work-steps.ts`. Run `make test-work-order-browser` and `browser-work*.cjs`.
+- [x] 7. `TaskCard`, `WorkPlans` (ordered steps, Tasks and Execution tabs), `work-steps.ts`. Run `make test-work-order-browser` and `browser-work*.cjs`.
 - [ ] 8. **4a:** `AgentID` and `starting` in `integration.Execution`; tolerant host decode. Nothing visible.
 - [ ] 9. **4b** (D1 opt-out setting, D2 no run ID): peer projection and `Board.Agents` with a batched query; version-gated connector send; all Phase 4 tests including the presence guard.
 - [ ] 10. **5:** console card, plan detail, Participants panel, own-items-only decision card, rename `presence`; run `browser-team*.cjs` and `make test-team-desktop-browser`.

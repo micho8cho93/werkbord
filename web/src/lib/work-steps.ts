@@ -144,3 +144,85 @@ export function nextAction(task: Task, step: Step, opts: { agentWork: boolean; c
   if (task.state === 'doing') return { kind: 'move', label: 'Submit for review' };
   return { kind: 'none', label: '' };
 }
+
+/** An agent on a task, as the identity layer wants it: the provider, a state it understands and whether the report is fresh. */
+export interface StepAgent {
+  agentId: string;
+  state: 'starting' | 'running' | 'needs_input' | 'blocked' | 'completed' | 'failed' | 'stopped';
+  /** Confirmed by the controller (and, for a remote run, its runner being online). Only a fresh running state turns the ring. */
+  fresh: boolean;
+  observedAt: string;
+}
+
+const AGENT_STATE: Record<Run['state'], StepAgent['state']> = { starting: 'starting', running: 'running', waiting_for_user: 'needs_input', blocked: 'blocked', completed: 'completed', failed: 'failed', stopped: 'stopped' };
+
+/** The agent on a task from its latest run. `stale` is runReportStale for that run: false means the controller and the runner confirm it. */
+export function agentOf(run: Run | undefined, stale: boolean): StepAgent | undefined {
+  if (!run?.agentId) return undefined;
+  return { agentId: run.agentId, state: AGENT_STATE[run.state] ?? 'running', fresh: !stale, observedAt: run.activityAt ?? run.updatedAt };
+}
+
+/** One step of a plan: where it stands in the order, what it waits for inside the plan, and its agent. */
+export interface PlanStep {
+  id: string;
+  task?: Task;
+  step: Step;
+  /** 1-based position in the plan. */
+  number: number;
+  total: number;
+  /** The plan steps (by number) this one waits for, from its dependencies. Empty for a step nothing orders. */
+  after: number[];
+  agent?: StepAgent;
+  /** Running together with another running step that has no dependency path to or from it. */
+  parallel: boolean;
+}
+
+/** Whether `from` reaches `to` along dependencies, through any tasks. */
+function reaches(from: string, to: string, tasks: readonly Task[], seen = new Set<string>()): boolean {
+  if (seen.has(from)) return false;
+  seen.add(from);
+  const deps = tasks.find(t => t.id === from)?.orchestration?.dependencies ?? [];
+  return deps.includes(to) || deps.some(d => reaches(d, to, tasks, seen));
+}
+
+/** A plan's tasks in order with the facts the list shows. `stale` says whether a run's report is out of date (see agentOf). */
+export function planSteps(plan: Pick<WorkPlan, 'taskIds'>, tasks: readonly Task[], latest: Record<string, Run> = {}, stale: (run: Run) => boolean = () => false): PlanStep[] {
+  const total = plan.taskIds.length;
+  const out: PlanStep[] = plan.taskIds.map((id, i) => {
+    const task = tasks.find(t => t.id === id);
+    const deps = task?.orchestration?.dependencies ?? [];
+    const after = deps.map(d => plan.taskIds.indexOf(d) + 1).filter(n => n > 0 && n !== i + 1).sort((a, b) => a - b);
+    const run = latest[id];
+    return { id, task, step: stepOf(task, tasks, latest), number: i + 1, total, after, agent: agentOf(run, run ? stale(run) : false), parallel: false };
+  });
+  const running = out.filter(s => s.step.kind === 'running');
+  for (const s of running) s.parallel = running.some(o => o !== s && !reaches(s.id, o.id, tasks) && !reaches(o.id, s.id, tasks));
+  return out;
+}
+
+/** "Step 2 of 5 · After step 1", or "Step 1 of 5" when nothing orders it. */
+export function stepPosition(s: Pick<PlanStep, 'number' | 'total' | 'after'>): string {
+  const base = `Step ${s.number} of ${s.total}`;
+  return s.after.length ? `${base} · After step${s.after.length > 1 ? 's' : ''} ${s.after.join(', ')}` : base;
+}
+
+/** The distinct agents working on a plan's steps right now, at most `max`; the rest are counted in `more`. Only live states, never a finished run. */
+export function activeAgents(steps: readonly PlanStep[], max = 3): { agents: StepAgent[]; more: number } {
+  const seen = new Map<string, StepAgent>();
+  for (const s of steps) if (s.agent && ['starting', 'running', 'needs_input', 'blocked'].includes(s.agent.state) && !seen.has(s.agent.agentId + s.id)) seen.set(s.agent.agentId + s.id, s.agent);
+  const all = [...seen.values()];
+  return { agents: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+export interface PlanBranch { branch: string; commit?: string; taskId: string; title: string; at?: string }
+
+/** The branches a plan's tasks worked on, one per branch name, newest run first. Never a plan-level branch: a plan has none. */
+export function planBranches(steps: readonly PlanStep[], latest: Record<string, Run>): PlanBranch[] {
+  const out = new Map<string, PlanBranch>();
+  for (const s of steps) {
+    const run = latest[s.id];
+    if (!run?.branch || out.has(run.branch)) continue;
+    out.set(run.branch, { branch: run.branch, commit: run.headCommit?.slice(0, 7), taskId: s.id, title: s.task?.title ?? 'Unavailable task', at: run.endedAt ?? run.updatedAt });
+  }
+  return [...out.values()].sort((a, b) => Date.parse(b.at ?? '') - Date.parse(a.at ?? ''));
+}

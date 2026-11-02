@@ -7,8 +7,12 @@
   import { reportTitle } from '../embed';
   import { router } from '../router.svelte';
   import Icon from '../Icon.svelte';
+  import AgentMark from '../AgentMark.svelte';
+  import { agentName } from '../agent-marks';
+  import { runReportStale } from '../format';
+  import { timeAgo } from '../format';
   import type { WorkPlan } from '../work-queue';
-  import { progressOf, stepOf, type StepKind } from '../work-steps';
+  import { activeAgents, planBranches, planSteps, progressOf, stepPosition, type StepKind } from '../work-steps';
   import type { Project } from '../types';
   import type { ProjectScope } from '../scope.svelte';
   import Crumbs from '../Crumbs.svelte';
@@ -25,6 +29,22 @@
   const visible = $derived(plans.filter(p => `${p.title} ${p.description}`.toLowerCase().includes(search.toLowerCase())));
   const revision = $derived(scope.tasks.map(t => `${t.id}:${t.version}`).join('|'));
   const progress = $derived(current ? progressOf(current, scope.tasks, scope.latestRun) : undefined);
+  const stale = (r: import('../types').Run) => runReportStale(r, app.connection === 'live', app.runners);
+  const steps = $derived(current ? planSteps(current, scope.tasks, scope.latestRun, stale) : []);
+  const executing = $derived(activeAgents(steps, 8).agents.map(a => ({ agent: a, step: steps.find(s => s.agent === a)! })));
+  const branches = $derived(planBranches(steps, scope.latestRun));
+  let tab = $state<'tasks' | 'execution'>('tasks');
+  // A plan opens on its tasks, whichever tab the last one was left on.
+  $effect(() => { void selected; tab = 'tasks'; });
+  const tabs = [{ id: 'tasks', label: 'Tasks' }, { id: 'execution', label: 'Execution' }] as const;
+  function tabKey(e: KeyboardEvent) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    tab = tab === 'tasks' ? 'execution' : 'tasks';
+    queueMicrotask(() => document.getElementById('plan-tab-' + tab)?.focus());
+  }
+  /** What the list row shows for a plan: its live agents (at most three) and whether anything wants the person. */
+  const rowOf = (plan: WorkPlan) => { const ps = planSteps(plan, scope.tasks, scope.latestRun, stale); return { ...activeAgents(ps, 3), attention: progressOf(plan, scope.tasks, scope.latestRun).standing === 'attention' }; };
   const sessions = $derived(scope.history.filter(r => current?.taskIds.includes(r.taskId)));
   // Back from a plan goes where the plan was opened from (Work in the window, a board…); a plan reached by a plain link goes to the board.
   const chain = $derived.by<Origin[]>(() => { const given = chainOf(router.query); return given.length ? given : [{ kind: 'board', projectId: project.id }]; });
@@ -138,19 +158,27 @@
         <a class="btn" href={scheduleHref}>View schedule</a>
       </div>
     </header>
-    <section aria-labelledby="plan-tasks-h">
+    <div class="plan-body">
+    <div class="plan-main">
+    <div class="tabs" role="tablist" aria-label="Plan views">
+      {#each tabs as t (t.id)}<button type="button" role="tab" id="plan-tab-{t.id}" aria-selected={tab === t.id} aria-controls="plan-panel-{t.id}" tabindex={tab === t.id ? 0 : -1} onclick={() => tab = t.id} onkeydown={tabKey}>{t.label}</button>{/each}
+    </div>
+    {#if tab === 'tasks'}
+    <section id="plan-panel-tasks" role="tabpanel" aria-labelledby="plan-tab-tasks">
       <h2 id="plan-tasks-h" class="section-title">Tasks in order</h2>
-      <ol class="plan-tasks">{#each current.taskIds as id, i (id)}{@const task = scope.tasks.find(t => t.id === id)}{@const step = stepOf(task, scope.tasks, scope.latestRun)}
-        <li data-step={step.kind} data-task-id={id}>
-          <span class="task-mark" data-tone={tone[step.kind]} aria-hidden="true">{#if step.kind === 'done'}<Icon name="check" size={13} />{:else}{i + 1}{/if}</span>
+      <ol class="plan-tasks">{#each steps as s (s.id)}{@const task = s.task}{@const step = s.step}
+        <li data-step={step.kind} data-task-id={s.id}>
+          <span class="task-mark" data-tone={tone[step.kind]} aria-hidden="true">{#if step.kind === 'done'}<Icon name="check" size={13} />{:else}{s.number}{/if}</span>
           <div class="task-body">
-            {#if task}<a class="task-title" href={taskHrefFor(id)}>{task.title}</a>{:else}<span class="task-title muted">Unavailable task</span>{/if}
+            {#if task}<a class="task-title" href={taskHrefFor(s.id)}>{task.title}</a>{:else}<span class="task-title muted">Unavailable task</span>{/if}
+            <p class="step-position">{stepPosition(s)}{#if s.parallel}<span class="parallel">Parallel</span>{/if}</p>
             <p class="task-status"><span class="chip" data-tone={tone[step.kind]}>{step.label}</span>{#if task?.archivedAt}<span class="muted">Archived</span>{/if}{#if step.reason}<span class="reason">{step.reason}</span>{/if}</p>
             {#if step.blockedBy.length}<p class="dependency">Depends on {#each step.blockedBy as b, j (b.id)}{#if j}, {/if}{#if scope.tasks.some(t => t.id === b.id)}<a href={taskHrefFor(b.id)}>{b.title}</a>{:else}{b.title}{/if}{/each}</p>{/if}
           </div>
           <div class="task-acts">
-            {#if task && step.next}<a class="btn small" class:primary={step.kind === 'attention' || step.kind === 'review'} href={taskHrefFor(id)}>{step.next}</a>{/if}
-            {#if scope.latestRun[id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[id].id, here)}>Open session</button>{/if}
+            {#if s.agent}<span class="step-agent"><AgentMark agentId={s.agent.agentId} state={s.agent.state} fresh={s.agent.fresh} observedAt={s.agent.observedAt} now={app.now} /></span>{/if}
+            {#if task && step.next}<a class="btn small" class:primary={step.kind === 'attention' || step.kind === 'review'} href={taskHrefFor(s.id)}>{step.next}</a>{/if}
+            {#if scope.latestRun[s.id]}<button class="btn quiet small" onclick={() => assistant.openRun(project.id, scope.latestRun[s.id].id, here)}>Open session</button>{/if}
           </div>
         </li>
       {:else}<li class="empty">No tasks in this plan yet. Edit the plan to add existing tasks.</li>{/each}</ol>
@@ -158,15 +186,32 @@
     <section class="context" aria-label="Plan context">
       <details open={!!current.decisions}><summary>Decisions</summary><p class="description">{current.decisions || 'No decisions recorded yet.'}</p></details>
       <details open={!!current.questions}><summary>Open questions</summary><p class="description">{current.questions || 'No open questions recorded.'}</p></details>
-      <details><summary>Sessions<span class="count">{sessions.length}</span></summary>
-        <ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
-      </details>
       <p class="muted meta">Created {date(current.createdAt)} · Updated {date(current.updatedAt)}</p>
     </section>
+    {:else}
+    <section id="plan-panel-execution" role="tabpanel" aria-labelledby="plan-tab-execution" data-testid="plan-execution">
+      <h2 class="section-title">Execution</h2>
+      <p class="muted exec-note">Each task is started on its own. Running a whole plan in order, and pausing it after the current task, is not available yet.</p>
+      <ul class="session-list">{#each steps.filter(x => x.agent) as s (s.id)}{@const run = scope.latestRun[s.id]}<li><div><strong>{s.number}. {s.task?.title ?? 'Unavailable task'}</strong><span class="muted">{agentName(s.agent!.agentId)} · {run.state.replaceAll('_', ' ')}{run.state !== 'running' && !s.agent!.fresh ? ' · last reported ' + timeAgo(run.updatedAt, app.now) : ''}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No agent has worked on this plan yet.</li>{/each}</ul>
+      <details class="past"><summary>All sessions<span class="count">{sessions.length}</span></summary>
+        <ul class="session-list">{#each sessions as run (run.id)}<li><div><strong>{scope.tasks.find(t => t.id === run.taskId)?.title ?? 'Unavailable task'}</strong><span class="muted">{run.agentId} · {run.state.replaceAll('_', ' ')} · {date(run.createdAt)}</span></div><button class="btn small" onclick={() => assistant.openRun(project.id, run.id, here)}>Open CLI session</button></li>{:else}<li class="empty">No associated sessions reported.</li>{/each}</ul>
+      </details>
+    </section>
+    {/if}
+    </div>
+    <aside class="plan-side" aria-label="Plan context">
+      <section aria-labelledby="side-agents"><h3 id="side-agents">Agents now</h3>
+        <ul class="side-list">{#each executing as e (e.step.id)}<li><AgentMark agentId={e.agent.agentId} state={e.agent.state} fresh={e.agent.fresh} observedAt={e.agent.observedAt} now={app.now} decorative /><span><strong>{agentName(e.agent.agentId)}</strong><span class="muted">Step {e.step.number} · {e.step.task?.title}</span></span></li>{:else}<li class="muted">None working.</li>{/each}</ul>
+      </section>
+      <section aria-labelledby="side-branches"><h3 id="side-branches">Task branches</h3>
+        <ul class="side-list">{#each branches as b (b.branch)}<li><Icon name="merge" size={14} /><span><code>{b.branch}</code><span class="muted">{b.commit ? b.commit + ' · ' : ''}{b.title}{b.at ? ' · ' + timeAgo(b.at, app.now) : ''} · from the run</span></span></li>{:else}<li class="muted">No task has a branch yet.</li>{/each}</ul>
+      </section>
+    </aside>
+    </div>
   {:else if selected && loaded}<p role="status">This plan is unavailable. <a href={listHref}>Back to plans</a></p>
   {:else}
     <header class="list-heading"><div><h2 class="section-title">Plans</h2><p class="muted">Related tasks, one shared objective.</p></div><button class="btn primary small" onclick={() => edit()}><Icon name="plus" size={14} />New plan</button></header>
-    <ul class="plan-list">{#each visible as plan (plan.id)}{@const count = plan.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length}<li><a class="plan-link" href={projectHref(project.id, 'work') + '?plan=' + encodeURIComponent(plan.id)}><span class="plan-symbol"><Icon name="dependencies" size={17} /></span><span class="plan-text"><strong>{plan.title}</strong><span class="muted">{plan.description || `${plan.taskIds.length} related tasks`}</span></span><span class="plan-count">{count} / {plan.taskIds.length}<progress max={plan.taskIds.length || 1} value={count} aria-label="{plan.title} progress"></progress></span><Icon name="right" size={14} /></a></li>{:else}<li class="empty">{!loaded ? 'Loading plans…' : search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
+    <ul class="plan-list">{#each visible as plan (plan.id)}{@const count = plan.taskIds.filter(id => scope.tasks.find(t => t.id === id)?.state === 'done').length}{@const row = rowOf(plan)}<li><a class="plan-link" href={projectHref(project.id, 'work') + '?plan=' + encodeURIComponent(plan.id)}><span class="plan-symbol"><Icon name="dependencies" size={17} /></span><span class="plan-text"><strong>{plan.title}</strong><span class="muted">{plan.description || `${plan.taskIds.length} related tasks`}</span></span><span class="plan-agents">{#each row.agents as a (a.agentId)}<AgentMark agentId={a.agentId} state={a.state} fresh={a.fresh} observedAt={a.observedAt} now={app.now} />{/each}{#if row.more}<span class="muted">+{row.more}</span>{/if}{#if row.attention}<span class="attn-dot" role="img" aria-label="Needs you"></span>{/if}</span><span class="plan-count">{count} / {plan.taskIds.length}<progress max={plan.taskIds.length || 1} value={count} aria-label="{plan.title} progress"></progress></span><Icon name="right" size={14} /></a></li>{:else}<li class="empty">{!loaded ? 'Loading plans…' : search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}</li>{/each}</ul>
   {/if}
 </section>
 <style>
@@ -182,5 +227,10 @@
   .context{margin-top:28px;display:grid;gap:2px;max-width:78ch;}.context details{border-top:1px solid var(--border);padding:4px 0;}.context summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.context .count{color:var(--text-2);font-weight:400;font-size:12px;}.context details>p{margin-top:2px;}.meta{font-size:12px;margin-top:12px;}
   .list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}.list-heading h2{font-size:16px;margin:0;}.plan-list>li+li{border-top:1px solid var(--border);}.plan-link{display:flex;align-items:center;gap:14px;padding:18px 12px;color:var(--text);text-decoration:none;border-radius:6px;}.plan-link:hover{background:var(--surface-2);}.plan-symbol{color:var(--text);width:32px;height:32px;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 7%,var(--surface));border-radius:6px;}.plan-text{display:grid;gap:5px;flex:1;min-width:0;}.plan-text strong{font-size:14px;font-weight:500;}.plan-text>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.plan-count{display:grid;gap:8px;min-width:80px;font-size:12px;color:var(--text-2);text-align:right;}.empty{color:var(--text-2);padding:24px 4px;line-height:1.6;}
   form{max-width:820px;display:grid;gap:20px;}form header{margin-bottom:8px;}label{display:grid;gap:8px;}textarea{min-height:92px;resize:vertical;}.context-fields{display:grid;grid-template-columns:1fr 1fr;gap:20px;}fieldset{border:1px solid var(--border);padding:16px;min-width:0;border-radius:6px;}legend{font-weight:500;}fieldset label{margin-top:14px;}.ordered{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}.ordered>span{display:flex;gap:12px;align-items:center;}.number{color:var(--text-2);font-size:12px;}.actions{display:flex;gap:8px;flex-wrap:wrap;}.session-list>li{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);}.session-list>li>div{display:grid;gap:5px;}.session-list strong{font-weight:500;}.session-list .muted{font-size:12px;}
+  .plans{container-type:inline-size;}.plan-body{display:grid;gap:28px;}.plan-main{min-width:0;}.plan-side{display:grid;gap:22px;align-content:start;}.plan-side h3{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--text-2);font-weight:500;margin:0 0 8px;}.side-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;}.side-list>li{display:flex;gap:10px;align-items:flex-start;min-width:0;}.side-list>li>span{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;}.side-list code{font-family:var(--mono);font-size:12px;}.side-list .muted{font-size:12px;}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}.tabs button{appearance:none;border:0;background:none;color:var(--text-2);font:inherit;font-weight:500;padding:8px 12px;min-height:36px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}.tabs button:hover{color:var(--text);}.tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--accent);}.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px;}
+  .step-position{margin:0;font-size:12px;color:var(--text-2);display:flex;gap:8px;align-items:baseline;}.parallel{padding:0 7px;border-radius:999px;background:var(--surface-2);font-size:11px;}.step-agent{display:inline-flex;align-items:center;margin-right:2px;}.task-acts{align-items:center;}.exec-note{margin:0 0 16px;max-width:60ch;}.past{margin-top:20px;border-top:1px solid var(--border);padding-top:6px;}.past summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;font-weight:500;}.past .count{color:var(--text-2);font-weight:400;font-size:12px;}
+  .plan-agents{display:inline-flex;align-items:center;gap:2px;}.attn-dot{width:8px;height:8px;border-radius:50%;background:var(--warn);margin-left:6px;}
+  @container (min-width:900px){.plan-body{grid-template-columns:minmax(0,1fr) 280px;}}
   @media(max-width:800px){.progress{grid-template-columns:auto 1fr;}.progress>.count{grid-column:1/-1;}.context-fields{grid-template-columns:1fr;}.plan-tasks>li{grid-template-columns:22px minmax(0,1fr);}.task-acts{grid-column:2;justify-content:flex-start;}.task-acts .btn,.plan-actions .btn,.context summary{min-height:44px;}.plan-count{min-width:50px;}.plan-link{padding-inline:0;}.back{min-height:44px;}.ordered{flex-wrap:wrap;}.ordered .actions{margin-left:24px;}h1{font-size:22px;}}
 </style>

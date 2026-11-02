@@ -8,6 +8,8 @@
   import { cardStatus, quickChoices, type CardStatus } from '../task-presentation';
   import { agentLabel, priorityLabel, type Resolved } from '../execution';
   import Icon from '../Icon.svelte';
+  import AgentMark from '../AgentMark.svelte';
+  import { agentOf } from '../work-steps';
   import { spanOf, spanTitle } from '../planning-dates';
   import { answeredNotice, choicesOf, describeAnswerFailure, isAllow, isDeny } from '../questions';
   import { branchHref } from '../gitroute';
@@ -88,6 +90,8 @@
     : '',
   );
   const showAgent = $derived(agentWork && !!(run || effective.agent));
+  /** The agent on the task, drawn in the state column: its ring turns only while the controller confirms the run is working. */
+  const stepAgent = $derived(showAgent && run && task.state !== 'done' ? agentOf(run, stale) : undefined);
   const hasMeta = $derived(showAgent || effective.priority !== 'normal' || !!plan);
 
   let busy = $state('');
@@ -202,13 +206,13 @@
   <div class="acts"><button class="btn small session-action" onclick={e => { e.stopPropagation(); assistant.openRun(task.projectId, run.id, [{ kind: 'board', projectId: task.projectId }]); }}>Open session</button></div>
 {/if}
   </div>
-  <!-- State is read on the right: a ring that turns while an agent works, a tick when it is done, an amber dot when it needs you. -->
-  <span class="task-state" data-kind={task.state === 'done' ? 'done' : status.live && !stale ? 'working' : question ? 'ask' : ''} role="img" aria-label={task.state === 'done' ? 'Complete' : status.text}>{#if task.state === 'done'}<Icon name="check" size={14} />{:else if status.live && !stale}<span class="spin"></span>{/if}</span>
+  <!-- State is read on the right: the agent's mark, ringed while it works; a tick when the task is done; an amber dot when it needs you. -->
+  <span class="task-state" data-kind={task.state === 'done' ? 'done' : stepAgent ? 'agent' : question ? 'ask' : ''} role="img" aria-label={task.state === 'done' ? 'Complete' : stepAgent ? `${agent}: ${status.text}` : status.text}>{#if task.state === 'done'}<Icon name="check" size={14} />{:else if stepAgent}<AgentMark agentId={stepAgent.agentId} state={stepAgent.state} fresh={stepAgent.fresh} observedAt={stepAgent.observedAt} now={app.now} decorative />{/if}</span>
 </li>
 
 <style>
- .task{--work-border:var(--border);--work-surface:var(--surface);--work-muted:var(--text-2);display:grid;grid-template-columns:22px minmax(0,1fr) auto 22px;gap:10px;align-items:center;padding:13px 10px 13px 6px;position:relative;cursor:default;}.task:hover{background:var(--hover);}.task.selected{background:var(--selected);}.grip-slot{width:22px;}.task-state{display:grid;place-items:center;width:22px;height:22px;color:var(--text-2);}.task-state[data-kind=done]{color:var(--ok);}.task-state[data-kind=ask]::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--amber);}.task-content{min-width:0;}.title{font-weight:500;font-size:14px;line-height:1.5;color:var(--text);text-decoration:none;overflow-wrap:anywhere;}.title:hover{text-decoration:underline;}.title::after{content:'';position:absolute;inset:0;}.title:focus-visible{outline:none;}.title:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px;}.st,.detail,.work-detail,.meta,.dependency{font-size:12px;line-height:1.5;color:var(--text-2);margin:4px 0 0;overflow-wrap:anywhere;}.st{display:flex;align-items:center;gap:6px;}.dependency{color:var(--block-text);position:relative;z-index:1;}.dependency a{color:inherit;}.detail,.work-detail{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}.meta{display:flex;gap:0;flex-wrap:wrap;}.meta span+span::before{content:'·';margin:0 6px;}.prio[data-p=high]{color:var(--danger-text);}.row-actions{position:relative;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:350px;}.acts,.foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}.row-actions :global(.btn){font-size:12px;}.settled .task-content{color:var(--text-2);}
- @media(max-width:800px){.task{grid-template-columns:22px minmax(0,1fr) 22px;padding:14px 0 14px 4px;align-items:start;}.task-state{margin-top:2px;}.row-actions{grid-column:2 / span 2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
+ .task{--work-border:var(--border);--work-surface:var(--surface);--work-muted:var(--text-2);display:grid;grid-template-columns:22px minmax(0,1fr) auto 28px;gap:10px;align-items:center;padding:13px 10px 13px 6px;position:relative;cursor:default;}.task:hover{background:var(--hover);}.task.selected{background:var(--selected);}.grip-slot{width:22px;}.task-state{display:grid;place-items:center;width:28px;height:28px;color:var(--text-2);}.task-state[data-kind=done]{color:var(--ok);}.task-state[data-kind=ask]::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--amber);}.task-content{min-width:0;}.title{font-weight:500;font-size:14px;line-height:1.5;color:var(--text);text-decoration:none;overflow-wrap:anywhere;}.title:hover{text-decoration:underline;}.title::after{content:'';position:absolute;inset:0;}.title:focus-visible{outline:none;}.title:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px;}.st,.detail,.work-detail,.meta,.dependency{font-size:12px;line-height:1.5;color:var(--text-2);margin:4px 0 0;overflow-wrap:anywhere;}.st{display:flex;align-items:center;gap:6px;}.dependency{color:var(--block-text);position:relative;z-index:1;}.dependency a{color:inherit;}.detail,.work-detail{display:-webkit-box;-webkit-line-clamp:1;line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}.meta{display:flex;gap:0;flex-wrap:wrap;}.meta span+span::before{content:'·';margin:0 6px;}.prio[data-p=high]{color:var(--danger-text);}.row-actions{position:relative;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:350px;}.acts,.foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}.row-actions :global(.btn){font-size:12px;}.settled .task-content{color:var(--text-2);}
+ @media(max-width:800px){.task{grid-template-columns:22px minmax(0,1fr) 28px;padding:14px 0 14px 4px;align-items:start;}.task-state{margin-top:2px;}.row-actions{grid-column:2 / span 2;justify-content:flex-start;max-width:none;}.row-actions :global(.btn){min-height:44px;}}
  /* A card that needs you says so at the edge: what to look at first, in a page of quiet cards. */
  .task[data-attn]{box-shadow:inset 3px 0 0 var(--attn);}
  .task[data-attn=ask]{--attn:var(--amber);background:color-mix(in srgb,var(--amber) 7%,var(--surface));}

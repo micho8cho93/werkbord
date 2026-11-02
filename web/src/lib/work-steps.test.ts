@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextAction, planOfTask, progressOf, reworkBefore, stepOf } from './work-steps';
+import { activeAgents, agentOf, nextAction, planBranches, planOfTask, planSteps, progressOf, reworkBefore, stepOf, stepPosition } from './work-steps';
 import { chainOf, pushed, withChain } from './origin';
 import { originHref } from './origin-nav';
 import type { Run, Task } from './types';
@@ -155,5 +155,49 @@ describe('Back from a task to a project Calendar names the task, so the Calendar
     expect(originHref({ kind: 'calendar', projectId: 'p' }, [{ kind: 'work' }], 't1')).toBe('#/p/p/calendar?task=t1&from=work');
     expect(originHref({ kind: 'calendar', projectId: 'p' }, [])).toBe('#/p/p/calendar');
     expect(originHref({ kind: 'board', projectId: 'p' }, [], 't1')).toBe('#/p/p/work');
+  });
+});
+
+describe('a plan lists its steps in order, with the agent on each', () => {
+  const tasks = [task('a', { state: 'done' }), task('b', { state: 'doing', ...after('a') }), task('c', after('b')), task('d', { state: 'doing' })];
+  const ids = { taskIds: ['a', 'b', 'c', 'd'] };
+
+  it('numbers each step and says what it comes after', () => {
+    const steps = planSteps(ids, tasks, latestOf(run('b')));
+    expect(steps.map(s => stepPosition(s))).toEqual(['Step 1 of 4', 'Step 2 of 4 · After step 1', 'Step 3 of 4 · After step 2', 'Step 4 of 4']);
+  });
+
+  it('names the agent only for a task that has a run, and takes freshness from the caller', () => {
+    const latest = latestOf(run('b', { agentId: 'codex' }));
+    expect(planSteps(ids, tasks, latest)[1].agent).toMatchObject({ agentId: 'codex', state: 'running', fresh: true });
+    expect(planSteps(ids, tasks, latest, () => true)[1].agent).toMatchObject({ state: 'running', fresh: false });
+    expect(planSteps(ids, tasks, latest)[2].agent).toBeUndefined();
+  });
+
+  it('maps a run waiting for the person to needs_input, never to running', () => {
+    expect(agentOf(run('b', { state: 'waiting_for_user' }), false)?.state).toBe('needs_input');
+  });
+
+  it('calls two running steps parallel only when no dependency path joins them', () => {
+    const latest = latestOf(run('b'), run('d', { agentId: 'claude-code' }));
+    const steps = planSteps(ids, tasks, latest);
+    expect(steps[1].parallel && steps[3].parallel).toBe(true);
+    const chained = [task('a', { state: 'doing' }), task('b', { state: 'doing', ...after('a') })];
+    expect(planSteps({ taskIds: ['a', 'b'] }, chained, latestOf(run('a'), run('b'))).some(s => s.parallel)).toBe(false);
+    expect(planSteps(ids, tasks, latestOf(run('b'))).some(s => s.parallel)).toBe(false);
+  });
+
+  it('counts only live agents, at most three, with the rest counted', () => {
+    const many = ['a', 'b', 'c', 'd', 'e'].map(id => task(id, { state: 'doing' }));
+    const steps = planSteps({ taskIds: many.map(t => t.id) }, many, latestOf(...many.map(t => run(t.id))));
+    expect(activeAgents(steps)).toMatchObject({ more: 2 });
+    expect(activeAgents(steps).agents).toHaveLength(3);
+    expect(activeAgents(planSteps(ids, tasks, latestOf(run('b', { state: 'completed' }))))).toEqual({ agents: [], more: 0 });
+  });
+
+  it('lists task branches once each and invents no plan branch', () => {
+    const latest = latestOf(run('b', { branch: 'werkbord/b', headCommit: 'abcdef0123', updatedAt: '2026-11-02T10:00:00Z' }), run('d', { branch: 'werkbord/b', updatedAt: '2026-11-02T11:00:00Z' }));
+    const branches = planBranches(planSteps(ids, tasks, latest), latest);
+    expect(branches).toEqual([{ branch: 'werkbord/b', commit: 'abcdef0', taskId: 'b', title: 'Task b', at: '2026-11-02T10:00:00Z' }]);
   });
 });
