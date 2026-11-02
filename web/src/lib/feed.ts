@@ -141,6 +141,13 @@ export class FeedBuilder {
         this.items.push({ kind: 'marker', seq: ev.seq, tone: 'bad', text: 'Failed', detail: p.reason, at: ev.createdAt });
         break;
       }
+      case 'agent.fallback': {
+        const p = ev.payload as { result?: string; agent?: string; reason?: string };
+        this.items.push(p.result === 'started'
+          ? { kind: 'marker', seq: ev.seq, tone: 'info', text: 'Continued automatically with another agent', detail: 'Started from this run\'s handoff. Open the task to follow the new session.', at: ev.createdAt }
+          : { kind: 'marker', seq: ev.seq, tone: 'neutral', text: 'Not continued automatically', detail: (p.reason ?? '').replace(/^not continued automatically: /, ''), at: ev.createdAt });
+        break;
+      }
       case 'agent.stopped': {
         const p = ev.payload as { reason?: string };
         this.items.push({ kind: 'marker', seq: ev.seq, tone: 'neutral', text: 'Stopped', detail: p.reason, at: ev.createdAt });

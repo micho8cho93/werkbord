@@ -8,7 +8,7 @@ import (
 	"werkbord/internal/service"
 )
 
-// fallbackProject continues failed runs with another agent where the project has opted in. Everything it needs to decide is
+// fallbackProject continues runs stopped by a provider limit with another agent where the project has opted in. Everything it needs to decide is
 // in the service; this only starts the continuation. It runs from the scheduler tick, so a browser is never involved.
 func (m *Manager) fallbackProject(ctx context.Context, projectID string) error {
 	if m.opt.Scheduler == nil || m.opt.Handoffs == nil {
@@ -42,6 +42,15 @@ func (m *Manager) fallbackOne(ctx context.Context, projectID string, parent doma
 	decline := func(why string) error {
 		m.log().Warn("automatic fallback declined", "run", parent.ID, "why", why)
 		return s.ResolveFallback(ctx, projectID, parent.ID, domain.FallbackDeclined, why, "")
+	}
+	// A rate limit usually leaves the session open and idle, not ended. The person opted in to this and the grace period has
+	// passed, so it is ended here: Stop keeps the worktree and records a handoff, which a continuation needs from a finished run.
+	if !parent.State.Terminal() {
+		if _, err := m.Stop(ctx, parent.ID); err != nil {
+			if now, e := m.opt.Runs.Get(ctx, parent.ID); e != nil || !now.State.Terminal() {
+				return decline("the session stuck on the provider limit could not be stopped: " + err.Error())
+			}
+		}
 	}
 	captured, err := m.opt.Handoffs.Generate(ctx, parent.ID)
 	if err != nil {

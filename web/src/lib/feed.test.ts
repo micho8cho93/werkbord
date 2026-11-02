@@ -69,6 +69,17 @@ describe('FeedBuilder', () => {
     ]);
   });
 
+  it('records what automatic fallback did on the run it acted on', () => {
+    const b = build([
+      ev('agent.fallback', { result: 'started', agent: 'codex', newRunId: 'run_2' }),
+      ev('agent.fallback', { result: 'declined', agent: 'codex', reason: 'not continued automatically: no recorded work' }),
+    ]);
+    expect(b.items.map((i) => i.kind === 'marker' && [i.text, i.tone, i.detail?.slice(0, 20)])).toEqual([
+      ['Continued automatically with another agent', 'info', 'Started from this ru'],
+      ['Not continued automatically', 'neutral', 'no recorded work'],
+    ]);
+  });
+
   it('says nothing for an ordinary turn end, but explains an interruption', () => {
     const b = build([ev('agent.waiting', { reason: 'turn_complete' }), ev('agent.waiting', { reason: 'interrupted' }), ev('agent.resumed', { via: 'message' })]);
     expect(b.items).toHaveLength(1);

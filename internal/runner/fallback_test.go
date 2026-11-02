@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -116,5 +117,89 @@ func TestFallbackDeclinesWithoutRecordedWorkAndNeverRetries(t *testing.T) {
 	}
 	if runs, _ := e.runs.ListByTask(ctx, task.ID); len(runs) != 1 {
 		t.Fatal("a declined fallback created a run")
+	}
+}
+
+// A rate limit that ends a turn leaves the process open and idle, so the run is blocked, not failed. Fallback waits out the
+// grace period, then ends that session itself and continues with the next agent.
+func TestFallbackStopsASessionLeftOpenByAProviderLimitAfterTheGracePeriod(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	second := withSecondAgent(t, e)
+	task := e.task("Build the thing")
+	run := e.start(task)
+	s := e.session()
+	if err := os.WriteFile(filepath.Join(e.worktreeOf(run).Path, "partial.go"), []byte("package x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.FailTurn("rate_limit_error: 429")
+	eventually(t, "run blocked on the provider", func() bool { r, _ := e.runs.Get(ctx, run.ID); return r.State == domain.RunBlocked })
+	if _, err := e.mgr.opt.Scheduler.SetFallbackSettings(ctx, e.project.ID, domain.FallbackSettings{Enabled: true, Providers: []string{"fake-two"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.mgr.ScheduleOnce(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := e.runs.Get(ctx, run.ID); r.State != domain.RunBlocked || len(second.Sessions()) != 0 {
+		t.Fatalf("a session just stuck on a limit is left to the person: %s", r.State)
+	}
+	now = now.Add(domain.FallbackGrace + time.Second)
+	for i := 0; i < 3; i++ {
+		if err := e.mgr.ScheduleOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r, _ := e.runs.Get(ctx, run.ID); r.State != domain.RunStopped {
+		t.Fatalf("the stuck session should have been stopped, it is %s", r.State)
+	}
+	if len(second.Sessions()) != 1 {
+		t.Fatalf("expected one continuation, got %d", len(second.Sessions()))
+	}
+	runs, _ := e.runs.ListByTask(ctx, task.ID)
+	if len(runs) != 2 || runs[1].AgentID != "fake-two" || domain.FallbackParent(runs[1].Origin) != run.ID {
+		t.Fatalf("%+v", runs)
+	}
+	// Fallback acts while nobody is looking, so it says what it did on the run it acted on.
+	var notice *domain.FallbackNotice
+	for _, ev := range e.log(run.ID) {
+		if ev.Type == domain.EventAgentFallback {
+			notice = &domain.FallbackNotice{}
+			if err := json.Unmarshal(ev.Payload, notice); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if notice == nil || notice.Result != domain.FallbackStarted || notice.Agent != "fake-two" || notice.NewRun != runs[1].ID {
+		t.Fatalf("no fallback notice on the run: %+v", notice)
+	}
+}
+
+func TestFallbackSaysWhyItDidNotContinue(t *testing.T) {
+	e := newEnv(t)
+	now := time.Now().UTC()
+	e.orchestrate(&now)
+	withSecondAgent(t, e)
+	_, failed := quotaFailed(t, e, false)
+	if _, err := e.mgr.opt.Scheduler.SetFallbackSettings(ctx, e.project.ID, domain.FallbackSettings{Enabled: true, Providers: []string{"fake-two"}}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := e.mgr.ScheduleOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var notices []domain.FallbackNotice
+	for _, ev := range e.log(failed.ID) {
+		if ev.Type == domain.EventAgentFallback {
+			var n domain.FallbackNotice
+			if err := json.Unmarshal(ev.Payload, &n); err != nil {
+				t.Fatal(err)
+			}
+			notices = append(notices, n)
+		}
+	}
+	if len(notices) != 1 || notices[0].Result != domain.FallbackDeclined || notices[0].Reason == "" {
+		t.Fatalf("a declined fallback must be said once, with its reason: %+v", notices)
 	}
 }

@@ -55,6 +55,7 @@ const (
 	EventAgentCompleted EventType = "agent.completed" // the session ended normally
 	EventAgentFailed    EventType = "agent.failed"    // setup, the process or the agent failed
 	EventAgentStopped   EventType = "agent.stopped"   // the user (or shutdown) stopped the session
+	EventAgentFallback  EventType = "agent.fallback"  // automatic fallback continued a run with another agent, or said why it did not; payload: FallbackNotice
 )
 
 // OutputStream says where a piece of agent output came from.

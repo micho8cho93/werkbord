@@ -38,7 +38,7 @@
 
 <section class="pn" data-testid="fallback-settings">
   <h3>Automatic fallback</h3>
-  <p class="muted">When an agent's run has ended because the provider rate-limited it or ran out of allowance, Werkbord can continue the work with another agent. It is off unless you turn it on here.</p>
+  <p class="muted">When an agent is stopped by a provider rate limit or an empty allowance, Werkbord can do what <strong>Continue</strong> does on the task, without waiting for you: end the stuck session and carry on with another agent. It is off unless you turn it on here.</p>
   {#if !view && !error}<p class="muted" role="status">Loading…</p>{:else}
   <label class="check"><input type="checkbox" bind:checked={draft.enabled} />Continue failed runs with another agent</label>
   <fieldset disabled={!draft.enabled}><legend>Agents that may take over, in order</legend>
@@ -54,10 +54,10 @@
     <label>Switches per day, in this project<input class="input narrow" type="number" min="1" max="20" bind:value={draft.dailyLimit} disabled={!draft.enabled} /></label>
   </div>
   <ul class="rules muted small">
-    <li>Only a run that has already ended, never a session that is still open. Stop or wait for those yourself.</li>
+    <li>A session a limit left open and idle is given two minutes for you to reply or for the limit to lift. After that it is stopped, and the branch and changes are kept. Any other open session, such as one waiting on a question, is never touched.</li>
     <li>Only when the controller read the work's Git state cleanly and there is recorded work to continue from. Otherwise it does nothing and says why below.</li>
     <li>The caps count starts, not money: what a provider bills is not known here. Each continuation bills to that agent's own account.</li>
-    <li>Each failed run is considered once. If it is not continued, you can continue it yourself from the task.</li>
+    <li>Each failed run is considered once. If it is not continued, you are told why, and you can continue it yourself from the task.</li>
   </ul>
   {#if problem && draft.enabled}<p class="error" role="alert">{problem}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}

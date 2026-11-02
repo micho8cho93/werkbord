@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"werkbord/internal/domain"
@@ -107,6 +108,9 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request) {
 		Instructions    string                  `json:"instructions"`
 		SelectedContext string                  `json:"selectedContext"`
 		Policy          *domain.ExecutionPolicy `json:"policy"`
+		// StopFirst ends a session that is still open (blocked, or waiting for a message) before continuing from it. It is
+		// the person's own approval in the Continue dialog, so one action stands for "stop it and carry on elsewhere".
+		StopFirst bool `json:"stopFirst"`
 	}
 	if e := decode(w, r, &in); e != nil {
 		s.fail(w, r, e)
@@ -116,6 +120,18 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request) {
 	if e != nil {
 		s.fail(w, r, e)
 		return
+	}
+	if in.StopFirst && !parent.State.Terminal() {
+		if parent.Remote || (parent.State != domain.RunBlocked && parent.State != domain.RunWaitingForUser) {
+			s.fail(w, r, fmt.Errorf("%w: only a local session that is blocked or waiting for you can be stopped and continued in one step", domain.ErrConflict))
+			return
+		}
+		if _, e := s.opt.Runner.Stop(r.Context(), parent.ID); e != nil {
+			s.fail(w, r, e)
+			return
+		}
+		// Best effort: the stop already recorded a handoff, and this adds the controller's reading of the worktree.
+		_, _ = s.opt.Handoffs.Generate(r.Context(), parent.ID)
 	}
 	run, e := s.opt.Runner.Start(r.Context(), runner.StartInput{Mode: in.Mode, RunnerID: in.RunnerID, TaskID: parent.TaskID, AgentID: in.AgentID, Model: in.Model, Reasoning: in.Reasoning, ParentRunID: parent.ID, Purpose: in.Purpose, Instructions: in.Instructions, SelectedContext: in.SelectedContext, Policy: in.Policy})
 	if e != nil {

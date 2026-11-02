@@ -153,8 +153,19 @@ func (s *Scheduler) FallbackCandidates(ctx context.Context, projectID string, us
 			if !ok || s.now().Sub(r.UpdatedAt) > 24*time.Hour || t.ArchivedAt != nil || t.State == domain.TaskDone || domain.AgentRefusal(*p, t) != "" {
 				continue
 			}
-			// Only a run that has already ended. A session still open is the person's to stop or wait for.
-			if r.State != domain.RunFailed || r.Remote || r.Recovery != "" || r.Blocker == nil || !domain.FallbackKind(r.Blocker.ProviderKind) {
+			// A run that has ended on a provider limit, or a session left open and idle by one. A rate limit that ends a turn
+			// leaves the process waiting for a message, so the usual case is blocked, not failed. That session is only a candidate
+			// once it has sat for the grace period, which is the person's time to reply or wait the limit out.
+			if r.Remote || r.Recovery != "" || r.Blocker == nil || !domain.FallbackKind(r.Blocker.ProviderKind) {
+				continue
+			}
+			switch r.State {
+			case domain.RunFailed:
+			case domain.RunBlocked:
+				if s.now().Sub(r.Blocker.RaisedAt) < domain.FallbackGrace {
+					continue
+				}
+			default:
 				continue
 			}
 			if i, seen := ledgerEntry(ledger, r.ID); seen && attempted(ledger.Entries[i]) {
@@ -241,7 +252,17 @@ func (s *Scheduler) ResolveFallback(ctx context.Context, projectID, runID, resul
 			return domain.ErrNotFound
 		}
 		ledger.Entries[i].Result, ledger.Entries[i].Reason, ledger.Entries[i].NewRun = result, truncate(reason, 300), newRunID
-		return writeLedger(ctx, tx, s, projectID, ledger)
+		entry := ledger.Entries[i]
+		if e := writeLedger(ctx, tx, s, projectID, ledger); e != nil {
+			return e
+		}
+		if result != domain.FallbackStarted && result != domain.FallbackDeclined {
+			return nil // a retry is not news; the next tick tries again
+		}
+		// Say it where the person will see it: the run's feed and an alert. Fallback acts while nobody is looking.
+		ev := newEvent(domain.EventAgentFallback, domain.FallbackNotice{Result: result, Agent: entry.Agent, Reason: entry.Reason, NewRun: newRunID})
+		ev.ProjectID, ev.TaskID, ev.RunID = projectID, entry.TaskID, runID
+		return em.emit(ev)
 	})
 }
 

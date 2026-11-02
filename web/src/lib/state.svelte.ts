@@ -17,6 +17,7 @@ import { ApiError, api, eventsURL } from './api';
 import { gitEvent } from './git/store.svelte';
 import { QuestionBook } from './questions';
 import { notifyEvent } from './notifications';
+import { agentName } from './format';
 import { askForSignIn } from './signin.svelte';
 import { ProjectScope } from './scope.svelte';
 import type { Agent, AgentOptions, ControllerEvent, ExecutionConfig, LabelUse, Onboarding, Overview, Project, Question, Runner, UpdateStatus, WaitingItem } from './types';
@@ -57,6 +58,7 @@ const EVENT_TYPES = [
   'agent.completed',
   'agent.failed',
   'agent.stopped',
+  'agent.fallback',
   'worktree.created',
   'worktree.removing',
   'worktree.removed',
@@ -517,7 +519,7 @@ class AppState {
     const info = ev.taskId && ev.projectId ? this.taskInfo(ev.taskId, ev.projectId) : undefined;
     const projectName = info?.projectName || this.project(ev.projectId ?? '')?.name || 'Werkbord';
     const readyForReview = !!ev.taskId && !!ev.projectId && this.scopes.get(ev.projectId)?.tasks.some((t) => t.id === ev.taskId && t.state === 'review');
-    notifyEvent(ev, projectName, info?.title || 'Task', readyForReview);
+    notifyEvent(ev, projectName, info?.title || 'Task', readyForReview, (id) => agentName(this.agents, id));
 
     // A project's events go to that project's scope, which takes nothing else.
     if (ev.projectId) this.scopes.get(ev.projectId)?.apply(ev);

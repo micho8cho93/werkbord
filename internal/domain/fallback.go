@@ -64,6 +64,18 @@ func (f FallbackSettings) Validate() error {
 	return nil
 }
 
+// FallbackGrace is how long a session stuck on a provider limit is left alone before fallback may stop it. A rate limit
+// that ends a turn leaves the process open and waiting for a message, so this is the time to reply or wait it out.
+const FallbackGrace = 2 * time.Minute
+
+// FallbackNotice is the payload of an agent.fallback event: what fallback did about a run, for the feed and for alerts.
+type FallbackNotice struct {
+	Result string `json:"result"` // started or declined
+	Agent  string `json:"agent"`
+	Reason string `json:"reason,omitempty"`
+	NewRun string `json:"newRunId,omitempty"`
+}
+
 // FallbackKind reports whether a provider failure is one another provider can plausibly get past. Authentication, a full
 // context window and unknown errors need a person.
 func FallbackKind(k ProviderErrorKind) bool { return k == ProviderRateLimit || k == ProviderQuota }

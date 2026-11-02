@@ -637,7 +637,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
                   <p class="note" data-testid="fallback-note">Started automatically after {from ? agentName(app.agents, from.agentId) : 'the previous agent'} stopped, from its handoff. Fallback is set per project in Project settings.</p>
                 {/if}
                 {#if continuity?.needsReview}
-                  <p class="note" data-testid="continuity">{continuity.headline} <button class="btn small" type="button" onclick={() => continuing = true}>Continue with another agent…</button></p>
+                  <p class="note" data-testid="continuity">{continuity.headline} <button class="btn small" type="button" onclick={() => continuing = true}>Continue…</button></p>
                 {/if}
               </section>
               {#if continuing}<ContinueWithAgent {run} {scope} onclose={() => continuing = false} onreview={() => document.getElementById('run-handoff')?.scrollIntoView({ block: 'center' })} />{/if}

@@ -61,7 +61,7 @@ func EventAllowed(e domain.Event) bool {
 		domain.EventWorktreeCreated, domain.EventWorktreeRemoving, domain.EventWorktreeRemoved,
 		domain.EventQuestionAnswered, domain.EventQuestionCancelled,
 		domain.EventAgentStarted, domain.EventAgentOutput, domain.EventAgentQuestion, domain.EventAgentWaiting,
-		domain.EventAgentBlocked, domain.EventAgentResumed, domain.EventAgentCompleted, domain.EventAgentFailed, domain.EventAgentStopped:
+		domain.EventAgentBlocked, domain.EventAgentResumed, domain.EventAgentCompleted, domain.EventAgentFailed, domain.EventAgentStopped, domain.EventAgentFallback:
 		return true
 	}
 	return false

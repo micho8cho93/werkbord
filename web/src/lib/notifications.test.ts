@@ -56,4 +56,13 @@ describe('alerts inside the desktop window', () => {
       { type: 'werkbord.frame', event: 'notify', key: 'seq-3', title: 'Agent failed', body: 'App · Fix login', urgent: false },
     ]);
   });
+
+  it('tells you what automatic fallback did, and why when it did nothing', () => {
+    notifyEvent(event('agent.fallback', 5, { result: 'started', agent: 'codex' }), 'App', 'Fix login', false, () => 'Codex');
+    notifyEvent(event('agent.fallback', 6, { result: 'declined', agent: 'codex', reason: 'not continued automatically: the work is in conflict' }), 'App', 'Fix login');
+    expect(shown.map((item) => [item.title, item.options.body])).toEqual([
+      ['Continued with Codex', 'App · Fix login · the previous agent hit a provider limit'],
+      ['Not continued automatically', 'App · Fix login · the work is in conflict'],
+    ]);
+  });
 });

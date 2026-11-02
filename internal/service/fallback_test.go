@@ -74,7 +74,7 @@ func TestFallbackIsOffUntilAProjectOptsIn(t *testing.T) {
 	}
 }
 
-func TestFallbackOnlyForEndedRunsFailedByARecoverableProviderLimit(t *testing.T) {
+func TestFallbackOnlyForRunsStoppedByARecoverableProviderLimit(t *testing.T) {
 	f, s, pid, _ := schedulingFixture(t)
 	ctx := context.Background()
 	fallbackOn(t, s, pid, "codex")
@@ -84,8 +84,21 @@ func TestFallbackOnlyForEndedRunsFailedByARecoverableProviderLimit(t *testing.T)
 	failedWith(t, f, mk("remote").ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) { r.Remote = true })
 	failedWith(t, f, mk("unknown stop").ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) { r.Recovery = "intervention" })
 	failedWith(t, f, mk("stale").ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) { r.UpdatedAt = r.UpdatedAt.Add(-48 * time.Hour) })
-	open := mk("still open")
-	failedWith(t, f, open.ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) { r.State = domain.RunBlocked })
+	// A session left open by a provider limit is the person's for the grace period; a question is never a provider limit.
+	justNow := mk("just blocked")
+	failedWith(t, f, justNow.ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) { r.State = domain.RunBlocked; r.Blocker.RaisedAt = s.Now() })
+	asked := mk("blocked on a question")
+	failedWith(t, f, asked.ID, "claude-code", domain.ProviderOther, func(r *domain.Run) { r.State = domain.RunBlocked; r.Blocker.RaisedAt = s.Now().Add(-time.Hour) })
+	waiting := mk("waiting for a message")
+	failedWith(t, f, waiting.ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) {
+		r.State, r.Waiting = domain.RunWaitingForUser, domain.WaitIdle
+		r.Blocker.RaisedAt = s.Now().Add(-time.Hour)
+	})
+	stuck := mk("stuck on a limit")
+	failedWith(t, f, stuck.ID, "claude-code", domain.ProviderQuota, func(r *domain.Run) {
+		r.State = domain.RunBlocked
+		r.Blocker.RaisedAt = s.Now().Add(-domain.FallbackGrace - time.Second)
+	})
 	done := mk("done")
 	failedWith(t, f, done.ID, "claude-code", domain.ProviderQuota, nil)
 	st := domain.TaskDone
@@ -94,8 +107,12 @@ func TestFallbackOnlyForEndedRunsFailedByARecoverableProviderLimit(t *testing.T)
 	good := mk("rate limited")
 	failedWith(t, f, good.ID, "claude-code", domain.ProviderRateLimit, nil)
 	got, err := s.FallbackCandidates(ctx, pid, anyAgent)
-	if err != nil || len(got) != 1 || got[0].Run.TaskID != good.ID {
+	if err != nil || len(got) != 2 {
 		t.Fatalf("%+v %v", got, err)
+	}
+	ids := map[string]bool{got[0].Run.TaskID: true, got[1].Run.TaskID: true}
+	if !ids[good.ID] || !ids[stuck.ID] {
+		t.Fatalf("want the ended run and the session stuck past the grace period: %+v", got)
 	}
 }
 

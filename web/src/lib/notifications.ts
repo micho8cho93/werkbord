@@ -37,7 +37,7 @@ export function disableNotifications(): void {
 }
 
 /** Dedupe replayed SSE events, and notify only on high-value state changes. */
-export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle: string, readyForReview = false): void {
+export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle: string, readyForReview = false, agentLabel: (id: string) => string = (id) => id): void {
   // In the desktop window the window shows the alert (a system notification and a bounce of the Dock icon), when the person is in
   // another app and has not turned alerts off: this page only says what happened. In a browser the browser's own permission rules.
   const inWindow = isEmbedded();
@@ -53,6 +53,14 @@ export function notifyEvent(ev: ControllerEvent, projectName: string, taskTitle:
     case 'agent.failed':
       message = { title: 'Agent failed', body: `${projectName} · ${taskTitle}` };
       break;
+    case 'agent.fallback': {
+      // Automatic fallback acts while nobody is looking, so both outcomes are worth an alert.
+      const n = (ev.payload && typeof ev.payload === 'object' ? ev.payload : {}) as { result?: string; agent?: string; reason?: string };
+      message = n.result === 'started'
+        ? { title: `Continued with ${agentLabel(n.agent ?? '')}`, body: `${projectName} · ${taskTitle} · the previous agent hit a provider limit` }
+        : { title: 'Not continued automatically', body: `${projectName} · ${taskTitle} · ${(n.reason ?? 'see the task').replace(/^not continued automatically: /, '').slice(0, 140)}` };
+      break;
+    }
     case 'agent.completed':
       message = { title: readyForReview ? 'Ready for review' : 'Agent finished', body: `${projectName} · ${taskTitle}` };
       break;
