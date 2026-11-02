@@ -3,6 +3,7 @@
 // another workspace and back stops nothing in it. The model never starts, stops, approves or revokes anything in any
 // workspace: those are asked of the app, by name, one at a time, in dialogs the person answers.
 
+import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 import { decisions } from './decisions.svelte';
 import { alerts } from './alerts.svelte';
 import { viewState } from './view-state.svelte';
@@ -779,14 +780,14 @@ export class Model {
   }
   /** The team repositories on GitHub that the person's own Werkbord watches for pushes, once each. */
   get watchedRepos(): string[] {
-    const out = new Set<string>();
+    const out = new SvelteSet<string>();
     for (const p of this.projects) if (p.workspace !== 'personal') { const r = this.githubRepoOf(p); if (r) out.add(r); }
     return [...out].sort();
   }
   /** Teams whose pushes the person does not want to be told of. The card still lists them. */
   mutedTeams = $state<string[]>((() => { try { return JSON.parse(localStorage.getItem('werkbord.shell.repo-mute') ?? '[]') as string[]; } catch { return []; } })());
   setTeamMuted(workspace: string, muted: boolean): void {
-    this.mutedTeams = muted ? [...new Set([...this.mutedTeams, workspace])] : this.mutedTeams.filter(w => w !== workspace);
+    this.mutedTeams = muted ? [...new SvelteSet([...this.mutedTeams, workspace])] : this.mutedTeams.filter(w => w !== workspace);
     try { localStorage.setItem('werkbord.shell.repo-mute', JSON.stringify(this.mutedTeams)); } catch { /* Kept for this window only. */ }
   }
   private lastHeads: Record<string, { fingerprint: string; at: number }> = {};
@@ -798,7 +799,7 @@ export class Model {
   private notePushes(overview: Overview): void {
     const fresh: { workspace: string; push: NonNullable<NonNullable<Overview['entries'][number]['summary']>['pushes']>[number] }[] = [];
     const first = this.pushesSeen === null;
-    const seen = this.pushesSeen ?? new Set<string>();
+    const seen = this.pushesSeen ?? new SvelteSet<string>();
     for (const e of overview.entries) for (const push of e.summary?.pushes ?? []) {
       if (seen.has(push.key)) continue;
       seen.add(push.key);
@@ -865,7 +866,7 @@ export class Model {
   private onTab(personal: RegExp, team: string): boolean {
     if (this.page !== 'workspace') return false;
     const place = this.places[this.current] ?? '';
-    return this.current === 'personal' ? personal.test(place) : place.startsWith('?') && new URLSearchParams(place.slice(1)).get('tab') === team && !!new URLSearchParams(place.slice(1)).get('project');
+    return this.current === 'personal' ? personal.test(place) : place.startsWith('?') && new SvelteURLSearchParams(place.slice(1)).get('tab') === team && !!new SvelteURLSearchParams(place.slice(1)).get('project');
   }
   /** A workspace's page is showing a project's Git. */
   get onGit(): boolean {
