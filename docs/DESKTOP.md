@@ -229,6 +229,13 @@ it; Help has none) do the same thing, which depends on what is behind:
 4. **Only the program is behind** (the feed has no update of the app yet, for instance while a release is still being published,
    or Sparkle is not in this build). The update the terminal has, unchanged: `werkbord update`, behind a native question.
 
+**Open native terminals.** Replacing the program restarts the controller, which ends every native terminal, so an update is
+refused while one is open. The check asks the running controller which terminals are alive (a metadata file only says what was last
+written, so a stale record never blocks an update); it falls back to the files only when the controller cannot answer, and always
+reads a runner's own file. The refusal names the terminal ("Codex in test-repo has been running since Oct 27 and is still open"),
+and **Update now** offers **Stop and update** or **Not now**. Stopping ends only those terminals, through the same call as the Stop
+button, and then every other check (working agents, unfinished runner work, pending device operations) is made again.
+
 So one release is one click: the banner, Sparkle's window, and the loading screen are three views of the same update, not
 three prompts. A newer app with an older controller keeps working because the two share only a short list of calls (below),
 which a test pins.
@@ -290,7 +297,9 @@ another key, a feed signed by another key, an unsigned feed, a lower version, an
 number are each refused, and the app and the controller stay as they were (`scripts/test-desktop-update.sh`).
 
 **What the shell and the controller share.** `GET /api/health` (public: is it a controller, which version), `GET /api/control-center`
-(authenticated, read-only update safety), `GET /api/projects` (does it accept this computer's token), and
+(authenticated, read-only update safety), `GET /api/projects` (does it accept this computer's token), `GET /api/terminals` (authenticated, read-only: which native terminals
+are open, so an update is not refused for a record whose process is gone), `POST /api/projects/{id}/terminals/{id}/stop` (only when
+the person answers "Stop and update" to the dialog that names the open terminals), and
 `GET /api/assistant/sessions/{id}/workspace-requests/{request}` (authenticated; checks that a Team task's stored proposal is still
 live before the desktop bridge creates it). The shell also shares the files `token` and `config.json` in the data directory, and the commands
 `version`, `start`, `setup`, `update` and `install-release` of the installed program. When remote controller mode has explicitly been selected, it additionally uses `device start` and authenticated `GET /api/device` on the local gateway. This identifies the selected controller without requiring that controller to be online; the launcher never starts a local controller as a fallback. See [MULTI_DEVICE.md](MULTI_DEVICE.md). Nothing else: the launcher's source is

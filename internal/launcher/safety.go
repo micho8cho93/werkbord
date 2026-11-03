@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 	"werkbord/internal/device"
 	"werkbord/internal/domain"
 )
@@ -20,7 +22,7 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := device.CheckExecutionSettled(cfg.DataDir); err != nil {
+	if err := device.CheckOperationsSettled(cfg.DataDir); err != nil {
 		return err
 	}
 	files, err := filepath.Glob(filepath.Join(cfg.DataDir, "runner", "runs", "*.json"))
@@ -42,13 +44,18 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 	if mode, e := device.Load(cfg.DataDir); e != nil {
 		return e
 	} else if mode.Remote() {
-		return nil
+		return device.OpenTerminals(cfg.DataDir, nil, false)
 	}
 	if _, ok := l.Health(ctx, cfg.ControllerURL()); !ok {
 		return errors.New("update deferred: your own Werkbord cannot be checked")
 	}
 	tok, err := cfg.ResolveToken(false)
 	if err != nil {
+		return err
+	}
+	// The controller knows which of its terminals are alive; the file it keeps only says what it last wrote.
+	live, haveLive := device.LiveTerminals(ctx, l.opt.HTTP, cfg.ControllerURL(), tok)
+	if err := device.OpenTerminals(cfg.DataDir, live, haveLive); err != nil {
 		return err
 	}
 	check, err := http.NewRequestWithContext(ctx, "GET", cfg.ControllerURL()+"/api/device", nil)
@@ -109,4 +116,48 @@ func (l *Launcher) UpdateSafety(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// StopTerminals ends the given native terminals through the running controller, the same way the Stop button does, and
+// waits until it reports them gone. It is what lets the person answer "a terminal is open" with one choice instead of a
+// trip to the Terminal.
+func (l *Launcher) StopTerminals(ctx context.Context, list []device.RunningTerminal) error {
+	cfg, err := l.Config(ctx)
+	if err != nil {
+		return err
+	}
+	tok, err := cfg.ResolveToken(false)
+	if err != nil {
+		return err
+	}
+	base := cfg.ControllerURL()
+	for _, t := range list {
+		if t.ID == "" || t.ProjectID == "" {
+			return errors.New("a terminal could not be identified, so it was not stopped")
+		}
+		req, err := http.NewRequestWithContext(ctx, "POST", base+"/api/projects/"+url.PathEscape(t.ProjectID)+"/terminals/"+url.PathEscape(t.ID)+"/stop", nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+		res, err := l.opt.HTTP.Do(req)
+		if err != nil {
+			return err
+		}
+		res.Body.Close()
+		if res.StatusCode != 200 && res.StatusCode != 404 {
+			return fmt.Errorf("could not stop %s: HTTP %d", device.DescribeTerminals([]device.RunningTerminal{t}, time.Now()), res.StatusCode)
+		}
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		live, ok := device.LiveTerminals(ctx, l.opt.HTTP, base, tok)
+		if ok && len(live) == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			return errors.New("the terminals did not stop in time")
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }

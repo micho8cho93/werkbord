@@ -575,7 +575,7 @@ func (l *Launcher) adopt(ctx context.Context, cfg config.Config, inst Install, r
 
 // refusal is why `install-release` did not replace the program, in words a person can use.
 func refusal(out string, err error) string {
-	msg := lastLine(out, err)
+	msg := strings.TrimPrefix(lastLine(out, err), "werkbord: ")
 	switch {
 	case strings.Contains(msg, "is active on this computer"), strings.Contains(msg, "finish or resolve it"):
 		return "coding agents are working (or a runner has unfinished work)"

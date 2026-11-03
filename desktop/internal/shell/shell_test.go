@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"werkbord/internal/config"
+	"werkbord/internal/device"
 	"werkbord/internal/launcher"
 	"werkbord/internal/update"
 )
@@ -33,6 +34,8 @@ type fakeLauncher struct {
 	installed, bundled string
 	adopted            int
 	adoptEr            error
+	stopped            [][]device.RunningTerminal
+	stopEr             error
 }
 
 func (f *fakeLauncher) Connect(_ context.Context, report func(launcher.Step)) (launcher.Connection, error) {
@@ -64,6 +67,13 @@ func (f *fakeLauncher) AdoptBundled(context.Context) (string, error) {
 	f.adopted++
 	f.mu.Unlock()
 	return "Installed v1.2.0 over v1.1.0.\nWerkbord v1.2.0 is running again.\n", f.adoptEr
+}
+
+func (f *fakeLauncher) StopTerminals(_ context.Context, list []device.RunningTerminal) error {
+	f.mu.Lock()
+	f.stopped = append(f.stopped, list)
+	f.mu.Unlock()
+	return f.stopEr
 }
 
 // fakeUpdater is Sparkle: it answers the feed from a script and records what it is asked.

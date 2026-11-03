@@ -1021,6 +1021,7 @@ func TestTheLauncherAsksTheControllerForOnlyTheseThings(t *testing.T) {
 		"/api/health":              true, // public; says it is a controller and what version
 		"/api/control-center":      true, // read-only desktop update preflight; backend replacement rechecks independently
 		"/api/projects":            true, // needs the token: does this controller accept this computer's?
+		"/api/projects/":           true, // POST .../terminals/{id}/stop: ends a native terminal the person chose to stop so the update can go on
 		"/api/assistant/sessions/": true, // verifies a pending task approval before the desktop bridge may create it
 	}
 	src, err := os.ReadFile("launcher.go")

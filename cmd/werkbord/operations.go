@@ -40,7 +40,7 @@ func (a *app) checkInterruption(ctx context.Context, force bool) error {
 	if force {
 		return nil
 	}
-	if err := device.CheckExecutionSettled(a.cfg.DataDir); err != nil {
+	if err := device.CheckOperationsSettled(a.cfg.DataDir); err != nil {
 		return err
 	}
 	files, err := filepath.Glob(filepath.Join(runnerDir(a.cfg), "runs", "*.json"))
@@ -60,10 +60,15 @@ func (a *app) checkInterruption(ctx context.Context, force bool) error {
 		}
 	}
 	if _, up := a.healthy(ctx); !up {
-		return nil
+		// There is no controller to ask, so the files are all there is.
+		return device.OpenTerminals(a.cfg.DataDir, nil, false)
 	}
 	client, err := a.client()
 	if err != nil {
+		return err
+	}
+	live, haveLive := device.LiveTerminals(ctx, client.http, client.base, client.token)
+	if err := device.OpenTerminals(a.cfg.DataDir, live, haveLive); err != nil {
 		return err
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", client.base+"/api/device", nil)

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"werkbord/internal/config"
+	"werkbord/internal/device"
 	"werkbord/internal/launcher"
 	"werkbord/internal/update"
 )
@@ -50,6 +51,8 @@ type Launcher interface {
 	// installs it (by the program's own installer): what finishes updating the app, with no network.
 	PendingProgramUpdate(ctx context.Context) (installed, bundled string, ok bool)
 	AdoptBundled(ctx context.Context) (string, error)
+	// StopTerminals ends native terminals the person chose to stop so that the update can go on.
+	StopTerminals(ctx context.Context, list []device.RunningTerminal) error
 }
 
 // Updater replaces the app itself (Sparkle, in the real app; nothing in a development or source build). Everything it
@@ -532,8 +535,13 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 
 	if s.o.UpdateGuard != nil {
 		if err := s.o.UpdateGuard(s.o.Ctx); err != nil {
-			say(Info, "Update deferred", err.Error())
-			return UpdateResult{Message: err.Error()}
+			if err = s.settleTerminals(err); err != nil {
+				if errors.Is(err, errUpdateDeclined) {
+					return UpdateResult{Declined: true}
+				}
+				say(Info, "Update deferred", err.Error())
+				return UpdateResult{Message: err.Error()}
+			}
 		}
 	}
 
@@ -609,6 +617,39 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 	s.o.Log.Info("updated", "to", st.Latest)
 	s.o.UI.Reload()
 	return UpdateResult{OK: true, Message: lastLine(out)}
+}
+
+var errUpdateDeclined = errors.New("the person chose not to stop the terminals")
+
+// settleTerminals deals with the one refusal a person can answer on the spot: native terminals are open, which an update
+// would end. It says which, and offers to stop them. The result is nil when they were stopped and nothing else stands in the
+// way; any other refusal comes back unchanged for the caller to say.
+func (s *Shell) settleTerminals(refusal error) error {
+	var open *device.TerminalsRunning
+	if !errors.As(refusal, &open) {
+		return refusal
+	}
+	var msg string
+	if len(open.Terminals) == 1 {
+		msg = open.Error() + ". Updating restarts Werkbord, which ends it."
+	} else {
+		msg = open.Error() + ". Updating restarts Werkbord, which ends them."
+	}
+	msg += "\n\nStop and update ends them now; anything unsaved in them is lost. Not now leaves everything as it is."
+	choice := s.o.UI.Ask(Dialog{
+		Kind:    Question,
+		Title:   "Terminals are still open",
+		Message: msg, Buttons: []string{"Stop and update", "Not now"}, Default: "Not now", Cancel: "Not now",
+	})
+	if choice != "Stop and update" {
+		return errUpdateDeclined
+	}
+	s.o.Log.Info("stopping native terminals so that the update can go on", "count", len(open.Terminals))
+	if err := s.o.Launcher.StopTerminals(s.o.Ctx, open.Terminals); err != nil {
+		return err
+	}
+	// Whatever else was in the way is still checked: stopping terminals frees nothing but them.
+	return s.o.UpdateGuard(s.o.Ctx)
 }
 
 // installProblem is why u cannot replace the app where it runs, if it can say.
