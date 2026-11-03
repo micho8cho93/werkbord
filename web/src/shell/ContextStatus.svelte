@@ -10,7 +10,8 @@
   import { decisions } from './decisions.svelte';
   import { agentUses, crumbs, describeParticipant, participants, personalGit, runningCount, teamGit, type AgentUse } from './context-header';
   import { gitHead } from './git-head.svelte';
-  import HeaderPopover from './HeaderPopover.svelte';
+  import HeaderPopover from '../lib/HeaderPopover.svelte';
+  import ContextBar from '../lib/ContextBar.svelte';
   import ConnectedTools from './ConnectedTools.svelte';
   import WorkspaceTag from './WorkspaceTag.svelte';
 
@@ -56,10 +57,6 @@
   }
 </script>
 
-{#snippet counts()}
-  <span class="count" data-testid="header-running"><span class="dot run" aria-hidden="true"></span>{running} running</span>
-  <span class="count" data-testid="header-needs"><span class="dot ask" aria-hidden="true"></span>{needsYou} {needsYou === 1 ? 'needs' : 'need'} you</span>
-{/snippet}
 {#snippet gitLines()}
   {#if git}
     <p class="line"><Icon name="git" size={13} /><strong>{git.text}</strong></p>
@@ -90,18 +87,14 @@
 {/snippet}
 
 {#if !['settings', 'help', 'workspaces'].includes(model.page)}
-  <div class="context" aria-label="Current project">
-    <nav class="crumbs" aria-label="Where you are">
-      <ol>{#each trail as c, i (i)}<li aria-current={i === trail.length - 1 ? 'location' : undefined} class:title={c.title}>{#if i > 0}<span class="sep" aria-hidden="true">›</span>{/if}<span class="crumb">{c.label}</span></li>{/each}</ol>
-      {#if workspaceTag}<WorkspaceTag workspace={workspaceTag} />{/if}
-    </nav>
-    {#if model.selectedProject && !model.projects.some(p => p.workspace === model.selectedProject?.workspace && p.project === model.selectedProject?.project)}
-      <span role="status">This project is unavailable. Reconnect its workspace or choose another project.</span>
-    {/if}
-    {#each unavailable as e (e.workspace.id)}<span role="status">{e.workspace.name}: {e.error} Its work is excluded.</span>{/each}
-
-    <div class="status inline" data-testid="header-status">
-      {@render counts()}
+  <ContextBar crumbs={trail} {running} {needsYou}>
+    {#snippet tag()}{#if workspaceTag}<WorkspaceTag workspace={workspaceTag} />{/if}{/snippet}
+    {#snippet notices()}
+      {#if model.selectedProject && !model.projects.some(p => p.workspace === model.selectedProject?.workspace && p.project === model.selectedProject?.project)}
+        <span role="status">This project is unavailable. Reconnect its workspace or choose another project.</span>
+      {/if}
+      {#each unavailable as e (e.workspace.id)}<span role="status">{e.workspace.name}: {e.error} Its work is excluded.</span>{/each}
+    {/snippet}
       {#if selected && git}
         <HeaderPopover label="Git: {git.text}" testid="header-git">
           {#snippet trigger()}<Icon name="git" size={13} /><span class="git-text">{git.text.split(' · ')[0]}<span class="sha"> · {git.text.split(' · ')[1] ?? ''}</span>{#if git.provenance}<span class="age"> · {git.provenance.split(' · ')[0]}</span>{/if}</span>{/snippet}
@@ -126,10 +119,7 @@
           {@render peopleList()}
         </HeaderPopover>
       {/if}
-    </div>
-
-    <!-- Below 640px one button holds every section. -->
-    <div class="status compact" data-testid="header-context">
+    {#snippet compact(counts)}
       <HeaderPopover label="Context: {running} running, {needsYou} {needsYou === 1 ? 'needs' : 'need'} you" testid="header-context-button">
         {#snippet trigger()}<span>Context</span>{#if running || needsYou}<span class="badge">{running + needsYou}</span>{/if}{/snippet}
         <p class="heading">Now</p><p class="line">{@render counts()}</p>
@@ -138,29 +128,16 @@
         {#if people.length}<p class="heading">People</p>{@render peopleList()}{/if}
         {#if selected?.workspace === 'personal'}<p class="heading">Agents & connections</p><ConnectedTools project={selected.project} />{/if}
       </HeaderPopover>
-    </div>
-  </div>
+    {/snippet}
+  </ContextBar>
 {/if}
 
 <style>
-  .context { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; flex: none; min-height: 40px; box-sizing: border-box; padding: 6px 24px; border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
-  .crumbs { display: flex; align-items: center; gap: 10px; min-width: 0; }
-  ol { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; list-style: none; margin: 0; padding: 0; min-width: 0; }
-  li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-  .sep { opacity: 0.6; }
-  li[aria-current='location'] .crumb { color: var(--text); font-weight: 500; }
-  .crumb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch; }
-  .status { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
-  .count { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-2); }
-  .dot.run { background: var(--accent); }
-  .dot.ask { background: var(--warn); }
   .cluster { display: inline-flex; align-items: center; }
   .cluster > :global(* + *) { margin-left: -2px; }
   .more { margin-left: 6px; font-size: 12px; }
   .git-text { font-variant-numeric: tabular-nums; }
   .badge { min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--amber); color: #1d1b18; font-size: 11px; font-weight: 600; text-align: center; }
-  .compact { display: none; }
   .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); font: inherit; text-align: left; }
   button.row { cursor: pointer; }
@@ -175,10 +152,4 @@
   .heading { margin: 8px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-2); }
   @media (max-width: 1279px) { .sha, .age { display: none; } }
   @media (max-width: 899px) { .git-text { display: none; } }
-  @media (max-width: 639px) {
-    .context { padding: 6px 12px; }
-    .inline { display: none; }
-    .compact { display: flex; }
-    .crumb { max-width: 16ch; }
-  }
 </style>

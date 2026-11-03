@@ -265,7 +265,6 @@
             {/if}
           </div>
           <div class="gacts">
-            {#if !framed && (!app.needsOnboarding || app.onboardingPaused)}<span class="assistant-wide"><AssistantButton variant="toolbar" /></span>{/if}
             {#if !framed && !deck && (!app.needsOnboarding || app.onboardingPaused)}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
             <button class="btn jump" type="button" onclick={() => (framed ? window.parent.postMessage({ type: 'werkbord.frame', event: 'palette' }, '*') : (app.switcherOpen = true))} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
@@ -437,7 +436,7 @@
   .shell {
     height: 100dvh;
     display: grid;
-    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     overflow: hidden;
   }
 
@@ -461,6 +460,21 @@
 
   .rail-area {
     min-height: 0;
+  }
+
+  /* On a desktop window the page is an inset panel on the frame, so the sidebar and the page are two different things (as in the Mac window). */
+  @media (min-width: 900px) {
+    .shell:not(.framed) {
+      background: var(--frame);
+    }
+
+    .shell:not(.framed) .main-area {
+      margin: 8px 8px 8px 0;
+      border: 1px solid var(--tray-edge);
+      border-radius: 12px;
+      background: var(--bg);
+      overflow: hidden;
+    }
   }
 
   .main-area {
@@ -529,10 +543,6 @@
 
   .phone-only {
     display: none;
-  }
-
-  .assistant-wide {
-    display: inline-flex;
   }
 
   .phone-more-location { display: none; }
@@ -615,10 +625,6 @@
 
     .phone-only {
       display: inline-flex;
-    }
-
-    .assistant-wide {
-      display: none;
     }
 
     .phone-more-location {

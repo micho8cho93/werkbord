@@ -95,7 +95,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  for (const section of ['Work', 'Git']) await side.getByRole('button', { name: section, exact: true }).first().waitFor();
  await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading', { name: 'Customer portal' }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
- assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
+ assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('nav.side').count(), 0, 'Individual shows no rail of its own in the window');
  await wait(async () => await projectValue(page) === personalKey, 'the sidebar marks the opened Personal project');
  for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Salie', 'Settings']) await side.getByRole('button', { name: entry }).first().waitFor();
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
@@ -150,7 +150,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // The window no longer lists a person's tickets across workspaces: a ticket is opened from its project in the Team's own sidebar.
  const openTeamTicket = async () => { await switchTo('team:main'); await openDestination(page, 'project:team:main:' + project.id); await firstFrame.getByRole('button', { name: ticket.title, exact: true }).first().click(); };
  await wait(async () => (await themeOf('team:main')) === chosen, 'theme reaches Team');
- assert.equal(await firstFrame.locator('aside.rail').count(), 0, 'Team shows no rail of its own in the window');
+ assert.equal(await firstFrame.locator('nav.side').count(), 0, 'Team shows no rail of its own in the window');
  for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Settings']) await side.getByRole('button', { name: entry, exact: true }).first().waitFor();
  // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
  await openDestination(page, 'project:team:main:' + project.id);

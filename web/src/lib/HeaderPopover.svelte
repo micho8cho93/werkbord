@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Icon from '../lib/Icon.svelte';
+  import Icon from './Icon.svelte';
 
   // One anchored popover for the header: a button that says what it holds, and a panel under it. Not modal: the page stays reachable,
   // Escape or a click elsewhere closes it and focus goes back to the button.

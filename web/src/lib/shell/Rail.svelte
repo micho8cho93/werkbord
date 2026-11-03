@@ -1,235 +1,57 @@
 <script lang="ts">
-  import AssistantButton from '../assistant/AssistantButton.svelte';
-  import Icon from '../Icon.svelte';
-  import Mark from '../Mark.svelte';
-  import { runnerConnection } from '../format';
-  import { attentionCount } from '../projects';
-  import { globalHref, hrefOf, router, switchedTo } from '../router.svelte';
+  import Sidebar, { type SidebarItem } from '../Sidebar.svelte';
+  import ProjectPicker, { type PickerGroup } from '../ProjectPicker.svelte';
+  import { assistant } from '../assistant/sessions.svelte';
+  import { originOf } from '../assistant/transition';
+  import { globalHref, projectHref, router, switchedTo } from '../router.svelte';
+  import { sectionApplies } from '../location';
   import { app } from '../state.svelte';
 
-  // The rail is the map of everything: what needs you, every project, every machine. One click
-  // reaches any of them; nothing here hides behind a menu. (Inside the desktop app the window's own sidebar does this
-  // job and this rail is not shown: see App.svelte.)
+  // The web app's sidebar is the shared one (lib/Sidebar.svelte), the same as the Mac window's, told what the web app lists and what
+  // choosing each thing does. (Inside the Mac window's own page the window's sidebar does this job and this one is not shown.)
 
   const current = $derived(router.projectId);
-  const activity = (id: string) => app.overview?.projects.find((p) => p.projectId === id);
+  const project = $derived(app.project(router.projectId || app.lastProjectId) ?? app.projects[0]);
+  const view = $derived(router.view);
 
+  const groups = (query: string): PickerGroup[] => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const projects = app.projects.filter((p) => words.every((w) => `${p.name} Personal`.toLowerCase().includes(w))).map((p) => ({ key: p.id, name: p.name }));
+    return words.length && !projects.length ? [] : [{ id: 'personal', label: 'Personal', team: false, colour: 'var(--accent)', ready: true, detail: '', projects }];
+  };
+  const chosen = $derived(app.projects.find((p) => p.id === current));
   /** Switching keeps the section you are in, where the other project has one. */
-  const hrefFor = (id: string): string => hrefOf(switchedTo(router.location, id));
+  const choose = (id: string) => router.go(id ? switchedTo(router.location, id) : { view: 'control', projectId: '', taskId: '' });
+
+  const waiting = $derived(app.needsYou);
+  const destinations = $derived<SidebarItem[]>([
+    {
+      key: 'work', label: 'Work', icon: 'control',
+      href: project && current ? projectHref(project.id, 'work') : globalHref('control'),
+      current: view === 'control' || view === 'task' || view === 'work',
+      badge: waiting > 0 ? { count: waiting, tone: 'ask', label: `${waiting} interruption${waiting === 1 ? '' : 's'}; excludes work ready for review` } : undefined,
+    },
+    ...(project && sectionApplies('git', project.kind) ? [{ key: 'git', label: 'Git', icon: 'git' as const, href: projectHref(project.id, 'git'), current: view === 'git' }] : []),
+    { key: 'agents', label: 'Agents', icon: 'activity', href: globalHref('sessions'), current: view === 'sessions' },
+    { key: 'analytics', label: 'Analytics', icon: 'analytics', href: globalHref('analytics'), current: view === 'analytics' },
+  ]);
+  const bottom = $derived<SidebarItem[]>([
+    { key: 'settings', label: 'Settings', icon: 'settings', href: globalHref('settings'), current: view === 'settings' },
+    { key: 'help', label: 'Help', icon: 'help', href: globalHref('help'), current: view === 'help', ariaLabel: 'Help and keyboard shortcuts', title: 'Help and keyboard shortcuts' },
+  ]);
 </script>
 
-<aside class="rail" aria-label="Werkbord">
-  <a class="brand" href={globalHref('control')} aria-label="Werkbord, Workspace">
-    <Mark height={20} />
-    <span class="wm">werkbord</span>
-  </a>
-
-  <div class="ask"><AssistantButton variant="rail" /></div>
-
-  <nav class="group" aria-label="Everywhere">
-    <a class="nav" href={globalHref('control')} aria-current={router.view === 'control' ? 'page' : undefined}>
-      <Icon name="control" />
-      Workspace
-      {#if app.needsYou > 0}<span class="num" aria-label="{app.needsYou} interruption{app.needsYou === 1 ? '' : 's'}; excludes work ready for review">{app.needsYou}</span>{/if}
-    </a>
-  </nav>
-
-  <nav class="group" aria-label="Projects">
-    <div class="sec">
-      <a href={globalHref('projects')} class="sec-link" aria-current={router.view === 'projects' ? 'page' : undefined}>
-        <Icon name="folder" />Projects
-      </a>
-      {#if !app.remote}<a class="add" href={globalHref('projects')} aria-label="Add a project" title="Add a project"><Icon name="plus" size={14} /></a>{/if}
-    </div>
-    {#each app.projects as p (p.id)}
-      {@const a = activity(p.id)}
-      {@const n = attentionCount(a)}
-      <a class="nav project" href={hrefFor(p.id)} aria-current={p.id === current ? 'page' : undefined} title={p.repoPath}>
-        <span class="sq" aria-hidden="true"></span>
-        <span class="name">{p.name}</span>
-        {#if n > 0}
-          <span class="num pend" aria-label="{n} interruption{n === 1 ? '' : 's'}; excludes work ready for review">{n}</span>
-        {:else if a?.running}
-          <span class="n" aria-label="{a.running} running">{a.running}</span>
-        {/if}
-      </a>
-    {/each}
-    {#if !app.remote}<a class="nav" href={globalHref('projects')}><Icon name="plus" />Add project</a>{/if}
-    <a class="nav" href={globalHref('analytics')} aria-current={router.view === 'analytics' ? 'page' : undefined}><Icon name="analytics" />Analytics</a>
-  </nav>
-
-  {#if app.runners.length}
-    <nav class="group" aria-label="Runners">
-      <div class="sec">
-        <a href="{globalHref('settings')}?runners" class="sec-link"><Icon name="runner" />Runners</a>
-      </div>
-      {#each app.runners as r (r.id)}
-        {@const state = runnerConnection(r, app.connection === 'live')}
-        <a class="nav runner" href="{globalHref('settings')}?runners" title="{r.hostname} · {state}">
-          <span class="dot" data-tone={app.connection !== 'live' || r.disabled || !r.online ? 'neutral' : r.currentRuns > 0 ? 'work' : 'ok'} class:off={app.connection !== 'live' || r.disabled || !r.online} aria-hidden="true"></span>
-          <span class="name">{app.runnerName(r)}</span>
-          <span class="n" aria-hidden="true">{app.connection !== 'live' ? 'Unknown' : !r.online ? 'Disconnected' : r.disabled ? 'Disabled' : 'Connected'}</span>
-          <span class="visually-hidden">{state}</span>
-        </a>
-      {/each}
-    </nav>
-  {/if}
-
-  <div class="foot">
-    <a class="nav" href={globalHref('settings')} aria-current={router.view === 'settings' ? 'page' : undefined}>
-      <Icon name="settings" />Settings
-    </a>
-    <a class="nav" href={globalHref('help')} aria-current={router.view === 'help' ? 'page' : undefined}>
-      <Icon name="help" />Help
-    </a>
-  </div>
-</aside>
-
-<style>
-  .rail {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    height: 100%;
-    padding: 18px 12px 12px;
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 4px 8px 16px;
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .wm {
-    font-family: var(--mono);
-    font-weight: 600;
-    font-size: 16px;
-    letter-spacing: -0.06em;
-    line-height: 1;
-  }
-
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .ask {
-    padding: 0 0 10px;
-  }
-
-  .nav {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 34px;
-    padding: 0 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--text-2);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-    transition: color 0.12s, background 0.12s;
-  }
-
-  .nav:hover {
-    color: var(--text);
-  }
-
-  .nav[aria-current='page'] {
-    background: var(--surface-2);
-    color: var(--text);
-    box-shadow: var(--press-sh);
-  }
-
-  .nav .num,
-  .nav .n {
-    margin-left: auto;
-  }
-
-  .n {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text-2);
-  }
-
-  .name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sq {
-    width: 7px;
-    height: 7px;
-    flex: none;
-    background: var(--text-2);
-  }
-
-  .project[aria-current='page'] .sq {
-    background: var(--text);
-  }
-
-  .sec {
-    display: flex;
-    align-items: center;
-    padding: 18px 4px 6px 10px;
-  }
-
-  .sec-link {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: var(--mono);
-    font-weight: 500;
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--text-2);
-    text-decoration: none;
-  }
-
-  .sec-link:hover,
-  .sec-link[aria-current='page'] {
-    color: var(--text);
-  }
-
-  .add {
-    margin-left: auto;
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 4px;
-    color: var(--text-2);
-  }
-
-  .add:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-
-  .runner .dot.off {
-    opacity: 0.5;
-  }
-
-  .foot {
-    margin-top: auto;
-    padding-top: 14px;
-    display: flex;
-    gap: 2px;
-  }
-  .foot .nav {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-</style>
+{#snippet picker()}
+  <ProjectPicker {groups} total={app.projects.length} selected={current} title={chosen ? chosen.name : 'All projects'} where={chosen ? 'Personal' : 'Everything in Werkbord'}
+    tooltip={chosen ? chosen.repoPath : ''} onchoose={choose} onnew={() => router.go({ view: 'projects', projectId: '', taskId: '' })} />
+{/snippet}
+<Sidebar
+  brand={{ label: 'werkbord. Go to Work', href: globalHref('control') }}
+  {picker}
+  salie={app.remote ? undefined : {
+    label: assistant.waiting > 0 ? `Salie, ${assistant.waiting} ${assistant.waiting === 1 ? 'request is' : 'requests are'} waiting for you` : assistant.running ? 'Salie, working' : 'Salie',
+    title: 'Salie', waiting: assistant.waiting, running: assistant.running, expanded: assistant.isOpen, disabled: false,
+    press: (rect, button) => assistant.toggle(originOf(rect), button), testid: 'assistant-button',
+  }}
+  {destinations}
+  {bottom} />

@@ -134,7 +134,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await taskDialog.getByRole('button', { name: 'Close', exact: true }).focus();
     await page.keyboard.press('Shift+Tab');
     assert.equal(await taskDialog.locator(':focus').count(), 1, 'Shift+Tab at the first control stays in the dialog');
-    await page.getByRole('link', { name: 'Projects', exact: true }).focus();
+    await page.getByRole('link', { name: 'Analytics', exact: true }).focus();
     assert.equal(await taskDialog.locator(':focus').count(), 1, 'background focus is redirected into the dialog');
     const sheetTestAction = taskDialog.locator('[data-sheet-test="dynamic-action"]');
     await page.evaluate(() => {

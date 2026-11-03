@@ -394,7 +394,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         await page.waitForFunction(() => location.hash === '#/control');
         assert.equal(await page.locator('[data-phone-nav]').count(), 0, 'no phone bar on a wide window');
         assert.equal(await page.locator('[data-key]').count(), 0, 'no deck on a wide window');
-        assert(await page.locator('aside.rail').isVisible(), 'the desktop rail is there');
+        assert(await page.locator('nav.side').isVisible(), 'the desktop rail is there');
         console.log('PASS desktop unchanged: the deck does not exist on a wide window');
         await ctx.close();
     }

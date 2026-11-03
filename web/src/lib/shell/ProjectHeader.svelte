@@ -6,6 +6,8 @@
   import Icon from '../Icon.svelte';
   import { shortPath } from '../projects';
   import TabRow from './TabRow.svelte';
+  import ContextBar from '../ContextBar.svelte';
+  import { attentionCount } from '../projects';
   import PhoneBack from '../mobile/PhoneBack.svelte';
   import { phone } from '../mobile/phone.svelte';
   import { projectHref, router, tabsFor } from '../router.svelte';
@@ -22,9 +24,12 @@
   const activity = $derived(app.overview?.projects.find((p) => p.projectId === project.id));
   /** Repository findings that want attention: what the Git tab's amber count says. */
   const gitItems = $derived(activity?.repoAttention ?? 0);
+  const SECTION: Record<string, string> = { work: 'Work', task: 'Work', git: 'Git', analytics: 'Analytics', defaults: 'Project settings' };
+  const trail = $derived([{ label: `${project.name} · Personal` }, ...(SECTION[router.view] ? [{ label: SECTION[router.view] }] : []), ...(router.view === 'task' ? [{ label: 'Task' }] : [])]);
   const branch = $derived(project.repository?.currentBranch ?? '');
 </script>
 
+{#if phone.on || framed}
 <div class="bar" class:deck={phone.on}>
 <header class="head" class:deck={phone.on}>
   {#if phone.on}<PhoneBack />{/if}
@@ -82,6 +87,16 @@
 />
 {/if}
 </div>
+{:else}
+  <!-- The same header as the Mac window's (in the window's own page the window draws it, so a framed page keeps the plain one above): where you are, and what is running and waiting. Work and Git are entries of the sidebar. -->
+  <ContextBar crumbs={trail} running={activity?.running ?? 0} needsYou={attentionCount(activity)}>
+    <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
+      <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
+    </button>
+    {#if !app.remote}<a class="btn icon gear" href={projectHref(project.id, 'defaults')} aria-label="Project settings: defaults for {project.name}" title="Project settings" aria-current={router.view === 'defaults' ? 'page' : undefined}><Icon name="defaults" /></a>{/if}
+    <button class="btn primary new" type="button" onclick={() => (app.newTaskOpen = true)} title="New task (N)"><Icon name="plus" /><span>New task</span></button>
+  </ContextBar>
+{/if}
 
 <style>
   /* The heading and the tabs are one piece; on a wide window the wrapper is not there, as far as layout goes. */

@@ -173,7 +173,6 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             const { ctx, page } = await newPage({ colorScheme: 'light' });
             await page.goto(base + '/#token=' + token);
             await page.goto(base + '/#/projects');
-            await page.locator('aside.rail a.sec-link[href="#/projects"]').click();
             await page.getByRole('heading', { name: 'Projects', exact: true }).waitFor();
             const button = page.getByTestId('assistant-button').first();
             await button.waitFor();
@@ -456,7 +455,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await closeAssistant(page);
             const btn = page.getByTestId('assistant-button').first();
             assert.match(await btn.getAttribute('aria-label'), /1 request is waiting for you/);
-            assert.equal(await btn.locator('.num').innerText(), '1');
+            assert.equal(await btn.locator('.count').innerText(), '1');
             assert.equal(requests.filter(r => /\/actions\//.test(r)).length, 0, 'closing the screen decided nothing');
             await page.goto(base + `/#/p/${project.id}/work`); // go to a different view altogether
             await page.waitForFunction(() => location.hash.includes('/work'));
@@ -890,7 +889,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             await button.waitFor();
             const bb = await button.boundingBox();
             assert.ok(bb.width >= 44 && bb.height >= 44, 'a thumb-sized way in: ' + JSON.stringify(bb));
-            assert.equal(await page.locator('aside.rail').isVisible().catch(() => false), false, 'no sidebar on a phone');
+            assert.equal(await page.locator('nav.side').isVisible().catch(() => false), false, 'no sidebar on a phone');
             await page.screenshot({ path: path.join(artifacts, 'assistant-button-mobile.png') });
             await button.tap();
             await surface(page).waitFor();
