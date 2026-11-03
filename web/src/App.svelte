@@ -41,6 +41,7 @@
   import { phoneSubtitle } from './lib/mobile/subtitle';
   import TokenPrompt from './lib/TokenPrompt.svelte';
   import UpdateBanner from './lib/UpdateBanner.svelte';
+  import PartialUpdate from './lib/PartialUpdate.svelte';
   import Work from './routes/Work.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
@@ -284,6 +285,7 @@
       <!-- The Control Deck exposes Needs attention through its configurable key. -->
       {#if !(deck && router.view === 'deck')}<NeedsInputBanner />{/if}
       <UpdateBanner />
+      <PartialUpdate />
       {#if app.needsOnboarding && !isPhone() && !framed && router.view !== 'onboarding'}
         <div class="setup-reminder" role="status">
           <span><strong>Setup is unfinished.</strong> Finish connecting your tools to get the full Werkbord experience.</span>

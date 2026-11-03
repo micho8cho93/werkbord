@@ -230,13 +230,13 @@ it; Help has none) do the same thing, which depends on what is behind:
 4. **Only the program is behind** (the feed has no update of the app yet, for instance while a release is still being published,
    or Sparkle is not in this build). The update the terminal has, unchanged: `werkbord update`, behind a native question.
 
-**A window that is only partly updated.** The window is two things: the app's own pages (Work, Analytics, Settings), which are
-the app's version, and the person's own Werkbord in a frame, which the controller serves and which is the controller's version. When
-the controller is older than the program the app carries (the update was refused because something was running), some screens look
-old and others new. So whenever the app connects to such a controller it watches, with no one having to ask, and finishes by itself as
-soon as nothing is in the way; the window shows **Werkbord is only partly updated** with the reason and **Finish update** for as long
-as it is so, instead of saying it once. The watcher never starts a download or an update of the app: only the program the app already
-carries, which needs no network.
+**A window on an older controller.** The window shows the controller's own web app (`useShell` in `desktop/workspaces.go` is off:
+the app's second page, with its own sidebar and screens around that app, is kept but not opened), so what the window shows is the
+controller's version, not the app's. When the controller is older than the program the app carries (the update was refused because
+something was running), the window would show the old screens. So whenever the app connects to such a controller it watches, with
+no one having to ask, and finishes by itself as soon as nothing is in the way; the page shows **Werkbord is only partly updated**
+with the reason and **Finish update** for as long as it is so, instead of saying it once. The watcher never starts a download or an
+update of the app: only the program the app already carries, which needs no network.
 
 **Open native terminals.** Replacing the program restarts the controller, which ends every native terminal, so an update is
 refused while one is open. The check asks the running controller which terminals are alive (a metadata file only says what was last

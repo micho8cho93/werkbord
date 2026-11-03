@@ -71,11 +71,14 @@ func main() {
 	for _, arg := range os.Args[1:] {
 		parts.invites.Receive(arg)
 	}
-	if !hasShell(assets) {
-		log.Error("workspace shell assets missing; run make web-shell before building")
-		os.Exit(1)
+	page := ""
+	if useShell {
+		if !hasShell(assets) {
+			log.Error("workspace shell assets missing; run make web-shell before building")
+			os.Exit(1)
+		}
+		page = shellPage
 	}
-	page := shellPage
 	// Sparkle, if this build has it: it may look at its feed only when the person has not turned looking for updates off.
 	nu := newNativeUpdater(log, func() bool { return l.UpdatesAllowed(ctx) })
 	var up shell.Updater
@@ -91,6 +94,10 @@ func main() {
 	// frame of it, WebKit gives a frame no way to call the app, and a workspace's page asks the shell page, which asks
 	// Relay. Workspace pages never receive the full shell binding.
 	bindingsFrom := ""
+	if page == "" {
+		// The window shows the controller's own page, so that page is the one that may call the app (as it was before the shell).
+		bindingsFrom = "http://127.0.0.1:*,http://localhost:*"
+	}
 
 	err = wails.Run(&options.App{
 		Title:            "Werkbord",

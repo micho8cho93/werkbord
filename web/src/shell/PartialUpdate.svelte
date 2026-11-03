@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { ask } from './native';
-  import { partialUpdate, type UpdateState } from './partial-update';
+  import { partialUpdate, type UpdateState } from '../lib/partial-update';
 
   // Shown whenever the part of Werkbord that runs your work is older than this app, for as long as that is so: a refusal said
   // once and forgotten is how a window ends up on old screens without anyone knowing. "Finish update" is the app's own dialog.

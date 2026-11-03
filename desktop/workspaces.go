@@ -19,8 +19,14 @@ import (
 )
 
 // The window's own page, which shows every workspace. It is built from the web app's design system and components (web/, make
-// web-shell) and embedded under frontend/dist/shell. Missing shell assets are a build error.
+// web-shell) and embedded under frontend/dist/shell.
 const shellPage = "shell/shell/index.html"
+
+// useShell says whether the window opens that page (and frames the web app inside it) or opens the web app itself. The window
+// opens the web app itself: it is the one interface, the same in a browser, on a phone and here, so what a design looks like in
+// a browser is what it looks like in the app. The page above is kept for the day Team workspaces are part of the web app itself;
+// turning this on again brings back the window's own sidebar, Work, Agents, Calendar and Settings, and the workspace switcher.
+const useShell = false
 
 // workspaceParts is everything the shell is given to work with workspaces.
 type workspaceParts struct {
