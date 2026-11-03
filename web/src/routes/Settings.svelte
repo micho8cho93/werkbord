@@ -24,7 +24,12 @@
   import PhonesPanel from '../lib/phones/PhonesPanel.svelte';
   import { desktop } from '../lib/desktop.svelte';
   import { app } from '../lib/state.svelte';
-  import { look, STYLES, theme } from '../lib/theme.svelte';
+  import AppearanceSettings from '../lib/settings/AppearanceSettings.svelte';
+  import ShortcutsSettings from '../lib/settings/ShortcutsSettings.svelte';
+  import AboutSettings from '../lib/settings/AboutSettings.svelte';
+  import { isMac, sharedShortcuts } from '../lib/settings/shortcuts';
+  import { GENERAL, PERSONAL, visibleGroups } from '../lib/settings-sections';
+  import { callDesktop } from '../lib/desktop';
   import type { ExecutionConfig, Health, Runner } from '../lib/types';
 
   // Everything that is set once and changed rarely, one section at a time: each has its own
@@ -38,22 +43,21 @@
   const localMemoryProject = $derived(app.projects.find(p => p.id === memoryProject)?.id ?? app.projects[0]?.id ?? '');
   let mcpDirection = $state<'service' | 'client'>('service');
 
-  const GROUPS = [
-    { label: 'Projects & workspaces', sections: [{ id: 'history', label: 'Project history' }] },
-    { label: 'Work', sections: [{ id: 'defaults', label: 'Task defaults' }, { id: 'routing', label: 'Routing rules' }, { id: 'time', label: 'Time format' }] },
-    { label: 'Machines', sections: [{ id: 'runners', label: 'Runners' }, { id: 'agents', label: 'Agents' }, { id: 'usage', label: 'Usage' }, { id: 'computer', label: 'This computer' }] },
-    { label: 'Connections', sections: [{ id: 'phones', label: 'Phones' }, { id: 'github', label: 'GitHub' }, { id: 'mcp', label: 'MCP services' }, { id: 'memory', label: 'Personal memory' }] },
-    { label: 'Preferences', sections: [{ id: 'alerts', label: 'Alerts and display' }] },
-  ] as const;
+  // The sections are the list Settings has in the Mac window too (lib/settings-sections.ts). A page the window frames shows only
+  // Individual's own: the window lists and owns the General group (Appearance, Alerts, Keyboard shortcuts…).
   // A phone's own settings are its sign-in and its display; the rest is changed at the computer.
-  const PHONE_SECTIONS = ['phones', 'alerts'];
-  // The window has the theme and alerts of its own, and the time format is the one thing of "display" left here; in a browser it is all one section.
-  const own = (id: string) => (framed ? id !== 'alerts' : id !== 'time');
-  const shownGroups = GROUPS.map((g) => ({ ...g, sections: g.sections.filter((s) => own(s.id) && (!isPhone() || PHONE_SECTIONS.includes(s.id))) })).filter((g) => g.sections.length);
-  const SECTIONS = GROUPS.flatMap((g) => g.sections.filter((s) => own(s.id)));
-  type SectionId = (typeof SECTIONS)[number]['id'];
-  const section = $derived<SectionId>(SECTIONS.find((s) => s.id === router.query && (!isPhone() || PHONE_SECTIONS.includes(s.id)))?.id ?? (isPhone() ? 'phones' : 'defaults'));
-  const href = (id: SectionId) => (id === 'defaults' ? globalHref('settings') : `${globalHref('settings')}?${id}`);
+  const PHONE_SECTIONS = ['phones', 'alerts', 'appearance'];
+  const shownGroups = $derived(
+    visibleGroups(framed ? PERSONAL : [GENERAL, ...PERSONAL], { app: desktop.available, window: false })
+      .map((g) => ({ ...g, sections: g.sections.filter((s) => !isPhone() || PHONE_SECTIONS.includes(s.key)) }))
+      .filter((g) => g.sections.length),
+  );
+  const SECTIONS = $derived(shownGroups.flatMap((g) => g.sections));
+  /** What a bare #/settings shows: Appearance, the window's first, or Task defaults where the window frames this page. */
+  const first = framed ? 'defaults' : 'appearance';
+  const section = $derived<string>(SECTIONS.find((s) => s.key === router.query)?.key ?? (isPhone() ? 'phones' : first));
+  const href = (key: string) => (key === first ? globalHref('settings') : `${globalHref('settings')}?${key}`);
+  const macKeys = $derived(isMac());
 
   let checking = $state(false);
   async function checkUpdateNow() {
@@ -113,6 +117,16 @@
     router.go({ view: 'onboarding', projectId: '', taskId: '' });
   }
 
+  // ---- Updates & about, where the Mac app is present ----
+  const aboutHost = {
+    info: () => callDesktop<{ version: string; platform: string }>('Info'),
+    checkUpdate: () => callDesktop<{ ok?: boolean; declined?: boolean; message?: string }>('RequestUpdate', [], 120_000),
+    openExternal: (url: string) => void callDesktop('OpenExternal', [url]).catch(() => {}),
+    showDiagnostics: () => void callDesktop('ShowDiagnostics').catch(() => {}),
+    openLogs: () => void callDesktop('OpenLogs').catch(() => {}),
+    openHelp: () => router.go({ view: 'help', projectId: '', taskId: '' }),
+  };
+
   // ---- alerts ----
   let permission = $state(notificationPermission());
   function syncAlerts() { permission = notificationPermission(); optedIn = notificationsEnabled() && permission === 'granted'; }
@@ -135,8 +149,8 @@
   <Tour surface="settings" enabled={!isPhone() && !framed} />
   <label class="mobile-section">
     <span>Settings section</span>
-    <select aria-label="Settings section" value={section} onchange={(event) => { location.hash = href(event.currentTarget.value as SectionId); }}>
-      {#each SECTIONS as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+    <select aria-label="Settings section" value={section} onchange={(event) => { location.hash = href(event.currentTarget.value); }}>
+      {#each SECTIONS as s (s.key)}<option value={s.key}>{s.label}</option>{/each}
     </select>
   </label>
   <nav class="sections" aria-label="Settings sections">
@@ -144,8 +158,8 @@
       <div class="section-group" role="group" aria-label={group.label}>
         <h2>{group.label}</h2>
         <div class="section-links">
-          {#each group.sections as s (s.id)}
-            <a href={href(s.id)} aria-current={section === s.id ? 'page' : undefined}>{s.label}</a>
+          {#each group.sections as s (s.key)}
+            <a href={href(s.key)} aria-current={section === s.key ? 'page' : undefined}>{s.label}</a>
           {/each}
         </div>
       </div>
@@ -221,7 +235,7 @@
     {:else if section === 'alerts'}
       <section class="pn">
         <div class="head">
-          <h3>Browser alerts</h3>
+          <h3>Alerts</h3>
           <p class="muted">
             Alerts for questions, blocked or failed runs, finished work and repository risk. They arrive only while this page stays open in a
             browser: Werkbord has no push service. Kept on this device.
@@ -238,28 +252,12 @@
           {/if}
         </div>
       </section>
-      <section class="pn">
-        <div class="head">
-          <h3>Theme</h3>
-          <p class="muted">“Device” follows your system setting.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Theme">
-          <button aria-pressed={theme.choice === ''} onclick={() => theme.set('')}>Device</button>
-          <button aria-pressed={theme.choice === 'light'} onclick={() => theme.set('light')}>Light</button>
-          <button aria-pressed={theme.choice === 'dark'} onclick={() => theme.set('dark')}>Dark</button>
-        </div>
-      </section>
-      <section class="pn">
-        <div class="head">
-          <h3>Style</h3>
-          <p class="muted">{STYLES.find(s => s.id === look.choice)?.about}</p>
-        </div>
-        <div class="seg" role="group" aria-label="Style">
-          {#each STYLES as s (s.id)}
-            <button aria-pressed={look.choice === s.id} onclick={() => look.set(s.id)}>{s.label}</button>
-          {/each}
-        </div>
-      </section>
+    {:else if section === 'appearance'}
+      <AppearanceSettings />
+    {:else if section === 'shortcuts'}
+      <ShortcutsSettings keys={sharedShortcuts(macKeys)} />
+    {:else if section === 'about'}
+      <AboutSettings host={aboutHost} />
     {:else if section === 'computer'}
       <section class="pn">
         <div class="head">

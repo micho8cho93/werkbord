@@ -64,7 +64,7 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     assert.match(page.url(), /#\/help$/);
     assert.equal(await page.getByRole('searchbox', { name: 'Search Help and shortcuts' }).count(), 1, 'phone can search Help');
 
-    await page.goto(`${base}/#/settings`);
+    await page.goto(`${base}/#/settings?defaults`);
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();

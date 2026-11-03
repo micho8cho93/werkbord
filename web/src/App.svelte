@@ -260,7 +260,7 @@
         <ContextBar crumbs={[{ label: 'All Projects' }, { label: GLOBAL_BAR[router.view] ?? '' }]} running={(app.overview?.projects ?? []).reduce((n, p) => n + p.running, 0)} needsYou={app.needsYou}>
           <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to"><Icon name="search" /><span class="wide">Jump to</span></button>
         </ContextBar>
-      {:else if (router.view !== 'deck' || !deck) && !(hosted && (router.view === 'settings' || router.view === 'help'))}
+      {:else if (router.view !== 'deck' || !deck) && !((hosted || (!framed && !deck && !isPhone())) && (router.view === 'settings' || router.view === 'help'))}
         <header class="ghead">
           <div class="gtitle">
             {#if deck}<PhoneBack />{:else if !framed}<span class="phone-mark"><Mark height={18} /></span>{/if}

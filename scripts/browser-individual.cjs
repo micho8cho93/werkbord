@@ -61,7 +61,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     if (!p)
         p = await api('POST', '/api/projects', { path: repo, name: 'Disposable individual' });
     // Settings retains keyboard access after the obsolete Labels section was removed.
-    await page.goto(base + '/#/settings');
+    await page.goto(base + '/#/settings?defaults');
     await page.reload();
     await page.getByRole('heading', { name: 'Defaults for every task', exact: true }).waitFor();
     const skipMain = page.getByRole('link', { name: 'Skip to main content', exact: true });
@@ -70,7 +70,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     assert((await skipMain.boundingBox()).y >= 0, 'skip link is visible when focused');
     await page.keyboard.press('Enter');
     assert.equal(await page.locator('main').evaluate(el => el === document.activeElement), true, 'skip link moves focus to the main work region');
-    assert.match(page.url(), /#\/settings$/, 'skip link does not alter the app route');
+    assert.match(page.url(), /#\/settings\?defaults$/, 'skip link does not alter the app route');
     assert.equal(await page.getByRole('navigation', { name: 'Settings sections', exact: true }).count(), 1, 'Settings sections remain a navigation landmark');
     assert.equal(await page.getByRole('link', { name: 'Labels', exact: true }).count(), 0, 'removed label settings are not offered');
     await captureDecisionSurface('settings');
@@ -702,7 +702,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.evaluate(() => document.documentElement.dataset.theme = 'light');
         await page.setViewportSize({width:1440,height:1000});
         console.log('PASS completed local run leads directly to real Git changes and labels absent test evidence');
-        await page.goto(base + '/#/settings');
+        await page.goto(base + '/#/settings?defaults');
         await page.locator('#global-priority').selectOption('high');
         await api('PUT', '/api/settings/execution', { priority: 'low' });
         await page.waitForTimeout(400);

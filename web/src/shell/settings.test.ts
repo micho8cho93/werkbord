@@ -52,6 +52,12 @@ describe('what Settings lists', () => {
     expect(ids).toContain('personal/phones');
   });
 
+  it('has one Projects & workspaces heading for Personal on Home, holding the workspaces and the project history', () => {
+    const groups = groupsFor({ kind: 'universal' }, items).filter((g) => g.owner === 'Personal' && g.label === 'Projects & workspaces');
+    expect(groups.map((g) => g.sections.map((s) => s.label))).toEqual([['Workspaces', 'Project history']]);
+    expect(groupsFor({ kind: 'universal' }, items).filter((g) => !g.owner && g.label === 'Projects & workspaces')).toEqual([]);
+  });
+
   it('leaves out a Team that cannot be shown, and a scope it does not know falls back to the first section', () => {
     expect(teamsOf([team('team:x', 'Gone', 'leaving'), team('team:y', 'Setting up', 'setup'), team('team:z', 'Ok')]).map((t) => t.id)).toEqual(['team:z']);
     const groups = groupsFor({ kind: 'personal' }, items);

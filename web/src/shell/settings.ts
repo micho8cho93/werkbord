@@ -5,6 +5,7 @@
 // Personal's. Home lists everything, a workspace at a time. A section is either the shell's own (Appearance, Alerts) or a
 // page of the workspace it belongs to, shown here without that page's own navigation.
 
+import { GENERAL, PERSONAL as PERSONAL_SECTIONS, PROJECTS_LABEL, WORKSPACES, settingsQuery } from '../lib/settings-sections';
 import type { Item, Kind } from './types';
 
 /** Which part of Werkbord Settings is for: Home (everything), Personal, or one team (its id). */
@@ -36,20 +37,16 @@ export interface Group {
 
 const PERSONAL = 'personal';
 
-/** Projects and workspaces are one section of Settings of their own: the workspaces on this computer, and each one's projects. */
-const PROJECTS = 'Projects & workspaces';
+const PROJECTS = PROJECTS_LABEL;
 
 const here = (workspace: string, place: string): Where => ({ workspace, place });
 
-/** Individual's sections, in the groups Settings always has. */
+/** Individual's sections, in the groups Settings always has: the list the web app's Settings uses too. */
 function personal(): Group[] {
-  const at = (id: string, label: string, query: string): Section => ({ id: `personal/${id}`, label, where: here(PERSONAL, `#/settings${query}`) });
-  return [
-    { label: PROJECTS, sections: [at('history', 'Project history', '?history')] },
-    { label: 'Work', sections: [at('defaults', 'Task defaults', ''), at('routing', 'Routing rules', '?routing'), at('time', 'Time format', '?time')] },
-    { label: 'Machines', sections: [at('runners', 'Runners', '?runners'), at('agents', 'Agents', '?agents'), at('usage', 'Usage', '?usage'), at('computer', 'This computer', '?computer')] },
-    { label: 'Connections', sections: [at('phones', 'Phones', '?phones'), at('github', 'GitHub', '?github'), at('mcp', 'MCP services', '?mcp'), at('memory', 'Personal memory', '?memory')] },
-  ];
+  return PERSONAL_SECTIONS.map((g) => ({
+    label: g.label,
+    sections: g.sections.map((d): Section => ({ id: `personal/${d.key}`, label: d.label, where: here(PERSONAL, `#/settings${settingsQuery(d.key)}`) })),
+  }));
 }
 
 /** A Team workspace's sections, in the same groups. */
@@ -70,21 +67,12 @@ function team(id: string): Group[] {
 
 /** The shell's own: what is the same in every workspace because it is about this window and this person. */
 export function general(): Group {
-  return {
-    label: 'General',
-    sections: [
-      { id: 'general/appearance', label: 'Appearance', where: { native: 'appearance' } },
-      { id: 'general/alerts', label: 'Alerts', where: { native: 'alerts' } },
-      { id: 'general/shortcuts', label: 'Keyboard shortcuts', where: { native: 'shortcuts' } },
-      { id: 'general/about', label: 'Updates & about', where: { native: 'about' } },
-      { id: 'general/plan', label: 'Plan', where: { native: 'plan' } },
-    ],
-  };
+  return { label: GENERAL.label, sections: GENERAL.sections.map((d): Section => ({ id: `general/${d.key}`, label: d.label, where: { native: d.key as Native } })) };
 }
 
 /** The workspaces on this computer, and where a team is made or joined: the shell's own, the first of Projects & workspaces. */
 export function workspacesGroup(): Group {
-  return { label: PROJECTS, sections: [{ id: 'general/workspaces', label: 'Workspaces', where: { native: 'workspaces' } }] };
+  return { label: PROJECTS, sections: [{ id: `general/${WORKSPACES.key}`, label: WORKSPACES.label, where: { native: 'workspaces' } }] };
 }
 
 /** Inside one workspace's own scope the workspaces list and that workspace's projects are one group. */
@@ -101,8 +89,9 @@ export function teamsOf(items: readonly Item[] | undefined): Item[] {
 export function groupsFor(scope: Scope, items: readonly Item[] | undefined): Group[] {
   if (scope.kind === 'personal') return [general(), ...withWorkspaces(personal())];
   if (scope.kind === 'team') return [general(), ...withWorkspaces(team(scope.id))];
-  const out: Group[] = [general(), workspacesGroup()];
-  out.push(...personal().map((g) => ({ ...g, owner: 'Personal' })));
+  // The workspaces on this computer sit in Personal's Projects & workspaces, so the heading is there once, not once for the window and once for Personal.
+  const out: Group[] = [general()];
+  out.push(...withWorkspaces(personal()).map((g) => ({ ...g, owner: 'Personal' })));
   for (const t of teamsOf(items)) out.push(...team(t.id).map((g) => ({ ...g, owner: t.name })));
   return out;
 }
