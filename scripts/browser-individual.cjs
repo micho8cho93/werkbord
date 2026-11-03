@@ -76,7 +76,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await captureDecisionSurface('settings');
     const focusTask = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Navigation focus fixture' });
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(base + `/#/p/${p.id}/work`);
+    await page.goto(base + `/#/p/${p.id}/work?section=queue`);
     const focusOpener = page.getByRole('link', { name: focusTask.title, exact: true });
     await focusOpener.waitFor();
     await focusOpener.focus();
@@ -97,7 +97,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     console.log('PASS Settings keyboard access, responsive/theme captures, and task focus order');
     const workProject = await api('POST', '/api/projects', { kind: 'work', name: 'Planning fixture' });
     await api('POST', `/api/projects/${workProject.id}/tasks`, { title: 'Plan the migration', plan: {start: new Date().toISOString().slice(0,10)} });
-    await page.goto(base + `/#/p/${workProject.id}/work`);
+    await page.goto(base + `/#/p/${workProject.id}/work?section=queue`);
     await page.locator('[data-task-id]', { hasText: 'Plan the migration' }).first().click();
     await page.getByRole('button', { name: 'Edit task', exact: true }).click();
     const workEdit = page.getByRole('dialog', { name: 'Edit task', exact: true });
@@ -123,7 +123,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
     await page.getByRole('button', { name: 'Retry setup checks', exact: true }).click();
     await page.getByText(/3 of 3 requirements verified/).waitFor();
     // Completion ordering, optional decisions and failures are exercised in browser-onboarding.cjs.
-    await page.goto(base + `/#/p/${p.id}/work`);
+    await page.goto(base + `/#/p/${p.id}/work?section=queue`);
     await page.getByRole('button', { name: 'New task', exact: true }).click();
     await page.getByRole('heading', { name: 'New task in ' + p.name, exact: true }).waitFor();
     // Sheet protects keyboard users even with disabled submit buttons and collapsed execution settings.
@@ -321,12 +321,12 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.getByRole('button', { name: 'Archive', exact: true }).waitFor();
         console.log('PASS Enter-to-send, Shift+Enter newline, readable handoff, header Stop, close/archive/history/restore');
 
-        await page.goto(base + `/#/p/${p.id}/work`);
+        await page.goto(base + `/#/p/${p.id}/work?section=queue`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         await page.getByRole('button', { name: 'Back to Work', exact: true }).click();
         let finished = await api('POST', `/api/projects/${p.id}/tasks`, { title: 'Clear Done fixture', description: 'Details to recall' });
         finished = await api('PATCH', `/api/projects/${p.id}/tasks/${finished.id}`, { version: finished.version, state: 'done' });
-        await page.goto(base + `/#/p/${p.id}/work`);
+        await page.goto(base + `/#/p/${p.id}/work?section=queue`);
         if (await page.getByRole('button', { name: /^Filters/ }).isVisible() && await page.getByRole('button', { name: /^Filters/ }).getAttribute('aria-expanded') === 'false') await page.getByRole('button', { name: /^Filters/ }).click();
         assert.equal(await page.getByRole('button', { name: 'Archive Done tasks', exact: true }).count(), 0);
         await page.locator('.completed > summary').click();
@@ -383,7 +383,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await page.unroute(launchRoute);
         await sync([{ runId: recoveredRuns[0].id, observations: [{ seq: 1, kind: 'ended', result: { state: 'stopped' } }] }]);
         await page.getByRole('heading', { name: 'Run result', exact: true }).waitFor();
-        await page.goto(base + `/#/p/${p.id}/work`);
+        await page.goto(base + `/#/p/${p.id}/work?section=queue`);
         await page.route(launchRoute, route => route.request().method() === 'POST' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: { code: 'conflict', message: 'Runner became unavailable' } }) }) : route.continue());
         await page.getByRole('button', { name: 'New task', exact: true }).click();
         await page.getByRole('textbox', { name: 'What should an agent do?', exact: true }).fill('Close saved recovery fixture');
@@ -454,7 +454,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         assert.equal(finishedRun,true,'finishing the run records its ended state before the Review task is reopened');
         const completedTask = (await api('GET', `/api/projects/${p.id}/tasks`)).tasks.find(t => t.id === localTask.id);
         if (completedTask.state !== 'review') await api('PATCH', `/api/projects/${p.id}/tasks/${localTask.id}`, { version: completedTask.version, state: 'review' });
-        await page.goto(base + `/#/p/${p.id}/work`);
+        await page.goto(base + `/#/p/${p.id}/work?section=queue`);
         await page.getByText(localTask.title,{exact:true}).click();
         await page.getByRole('heading', {name:localTask.title,exact:true}).waitFor();
         await page.waitForFunction(() => document.querySelector('.panel .state select')?.value === 'review');
@@ -477,7 +477,7 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         await verdict.waitFor();
         assert(await verdict.getByText('Not recorded',{exact:false}).isVisible(), 'verdict is discoverable beside the review decision');
         assert(await reviewHead.getByText(/records your assessment.*does not merge, move or archive the task/i).isVisible(), 'verdict explanation is beside its controls');
-        await page.goto(base + `/#/p/${p.id}/work`);
+        await page.goto(base + `/#/p/${p.id}/work?section=queue`);
         await page.getByText(localTask.title,{exact:true}).click();
         await headerReviewLink.waitFor();
         assert.equal(await page.evaluate(() => document.activeElement?.id),'task-title','opening the task panel focuses its title');

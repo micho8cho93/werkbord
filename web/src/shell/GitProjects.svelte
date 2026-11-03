@@ -1,7 +1,7 @@
 <script lang="ts">
   import { model } from './model.svelte';
   import { contextKey } from './project-context';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
 
   // Git across projects, or for a team: each project's repository is its own page, so this lists them and opens the one chosen.
   // Each opens its Git in the page of the workspace it belongs to.

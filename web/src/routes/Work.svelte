@@ -12,11 +12,12 @@
   import { gitStore } from '../lib/git/store.svelte';
   import Icon from '../lib/Icon.svelte';
   import WorkPlans from '../lib/work/WorkPlans.svelte';
+  import WebOverview from '../lib/work/WebOverview.svelte';
   import { WORK_GROUPS, blockingTasks, workGroup, type WorkPlan } from '../lib/work-queue';
   import { isPhone } from '../lib/phones/capability';
   import { orderDrops, positionBetween, reorderedIds, spreadPositions, type OrderDrop } from '../lib/orderGestures';
   import { embedded } from '../lib/embed';
-  import { projectHref } from '../lib/location';
+  import { globalHref, projectHref } from '../lib/location';
   import { router } from '../lib/router.svelte';
   import type { ProjectScope } from '../lib/scope.svelte';
   import { app } from '../lib/state.svelte';
@@ -34,6 +35,8 @@
   const params = $derived(new URLSearchParams(router.query));
   const detail = $derived(!!params.get('plan') || params.get('new') === 'plan');
   const plansShown = $derived(detail || params.get('section') === 'plans');
+  /** Work opens on its Overview, as it does in the window; the queue and the plans are its other tab. A phone, and the page framed by the window, open on the queue. */
+  const overviewShown = $derived(!embedded() && !isPhone() && !detail && !plansShown && params.get('section') !== 'queue');
   let viewingArchive = $state(false);
   let agentFilter = $state('');
   let runnerFilter = $state('');
@@ -222,11 +225,12 @@
   {#if !detail}
     <header class="work-heading">
       <div><h1>Work</h1><p class="muted">Your tasks, plans and agent activity.</p></div>
-      <div class="work-actions"><label class="work-search"><Icon name="search" size={15} /><span class="visually-hidden">{plansShown ? 'Search plans' : 'Search tasks'}</span><input type="search" bind:value={search} placeholder={plansShown ? 'Search plans…' : 'Search tasks…'} /></label><button class="btn primary work-new" onclick={() => app.newTaskOpen = true}><Icon name="plus" size={15} />New task</button></div>
+      <div class="work-actions"><label class="work-search"><Icon name="search" size={15} /><span class="visually-hidden">{plansShown ? 'Search plans' : overviewShown ? 'Search work' : 'Search tasks'}</span><input type="search" bind:value={search} placeholder={plansShown ? 'Search plans…' : overviewShown ? 'Search work…' : 'Search tasks…'} /></label>{#if overviewShown && !app.remote}<a class="btn" href="{globalHref('projects')}?new"><Icon name="plus" size={15} />New project</a><a class="btn" href="{projectHref(project.id, 'work')}?new=plan">New plan</a>{/if}<button class="btn primary work-new" onclick={() => app.newTaskOpen = true}><Icon name="plus" size={15} />New task</button></div>
     </header>
-    <nav class="work-tabs" aria-label="Work sections">{#if embedded()}<button type="button" class="tab-overview" onclick={() => window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'overview' }, '*')}>Overview</button>{/if}{#if embedded()}<a href={projectHref(project.id, 'work')} aria-current="page">Queue &amp; Plans<span>{scope.activeTasks.filter(t => t.state !== 'done').length}</span></a>{:else}<a href={projectHref(project.id, 'work')} aria-current={!plansShown ? 'page' : undefined}>Queue<span>{scope.activeTasks.filter(t => t.state !== 'done').length}</span></a><a href={projectHref(project.id, 'work') + '?section=plans'} aria-current={plansShown ? 'page' : undefined}>Plans</a>{/if}{#if !plansShown}<button class="archive" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to Work' : `Archive (${scope.archivedTasks.length})`}</button>{/if}</nav>
+    <nav class="work-tabs" aria-label="Work sections">{#if embedded()}<button type="button" class="tab-overview" onclick={() => window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'overview' }, '*')}>Overview</button><a href={projectHref(project.id, 'work')} aria-current="page">Queue &amp; Plans<span>{scope.activeTasks.filter(t => t.state !== 'done').length}</span></a>{:else if !isPhone()}<a href={projectHref(project.id, 'work')} aria-current={overviewShown ? 'page' : undefined}>Overview</a><a href={projectHref(project.id, 'work') + '?section=queue'} aria-current={!overviewShown ? 'page' : undefined}>Queue &amp; Plans<span>{scope.activeTasks.filter(t => t.state !== 'done').length}</span></a>{:else}<a href={projectHref(project.id, 'work')} aria-current={!plansShown ? 'page' : undefined}>Queue<span>{scope.activeTasks.filter(t => t.state !== 'done').length}</span></a><a href={projectHref(project.id, 'work') + '?section=plans'} aria-current={plansShown ? 'page' : undefined}>Plans</a>{/if}{#if !plansShown && !overviewShown}<button class="archive" aria-pressed={viewingArchive} onclick={() => viewingArchive = !viewingArchive}>{viewingArchive ? 'Back to Work' : `Archive (${scope.archivedTasks.length})`}</button>{/if}</nav>
   {/if}
-  {#if plansShown}<WorkPlans {scope} {project} {search} />
+  {#if overviewShown}<WebOverview projectId={project.id} {search} toQueue={() => (location.hash = projectHref(project.id, 'work') + '?section=queue')} />
+  {:else if plansShown}<WorkPlans {scope} {project} {search} />
   {:else}
     <section class="queue" aria-label="Work queue">
       <details class="queue-filters"><summary>Filter tasks{filtering ? ' · Active' : ''}</summary><div class="filters">

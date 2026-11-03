@@ -236,6 +236,8 @@ function withoutExecution<T extends object>(body: T): T {
 }
 
 export const api = {
+  /** The workspace summary the Work page reads: the queue, what needs the person, what changed. */
+  workspaceSummary: () => request<import('../shell/types').Summary>('GET', '/api/workspace/v1/summary'),
   workPlans: (project: string) => request<import('./work-queue').WorkPlan[]>('GET', `${inProject(project)}/work-plans`),
   planRunPreview: (project: string, plan: string, mode?: string) => request<import('./work-queue').PlanRunPreview>('GET', `${inProject(project)}/work-plans/${enc(plan)}/run${mode ? '?mode=' + enc(mode) : ''}`),
   runPlan: (project: string, plan: string, body: { mode: string; version: number; digest: string }) => request<import('./work-queue').WorkPlan>('POST', `${inProject(project)}/work-plans/${enc(plan)}/run`, body),

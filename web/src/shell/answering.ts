@@ -8,15 +8,14 @@ import { ask } from './native';
 import { decisionKey } from './decisions';
 import { decisions } from './decisions.svelte';
 import { model } from './model.svelte';
+import { reachable as reachableAt } from './answering-reach';
 import type { Overview } from './types';
 
-/** How old a workspace's summary may be before its questions are no longer offered for answering. */
-export const FRESH_FOR = 30_000;
+export { FRESH_FOR } from './answering-reach';
 
 /** Whether the Personal workspace has answered recently enough that an answer sent now would reach it. */
 export function reachable(overview: Overview | null, now: number, id = 'personal'): boolean {
-  const e = overview?.entries.find((x) => x.workspace.id === id);
-  return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < FRESH_FOR;
+  return reachableAt(overview, now, undefined, id);
 }
 
 export async function answerWith(q: Question, answer: string, overview: Overview | null = model.overview, now = Date.now()): Promise<Question> {

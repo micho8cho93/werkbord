@@ -182,7 +182,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
     // Work keeps all three queue categories reachable on a phone.
     {
         const { ctx, page } = await phone(390, 844);
-        await page.goto(base + `/#/p/${project.id}/work`);
+        await page.goto(base + `/#/p/${project.id}/work?section=queue`);
         for (const name of ['Now','Next','Later']) await page.getByRole('heading',{name,exact:true}).waitFor();
         await noOverflow(page,'phone Work queue');
         await ctx.close();
@@ -205,7 +205,7 @@ const KEYS = [['needs', 'Workspace', '#/control'], ['calendar', 'Calendar', '#/s
         await page.goto(base + '/#/mywork');
         await page.getByTestId('phone-back').click();
         await page.waitForURL('**/#/deck');
-        await page.goto(base + `/#/p/${project.id}/work`);
+        await page.goto(base + `/#/p/${project.id}/work?section=queue`);
         await page.getByTestId('phone-back').click();
         await page.waitForURL('**/#/projects');
         await ctx.close();

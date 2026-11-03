@@ -13,7 +13,8 @@ export type ShellPage = 'inbox' | 'calendar';
  *  `fromTask` is the task the person is leaving: a project's Calendar opens on that task's entry, week and all. */
 export function originHref(o: Origin, rest: readonly Origin[], fromTask = ''): string | null {
   switch (o.kind) {
-    case 'board': return withChain(projectHref(o.projectId, 'work'), rest);
+    // The board is the queue: a task opened from it comes back to it, not to the Overview Work opens on.
+    case 'board': return withChain(projectHref(o.projectId, 'work') + '?section=queue', rest);
     case 'plan': return withChain(`${projectHref(o.projectId, 'work')}?plan=${encodeURIComponent(o.planId)}`, rest);
     case 'task': return withChain(taskHref(o.projectId, o.taskId), rest);
     case 'session': return withChain(sessionsHref(o.key), rest);

@@ -26,7 +26,7 @@ let browser;
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); page.setDefaultTimeout(15000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem('werkbord.token', 'disposable-browser-credential'));
-  const open = async () => { await page.goto(`${personal}/#/p/${project.id}/work`); await page.getByRole('heading', { name: 'Next', exact: true }).waitFor(); await page.locator('details.queue-section summary').first().waitFor(); };
+  const open = async () => { await page.goto(`${personal}/#/p/${project.id}/work?section=queue`); await page.getByRole('heading', { name: 'Next', exact: true }).waitFor(); await page.locator('details.queue-section summary').first().waitFor(); };
   const shown = async scope => page.locator(`ul[data-order-scope="${scope}"] > [data-order-item] a.title`).allTextContents();
   const row = (scope, title) => page.locator(`ul[data-order-scope="${scope}"] > [data-order-item]`).filter({ hasText: title });
   async function drag(from, to, side = 'before', { release = true } = {}) {

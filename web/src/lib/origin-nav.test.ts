@@ -15,7 +15,7 @@ afterEach(() => { embed.on = false; vi.unstubAllGlobals(); salie.mockClear(); po
 describe('where Back goes', () => {
   it('is an address wherever the place is an address of this page, carrying the rest of the route', () => {
     const rest = [{ kind: 'calendar' as const, projectId: 'prj_a' }];
-    expect(originHref({ kind: 'board', projectId: 'prj_a' }, [])).toBe('#/p/prj_a/work');
+    expect(originHref({ kind: 'board', projectId: 'prj_a' }, [])).toBe('#/p/prj_a/work?section=queue');
     expect(originHref({ kind: 'plan', projectId: 'prj_a', planId: 'pln_1' }, [])).toBe('#/p/prj_a/work?plan=pln_1');
     const task = originHref({ kind: 'task', projectId: 'prj_a', taskId: 'tsk_1' }, rest)!;
     expect(task.startsWith('#/p/prj_a/task/tsk_1?from=')).toBe(true);

@@ -27,7 +27,7 @@ let browser;
   page.setDefaultTimeout(15000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem('werkbord.token', 'disposable-browser-credential'));
-  await page.goto(`${personal}/#/p/${project.id}/work`);
+  await page.goto(`${personal}/#/p/${project.id}/work?section=queue`);
   await page.getByRole('button', { name: /^Archive \(0\)/ }).click();
   const section = page.getByRole('region', { name: 'Task archive' });
 

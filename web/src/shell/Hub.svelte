@@ -6,20 +6,17 @@
   import { model } from './model.svelte';
   import { contextKey, parseContext } from './project-context';
   import { viewState } from './view-state.svelte';
-  import { executionLabel, standing } from './aggregate';
+  import { standing } from './aggregate';
   import { current, pending, type Decision } from './decisions';
   import { decisions } from './decisions.svelte';
-  import { FLAG_LABEL, flagCounts, needAction, readyCount, rowsOf, STATE_LABEL, urgentFirst, type Flag, type Row } from './workqueue';
-  import QuestionCard from '../lib/QuestionCard.svelte';
+  import { flagCounts, needAction, readyCount, rowDetail, rowsOf, urgentFirst, type Flag, type Row } from './workqueue';
+  import WorkOverview from '../lib/work/WorkOverview.svelte';
+  import WorkRow from '../lib/work/WorkRow.svelte';
   import * as answering from './answering';
   import type { Question } from '../lib/types';
   import { runKey } from '../lib/agent-sessions';
-  import { agentName } from '../lib/agent-marks';
   import { timeAgo } from '../lib/format';
-  import WorkspaceTag from './WorkspaceTag.svelte';
-  import AgentMark from '../lib/AgentMark.svelte';
-  import Avatar from '../lib/Avatar.svelte';
-  import { describeParticipant, participants } from './context-header';
+  import { participants } from './context-header';
   import type { Overview, QueueItem } from './types';
 
   // `compact`: the list sits beside an open task or session, so it is one column and the decisions come first.
@@ -83,10 +80,15 @@
   $effect(() => { const timer = setInterval(() => (tick = Date.now()), 1000); return () => clearInterval(timer); });
   const canAnswer = $derived(answering.reachable(model.overview, tick));
   const askable = (d: Decision) => d.workspace.kind === 'personal' && !!d.question && canAnswer;
-  const SHOWN = 3;
-  const shownDecisions = $derived(waiting.slice(0, SHOWN));
-  const answerWith = (q: Question, answer: string) => answering.answerWith(q, answer, model.overview, tick);
-  const onSettled = (q: Question) => answering.settled(q);
+  const decide = {
+    askable,
+    fresh: (d: Decision) => current(d, model.overview),
+    openable: (d: Decision) => d.workspace.kind === 'personal' ? !!d.runId && model.personalReady : !!d.href,
+    answerWith: (q: Question, answer: string) => answering.answerWith(q, answer, model.overview, tick),
+    onSettled: (q: Question) => answering.settled(q),
+    notify: (message: string) => { model.notice = message; },
+    open: openDecision,
+  };
 
   // Pushes to the team repositories the person's own Werkbord is watching, for the project in view.
   const repoNews = $derived(model.repoChanges.filter(c => !model.selectedProject || c.context === contextKey(model.selectedProject)).slice(0, 5));
@@ -106,11 +108,7 @@
     const href = choice.project.href;
     model.goTo(choice.workspace, href + (href.includes('?') ? '&' : '?') + 'new=' + kind);
   }
-  function detail(workspace: string, item: QueueItem) {
-    if (item.detail?.startsWith('Blocked')) return item.detail;
-    const execution = overview?.entries.find(e => e.workspace.id === workspace)?.summary?.work.find(w => w.href === item.href);
-    return execution?.execution ? (execution.report?.stale ? 'Last reported · ' : '') + executionLabel(execution.execution) : item.detail?.replace('backlog', 'Ready to start').replace('in_progress', 'In progress').replace('doing', 'In progress').replace('available', 'Available');
-  }
+  const detail = (workspace: string, item: QueueItem) => rowDetail(overview, workspace, item);
 </script>
 
 <section class="work work-view" class:compact aria-labelledby="work-h">
@@ -127,37 +125,19 @@
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
   {#if section === 'overview'}
-    <div class="work-grid overview">
-      <div class="work-main">
-        {@render decisionBlock()}
-        <BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}</BriefCard>
-    <details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>
-
-      </div>
-      <div class="work-side">
-        <section class="tray" aria-labelledby="running-h">
-          <header><h2 id="running-h" class="section-title">Running now<span class="head-count" data-testid="running-count">{running.length}</span></h2></header>
-          <ul class="tray-card rows">{#each running.slice(0, 5) as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No agent is working right now.</li>{/each}</ul>
-        </section>
-        <section class="tray" aria-labelledby="next-h">
-          <header><h2 id="next-h" class="section-title">Up next<span class="head-count">· {readyCount(queueRows)} ready</span></h2><button type="button" class="link" onclick={() => section = 'queue'}>See all</button></header>
-          <ul class="tray-card rows">{#each upNext as row, i (row.workspace + row.item.href)}{@render task(row, i)}{:else}<li class="empty">No tasks ready to pick up.</li>{/each}</ul>
-        </section>
-        {@render plansTray(3, 'plans-o-h')}
+    <WorkOverview waiting={waiting} {decide} running={running.slice(0, 5)} {upNext} ready={readyCount(queueRows)} plans={plans} plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
+      {people} {showWhere} {now} whereOf={entryOf} {detail} isOpen={openHere} onopen={open} seeAll={() => (section = 'queue')} {compact}>
+      {#snippet brief()}<BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}</BriefCard>{/snippet}
+      {#snippet attention()}<details id="work-attention" class="attention"><summary>Questions and workspace notices</summary><Inbox {overview} embedded /></details>{/snippet}
+      {#snippet extra()}
         {#if repoNews.length}
           <section class="tray" aria-labelledby="repo-news-h" data-testid="repo-news">
             <header><h2 id="repo-news-h" class="section-title">Git activity</h2><span class="tray-note">changed on GitHub</span>{#each repoTeams as t (t.id)}<button class="btn quiet small" type="button" aria-pressed={model.mutedTeams.includes(t.id)} onclick={() => model.setTeamMuted(t.id, !model.mutedTeams.includes(t.id))}>{model.mutedTeams.includes(t.id) ? 'Unmute' : 'Mute'} {t.name}</button>{/each}</header>
             <ul class="tray-card rows">{#each repoNews as c (c.repo + c.branch + c.sha)}<li><button class="task" onclick={() => openRepo(c.context)}><span class="task-content"><strong>{c.project}: {c.created ? 'new branch ' + c.branch : c.isDefault && c.count ? c.count + (c.count === 1 ? ' new commit on ' : ' new commits on ') + c.branch : c.branch + ' updated'}</strong><span class="context">{c.authors?.length ? c.authors.join(', ') + ' · ' : ''}{timeAgo(new Date(c.at).toISOString(), now)}</span></span><span class="open-icon"><Icon name="right" size={14} /></span></button></li>{/each}</ul>
           </section>
         {/if}
-        {#if people.length}
-          <section class="tray" aria-labelledby="people-h" data-testid="participants">
-            <header><h2 id="people-h" class="section-title">Participants<span class="head-count">{people.length}</span></h2></header>
-            <ul class="tray-card rows">{#each people as p (p.key)}<li class="person"><Avatar id={p.id} name={p.name} size="sm" /><span class="task-content"><strong>{p.name}</strong><span class="context">{describeParticipant(p)}</span></span></li>{/each}</ul>
-          </section>
-        {/if}
-      </div>
-    </div>
+      {/snippet}
+    </WorkOverview>
   {:else}
     {#if flags.length}
       <ul class="flags" aria-label="What needs a look" data-testid="work-flags">
@@ -184,40 +164,6 @@
     </div>
   {/if}
 </section>
-{#snippet decisionBlock()}
-    <aside class="decision" class:urgent={waiting.length > 0} aria-labelledby="decision-h" data-testid="next-decision">
-      <h2 id="decision-h" class="section-title">{waiting.length ? 'Waiting for you' : 'Your next decision'}{#if waiting.length}<span class="pill wb-pop" aria-label="{waiting.length} waiting">{waiting.length}</span>{/if}</h2>
-      <div aria-live="polite" class="decision-list">
-      {#if shownDecisions.length}
-        <p class="decision-count">{waiting.length === 1 ? '1 waiting' : `${waiting.length} waiting`}, oldest first</p>
-        {#each shownDecisions as d, i (d.key)}
-          {@const here = current(d, model.overview)}
-          {@const openable = d.workspace.kind === 'personal' ? !!d.runId && model.personalReady : !!d.href}
-          <article class="decision-card wb-rise" style:--i={i} data-testid="decision" data-kind={d.question?.kind}>
-            {#if !(askable(d) && d.question)}<p class="decision-prompt">{d.prompt}</p>{/if}
-            <dl class="decision-facts">
-              <div><dt>Task</dt><dd>{d.task || 'Task'}</dd></div>
-              <div><dt>Project</dt><dd>{d.project || 'Project'}{#if showWhere} <WorkspaceTag workspace={d.workspace} />{/if}</dd></div>
-              {#if d.agent}<div><dt>Agent</dt><dd class="agent-fact"><AgentMark agentId={d.agent} state="needs_input" fresh={here} observedAt={d.askedAt} decorative /><span>{agentName(d.agent)}</span></dd></div>{/if}
-              {#if d.askedAt}<div><dt>Asked</dt><dd>{timeAgo(d.askedAt, now)}</dd></div>{/if}
-            </dl>
-            {#if !here}<p class="decision-note" role="status">{d.workspace.name} is not answering. This is as last reported; it stays here until the workspace confirms it was answered.</p>{/if}
-            {#if askable(d) && d.question}
-              <QuestionCard question={{ ...d.question, state: 'pending' }} showMeta={false} revealContext={d.question.kind === 'approval'} {answerWith} {onSettled} notify={(message) => model.notice = message} />
-              {#if openable}<button class="btn quiet small" type="button" onclick={() => openDecision(d)}>{d.workspace.kind === 'personal' ? 'Open session' : 'Open in ' + d.workspace.name}</button>{/if}
-            {:else}
-              <button class="btn primary" type="button" disabled={!(here && openable)} onclick={() => openDecision(d)}>{d.workspace.kind === 'personal' ? 'Open session' : 'Open in ' + d.workspace.name}</button>
-              {#if here && !openable}<p class="decision-note">{d.workspace.kind === 'personal' ? 'Your own Werkbord is not ready to open this session.' : 'This workspace did not say where to answer. Open it to find the question.'}</p>{/if}
-            {/if}
-          </article>
-        {/each}
-        {#if waiting.length > SHOWN}<p class="decision-more">{waiting.length - SHOWN} more waiting, oldest first. Answer these and the next appears.</p>{/if}
-      {:else}
-        <p class="decision-empty">No agent is waiting on you.</p>
-      {/if}
-      </div>
-    </aside>
-{/snippet}
 {#snippet plansTray(limit: number, id: string)}
   <section class="tray" aria-labelledby={id}>
     <header><h2 {id} class="section-title">Plans</h2><span class="tray-note">{plans.length}</span></header>
@@ -225,77 +171,70 @@
   </section>
 {/snippet}
 {#snippet task(row: Row, index: number = 0)}
-  {@const live = row.item.group === 'done' ? undefined : detail(row.workspace, row.item)}
-  <li data-flag={row.flag} class="wb-rise" style:--i={index}><button class="task" data-state={row.state} data-flag={row.flag} aria-current={openHere(row.workspace, row.item.href) ? 'true' : undefined} onclick={() => open(row.workspace, row.item.href)}>
-    <span class="task-content"><strong>{row.item.title}</strong><span class="context"><span class="proj">{row.item.project}</span>{#if row.item.plan}<span class="sep" aria-hidden="true">›</span><span class="plan">{row.item.plan}</span>{/if}{#if showWhere && entryOf(row.workspace)}<WorkspaceTag workspace={entryOf(row.workspace)!} />{/if}{#if live}<span class="detail" class:blocked={row.state === 'blocked'}>{live}</span>{/if}</span></span>
-    {#if row.asking}<span class="ask-chip">Decision</span>{:else if row.flag}<span class="flag" data-flag={row.flag}>{FLAG_LABEL[row.flag]}</span>{/if}
-    {#if row.item.agent && row.item.group !== 'done'}<AgentMark agentId={row.item.agent.id} state={row.item.agent.state} fresh={row.item.agent.fresh} observedAt={row.item.agent.observedAt} {now} />{/if}
-    <span class="state" data-state={row.state}>{STATE_LABEL[row.state]}</span>
-    {#if row.item.owner && row.item.group !== 'done'}<span class="holder" title={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner}><Avatar id={row.item.owner} name={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner} self={row.item.mine} size="sm" /></span>{/if}
-    <span class="task-state" data-state={row.state} aria-hidden="true">{#if row.state === 'done'}<Icon name="check" size={14} />{/if}</span>
-    <span class="open-icon"><Icon name="right" size={14} /></span>
-  </button></li>
+  <WorkRow {row} {index} live={row.item.group === 'done' ? undefined : detail(row.workspace, row.item)} current={openHere(row.workspace, row.item.href)} where={showWhere ? entryOf(row.workspace) : undefined} {now} onopen={open} />
 {/snippet}
 <style>
- p{margin:6px 0 0;}.actions{position:relative;}.scope{display:inline-flex;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);}.scope button{min-height:32px;padding:4px 12px;border:0;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:13px;cursor:pointer;}.scope button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:500;}.scope button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}h2{font-size:14px;margin:0;font-weight:600;}.count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}ul{list-style:none;padding:0;margin:0;}li+li{border-top:1px solid var(--border);}.task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}.task:hover{background:var(--hover);}.task-content{display:grid;gap:4px;min-width:0;flex:1;}strong{font-size:14px;font-weight:500;line-height:1.5;}.context,.detail{font-size:12px;color:var(--text-2);overflow-wrap:anywhere;}.blocked{color:var(--block-text);}.task-state{display:grid;place-items:center;flex:none;width:22px;height:22px;color:var(--text-2);}.open-icon{color:var(--text-2);opacity:0;}.task:hover .open-icon,.task:focus-visible .open-icon{opacity:1;}.empty{padding:16px 28px;color:var(--text-2);font-size:13px;line-height:1.6;}.plans{margin-top:12px;}.plan-progress{font-size:12px;color:var(--text-2);}.attention{border-top:1px solid var(--border);padding-top:14px;margin-top:24px;}.attention summary,.completed summary{cursor:pointer;padding:10px 0;color:var(--text-2);font-size:13px;}.source-notice{padding:12px 0;color:var(--text-2);font-size:13px;}.project-choices{position:absolute;z-index:5;right:0;top:calc(100% + 10px);width:320px;max-width:calc(100vw - 40px);background:var(--surface);border:1px solid var(--border);box-shadow:var(--win-sh);border-radius:8px;padding:14px;}.project-choices>div{display:flex;justify-content:space-between;align-items:center;}.project-choices p{font-size:12px;margin:0 0 10px;}.project-choices>button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;padding:12px 4px;color:var(--text);cursor:pointer;font:inherit;}.project-choices>button:hover{background:var(--surface-2);}
+ p{margin:6px 0 0;}
+ .actions{position:relative;}
+ .scope{display:inline-flex;gap:2px;padding:3px;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);}
+ .scope button{min-height:32px;padding:4px 12px;border:0;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-2);font:inherit;font-size:13px;cursor:pointer;}
+ .scope button[aria-pressed=true]{background:var(--surface);color:var(--text);font-weight:500;}
+ .scope button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+ h2{font-size:14px;margin:0;font-weight:600;}
+ .count{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
+ ul{list-style:none;padding:0;margin:0;}
+ li+li{border-top:1px solid var(--border);}
+ .task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}
+ .task:hover{background:var(--hover);}
+ .task-content{display:grid;gap:4px;min-width:0;flex:1;}
+ strong{font-size:14px;font-weight:500;line-height:1.5;}
+ .context{font-size:12px;color:var(--text-2);overflow-wrap:anywhere;}
+ .open-icon{color:var(--text-2);opacity:0;}
+ .task:hover .open-icon,.task:focus-visible .open-icon{opacity:1;}
+ .empty{padding:16px 28px;color:var(--text-2);font-size:13px;line-height:1.6;}
+ .plans{margin-top:12px;}
+ .plan-progress{font-size:12px;color:var(--text-2);}
+ .attention{border-top:1px solid var(--border);padding-top:14px;margin-top:24px;}
+ .attention summary,.completed summary{cursor:pointer;padding:10px 0;color:var(--text-2);font-size:13px;}
+ .source-notice{padding:12px 0;color:var(--text-2);font-size:13px;}
+ .project-choices{position:absolute;z-index:5;right:0;top:calc(100% + 10px);width:320px;max-width:calc(100vw - 40px);background:var(--surface);border:1px solid var(--border);box-shadow:var(--win-sh);border-radius:8px;padding:14px;}
+ .project-choices>div{display:flex;justify-content:space-between;align-items:center;}
+ .project-choices p{font-size:12px;margin:0 0 10px;}
+ .project-choices>button{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;border:0;background:transparent;padding:12px 4px;color:var(--text);cursor:pointer;font:inherit;}
+ .project-choices>button:hover{background:var(--surface-2);}
  @media(max-width:900px){.actions{flex-wrap:wrap;width:100%;}.plan-progress{max-width:110px;}.task{padding:14px 0;}.open-icon{opacity:1;}}
-
- .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(18rem,26rem);gap:24px;align-items:start;}.work-side{position:sticky;top:16px;display:grid;gap:16px;min-width:0;align-content:start;}.work-main{min-width:0;display:grid;gap:16px;align-content:start;}
+ .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(18rem,26rem);gap:24px;align-items:start;}
+ .work-side{position:sticky;top:16px;display:grid;gap:16px;min-width:0;align-content:start;}
+ .work-main{min-width:0;display:grid;gap:16px;align-content:start;}
  .queue-note{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;}
- .context{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;}.context .sep{opacity:.6;}.context .plan{color:var(--text-2);}.context .detail::before{content:'·';margin-right:8px;}
- .task-state[data-state=action]::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--amber);}.task-state[data-state=blocked]::before{content:'';width:10px;height:10px;border-radius:50%;border:2px dashed var(--block);}.task-state[data-state=done]{color:var(--ok);}
- /* Overview: trays for what is running, what is next, the plans, Git activity and participants. */
- .head-count{margin-left:8px;font-size:var(--fs-meta);font-weight:500;color:var(--text-2);font-variant-numeric:tabular-nums;}.agent-fact{display:flex;align-items:center;gap:8px;}.holder{display:inline-flex;}.person{display:flex;align-items:center;gap:10px;padding:10px 14px;}
- .rows{overflow:clip;}.rows .empty{padding:14px 16px;}.rows .task{padding:12px 14px;}
- .link{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:var(--fs-meta);cursor:pointer;padding:0;}.link:hover{text-decoration:underline;}
- .decision.urgent{background:var(--tray-ask);border-color:var(--tray-ask-edge);}
- .state{font-size:12px;color:var(--text-2);white-space:nowrap;}.state[data-state=action]{color:var(--warn-text);font-weight:500;}.state[data-state=blocked]{color:var(--block-text,var(--text-2));}.state[data-state=running]{color:var(--accent);}.state[data-state=ready],.state[data-state=done]{opacity:.8;}
- .ask-chip{font-size:11px;padding:1px 8px;border:1px solid var(--border);border-radius:99px;color:var(--text-2);}
- .decision{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:16px;display:grid;gap:10px;}
- .decision-count{margin:0;font-size:12px;color:var(--text-2);}.decision-prompt{margin:0;font-size:14px;line-height:1.5;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:6;line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;}
- .decision-facts{margin:0;display:grid;gap:6px;font-size:12px;}.decision-facts div{display:grid;grid-template-columns:64px 1fr;gap:8px;}.decision-facts dt{color:var(--text-2);}.decision-facts dd{margin:0;overflow-wrap:anywhere;}
- .decision-note{margin:0;font-size:12px;color:var(--text-2);line-height:1.5;}.decision-empty{margin:0;font-size:13px;color:var(--text-2);}.decision .btn{justify-self:start;}
+ .context{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;}
+ .rows{overflow:clip;}
+ .rows .empty{padding:14px 16px;}
+ .rows .task{padding:12px 14px;}
  @media(max-width:1100px){.work-grid{grid-template-columns:minmax(0,1fr);}.work-side{position:static;}}
- .compact .work-grid{grid-template-columns:minmax(0,1fr);}.compact .work-side{position:static;}
-
- /* Attention: the edge of a row says why it is worth a look; the chips above the queue count them and take you to the first. */
- .flags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 18px;}
+ .compact .work-grid{grid-template-columns:minmax(0,1fr);}
+ .compact .work-side{position:static;}
+ /* Attention: the edge of a row says why it is worth a look; the chips above the queue count them and take you to the first. */ .flags{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 18px;}
  .flag-chip{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:4px 12px;border:1px solid var(--border);border-radius:99px;background:var(--surface);color:var(--text);font:inherit;font-size:13px;cursor:pointer;transition:transform 160ms var(--ease),border-color 140ms,background-color 140ms;}
  .flag-chip:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--chip,var(--text-2)) 55%,var(--border));background:color-mix(in srgb,var(--chip,var(--text-2)) 7%,var(--surface));}
  .flag-chip:focus-visible,.task:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
  .flag-dot{width:8px;height:8px;border-radius:50%;background:var(--chip,var(--text-2));}
- [data-flag=ask]{--chip:var(--amber);}[data-flag=failed]{--chip:var(--danger);}[data-flag=review]{--chip:var(--ok);}[data-flag=high]{--chip:var(--block,var(--accent));}
+ [data-flag=ask]{--chip:var(--amber);}
+ [data-flag=failed]{--chip:var(--danger);}
+ [data-flag=review]{--chip:var(--ok);}
+ [data-flag=high]{--chip:var(--block,var(--accent));}
  li{position:relative;}
  .flags li{border-top:0;}
  .task{transition:background-color 140ms,box-shadow 200ms var(--ease);}
- .task[data-flag]{box-shadow:inset 3px 0 0 var(--chip);}
- .task[data-flag=ask]{background:color-mix(in srgb,var(--amber) 8%,var(--surface));}
  .task:hover{background:color-mix(in srgb,var(--chip,var(--accent)) 6%,var(--surface));}
- .task[aria-current=true]{background:color-mix(in srgb,var(--accent) 9%,var(--surface));box-shadow:inset 3px 0 0 var(--accent);}
  .open-icon{transition:opacity 140ms,transform 200ms var(--ease);}
  .task:hover .open-icon,.task:focus-visible .open-icon{transform:translateX(3px);}
- .flag{font-size:11px;font-weight:500;padding:1px 8px;border-radius:99px;white-space:nowrap;color:var(--text);background:color-mix(in srgb,var(--chip) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--chip) 40%,var(--border));}
- .ask-chip{color:var(--text);background:color-mix(in srgb,var(--amber) 20%,var(--surface));border-color:color-mix(in srgb,var(--amber) 55%,var(--border));font-weight:500;}
- .decision{transition:border-color 200ms,box-shadow 300ms;}
- .decision.urgent{border-color:color-mix(in srgb,var(--warn) 55%,var(--border));}
- .decision h2{display:flex;align-items:center;gap:8px;}
- .pill{min-width:22px;padding:1px 7px;border-radius:99px;background:var(--amber);color:#1d1b18;font-size:12px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;}
- .decision-list{display:grid;gap:14px;}
- .decision-card{display:grid;gap:10px;padding-top:14px;border-top:1px solid var(--border);}
- .decision-card:first-of-type{padding-top:0;border-top:0;}
- .decision-more{margin:0;font-size:12px;color:var(--text-2);}
- .decision-card :global(.ask){margin:0;}
- .decision-card .btn.quiet{justify-self:start;}
- .compact .work-grid{grid-template-columns:minmax(0,1fr);gap:16px;}.compact .work-side{position:static;}
- .compact .decision{position:static;order:-1;}
+ .compact .work-grid{grid-template-columns:minmax(0,1fr);gap:16px;}
+ .compact .work-side{position:static;}
  .compact .work-heading{flex-direction:column;align-items:stretch;gap:12px;}
  .compact .actions{flex-wrap:wrap;width:100%;}
  .compact .work-search{flex:1 1 160px;min-width:0;}
  .compact .task{padding:12px 8px;}
- .compact .ask-chip,.compact .flag{display:none;}
- @media(prefers-reduced-motion:no-preference){
-  .decision.urgent{animation:wb-breathe 2.6s ease-in-out infinite;}
- }
-  .first-project { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 16px; padding: 14px 16px; border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); background: var(--tray); }
-  .first-project p { margin: 2px 0 0; font-size: 13px; }
+ .first-project { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 16px; padding: 14px 16px; border: 1px dashed var(--edge-strong); border-radius: var(--radius-sm); background: var(--tray); }
+ .first-project p { margin: 2px 0 0; font-size: 13px; }
 </style>

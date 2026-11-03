@@ -79,7 +79,7 @@ let browser, activePage;
  await page.getByRole('dialog',{name:'Discard changes?',exact:true}).waitFor(); // unsaved typing is asked about, not dropped
  await page.getByTestId('confirm-ok').click();
  await edit.waitFor({ state: 'detached' });
- await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/work`);
+ await page.setViewportSize({width:390,height:844}); await page.goto(individual+`/#/p/${p.id}/work?section=queue`);
  await page.getByRole('button',{name:'Switch project, current: '+p.name,exact:true}).waitFor();
  await page.locator('.head.deck').waitFor();
  await page.getByRole('button',{name:'Jump to',exact:true}).waitFor({state:'hidden'});

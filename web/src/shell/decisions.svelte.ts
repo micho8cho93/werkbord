@@ -4,7 +4,7 @@
 import { reconcile, type Decision } from './decisions';
 import type { Overview } from './types';
 
-class DecisionQueue {
+export class DecisionQueue {
   list = $state<Decision[]>([]);
   /** Answered here and not yet gone from the workspace's own summary: out of the way at once, so the next one shows without waiting. */
   answered = $state<Record<string, true>>({});
@@ -12,8 +12,8 @@ class DecisionQueue {
   sync(overview: Overview | null): void {
     this.list = reconcile(this.list, overview);
     // What the workspaces no longer list needs no memory of having been answered.
-    const keys = new Set(this.list.map((d) => d.key));
-    for (const key of Object.keys(this.answered)) if (!keys.has(key)) delete this.answered[key];
+    const keys = this.list.map((d) => d.key);
+    for (const key of Object.keys(this.answered)) if (!keys.includes(key)) delete this.answered[key];
   }
 
   /** The workspace accepted the answer. */

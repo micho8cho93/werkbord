@@ -21,6 +21,7 @@
   import Sheet from './lib/Sheet.svelte';
   import ScheduleWatch from './lib/ScheduleWatch.svelte';
   import ProjectHeader from './lib/shell/ProjectHeader.svelte';
+  import ContextBar from './lib/ContextBar.svelte';
   import TabRow from './lib/shell/TabRow.svelte';
   import Rail from './lib/shell/Rail.svelte';
   import Toasts from './lib/shell/Toasts.svelte';
@@ -43,6 +44,7 @@
   import UpdateBanner from './lib/UpdateBanner.svelte';
   import PartialUpdate from './lib/PartialUpdate.svelte';
   import Work from './routes/Work.svelte';
+  import WorkAll from './routes/WorkAll.svelte';
   import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
   import TeamRepo from './routes/TeamRepo.svelte';
@@ -69,6 +71,8 @@
   const project = $derived(app.project(projectId));
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
 
+  /** The pages that wear the window's header bar on a desktop, and what it calls them. */
+  const GLOBAL_BAR: Record<string, string | undefined> = { control: 'Work', sessions: 'Agents', analytics: 'Analytics' };
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? titleOf(router.view)));
   /** The phone has its own navigation (the Control Deck and the Assistant). A narrow window of the desktop app keeps the desktop's. */
   const deck = $derived(phone.on);
@@ -251,6 +255,11 @@
     <div class="main-area">
       {#if inside && project}
         <ProjectHeader {project} />
+      {:else if !framed && !deck && !isPhone() && GLOBAL_BAR[router.view]}
+        <!-- The window's header: where you are, and what is running and waiting. Work, Agents and Analytics are entries of the sidebar. -->
+        <ContextBar crumbs={[{ label: 'All Projects' }, { label: GLOBAL_BAR[router.view] ?? '' }]} running={(app.overview?.projects ?? []).reduce((n, p) => n + p.running, 0)} needsYou={app.needsYou}>
+          <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to"><Icon name="search" /><span class="wide">Jump to</span></button>
+        </ContextBar>
       {:else if (router.view !== 'deck' || !deck) && !(hosted && (router.view === 'settings' || router.view === 'help'))}
         <header class="ghead">
           <div class="gtitle">
@@ -313,7 +322,8 @@
         {:else if router.view === 'schedule'}
           {#if deck}<Schedule />{/if}
         {:else if router.view === 'control'}
-          <ControlCenter />
+          <!-- In the window's own page the window draws Work; the framed page keeps the feed it has always shown there. -->
+          {#if framed}<ControlCenter />{:else}<WorkAll />{/if}
         {:else if router.view === 'sessions'}
           <AgentSessions />
         {:else if router.view === 'github'}

@@ -1,7 +1,7 @@
 // What state each row of the cross-project Work queue is in, said once, and the two counts that sit beside Now and Next. A task that
 // needs attention is not the same thing as a pending decision (decisions.ts): the counts here are of tasks, and say so.
 
-import { actionable } from './aggregate';
+import { actionable, executionLabel } from './aggregate';
 import type { Attention, Execution, Overview, QueueItem } from './types';
 
 export type RowState = 'action' | 'running' | 'blocked' | 'waiting' | 'done' | 'ready';
@@ -99,3 +99,12 @@ export function flagCounts(rows: readonly { flag?: Flag }[]): { flag: Flag; labe
 export const needAction = (now: readonly Row[]): number => now.filter((r) => r.state === 'action').length;
 /** Tasks in Next that can be started as they are. */
 export const readyCount = (next: readonly Row[]): number => next.filter((r) => r.state === 'ready').length;
+
+/** What a row says about the work: why it is blocked, or what its agent is doing, or where it stands, in words. */
+export function rowDetail(overview: Overview | null, workspace: string, item: QueueItem): string | undefined {
+  if (item.detail?.startsWith('Blocked')) return item.detail;
+  const execution = overview?.entries.find((e) => e.workspace.id === workspace)?.summary?.work.find((w) => w.href === item.href);
+  return execution?.execution
+    ? (execution.report?.stale ? 'Last reported · ' : '') + executionLabel(execution.execution)
+    : item.detail?.replace('backlog', 'Ready to start').replace('in_progress', 'In progress').replace('doing', 'In progress').replace('available', 'Available');
+}

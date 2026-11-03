@@ -1,7 +1,7 @@
 <script lang="ts">
   import { attentionAction, attentionGroups, standing, recordedTime, tallyByKind } from './aggregate';
   import { model } from './model.svelte';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
   import type { Overview, OverviewEntry } from './types';
   import QuestionCard from '../lib/QuestionCard.svelte';
   import type { Question } from '../lib/types';

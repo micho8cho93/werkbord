@@ -5,7 +5,7 @@
   import Notice from './Notice.svelte';
   import PageFrame from './PageFrame.svelte';
   import WherePicker from './WherePicker.svelte';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
   import Segmented from '../lib/Segmented.svelte';
 
   // Group reviews by the next action, across Personal and every team. Each row opens

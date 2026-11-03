@@ -29,13 +29,13 @@ let browser,shellServer;
  browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(()=>localStorage.setItem('werkbord.token','disposable-browser-credential'));
- await page.goto(`${personal}/#/p/${project.id}/work`);
+ await page.goto(`${personal}/#/p/${project.id}/work?section=queue`);
  await page.getByRole('heading',{name:'Now',exact:true}).waitFor();
  assert.equal(await page.locator('[data-board-column], [data-drag-handle]').count(),0);
  await page.getByRole('region',{name:'Work queue'}).count();
  // Section headings can appear while their task requests are still loading.
  await page.getByText('Blocked by',{exact:false}).waitFor({state:'visible'});
- await page.getByRole('navigation',{name:'Work sections'}).getByRole('link',{name:'Plans',exact:true}).click();
+ await page.getByTestId('plans-side').getByRole('link',{name:/^(Manage|New plan)$/}).click();
  await page.getByRole('button',{name:'New plan',exact:true}).click();
  const form=page.getByRole('form',{name:'Plan editor'});
  await form.getByLabel('Title',{exact:true}).fill('Deliver the adapter');

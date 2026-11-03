@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Entry } from './types';
+  import type { Entry } from '../shell/types';
   let { workspace }: { workspace: Entry } = $props();
 </script>
 

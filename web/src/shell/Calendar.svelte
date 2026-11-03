@@ -8,7 +8,7 @@
   import PlanningCalendar from '../lib/PlanningCalendar.svelte';
   import { standing } from './aggregate';
   import { model } from './model.svelte';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
   import type { Overview } from './types';
   // `embedded` is Home's panel: it fills the panel and leaves the title to the hub.
   let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();

@@ -13,7 +13,7 @@
   import HeaderPopover from '../lib/HeaderPopover.svelte';
   import ContextBar from '../lib/ContextBar.svelte';
   import ConnectedTools from './ConnectedTools.svelte';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
 
   // The header: where the person is, and what is going on in the project context in view. Everything here comes from the scoped overview
   // the window already has: no new request for agents or people, and Git is read once per project and on focus (git-head.svelte.ts).

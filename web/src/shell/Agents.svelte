@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import PageFrame from './PageFrame.svelte';
-  import WorkspaceTag from './WorkspaceTag.svelte';
+  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
   import { executionLabel, reportedActivity } from './aggregate';
   import { reportedLine } from '../lib/agent-overview';
   import { model } from './model.svelte';

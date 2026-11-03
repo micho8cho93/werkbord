@@ -154,7 +154,7 @@ describe('Back from a task to a project Calendar names the task, so the Calendar
     expect(originHref({ kind: 'calendar', projectId: 'p' }, [], 't1')).toBe('#/p/p/calendar?task=t1');
     expect(originHref({ kind: 'calendar', projectId: 'p' }, [{ kind: 'work' }], 't1')).toBe('#/p/p/calendar?task=t1&from=work');
     expect(originHref({ kind: 'calendar', projectId: 'p' }, [])).toBe('#/p/p/calendar');
-    expect(originHref({ kind: 'board', projectId: 'p' }, [], 't1')).toBe('#/p/p/work');
+    expect(originHref({ kind: 'board', projectId: 'p' }, [], 't1')).toBe('#/p/p/work?section=queue');
   });
 });
 

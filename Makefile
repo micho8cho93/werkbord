@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser test-parity
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser test-parity test-work-overview-browser
 
 all: check build build-team
 
@@ -336,6 +336,11 @@ test-brief-browser: build web-shell
 ## test-work-browser: Work queues, plans and dependencies in Personal, Team and the shell, desktop and phone
 test-work-browser: web web-embed web-shell
 	BROWSER_SCRIPT=scripts/browser-work.cjs node scripts/test-browser.cjs
+
+.PHONY: test-work-overview-browser
+## test-work-overview-browser: the web app's Work page: Overview first, Queue & Plans, All projects and its grips
+test-work-overview-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-work-overview.cjs node scripts/test-browser.cjs
 
 .PHONY: test-archive-browser
 ## test-archive-browser: Done, then archived, then deleted (30 days in Recently deleted), then erased, for tasks and projects
