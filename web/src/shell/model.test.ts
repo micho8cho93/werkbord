@@ -937,6 +937,40 @@ describe('a refresh that misses', () => {
     expect(model.overview?.entries[0].error).toBeUndefined();
   });
 
+  it('keeps one workspace\'s rows through a missed summary while the others answer, and withdraws them after a run of misses', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    const teamSummary = { ...summary, workspace: team as never, work: [{ id: 't1' }] as never };
+    const good: Overview = { at: 'a', entries: [{ workspace: individual as never, summary: summary as never }, { workspace: team as never, summary: teamSummary as never }] };
+    native.app.Overview = async () => good;
+    await model.refreshOverview();
+    const missed: Overview = { at: 'b', entries: [{ workspace: individual as never, summary: summary as never }, { workspace: team as never, error: 'It did not answer in time.' }] };
+    native.app.Overview = async () => missed;
+    await model.refreshOverview();
+    await model.refreshOverview();
+    expect(model.overview?.entries[1].summary?.work.length).toBe(1);
+    expect(model.overview?.entries[1].error).toBeUndefined();
+    expect(model.overview?.entries[0].summary).toBeTruthy(); // the other workspace was never in question
+    await model.refreshOverview();
+    expect(model.overview?.entries[1].error).toBe('It did not answer in time.');
+    // An answer in between starts the count again.
+    native.app.Overview = async () => good;
+    await model.refreshOverview();
+    native.app.Overview = async () => missed;
+    await model.refreshOverview();
+    expect(model.overview?.entries[1].summary).toBeTruthy();
+  });
+
+  it('applies a workspace that is leaving at once', async () => {
+    const model = new Model();
+    model.view = view([individual, team]);
+    native.app.Overview = async () => ({ at: 'a', entries: [{ workspace: team as never, summary: { ...summary, workspace: team as never } as never }] });
+    await model.refreshOverview();
+    native.app.Overview = async () => ({ at: 'b', entries: [{ workspace: { ...team, state: 'unavailable' } as never }] });
+    await model.refreshOverview();
+    expect(model.overview?.entries[0].summary).toBeUndefined();
+  });
+
   it('does not call a workspace unreachable for a blip', async () => {
     const model = new Model();
     const up = view([individual, team]);

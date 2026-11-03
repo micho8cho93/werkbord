@@ -607,6 +607,29 @@ export class Model {
     return { ...view, items };
   }
 
+  private entryMisses: Record<string, number> = {};
+
+  /**
+   * One workspace that does not answer its summary in time (it is read with a few seconds to spare, and a busy host can miss it) comes
+   * back as an entry with an error, no rows, or "offline" while the others answered. For a look or two the entry it replaces stays on
+   * screen, rather than its data vanishing with a connection error and returning at the next look ten seconds later. Only an entry that was
+   * answering is held, and only for as long as a whole missed overview is (MISSES_BEFORE_WITHDRAWN); every other change applies at once.
+   */
+  private steadyEntries(fresh: Overview): Overview {
+    const previous = this.overview;
+    const entries = fresh.entries.map((entry) => {
+      const id = entry.workspace.id;
+      if (!['ready', 'offline', 'connecting'].includes(entry.workspace.state)) { delete this.entryMisses[id]; return entry; } // leaving, set up, unavailable: at once
+      const missed = !entry.summary || !!entry.error || entry.workspace.state === 'offline' || entry.workspace.state === 'connecting';
+      if (!missed) { delete this.entryMisses[id]; return entry; }
+      const was = previous?.entries.find((e) => e.workspace.id === id);
+      if (!was?.summary || was.error || was.workspace.state !== 'ready') return entry;
+      const misses = (this.entryMisses[id] = (this.entryMisses[id] ?? 0) + 1);
+      return misses < MISSES_BEFORE_WITHDRAWN ? was : entry;
+    });
+    return { ...fresh, entries };
+  }
+
   async refresh(): Promise<void> {
     try {
       const fresh = await ask((a) => a.Workspaces());
@@ -641,7 +664,7 @@ export class Model {
       const overview = await ask((a) => a.Overview());
       this.overviewMisses = 0;
       // Membership may disappear while reads are in flight. Do not restore a retired workspace's old rows.
-      this.overview = { ...overview, entries: this.accessibleEntries(overview) };
+      this.overview = { ...overview, entries: this.accessibleEntries(this.steadyEntries(overview)) };
       decisions.sync(this.overview);
       this.notePushes(this.overview);
       const selected = this.selectedProject;
