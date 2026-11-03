@@ -35,7 +35,10 @@ export class ProjectScope {
   decisions = $state<import("./types").SchedulingDecision[]>([]);
  tasks = $state<Task[]>([]);
   get activeTasks(): Task[] { return this.tasks.filter(t => !t.archivedAt); }
-  get archivedTasks(): Task[] { return this.tasks.filter(t => !!t.archivedAt); }
+  /** Archived and not deleted: what the Archive lists. */
+  get archivedTasks(): Task[] { return this.tasks.filter(t => !!t.archivedAt && !t.deletedAt); }
+  /** In the trash: Recently deleted. Always archived too, so every list that leaves out archived tasks leaves these out. */
+  get deletedTasks(): Task[] { return this.tasks.filter(t => !!t.deletedAt); }
   /** The most recent run of each task, by task ID. */
   latestRun = $state<Record<string, Run>>({});
   /** The project's runs, newest first. */
@@ -135,6 +138,15 @@ export class ProjectScope {
       case 'task.updated':
         this.upsertTask(ev.payload as Task);
         return true;
+      case 'task.deleted': {
+        // The last step of the trash: the task is gone, with its runs.
+        const id = (ev.payload as { id?: string }).id;
+        if (!id) return false;
+        this.tasks = this.tasks.filter(t => t.id !== id);
+        delete this.latestRun[id];
+        this.history = this.history.filter(r => r.taskId !== id);
+        return true;
+      }
       case 'run.state_changed':
         {
           const data = ev.payload as { run: Run; compact?: boolean };

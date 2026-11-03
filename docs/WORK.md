@@ -101,3 +101,18 @@ make test-work-order-browser   # cards, drag and keyboard ordering, plan order, 
 
 It exercises Personal and Team queues and plans, ordering, dependencies, persistence, session association, desktop/phone
 layouts, All Projects aggregation and switching to a specific project context.
+
+## Finished work: Done, archived, deleted, erased
+
+Personal tasks and projects (Team keeps its own archive for now) leave in four steps, each of which can be undone until the last.
+
+| Step | What it does | Undo |
+|---|---|---|
+| **Done** | The task is finished. It stays on the board, in Completed. | Move it back. |
+| **Archived** | Off the board and out of plans, the scheduler and Calendar. Runs, conversations and Git evidence are kept. By hand (a Done card, *Archive done tasks*) or by the project's own setting: *Archive done tasks automatically* after 7, 14, 30 or 90 days since the task last changed (never by default). | **Restore**. |
+| **Deleted** | Only an archived task can be deleted. It moves to **Recently deleted** for 30 days, with the days left shown. | **Restore** (back to the Archive). |
+| **Erased** | After 30 days, or at once with **Erase now** (which asks again). The task, its runs, questions and activity are removed; what waited on it stops waiting. Git branches and worktrees on disk are never touched. | None. |
+
+A project follows the same path (*Project settings* or Settings → Project history): archive first, then delete, then erased after 30 days or with **Erase now**. Erasing a project removes its tasks, runs, plans, memory, product maps and activity from Werkbord's database and gives its repository path back; the repository on disk is untouched. A project with an active run or a schedule cannot be archived or deleted.
+
+The controller does the housekeeping (archiving by setting, erasing what is due) once an hour while it runs (`service.Tasks.Housekeep`, `service.Projects.PurgeExpired`). The retention is `domain.TrashRetention`; the web copy of the number is `web/src/lib/trash.ts` and the two must agree. `make test-archive-browser` walks the whole path in a real browser.

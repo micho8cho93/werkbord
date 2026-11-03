@@ -221,3 +221,40 @@ func (r projectRepo) SetLifecycle(ctx context.Context, id, state string, at time
 	}
 	return nil
 }
+
+// Purge erases a project and what belongs to it. The tables that name a project without a foreign key that removes their rows (memory,
+// its publication records, product maps, the activity log) are cleared first; the rest go with the project row. A project's memory
+// supersedes and duplicates only within the project, so those links are cut before the rows go. Nothing outside Werkbord's own
+// database is touched: not the repository, its branches or its worktrees.
+func (r projectRepo) Purge(ctx context.Context, id string) error {
+	// The project's small settings documents (archive, fallback, orchestration) are keyed by its ID.
+	for _, prefix := range []string{domain.SettingArchivePrefix, domain.SettingFallbackPrefix, domain.SettingFallbackLedgerPrefix, "orchestration:"} {
+		if _, err := r.q.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, prefix+id); err != nil {
+			return fmt.Errorf("erasing a project: %w", err)
+		}
+	}
+	for _, q := range []string{
+		`UPDATE memories SET superseded_by = NULL, duplicate_of = NULL WHERE project_id = ?`,
+		`DELETE FROM memories WHERE project_id = ?`,
+		`DELETE FROM memory_freshness WHERE project_id = ?`,
+		`DELETE FROM memory_publications WHERE project_id = ?`,
+		`DELETE FROM memory_publication_grants WHERE project_id = ?`,
+		`DELETE FROM product_map_jobs WHERE project_id = ?`,
+		`DELETE FROM product_map_snapshots WHERE project_id = ?`,
+		`DELETE FROM events WHERE project_id = ?`,
+	} {
+		if _, err := r.q.ExecContext(ctx, q, id); err != nil {
+			return fmt.Errorf("erasing a project: %w", err)
+		}
+	}
+	res, err := r.q.ExecContext(ctx, `DELETE FROM projects WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("project %s: %w", id, domain.ErrNotFound)
+	}
+	// The full-text index only marks a deleted row; merging it leaves no readable copy of what was erased (see memoryRepo.purgeIndex).
+	_, err = r.q.ExecContext(ctx, `INSERT INTO memories_fts(memories_fts) VALUES('optimize')`)
+	return err
+}

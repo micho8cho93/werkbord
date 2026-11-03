@@ -19,15 +19,15 @@ func archiveMS(at *time.Time) any {
 	return ms(*at)
 }
 
-const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch, archived_at, work_mode, plan_start, plan_end, milestone, plan_time`
+const taskCols = `id, project_id, title, description, state, position, version, created_at, updated_at, execution, orchestration, source_ref, work_branch, base_branch, archived_at, work_mode, plan_start, plan_end, milestone, plan_time, deleted_at`
 
 func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	var t domain.Task
 	var created, updated int64
 	var execution, orchestration string
-	var archived sql.NullInt64
+	var archived, deleted sql.NullInt64
 	var milestone int
-	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch, &archived, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone, &t.Plan.Time); err != nil {
+	if err := s.Scan(&t.ID, &t.ProjectID, &t.Title, &t.Description, &t.State, &t.Position, &t.Version, &created, &updated, &execution, &orchestration, &t.SourceRef, &t.WorkBranch, &t.BaseBranch, &archived, &t.WorkMode, &t.Plan.Start, &t.Plan.End, &milestone, &t.Plan.Time, &deleted); err != nil {
 		return nil, err
 	}
 	t.Plan.Milestone = milestone == 1
@@ -36,6 +36,10 @@ func scanTask(s interface{ Scan(...any) error }) (*domain.Task, error) {
 	if archived.Valid {
 		at := fromMS(archived.Int64)
 		t.ArchivedAt = &at
+	}
+	if deleted.Valid {
+		at := fromMS(deleted.Int64)
+		t.DeletedAt = &at
 	}
 	var err error
 	if t.Execution, err = decodeExecution(execution); err != nil {
@@ -60,9 +64,9 @@ func (r taskRepo) Create(ctx context.Context, t *domain.Task) error {
 		return err
 	}
 	_, err = r.q.ExecContext(ctx,
-		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.ProjectID, t.Title, t.Description, t.State, t.Position, t.Version, ms(t.CreatedAt), ms(t.UpdatedAt), execution, mustJSON(t.Orchestration), t.SourceRef, t.WorkBranch, t.BaseBranch, archiveMS(t.ArchivedAt),
-		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time)
+		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time, archiveMS(t.DeletedAt))
 	if isFKViolation(err) {
 		return fmt.Errorf("project %s: %w", t.ProjectID, domain.ErrNotFound)
 	}
@@ -185,10 +189,10 @@ func (r taskRepo) Update(ctx context.Context, t *domain.Task) error {
 	}
 	res, err := r.q.ExecContext(ctx, `
 		UPDATE tasks SET title = ?, description = ?, state = ?, position = ?, execution = ?, orchestration = ?, updated_at = ?, archived_at = ?,
-			work_mode = ?, plan_start = ?, plan_end = ?, milestone = ?, plan_time = ?, version = version + 1
+			work_mode = ?, plan_start = ?, plan_end = ?, milestone = ?, plan_time = ?, deleted_at = ?, version = version + 1
 		WHERE id = ? AND version = ?`,
 		t.Title, t.Description, t.State, t.Position, execution, mustJSON(t.Orchestration), ms(t.UpdatedAt), archiveMS(t.ArchivedAt),
-		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time, t.ID, t.Version)
+		t.Mode(), t.Plan.Start, t.Plan.End, boolInt(t.Plan.Milestone), t.Plan.Time, archiveMS(t.DeletedAt), t.ID, t.Version)
 	if err != nil {
 		return err
 	}
@@ -207,4 +211,38 @@ func (r taskRepo) MaxPosition(ctx context.Context, projectID string, state domai
 	err := r.q.QueryRowContext(ctx,
 		`SELECT MAX(position) FROM tasks WHERE project_id = ? AND state = ?`, projectID, state).Scan(&max)
 	return max.Float64, err
+}
+
+// Delete erases a task for good: its runs, questions and labels go with it through the foreign keys, and what the controller recorded
+// about it in the activity log is removed. Git branches and worktrees on disk are not touched.
+func (r taskRepo) Delete(ctx context.Context, id string) error {
+	if _, err := r.q.ExecContext(ctx, `DELETE FROM events WHERE task_id = ?`, id); err != nil {
+		return err
+	}
+	res, err := r.q.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("task %s: %w", id, domain.ErrNotFound)
+	}
+	return nil
+}
+
+// ListTrashedBefore lists the tasks deleted before the cutoff, the ones whose time in the trash is up.
+func (r taskRepo) ListTrashedBefore(ctx context.Context, cutoff time.Time) ([]domain.Task, error) {
+	rows, err := r.q.QueryContext(ctx, `SELECT `+taskCols+` FROM tasks WHERE deleted_at IS NOT NULL AND deleted_at < ? ORDER BY deleted_at`, ms(cutoff))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.Task{}
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
 }

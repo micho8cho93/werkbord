@@ -57,7 +57,7 @@ func EventAllowed(e domain.Event) bool {
 	switch e.Type {
 	case domain.EventProjectRegistered, domain.EventProjectInspected, domain.EventProjectUpdated,
 		domain.EventLabelCreated, domain.EventLabelUpdated, domain.EventLabelDeleted,
-		domain.EventTaskCreated, domain.EventTaskUpdated, domain.EventRunStateChanged,
+		domain.EventTaskCreated, domain.EventTaskUpdated, domain.EventTaskDeleted, domain.EventRunStateChanged,
 		domain.EventWorktreeCreated, domain.EventWorktreeRemoving, domain.EventWorktreeRemoved,
 		domain.EventQuestionAnswered, domain.EventQuestionCancelled,
 		domain.EventAgentStarted, domain.EventAgentOutput, domain.EventAgentQuestion, domain.EventAgentWaiting,

@@ -81,6 +81,9 @@ type ProjectRepo interface {
 	SetLifecycle(ctx context.Context, id, state string, at time.Time) error
 	// SetExecution replaces the project's default execution configuration.
 	SetExecution(ctx context.Context, id string, cfg domain.ExecutionConfig, at time.Time) error
+	// Purge erases a project and everything of Werkbord's that belongs to it: tasks, runs, memory, plans, maps and activity. The
+	// repository on disk, its branches and worktrees are not touched. It is the last step of the trash.
+	Purge(ctx context.Context, id string) error
 }
 
 // SettingsRepo stores the app's own small settings as JSON documents by key
@@ -125,6 +128,10 @@ type TaskRepo interface {
 	Update(ctx context.Context, t *domain.Task) error
 	// MaxPosition returns the largest position in a column, or 0 when empty.
 	MaxPosition(ctx context.Context, projectID string, state domain.TaskState) (float64, error)
+	// Delete erases a task and what hangs from it (its runs, questions, labels and activity). It is the last step of the trash.
+	Delete(ctx context.Context, id string) error
+	// ListTrashedBefore lists the tasks deleted before the cutoff.
+	ListTrashedBefore(ctx context.Context, cutoff time.Time) ([]domain.Task, error)
 }
 
 // LabelRepo persists the reusable labels. Create and Update return domain.ErrDuplicate for a name that

@@ -19,6 +19,7 @@ const (
 	EventWorkPlanUpdated   EventType = "work_plan.updated"
 	EventTaskCreated       EventType = "task.created"
 	EventTaskUpdated       EventType = "task.updated"
+	EventTaskDeleted       EventType = "task.deleted" // the last step of the trash: the task is erased; payload: {id}
 	EventRunStateChanged   EventType = "run.state_changed"
 	EventWorktreeCreated   EventType = "worktree.created"
 	EventWorktreeRemoving  EventType = "worktree.removing"

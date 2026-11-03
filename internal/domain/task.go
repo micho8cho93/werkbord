@@ -76,6 +76,9 @@ type Task struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 	UpdatedAt  time.Time  `json:"updatedAt"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	// DeletedAt: the task is in the trash (see TrashRetention). A deleted task is always an archived one, so everything that leaves
+	// archived tasks out leaves it out too.
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
 // Mode is the task's work mode, with the empty one read as it always was: agent work.

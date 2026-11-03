@@ -25,6 +25,15 @@ func TestProjectLifecyclePreservesWorkAndIdentity(t *testing.T) {
 	scope := domain.MemoryScope{ProjectID: p.ID}
 	memory := createMemory(t, mem, scope, memoryContent("Preserve this project decision"))
 	for _, state := range []string{"archived", "deleted"} {
+		if state == "deleted" {
+			// A project is archived before it is deleted.
+			if _, err := f.projects.SetLifecycle(ctx, p.ID, "deleted"); !errors.Is(err, domain.ErrConflict) {
+				t.Fatalf("deleting an active project: %v", err)
+			}
+			if _, err := f.projects.SetLifecycle(ctx, p.ID, "archived"); err != nil {
+				t.Fatal(err)
+			}
+		}
 		got, err := f.projects.SetLifecycle(ctx, p.ID, state)
 		if err != nil || !got.Inactive() {
 			t.Fatalf("%s: %+v %v", state, got, err)

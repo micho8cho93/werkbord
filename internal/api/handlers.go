@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"werkbord/internal/domain"
@@ -575,4 +576,77 @@ func (s *Server) handleProjectLifecycle(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, p)
+}
+
+// ---- the trash: deleted tasks and projects wait before they are erased ----
+
+func (s *Server) handleTrashTask(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version *int64 `json:"version"`
+	}
+	if err := decode(w, r, &req); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if req.Version == nil {
+		s.fail(w, r, fmt.Errorf("%w: version is required", domain.ErrInvalid))
+		return
+	}
+	var t *domain.Task
+	var err error
+	if strings.HasSuffix(r.URL.Path, "/untrash") {
+		t, err = s.opt.Tasks.Untrash(r.Context(), r.PathValue("pid"), r.PathValue("id"), *req.Version)
+	} else {
+		t, err = s.opt.Tasks.Trash(r.Context(), r.PathValue("pid"), r.PathValue("id"), *req.Version)
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+// handleEraseTask erases a task that is already in the trash: DELETE with ?version=.
+func (s *Server) handleEraseTask(w http.ResponseWriter, r *http.Request) {
+	version, err := strconv.ParseInt(r.URL.Query().Get("version"), 10, 64)
+	if err != nil {
+		s.fail(w, r, fmt.Errorf("%w: version is required", domain.ErrInvalid))
+		return
+	}
+	if err := s.opt.Tasks.Erase(r.Context(), r.PathValue("pid"), r.PathValue("id"), version); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleEraseProject(w http.ResponseWriter, r *http.Request) {
+	if err := s.opt.Projects.Erase(r.Context(), r.PathValue("pid")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleArchiveSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPut {
+		var in domain.ArchiveSettings
+		if err := decode(w, r, &in); err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		out, err := s.opt.Tasks.SetArchiveSettings(r.Context(), r.PathValue("pid"), in)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	out, err := s.opt.Tasks.ArchiveSettings(r.Context(), r.PathValue("pid"))
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }

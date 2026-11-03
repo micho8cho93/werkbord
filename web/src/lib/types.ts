@@ -177,6 +177,8 @@ export interface PlanIssue {
 
 export interface Task {
   archivedAt?: string;
+  /** In the trash: archived, then deleted. It can be restored until it is erased (see trash.ts). */
+  deletedAt?: string;
   /** Who is expected to do it. Absent on an older controller: agent work. */
   workMode?: WorkMode;
   labelIds?: string[];
@@ -1216,4 +1218,9 @@ export interface RepoAdmin {
   protection?: { protected: boolean; requiredReviews: number };
   protectNote?: string;
   pages?: { enabled: boolean; url?: string };
+}
+
+/** A project's choice about finished work: archive a Done task this many days after it last changed (0 = never). */
+export interface ArchiveSettings {
+  afterDays: number;
 }

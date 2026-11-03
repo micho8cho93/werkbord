@@ -218,6 +218,7 @@ func (s *Tasks) Update(ctx context.Context, id string, patch TaskPatch) (*domain
 				}
 			} else {
 				t.ArchivedAt = nil
+				t.DeletedAt = nil // restoring a deleted task restores it whole
 			}
 		}
 		if patch.Title != nil {

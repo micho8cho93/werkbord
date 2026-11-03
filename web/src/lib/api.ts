@@ -1,4 +1,5 @@
 import type {
+  ArchiveSettings,
   Handoff,
  Orchestration,
  SchedulingDecision,
@@ -378,6 +379,12 @@ schedule: (projectId: string) => request<{decisions: SchedulingDecision[]}>('GET
   listTasks: (projectId: string) => request<{ tasks: Task[] }>('GET', `${inProject(projectId)}/tasks`).then((r) => r.tasks),
   folders: (path = '') => request<{ path: string; parent: string; folders: { name: string; path: string; repository: boolean }[] }>('GET', `/api/folders?path=${enc(path)}`),
   archiveTask: (task: Task, archived = true) => request<Task>('PATCH', `${inProject(task.projectId)}/tasks/${enc(task.id)}`, { archived, version: task.version }),
+  trashTask: (task: Task) => request<Task>('POST', `${inProject(task.projectId)}/tasks/${enc(task.id)}/trash`, { version: task.version }),
+  untrashTask: (task: Task) => request<Task>('POST', `${inProject(task.projectId)}/tasks/${enc(task.id)}/untrash`, { version: task.version }),
+  eraseTask: (task: Task) => requestNoContent('DELETE', `${inProject(task.projectId)}/tasks/${enc(task.id)}?version=${task.version}`),
+  archiveSettings: (projectId: string) => request<ArchiveSettings>('GET', `${inProject(projectId)}/archive-settings`),
+  setArchiveSettings: (projectId: string, afterDays: number) => request<ArchiveSettings>('PUT', `${inProject(projectId)}/archive-settings`, { afterDays }),
+  eraseProject: (id: string) => requestNoContent('DELETE', inProject(id)),
   archiveDone: (projectId: string) => request<{ tasks: Task[] }>('POST', `${inProject(projectId)}/tasks/archive-done`).then(r => r.tasks),
   createTask: (projectId: string, title: string, description = '', execution?: ExecutionConfig, more: Omit<NewTaskOptions, 'execution'> = {}) =>
     request<Task>('POST', `${inProject(projectId)}/tasks`, withoutExecution({ title, description, ...(execution ? { execution } : {}), ...more })),

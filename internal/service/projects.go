@@ -331,6 +331,9 @@ func (s *Projects) SetLifecycle(ctx context.Context, id, state string) (*Project
 		if err != nil {
 			return err
 		}
+		if state == "deleted" && p.ArchivedAt == nil && p.DeletedAt == nil {
+			return fmt.Errorf("%w: archive this project before deleting it", domain.ErrConflict)
+		}
 		if state != "active" {
 			runs, err := tx.Runs().ListActive(ctx)
 			if err != nil {

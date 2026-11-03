@@ -91,9 +91,15 @@ func (m *Manager) ScheduleLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	nextRetention := time.Time{}
+	nextHousekeeping := time.Time{}
 	for {
 		if ctx.Err() != nil {
 			return
+		}
+		// Finished work is archived as each project asks, and what has been in the trash for its retention period is erased.
+		if time.Now().After(nextHousekeeping) {
+			nextHousekeeping = time.Now().Add(time.Hour)
+			m.housekeep(ctx)
 		}
 		if time.Now().After(nextRetention) {
 			n := 0
@@ -125,4 +131,24 @@ func (m *Manager) ScheduleAuthorized(ctx context.Context, in integration.Executi
 		return nil, err
 	}
 	return m.Start(ctx, StartInput{Authorization: &in})
+}
+
+// housekeep runs the archive and trash housekeeping (service.Tasks.Housekeep, service.Projects.PurgeExpired). A failure is logged and
+// tried again an hour later: nothing depends on it.
+func (m *Manager) housekeep(ctx context.Context) {
+	if m.opt.Tasks != nil {
+		archived, erased, err := m.opt.Tasks.Housekeep(ctx)
+		if err != nil {
+			m.log().Warn("archive housekeeping failed", "err", err)
+		} else if archived > 0 || erased > 0 {
+			m.log().Info("archive housekeeping", "archived", archived, "erased", erased)
+		}
+	}
+	if m.opt.Projects != nil {
+		if n, err := m.opt.Projects.PurgeExpired(ctx); err != nil {
+			m.log().Warn("erasing expired projects failed", "err", err)
+		} else if n > 0 {
+			m.log().Info("erased projects whose time in the trash was up", "projects", n)
+		}
+	}
 }
