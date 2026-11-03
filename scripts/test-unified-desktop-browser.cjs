@@ -52,7 +52,12 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // There is one sidebar: Home and Calendar, then a section for Personal and one for each team. A workspace opens from its header.
  let current = 'personal';
  const side = page.getByRole('navigation', { name: 'Werkbord', exact: true });
- const switchUniversal = async () => { await page.getByTestId('project-context').selectOption(''); await side.locator('[data-page=inbox]').click(); };
+ // The project context is a button that opens a list of rows (not a native select): open it, then press the row.
+ const pickerOf = pg => pg.getByTestId('project-context');
+ const chooseProject = async (pg, value) => { const t = pickerOf(pg); if (await t.getAttribute('aria-expanded') !== 'true') await t.click(); await pg.locator("#project-listbox [role='option'][data-value='" + value + "']").click(); };
+ const projectValue = pg => pickerOf(pg).getAttribute('data-value');
+ const projectKeyNamed = async (pg, name) => { const t = pickerOf(pg); await t.click(); const key = await pg.locator('#project-listbox [role=option]').filter({hasText:name}).first().getAttribute('data-value'); await pg.keyboard.press('Escape'); return key; };
+ const switchUniversal = async () => { await chooseProject(page, ''); await side.locator('[data-page=inbox]').click(); };
  const switchTo = async (id) => { await openWorkspace(page, id); await page.locator('iframe[data-workspace="' + id + '"]').waitFor({ state: 'visible' }); current = id; };
  // Chooses one button of a group in the window's Settings, Appearance, and goes back to where the person was.
  const chooseInAppearance = async (group, button) => {
@@ -83,13 +88,15 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert((await shellSkip.boundingBox()).y >= 0, 'shell skip link is visible when focused'); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#shell-main').evaluate(el => el === document.activeElement), true, 'shell skip link moves focus to its main work region');
  await switchTo('personal');
- const personalKey = await page.getByTestId('project-context').locator('option').filter({hasText:'Customer portal'}).first().getAttribute('value');
+ const personalKey = await projectKeyNamed(page, 'Customer portal');
  const personalProjectId = JSON.parse(personalKey)[1];
  await openDestination(page, 'project:personal:' + personalProjectId);
- for (const section of ['Work', 'Git']) await page.frameLocator('iframe[data-workspace=personal]').getByText(section, { exact: true }).first().waitFor();
+ // A project's Work and Git are entries in the window's sidebar, not a tab row in the project's header.
+ for (const section of ['Work', 'Git']) await side.getByRole('button', { name: section, exact: true }).first().waitFor();
+ await page.frameLocator('iframe[data-workspace=personal]').getByRole('heading', { name: 'Customer portal' }).first().waitFor();
  // One sidebar, no second one: Individual's own rail is not shown in the window, and its project sections stay in its header.
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').locator('aside.rail').count(), 0, 'Individual shows no rail of its own in the window');
- assert.equal(await page.getByTestId('project-context').inputValue(), personalKey);
+ await wait(async () => await projectValue(page) === personalKey, 'the sidebar marks the opened Personal project');
  for (const entry of ['Work', 'Calendar', 'Agents', 'Analytics', 'Salie', 'Settings']) await side.getByRole('button', { name: entry }).first().waitFor();
  assert.equal(await page.getByText('Live', { exact: true }).count(), 0, 'no live status indicator in the sidebar');
  assert.equal(await page.frameLocator('iframe[data-workspace=personal]').getByText('Live', { exact: true }).count(), 0, 'no live status indicator in Individual');
@@ -101,13 +108,13 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  assert.equal(await side.locator('[data-page=personal-library]').count(), 0, 'the retired Data Library has no navigation');
  console.log('PASS Home: Needs you and Calendar live on the hub, beside the one sidebar');
  await switchTo('personal');
- await page.getByTestId('project-context').selectOption(personalKey);
+ await chooseProject(page, personalKey);
  // The same named destinations stay visible at intermediate widths; narrow windows retain accessible icon labels.
  for (const width of [1024, 390]) {
    await page.setViewportSize({width, height: 844});
    for (const title of ['Work','Calendar','Agents','Analytics','Salie']) await side.getByRole('button',{name:title,exact:true}).waitFor();
    assert.equal(await side.evaluate(el => el.scrollWidth <= el.clientWidth), true);
-   assert.equal(await page.getByTestId('project-context').inputValue(), personalKey);
+   assert.equal(await projectValue(page), personalKey);
  }
  await page.setViewportSize({ width: 1440, height: 1000 });
  await switchUniversal();
@@ -131,7 +138,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    await page.getByRole('heading', { name: destination === 'calendar' ? 'Calendar' : 'Work', exact: true }).waitFor();
  }
  await page.unrouteAll({ behavior: 'ignoreErrors' });
- await page.getByTestId('project-context').locator('optgroup[label="Team projects"]').waitFor({state:'attached'});
+ await pickerOf(page).click(); await page.locator('#project-listbox [role=group][aria-label]').filter({hasText:'Team'}).first().waitFor(); await page.keyboard.press('Escape');
  await openWorkspace(page, 'personal');
  await page.locator('iframe[data-workspace="personal"]').waitFor({ state: 'visible' });
  // The theme is chosen in Settings and reaches the workspace that is open.
@@ -148,7 +155,7 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  // A project is opened from the sidebar; its own sections are tabs above it, and the sidebar marks it.
  await openDestination(page, 'project:team:main:' + project.id);
  await firstFrame.getByRole('heading', { level: 1 }).first().waitFor(); assert.equal(await firstFrame.getByRole('navigation', { name: 'Project sections' }).count(), 0, 'in the window a project has no tabs of its own: Work and Git are in the sidebar'); await side.getByRole('button', { name: 'Git', exact: true }).first().waitFor();
- await wait(async () => (await page.getByTestId('project-context').inputValue()) === JSON.stringify(['team:main', project.id]), 'the sidebar marks the opened Team project');
+ await wait(async () => (await projectValue(page)) === JSON.stringify(['team:main', project.id]), 'the sidebar marks the opened Team project');
  assert.equal(await firstFrame.locator('[name=project-switch]').count(), 0, 'the sidebar lists the projects, so the page has no second project list');
  // People is a tab of the team, not an entry of the sidebar: the team's entry stays marked while the person is in it.
  assert.equal(await side.locator('[data-section="team:main"] [data-page=ws-members]').count(), 0, 'the sidebar does not list People');
@@ -340,7 +347,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
    const before=await read();
    const targetDay=addDay(before.plan.start,new Date(before.plan.start+'T12:00Z').getUTCDay()===0?-1:1);
    const from=await bar.boundingBox(), to=await page.locator(`[data-plan-day="${targetDay}"]`).boundingBox();
-   await page.mouse.move(from.x+from.width/2,from.y+from.height/2); await page.mouse.down();
+   // A bar of several days keeps the day it was grabbed on, so it is grabbed on its first day to land that day on the target.
+   await page.mouse.move(from.x+12,from.y+from.height/2); await page.mouse.down();
    await page.mouse.move(to.x+to.width/2,to.y+40,{steps:12}); await page.mouse.up();
    await wait(async()=> (await read()).plan.start===targetDay,'Universal '+workspace+' calendar move');
    await wait(async()=>await bar.getAttribute('aria-busy')!=='true','calendar refresh');

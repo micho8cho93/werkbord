@@ -229,14 +229,14 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         // Work → task beside the list → Back: the list is exactly as it was left, because it never went anywhere.
         const context = page.getByTestId('project-context');
         await side.getByRole('button', { name: 'Work', exact: true }).click(); await current('inbox');
-        await context.selectOption('');
+        { if (await context.getAttribute('aria-expanded') !== 'true') await context.click(); await page.locator("#project-listbox [role='option'][data-value='']").click(); }
         await page.locator('.work-tabs').getByRole('button', { name: /^Queue/ }).click(); // Work opens on its Overview; the queue is the next tab
         await page.getByRole('searchbox', { name: 'Search work' }).fill('Fix');
-        assert.equal(await context.inputValue(), '', 'All Projects');
+        assert.equal(await context.getAttribute('data-value'), '', 'All Projects');
         await page.locator('.queue-card button.task', { hasText: 'Fix the login' }).click();
         await individual.locator('section.panel').waitFor();
         await page.getByTestId('work-pane-bar').waitFor();
-        assert.equal(await context.inputValue(), '', 'opening a task beside the list leaves the project context alone');
+        assert.equal(await context.getAttribute('data-value'), '', 'opening a task beside the list leaves the project context alone');
         assert.equal(await page.getByRole('searchbox', { name: 'Search work' }).inputValue(), 'Fix', 'the list beside the task keeps its search');
         assert.equal(await page.locator('.queue-card button.task[aria-current=true]').count(), 1, 'the open task is marked in the list');
         assert.match(await crumbs().innerText(), /Work/);
@@ -245,7 +245,7 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
         await page.getByTestId('work-pane-bar').waitFor({ state: 'detached' });
         await current('inbox');
         assert.equal(await page.getByRole('searchbox', { name: 'Search work' }).inputValue(), 'Fix', 'the search is as it was left');
-        assert.equal(await context.inputValue(), '', 'Back puts All Projects back');
+        assert.equal(await context.getAttribute('data-value'), '', 'Back puts All Projects back');
         await page.screenshot({ path: path.join(artifacts, 'shell-work-back.png') });
         ok('Work → task beside the list → Back returns to the list as it was, with its project context and search');
 

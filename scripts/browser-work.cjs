@@ -1,6 +1,8 @@
 // Work acceptance against disposable Personal and Team APIs (test-browser.cjs).
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'../web/node_modules/playwright');
+// The project context is a button that opens a list of rows, not a native select.
+const chooseProject = async (page, value) => { const t = page.getByTestId('project-context'); if (await t.getAttribute('aria-expanded') !== 'true') await t.click(); await page.locator(`#project-listbox [role="option"][data-value='${value}']`).click(); };
 const personal=process.env.PERSONAL_BROWSER_URL,team=process.env.TEAM_BROWSER_URL;
 const teamToken=fs.readFileSync(process.env.TEAM_BROWSER_TOKEN_FILE,'utf8').trim();
 for(const url of [personal,team]) assert.equal(new URL(url).hostname,'127.0.0.1');
@@ -139,9 +141,9 @@ let browser,shellServer;
  await shell.goto(`http://127.0.0.1:${shellServer.address().port}/shell/index.html`);
  await shell.getByRole('heading',{name:'Work',exact:true}).waitFor();
  await shell.getByRole('button',{name:/Write the release guide/}).waitFor();await shell.getByRole('button',{name:/^Agree rollout/}).waitFor();
- await shell.getByTestId('project-context').selectOption(JSON.stringify(['personal',project.id]));
+ await chooseProject(shell,JSON.stringify(['personal',project.id]));
  await shell.getByRole('button',{name:/^Agree on the interface/}).waitFor();assert.equal(await shell.getByRole('button',{name:/Write the release guide/}).count(),0);assert.equal(await shell.getByRole('button',{name:/^Agree rollout/}).count(),0);
- await shell.getByTestId('project-context').selectOption('');await shell.getByRole('button',{name:/^Agree rollout/}).waitFor();
+ await chooseProject(shell,'');await shell.getByRole('button',{name:/^Agree rollout/}).waitFor();
  await shell.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'all-projects-work-desktop.png')});
  await shell.getByRole('navigation',{name:'Work sections'}).getByRole('button',{name:/^Queue/}).click();
  await shell.getByRole('button',{name:/^Deliver the adapter/}).waitFor();await shell.getByRole('button',{name:/^Rollout plan/}).waitFor();

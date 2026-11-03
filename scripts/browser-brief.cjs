@@ -113,13 +113,24 @@ window.__frameMessages = []; window.addEventListener('message', e => { try { win
   assert.equal(await month.getByRole('button',{name:'Month',exact:true}).getAttribute('aria-pressed'),'true','the calendar opens on the month');
   const cell=page.locator('section.day.today');
   await cell.waitFor();
-  const titles=await cell.locator('.event strong').allInnerTexts();
-  assert.deepEqual(titles.slice(0,2),['Fix flaky test','Plan the migration'],'items with no time come first, then those with a time');
-  assert.equal(await cell.locator('.more').count(),1,'a crowded day says how many more');
-  assert.match(await cell.locator('.more').innerText(),/2 more/);
-  await cell.locator('.more').click();
-  assert.equal(await cell.locator('.event').count(),5,'the day opens to all of its items');
-  assert.match(await cell.locator('.event').filter({hasText:'Review PR 214'}).locator('.at').innerText(),/11:00/,'a timed item shows its time');
+  // Every item is a bar laid over its week's columns (one bar for a several-day item), not a chip inside the day: read the bars that cover today.
+  const week=page.locator('.week').filter({has:page.locator('section.day.today')});
+  const todays=()=>week.evaluate(w=>{
+    const col=Number(getComputedStyle(w.querySelector('section.day.today')).gridColumnStart);
+    const cover=e=>{const s=getComputedStyle(e),a=Number(s.gridColumnStart),m=/span (\d+)/.exec(s.gridColumnEnd);return a<=col&&col<=a+(m?Number(m[1]):1)-1;};
+    return {
+      bars:[...w.querySelectorAll('.event')].filter(cover).map(e=>({title:e.querySelector('strong').innerText,time:e.querySelector('.at')?.innerText||''})),
+      more:[...w.querySelectorAll('.more')].filter(e=>Number(getComputedStyle(e).gridColumnStart)===col&&!e.classList.contains('less')).map(e=>e.innerText),
+    };
+  });
+  const before=await todays();
+  assert.deepEqual(before.bars.slice(0,2).map(b=>b.title),['Plan the migration','Fix flaky test'],'the longer item leads, then items with no time, then those with a time');
+  assert.equal(before.more.length,1,'a crowded day says how many more');
+  assert.match(before.more[0],/2 more/);
+  await week.locator('.more').filter({hasText:'2 more'}).click();
+  const opened=await todays();
+  assert.equal(opened.bars.length,5,'the day opens to all of its items');
+  assert.match(opened.bars.find(b=>b.title==='Review PR 214').time,/11/,'a timed item shows its time');
   const tray=page.getByRole('complementary',{name:'No date'});
   await tray.waitFor();
   assert.equal(await tray.locator('.event').count(),4,'work with no date waits in the tray');
