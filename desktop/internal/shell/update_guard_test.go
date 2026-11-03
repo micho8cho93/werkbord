@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 	"werkbord/internal/device"
+	"werkbord/internal/launcher"
 	"werkbord/internal/update"
 )
 
@@ -202,11 +203,11 @@ func TestOnlyOneUpdateWaitsAtATime(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s := New(Options{Launcher: &fakeLauncher{}, UI: &fakeUI{}, Ctx: ctx, UpdateGuard: func(context.Context) error { return nil }})
-	s.updateWhenReady()
+	s.updateWhenReady(true)
 	if !s.waiting.Load() {
 		t.Fatal("no watcher started")
 	}
-	s.updateWhenReady() // would panic or double up if a second one started and ended the first's state
+	s.updateWhenReady(true) // would panic or double up if a second one started and ended the first's state
 	cancel()
 	waitFor(t, "the watcher to end with the app", func() bool { return !s.waiting.Load() })
 }
@@ -240,5 +241,119 @@ func TestAnUpdateThatNeedsMoreThanTheAppStillAsksItsUsualQuestion(t *testing.T) 
 	defer ui.mu.Unlock()
 	if len(ui.asked) != 2 || !strings.HasPrefix(ui.asked[1].Title, "Update to Werkbord") {
 		t.Fatalf("the usual question was skipped: %+v", ui.asked)
+	}
+}
+
+func TestTheWindowSaysWhenItIsOnlyPartlyUpdatedAndWhy(t *testing.T) {
+	open := &device.TerminalsRunning{Terminals: []device.RunningTerminal{{ID: "t1", ProjectID: "p1", Agent: "codex", Repository: "test-repo"}}}
+	for _, tc := range []struct {
+		name    string
+		pending bool
+		guard   error
+		want    UpdateState
+	}{
+		{name: "up to date", want: UpdateState{}},
+		{name: "behind, nothing in the way", pending: true, want: UpdateState{Behind: true, Running: "1.8.0", Carried: "1.9.0"}},
+		{name: "behind, a terminal is open", pending: true, guard: open, want: UpdateState{Behind: true, Running: "1.8.0", Carried: "1.9.0", Reason: "Codex in test-repo has been running since Oct 27 and is still open"}},
+		{name: "behind, agents are working", pending: true, guard: errors.New("update deferred: coding agents are active on this computer"), want: UpdateState{Behind: true, Running: "1.8.0", Carried: "1.9.0", Reason: "coding agents are active on this computer"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &fakeLauncher{pending: tc.pending, installed: "v1.8.0", bundled: "v1.9.0"}
+			s := New(Options{Launcher: l, UI: &fakeUI{}, Version: "v1.9.0", UpdateGuard: func(context.Context) error { return tc.guard }})
+			got := s.UpdateState()
+			if tc.name == "behind, a terminal is open" {
+				// The date in the sentence is the terminal's own; this fixture has none.
+				got.Reason = strings.Replace(got.Reason, "for some time", "since Oct 27", 1)
+			}
+			if got != tc.want {
+				t.Fatalf("got %+v want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAControllerThatIsBehindIsFinishedByItselfWithoutBeingAsked(t *testing.T) {
+	old := readyPoll
+	readyPoll = 5 * time.Millisecond
+	t.Cleanup(func() { readyPoll = old })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	l := &fakeLauncher{pending: true, installed: "v1.8.0", bundled: "v1.9.0", conn: launcher.Connection{URL: "http://127.0.0.1:1", Version: "v1.8.0"}}
+	ui := &fakeUI{}
+	alerts := &lockedAlerter{}
+	var mu sync.Mutex
+	blocked := true
+	s := New(Options{Ctx: ctx, Launcher: l, UI: ui, Alerter: alerts, Version: "v1.9.0", UpdateGuard: func(context.Context) error {
+		mu.Lock()
+		defer mu.Unlock()
+		if blocked {
+			return errors.New("update deferred: coding agents are active on this computer")
+		}
+		return nil
+	}})
+	if _, err := s.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the watcher", s.waiting.Load)
+	if st := s.UpdateState(); !st.Waiting || !st.Behind {
+		t.Fatalf("the window does not say it is waiting: %+v", st)
+	}
+	time.Sleep(40 * time.Millisecond)
+	l.mu.Lock()
+	early := l.adopted
+	l.mu.Unlock()
+	if early != 0 {
+		t.Fatal("finished while work was still going on")
+	}
+	mu.Lock()
+	blocked = false
+	mu.Unlock()
+	waitFor(t, "the update", func() bool { return len(alerts.alerts()) == 1 })
+	l.mu.Lock()
+	adopted := l.adopted
+	l.mu.Unlock()
+	if adopted != 1 || alerts.alerts()[0].title != "Werkbord updated" {
+		t.Fatalf("adopted %d, alerts %+v", adopted, alerts.alerts())
+	}
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
+	for _, d := range ui.asked {
+		if strings.HasPrefix(d.Title, "Update to") {
+			t.Fatalf("it asked a question nobody needed: %+v", d)
+		}
+	}
+}
+
+func TestAControllerThatIsUpToDateStartsNoWatcher(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	l := &fakeLauncher{conn: launcher.Connection{URL: "http://127.0.0.1:1", Version: "v1.9.0"}}
+	s := New(Options{Ctx: ctx, Launcher: l, UI: &fakeUI{}, Version: "v1.9.0", UpdateGuard: func(context.Context) error { return nil }})
+	if _, err := s.Connect(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if s.waiting.Load() {
+		t.Fatal("a watcher is waiting for an update that is not pending")
+	}
+}
+
+func TestAWatcherNobodyAskedForNeverOpensTheUsualQuestion(t *testing.T) {
+	old := readyPoll
+	readyPoll = 5 * time.Millisecond
+	t.Cleanup(func() { readyPoll = old })
+	// Nothing is pending in the app, yet a newer release exists on the network: that is for the person to ask for.
+	l := &fakeLauncher{status: update.Status{Release: true, Current: "v1.8.0", Latest: "v1.9.0", Available: true}}
+	ui := &fakeUI{}
+	s := New(Options{Launcher: l, UI: ui, Version: "v1.8.0", UpdateGuard: func(context.Context) error { return nil }})
+	s.updateWhenReady(false)
+	waitFor(t, "the watcher to end", func() bool { return !s.waiting.Load() })
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(ui.asked) != 0 || l.applied != 0 {
+		t.Fatalf("it acted on its own: asked %+v, applied %d", ui.asked, l.applied)
 	}
 }

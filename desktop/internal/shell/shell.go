@@ -407,7 +407,47 @@ func (s *Shell) Connect() (Connected, error) {
 		s.o.Log.Warn("notice", "text", conn.Notice)
 		go s.o.UI.Ask(Dialog{Kind: Info, Title: "Werkbord", Message: conn.Notice, Buttons: []string{"OK"}, Default: "OK", Cancel: "OK"})
 	}
+	// A controller older than the program this app carries is finished by itself as soon as nothing is in the way, however long
+	// that takes: the person is never left on screens from the old version because a refusal was said once and forgotten.
+	go func() {
+		if _, _, behind := s.o.Launcher.PendingProgramUpdate(s.o.Ctx); behind {
+			s.updateWhenReady(false)
+		}
+	}()
 	return Connected{SignInURL: conn.SignInURL, Version: conn.Version, Shell: s.o.ShellPage}, nil
+}
+
+// UpdateState says whether the part of Werkbord that runs the person's work is older than this app, and what is in the way.
+// The window is two things: the app's own pages, which are this version, and the person's own Werkbord, which the controller
+// serves and which is the controller's version. When they differ some screens look old, so the window says so and offers to
+// finish. It returns what the app already knows about itself and the controller on this computer, and acts on nothing.
+type UpdateState struct {
+	// Behind: the controller on this computer is older than the program this app carries.
+	Behind bool `json:"behind"`
+	// Running is the controller's version; Carried is this app's.
+	Running string `json:"running,omitempty"`
+	Carried string `json:"carried,omitempty"`
+	// Reason is what stands in the way of finishing now, in words, or empty when nothing does.
+	Reason string `json:"reason,omitempty"`
+	// Waiting: the app will finish by itself when the reason has gone.
+	Waiting bool `json:"waiting,omitempty"`
+}
+
+// UpdateState is what a page may ask to show the person that the window is only partly updated.
+func (s *Shell) UpdateState() UpdateState {
+	installed, bundled, behind := s.o.Launcher.PendingProgramUpdate(s.o.Ctx)
+	if !behind {
+		return UpdateState{}
+	}
+	st := UpdateState{Behind: true, Running: strings.TrimPrefix(installed, "v"), Carried: strings.TrimPrefix(bundled, "v"), Waiting: s.waiting.Load()}
+	if s.o.UpdateGuard != nil {
+		ctx, cancel := context.WithTimeout(s.o.Ctx, 5*time.Second)
+		defer cancel()
+		if err := s.o.UpdateGuard(ctx); err != nil {
+			st.Reason = strings.TrimPrefix(err.Error(), "update deferred: ")
+		}
+	}
+	return st
 }
 
 // Diagnostics is what to look at when Werkbord does not open, as text with no secret in it.
@@ -656,7 +696,7 @@ func (s *Shell) settleTerminals(refusal error) error {
 	switch choice {
 	case "Stop and update":
 	case "Update when they finish":
-		s.updateWhenReady()
+		s.updateWhenReady(true)
 		return errUpdateScheduled
 	default:
 		return errUpdateDeclined
@@ -672,7 +712,7 @@ func (s *Shell) settleTerminals(refusal error) error {
 // updateWhenReady waits, in the background, until nothing stands in the way of the update (the terminals have finished, and
 // whatever else the guard checks is quiet) and then finishes it. It is one watcher at a time, ends with the app, and is what the
 // person asked for by choosing "Update when they finish": it asks nothing more of them.
-func (s *Shell) updateWhenReady() {
+func (s *Shell) updateWhenReady(askIfNotPending bool) {
 	if !s.waiting.CompareAndSwap(false, true) {
 		return
 	}
@@ -694,7 +734,7 @@ func (s *Shell) updateWhenReady() {
 			err := s.o.UpdateGuard(ctx)
 			cancel()
 			if err == nil {
-				s.finishWhenReady()
+				s.finishWhenReady(askIfNotPending)
 				return
 			}
 		}
@@ -702,16 +742,19 @@ func (s *Shell) updateWhenReady() {
 }
 
 // finishWhenReady is the update the person agreed to, now that nothing is in the way. The one that needs nothing but this
-// app (it carries a newer program than the one running) is done without a word and then said; any other (a download, or the
-// app itself replaced) goes through the usual question, because that needs the person's window or their network.
-func (s *Shell) finishWhenReady() {
+// app (it carries a newer program than the one running) is done without a word and then said. Any other (a download, or the
+// app itself replaced) goes through the usual question when the person chose to wait for it, because that needs their window or
+// their network; a watcher nobody asked for (askIfNotPending false) never starts one.
+func (s *Shell) finishWhenReady(askIfNotPending bool) {
 	if !s.updating.CompareAndSwap(false, true) {
 		return
 	}
 	installed, bundled, ok := s.o.Launcher.PendingProgramUpdate(s.o.Ctx)
 	if !ok {
 		s.updating.Store(false)
-		s.update(false)
+		if askIfNotPending {
+			s.update(false)
+		}
 		return
 	}
 	defer s.updating.Store(false)

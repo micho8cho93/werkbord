@@ -10,6 +10,7 @@
   import Reviews from './Reviews.svelte';
   import Agents from './Agents.svelte';
   import ContextStatus from './ContextStatus.svelte';
+  import PartialUpdate from './PartialUpdate.svelte';
   import ReturnBar from './ReturnBar.svelte';
   import { remembered } from './view-state.svelte';
   import Hub from './Hub.svelte';
@@ -103,6 +104,7 @@
   <Sidebar />
 
   <div class="content">
+    <PartialUpdate />
     {#if model.error}
       <div class="message error" role="alert">{model.error}<button class="btn" type="button" onclick={() => (model.error = '')}>Dismiss</button></div>
     {/if}

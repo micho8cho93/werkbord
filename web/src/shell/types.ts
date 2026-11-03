@@ -220,6 +220,8 @@ export interface App {
   Premium(): Promise<PremiumStatus>;
   UnlockPremium(key: string): Promise<PremiumStatus>;
   Info(): Promise<{ version: string; platform: string; updater?: boolean }>;
+  /** Whether the part that runs your work is older than this app, and what is in the way. Read-only. */
+  UpdateState(): Promise<{ behind: boolean; running?: string; carried?: string; reason?: string; waiting?: boolean }>;
   /** "Check for updates": asks the person in the app's own dialogs and says in a sentence how it went. */
   RequestUpdate(): Promise<{ ok: boolean; declined?: boolean; scheduled?: boolean; message?: string }>;
   /** Writes what to look at when something is wrong to a private file and opens it. */
