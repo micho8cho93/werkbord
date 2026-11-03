@@ -47,7 +47,7 @@ describe('the Team console draws what the app draws', () => {
   const cases = [
     { name: 'running', ref: { id: 'claude-code', state: 'running', observedAt: at, fresh: true } },
     { name: 'stale', ref: { id: 'claude-code', state: 'running', observedAt: at, fresh: false } },
-    { name: 'letter tile, waiting', ref: { id: 'codex', state: 'needs_input', observedAt: at, fresh: true } },
+    { name: 'letter tile, waiting', ref: { id: 'an-agent-without-a-mark', state: 'needs_input', observedAt: at, fresh: true } },
     { name: 'neutral mark', ref: { id: '', state: 'running', observedAt: at, fresh: true } },
     { name: 'completed', ref: { id: 'gemini-cli', state: 'completed', observedAt: at, fresh: false } },
   ];

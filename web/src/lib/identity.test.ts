@@ -75,13 +75,12 @@ describe('avatars', () => {
 });
 
 describe('agent marks', () => {
-  it('holds a path and colour for each mark it claims, and none for Codex', () => {
+  it("holds a path and colour for each mark it claims, Codex's being OpenAI's", () => {
     for (const [id, m] of Object.entries(AGENT_MARKS)) {
       expect(m.path.length, id).toBeGreaterThan(20);
       expect(m.colour, id).toMatch(/^#[0-9a-f]{6}$/);
     }
-    for (const id of ['claude-code', 'gemini-cli', 'opencode']) expect(AGENT_MARKS[id]).toBeDefined();
-    expect(AGENT_MARKS.codex).toBeUndefined();
+    for (const id of ['claude-code', 'codex', 'gemini-cli', 'opencode']) expect(AGENT_MARKS[id]).toBeDefined();
   });
   it('names agents', () => {
     expect(agentName('codex')).toBe('Codex');
