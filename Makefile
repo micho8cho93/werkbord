@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser test-parity
 
 all: check build build-team
 
@@ -102,6 +102,11 @@ lint: web/node_modules
 	@for f in scripts/*.sh scripts/test-support/*.sh; do sh -n $$f || exit 1; done
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
+
+## test-parity: the Mac window page and the web app, screen by screen, from one build; the report is output/parity/report.md
+## (PARITY_STRICT=1 fails on any difference not listed in scripts/parity-allowed.json)
+test-parity: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
 
 ## check: everything CI should run
 check: web-shell test lint desktop-test test-notarize-desktop test-workflows test-premium-console
