@@ -159,6 +159,10 @@ func privilegedMaintain(exe, appRoot string, u *user.User, uid int) (resultErr e
 		if err := verifyBackupWith(ctx, filepath.Join(stage, "werkbord-team"), retained, backup); err != nil {
 			return err
 		}
+		// The new service will find its data last opened by this version. Say that its backup is already made and verified.
+		if err := writeUpgradeHandoff(backupDir, targets[i].Slot, targets[i].Before.Version, nativeVersion, backup); err != nil {
+			return err
+		}
 		targets[i].Backup = backup
 		targets[i].BackupDir = retained
 	}

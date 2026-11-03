@@ -36,6 +36,9 @@ type RunOptions struct {
 	// database is not up: a host that has just been made a Workspace Host needs the network before it can join the
 	// database, and learns what the network is from a Workspace Host's API, as a device that has only joined does.
 	NodeFallback NodeSource
+	// Slot names the workspace among those on this computer ("main" when empty). The installer's hand-off of a backup is
+	// addressed to it.
+	Slot string
 }
 
 // Handler is Team's whole HTTP surface: the API and the console.
@@ -60,7 +63,8 @@ func RunWith(ctx context.Context, cfg config.Config, log *slog.Logger, version s
 	// The workspace's storage starts first, and the server serves while a cluster's node is still coming up (it may
 	// be waiting for the private network): until the data is there, requests are refused as read-only, and /health
 	// says why.
-	st, err := OpenStorage(ctx, cfg, log)
+	// A service that finds its data last opened by an older version backs it up, and checks the backup, before it opens it.
+	st, err := openStorage(ctx, cfg, log, newDataGuard(cfg, opt.Slot, version, log))
 	if err != nil {
 		return err
 	}

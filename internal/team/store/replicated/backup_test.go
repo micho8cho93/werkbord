@@ -206,3 +206,40 @@ func TestStatusIsHonestAboutWhatTheClusterIs(t *testing.T) {
 	_ = rqlite.Version
 	_ = context.Background
 }
+
+// A host that finds the cluster older than itself can be made to back it up, and to stop, before it migrates.
+func TestTheHookBeforeMigrationCanBackUpTheClusterOrStopTheOpen(t *testing.T) {
+	c := rqlitetest.New(t, rqlitetest.Options{Nodes: 1})
+	first := open(t, c, 0)
+	seed(t, first)
+	_ = first.Close()
+	dest := DirDestination{Dir: filepath.Join(t.TempDir(), "backups")}
+
+	// A hook that refuses stops the open, and the cluster is as it was.
+	o := Options{Dir: t.TempDir(), Nodes: c.ClientAddrs(0), FixedNodes: true, Auth: Auth{User: rqlite.UserApp, Pass: c.Creds.App}, HostID: c.Node(0).ID, Log: testLog(t),
+		Poll: 40 * time.Millisecond, WaitForCluster: 30 * time.Second}
+	o.BeforeMigrate = func(context.Context, *Store) error { return os.ErrPermission }
+	if s, err := Open(bg, o); err == nil {
+		_ = s.Close()
+		t.Fatal("the store was opened although the hook refused")
+	}
+
+	// A hook that backs up sees a writable store whose backup verifies, before anything is migrated.
+	var taken BackupInfo
+	o.Dir = t.TempDir()
+	o.BeforeMigrate = func(ctx context.Context, s *Store) (err error) {
+		taken, err = s.Backup(ctx, dest)
+		return err
+	}
+	s, err := Open(bg, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if taken.Name == "" || taken.SchemaVersion != ms(t) {
+		t.Fatalf("%+v", taken)
+	}
+	if _, err := VerifyBackup(bg, dest, taken.Name, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -333,3 +333,59 @@ func TestADeviceThatOnlyJoinedATeamHasNoDatabaseToBackUp(t *testing.T) {
 		t.Fatal("a member alone needs no backup")
 	}
 }
+
+// The service keeps its data in the workspace directory inside the slot's, so a host is recognised there, not only beside it.
+func TestAHostIsRecognisedByTheFilesTheServiceActuallyKeeps(t *testing.T) {
+	slot := t.TempDir()
+	workspace := filepath.Join(slot, "workspace")
+	for _, dir := range []string{filepath.Join(workspace, "pki"), filepath.Join(workspace, "network")} {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if holdsDatabase(slot) {
+		t.Fatal("a joined member (identity and network only) was taken for a host")
+	}
+	for _, name := range []string{"storage.json", "storage", "team.db", "team.db-wal"} {
+		host := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(host, "workspace"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(host, "workspace", name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if !holdsDatabase(host) {
+			t.Fatalf("workspace/%s did not count as a database", name)
+		}
+	}
+}
+
+// The note for the service is the contract with internal/team/server/dataguard.go: the keys are the ones it reads, and the
+// hash is the one recorded beside the backup.
+func TestMaintenanceLeavesTheServiceANoteAboutTheBackupItTook(t *testing.T) {
+	dir := t.TempDir()
+	sum := strings.Repeat("ab", 32)
+	if err := os.WriteFile(filepath.Join(dir, "workspace-1.sqlite.json"), []byte(`{"sha256":"`+sum+`"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeUpgradeHandoff(dir, "main", "5.4.0", "5.5.0", "workspace-1.sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "upgrade-handoff-main.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["slot"] != "main" || got["from"] != "5.4.0" || got["to"] != "5.5.0" || got["backup"] != "workspace-1.sqlite" || got["sha256"] != sum {
+		t.Fatalf("%v", got)
+	}
+	if fi, _ := os.Stat(filepath.Join(dir, "upgrade-handoff-main.json")); fi.Mode().Perm() != 0600 {
+		t.Fatalf("%v", fi.Mode())
+	}
+	if err := writeUpgradeHandoff(dir, "main", "5.4.0", "5.5.0", "workspace-missing.sqlite"); err == nil {
+		t.Fatal("a note was written for a backup that has no record")
+	}
+}

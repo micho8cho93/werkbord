@@ -102,6 +102,11 @@ func CreateStorage(ctx context.Context, cfg config.Config, log *slog.Logger, nod
 			return nil, err
 		}
 	}
+	// Data made now was never opened by an older version: its first start has nothing to protect it from (dataguard.go).
+	if err := (&dataGuard{cfg: cfg}).write(guardRecord{Created: true, OpenedAt: time.Now().UTC()}); err != nil {
+		undoCreate(cfg)
+		return nil, err
+	}
 	w, err := OpenWorkspace(ctx, cfg, log)
 	if err != nil {
 		undoCreate(cfg)

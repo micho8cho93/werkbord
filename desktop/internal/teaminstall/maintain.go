@@ -138,12 +138,16 @@ type maintenanceTarget struct {
 	HoldsDatabase bool `json:"holdsDatabase"`
 }
 
-// holdsDatabase says whether the workspace in dir keeps a database copy on this computer. It errs towards yes: only a
-// directory that plainly has none of the places a host keeps its data is treated as a member's.
+// holdsDatabase says whether the workspace in dir keeps a database copy on this computer. dir is the slot's directory; the
+// service keeps its data in the workspace directory inside it (and a service from before that, in dir itself), so both are
+// looked at. It errs towards yes: only a directory that plainly has none of the places a host keeps its data is treated as a
+// member's. The service makes the same decision for itself (internal/team/server/dataguard.go).
 func holdsDatabase(dir string) bool {
-	for _, name := range []string{"storage.json", "storage", "team.db", "team.db-wal", "team.db-shm"} {
-		if _, err := os.Lstat(filepath.Join(dir, name)); !errors.Is(err, os.ErrNotExist) {
-			return true
+	for _, base := range []string{dir, filepath.Join(dir, "workspace")} {
+		for _, name := range []string{"storage.json", "storage", "team.db", "team.db-wal", "team.db-shm"} {
+			if _, err := os.Lstat(filepath.Join(base, name)); !errors.Is(err, os.ErrNotExist) {
+				return true
+			}
 		}
 	}
 	return false
@@ -379,6 +383,32 @@ func retainMaintenanceBackup(source, root, slot, name string) (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+// handoffPrefix names the note maintenance leaves in the backup directory for the service it starts. The service
+// (internal/team/server/dataguard.go) takes the backup the note names instead of making a second one, if the note is for its
+// version and slot and the file still has the hash recorded here.
+const handoffPrefix = "upgrade-handoff-"
+
+// writeUpgradeHandoff records that backup, in dir, was taken and verified for the update of slot from one version to another.
+func writeUpgradeHandoff(dir, slot, from, to, backup string) error {
+	raw, err := os.ReadFile(filepath.Join(dir, backup+".json"))
+	if err != nil {
+		return err
+	}
+	var rec struct {
+		SHA256 string `json:"sha256"`
+	}
+	if err := json.Unmarshal(raw, &rec); err != nil || len(rec.SHA256) != 64 {
+		return errors.New("the backup's record is unreadable")
+	}
+	b, err := json.MarshalIndent(map[string]string{
+		"slot": slot, "from": from, "to": to, "backup": backup, "sha256": rec.SHA256, "created": time.Now().UTC().Format(time.RFC3339),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return atomicFile(filepath.Join(dir, handoffPrefix+slot+".json"), b, 0600)
 }
 
 // runProgram runs one fixed program by absolute path with a minimal environment. A test replaces it.

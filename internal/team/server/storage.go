@@ -254,6 +254,8 @@ type Storage struct {
 	wasMember bool
 	activated bool
 	backups   *backupRunner
+	// guard backs the data up when a new version first opens it (dataguard.go); nil guards nothing.
+	guard *dataGuard
 	// planPorts says which ports a host being added listens on (the configured ones, unless a test puts several hosts on one address).
 	planPorts func(netip.Addr) (httpPort, raftPort int)
 
@@ -280,10 +282,16 @@ func (st *Storage) fail(err error) {
 // A host that was handed the workspace's database credentials (it was made a Workspace Host and has collected
 // them) but has no storage.json yet starts joining the cluster.
 func OpenStorage(ctx context.Context, cfg config.Config, log *slog.Logger) (*Storage, error) {
+	return openStorage(ctx, cfg, log, nil)
+}
+
+// openStorage is OpenStorage for a service that protects its data across versions: the guard backs the data up, and
+// verifies the backup, before the database is opened or migrated, and refuses to open it if it cannot.
+func openStorage(ctx context.Context, cfg config.Config, log *slog.Logger, guard *dataGuard) (*Storage, error) {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	st := &Storage{cfg: cfg, log: log.With("component", "storage"), done: make(chan struct{}), fatal: make(chan struct{})}
+	st := &Storage{cfg: cfg, log: log.With("component", "storage"), done: make(chan struct{}), fatal: make(chan struct{}), guard: guard}
 	m, ok, err := readMarker(cfg)
 	if err != nil {
 		return nil, err
@@ -296,6 +304,9 @@ func OpenStorage(ctx context.Context, cfg config.Config, log *slog.Logger) (*Sto
 		}
 	}
 	if !ok || m.Kind == config.StorageSingleFile {
+		if err := guard.protectFile(ctx); err != nil {
+			return nil, err
+		}
 		db, err := store.Open(ctx, cfg.DBPath(), log)
 		if err != nil {
 			return nil, err
@@ -586,10 +597,15 @@ func (st *Storage) bringUp(ctx context.Context) error {
 		return nil
 	}
 	wait := 2 * time.Minute
+	// A host that holds no copy of the data yet, and has no record, is meeting the data for the first time.
+	first := marker.Fresh || !nonEmptyDir(st.cfg.ReplicaDir())
+	if !first && st.guard.pending() {
+		st.waitForLeader(ctx, cfg)
+	}
 	repl, err = replicated.Open(ctx, replicated.Options{
 		Dir: st.cfg.ReplicaDir(), Nodes: []string{cfg.HTTPAddr.String()}, Auth: replicated.Auth{User: rqlite.UserApp, Pass: st.secrets.AppPassword},
 		HostID: marker.NodeID, Log: st.log, Create: marker.Fresh, WaitForCluster: wait,
-		OnRemoteChange: st.remoteChanged,
+		OnRemoteChange: st.remoteChanged, BeforeMigrate: st.guard.beforeMigrate(first),
 	})
 	if err != nil {
 		return err
@@ -610,6 +626,31 @@ func (st *Storage) bringUp(ctx context.Context) error {
 	}
 	st.log.Info("this host's database is ready", "node", marker.NodeID, "role", marker.Role)
 	return nil
+}
+
+// waitForLeader gives the cluster a moment to elect a leader after this host's node started. Without one the store opens
+// read-only on its copy and migrates nothing, so a version that has to protect the data first (dataguard.go) would neither
+// back it up nor migrate it until the next start. It waits only when there is something to protect, and not for long: a
+// cluster that stays without a leader is opened read-only, as always.
+func (st *Storage) waitForLeader(ctx context.Context, node rqlite.NodeConfig) {
+	c, err := replicated.NewClient([]string{node.HTTPAddr.String()}, replicated.Auth{User: rqlite.UserApp, Pass: st.secrets.AppPassword})
+	if err != nil {
+		return
+	}
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) && ctx.Err() == nil {
+		qctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_, err := c.Query(qctx, replicated.LevelLinearizable, replicated.Stmt{SQL: "SELECT 1"})
+		cancel()
+		if !errors.Is(err, replicated.ErrNoLeader) {
+			return // a leader answered, or the node gave another answer that waiting will not change
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
 }
 
 func (st *Storage) remoteChanged() {

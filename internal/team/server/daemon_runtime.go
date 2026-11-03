@@ -127,7 +127,7 @@ func (d *Daemon) deviceLoop(ctx context.Context) {
 				source := &daemonNodeSource{d: d, host: host, v: d.vault, cfg: cfg}
 				go func() {
 					if isHost {
-						done <- RunWith(runCtx, cfg, d.o.Log, d.o.Version, RunOptions{NodeFallback: source})
+						done <- RunWith(runCtx, cfg, d.o.Log, d.o.Version, RunOptions{NodeFallback: source, Slot: d.o.Slot})
 					} else {
 						done <- RunDeviceNode(runCtx, cfg, d.o.Log, source)
 					}

@@ -360,6 +360,14 @@ func (d *Daemon) stateView() map[string]any {
 			out["role"] = role
 		}
 	}
+	// What the service did to protect the data when a new version found it (dataguard.go). A refusal is also the error, so a
+	// window that shows only the error still says why the workspace is not open.
+	if view := guardView(d.workspaceConfig().DataDir); view != nil {
+		out["dataProtection"] = view
+		if view["state"] == "refused" && problem == "" {
+			out["error"] = view["reason"]
+		}
+	}
 	occ := d.occupancy()
 	if occ.Enrolled {
 		out["enrolled"] = true

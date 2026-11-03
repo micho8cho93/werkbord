@@ -64,7 +64,11 @@ type Options struct {
 	// NoMigrate opens the store without migrating the schema (it is still refused if newer than this build):
 	// for a tool that only reads, such as a check of a backup.
 	NoMigrate bool
-	Now       func() time.Time
+	// BeforeMigrate runs once the copy is current and the cluster is writable, and before this build changes the
+	// cluster's schema. An error stops Open: the store is closed and nothing is migrated. It is not called when the
+	// cluster cannot be reached (nothing is migrated then either) or when NoMigrate is set.
+	BeforeMigrate func(context.Context, *Store) error
+	Now           func() time.Time
 }
 
 // Store is Team's storage on a replicated cluster.
@@ -214,6 +218,11 @@ func (s *Store) start(ctx context.Context) error {
 	s.setWritable()
 	if s.o.NoMigrate {
 		return s.checkSchema(ctx)
+	}
+	if s.o.BeforeMigrate != nil {
+		if err := s.o.BeforeMigrate(ctx, s); err != nil {
+			return err
+		}
 	}
 	return s.migrate(ctx)
 }
