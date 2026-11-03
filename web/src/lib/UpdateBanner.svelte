@@ -8,6 +8,8 @@
 
   let busy = $state(false);
   let failure = $state('');
+  /** The person chose to wait: the app updates by itself once the open terminals have finished. */
+  let waiting = $state('');
 
   const offer = $derived(app.updateOffer);
 
@@ -19,8 +21,9 @@
     failure = '';
     try {
       // Waits as long as it takes; when it works the window is reloaded on the new version.
-      const result = await callDesktop<{ ok: boolean; message: string }>('RequestUpdate', [], 0);
-      if (!result.ok && result.message) failure = result.message;
+      const result = await callDesktop<{ ok: boolean; scheduled?: boolean; message: string }>('RequestUpdate', [], 0);
+      if (result.scheduled) waiting = result.message;
+      else if (!result.ok && result.message) failure = result.message;
     } catch (err) {
       failure = err instanceof Error ? err.message : 'The update did not run.';
     } finally {
@@ -36,6 +39,8 @@
       <span class="what">
         {#if failure}
           {failure}
+        {:else if waiting}
+          {waiting}
         {:else if desktop.available}
           You have {say(offer.current)}. Your data is backed up first.
         {:else}
@@ -44,7 +49,7 @@
       </span>
     </span>
     {#if desktop.available}
-      <button class="btn primary" type="button" onclick={updateNow} disabled={busy}>{busy ? 'Updating…' : failure ? 'Try again' : 'Update now'}</button>
+      <button class="btn primary" type="button" onclick={updateNow} disabled={busy || !!waiting}>{busy ? 'Updating…' : waiting ? 'Waiting…' : failure ? 'Try again' : 'Update now'}</button>
     {/if}
     <button class="btn" type="button" onclick={() => app.dismissUpdate(offer.latest!)} disabled={busy}>Later</button>
   </div>

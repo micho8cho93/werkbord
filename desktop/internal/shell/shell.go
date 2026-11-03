@@ -165,6 +165,7 @@ type Shell struct {
 	workspaceCalls workspaceCallCache
 	o              Options
 	updating       atomic.Bool
+	waiting        atomic.Bool // an update is waiting for the terminals to finish
 
 	alertMu    sync.Mutex
 	alertTimes []time.Time
@@ -505,6 +506,8 @@ type UpdateResult struct {
 	OK bool `json:"ok"`
 	// Declined: the person chose Later. Nothing happened, and nothing needs saying.
 	Declined bool `json:"declined,omitempty"`
+	// Scheduled: the update did not run now, and will by itself once what is in the way has finished.
+	Scheduled bool `json:"scheduled,omitempty"`
 	// Message is why not, or what happened.
 	Message string `json:"message,omitempty"`
 }
@@ -538,6 +541,9 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 			if err = s.settleTerminals(err); err != nil {
 				if errors.Is(err, errUpdateDeclined) {
 					return UpdateResult{Declined: true}
+				}
+				if errors.Is(err, errUpdateScheduled) {
+					return UpdateResult{Scheduled: true, Message: "Werkbord will update by itself when those terminals have finished."}
 				}
 				say(Info, "Update deferred", err.Error())
 				return UpdateResult{Message: err.Error()}
@@ -619,7 +625,13 @@ func (s *Shell) update(fromMenu bool) UpdateResult {
 	return UpdateResult{OK: true, Message: lastLine(out)}
 }
 
-var errUpdateDeclined = errors.New("the person chose not to stop the terminals")
+var (
+	errUpdateDeclined  = errors.New("the person chose not to stop the terminals")
+	errUpdateScheduled = errors.New("the update will go on when the terminals have finished")
+)
+
+// readyPoll is how often an update that is waiting for the terminals to finish looks again.
+var readyPoll = 30 * time.Second
 
 // settleTerminals deals with the one refusal a person can answer on the spot: native terminals are open, which an update
 // would end. It says which, and offers to stop them. The result is nil when they were stopped and nothing else stands in the
@@ -635,13 +647,18 @@ func (s *Shell) settleTerminals(refusal error) error {
 	} else {
 		msg = open.Error() + ". Updating restarts Werkbord, which ends them."
 	}
-	msg += "\n\nStop and update ends them now; anything unsaved in them is lost. Not now leaves everything as it is."
+	msg += "\n\nStop and update ends them now; anything unsaved in them is lost. Update when they finish waits, and does it by itself."
 	choice := s.o.UI.Ask(Dialog{
 		Kind:    Question,
 		Title:   "Terminals are still open",
-		Message: msg, Buttons: []string{"Stop and update", "Not now"}, Default: "Not now", Cancel: "Not now",
+		Message: msg, Buttons: []string{"Stop and update", "Update when they finish", "Not now"}, Default: "Not now", Cancel: "Not now",
 	})
-	if choice != "Stop and update" {
+	switch choice {
+	case "Stop and update":
+	case "Update when they finish":
+		s.updateWhenReady()
+		return errUpdateScheduled
+	default:
 		return errUpdateDeclined
 	}
 	s.o.Log.Info("stopping native terminals so that the update can go on", "count", len(open.Terminals))
@@ -650,6 +667,70 @@ func (s *Shell) settleTerminals(refusal error) error {
 	}
 	// Whatever else was in the way is still checked: stopping terminals frees nothing but them.
 	return s.o.UpdateGuard(s.o.Ctx)
+}
+
+// updateWhenReady waits, in the background, until nothing stands in the way of the update (the terminals have finished, and
+// whatever else the guard checks is quiet) and then finishes it. It is one watcher at a time, ends with the app, and is what the
+// person asked for by choosing "Update when they finish": it asks nothing more of them.
+func (s *Shell) updateWhenReady() {
+	if !s.waiting.CompareAndSwap(false, true) {
+		return
+	}
+	s.o.Log.Info("the update will go on by itself when the terminals have finished")
+	go func() {
+		defer s.waiting.Store(false)
+		t := time.NewTicker(readyPoll)
+		defer t.Stop()
+		for {
+			select {
+			case <-s.o.Ctx.Done():
+				return
+			case <-t.C:
+			}
+			if s.updating.Load() {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(s.o.Ctx, 10*time.Second)
+			err := s.o.UpdateGuard(ctx)
+			cancel()
+			if err == nil {
+				s.finishWhenReady()
+				return
+			}
+		}
+	}()
+}
+
+// finishWhenReady is the update the person agreed to, now that nothing is in the way. The one that needs nothing but this
+// app (it carries a newer program than the one running) is done without a word and then said; any other (a download, or the
+// app itself replaced) goes through the usual question, because that needs the person's window or their network.
+func (s *Shell) finishWhenReady() {
+	if !s.updating.CompareAndSwap(false, true) {
+		return
+	}
+	installed, bundled, ok := s.o.Launcher.PendingProgramUpdate(s.o.Ctx)
+	if !ok {
+		s.updating.Store(false)
+		s.update(false)
+		return
+	}
+	defer s.updating.Store(false)
+	s.o.Log.Info("finishing the update that was waiting for the terminals", "from", installed, "to", bundled)
+	if _, err := s.o.Launcher.AdoptBundled(s.o.Ctx); err != nil {
+		s.o.Log.Error("the update that was waiting did not finish", "err", err)
+		s.tell("Werkbord was not updated", err.Error()+" Choose Update now to try again.")
+		return
+	}
+	s.o.UI.Reload()
+	s.tell("Werkbord updated", fmt.Sprintf("Werkbord %s is running.", strings.TrimPrefix(bundled, "v")))
+}
+
+// tell shows a system notification for something the person set going and walked away from. It does nothing where the system
+// has none.
+func (s *Shell) tell(title, body string) {
+	if s.o.Alerter != nil {
+		s.o.Alerter.Show(alertText(title, 80), alertText(body, 200), false, true)
+	}
 }
 
 // installProblem is why u cannot replace the app where it runs, if it can say.

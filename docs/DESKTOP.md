@@ -235,6 +235,11 @@ written, so a stale record never blocks an update); it falls back to the files o
 reads a runner's own file. The refusal names the terminal ("Codex in test-repo has been running since Oct 27 and is still open"),
 and **Update now** offers **Stop and update** or **Not now**. Stopping ends only those terminals, through the same call as the Stop
 button, and then every other check (working agents, unfinished runner work, pending device operations) is made again.
+**Update when they finish** waits instead: the app looks again every half minute, and when nothing stands in the way it finishes
+the update by itself and says so in a notification. Quitting the app does not end the wait's cause, because the terminals belong
+to the controller, which keeps running; the next time the app opens with nothing running it moves to the new program anyway (step
+1 above). An update that needs more than the app carries (a download, or the app itself) still asks its usual question when the
+wait is over.
 
 So one release is one click: the banner, Sparkle's window, and the loading screen are three views of the same update, not
 three prompts. A newer app with an older controller keeps working because the two share only a short list of calls (below),

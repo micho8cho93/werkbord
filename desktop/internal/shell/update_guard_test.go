@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 	"werkbord/internal/device"
 	"werkbord/internal/update"
 )
@@ -91,5 +93,152 @@ func TestAnotherRefusalIsNotOfferedAsStoppable(t *testing.T) {
 	s := New(Options{Launcher: l, UI: ui, Version: "v1.8.0", UpdateGuard: func(context.Context) error { return errors.New("update deferred: device operations are pending") }})
 	if res := s.RequestUpdate(); res.OK || res.Message != "update deferred: device operations are pending" || len(l.stopped) != 0 {
 		t.Fatalf("%+v", res)
+	}
+}
+
+// lockedAlerter is an Alerter that a background update may write to while the test reads it.
+type lockedAlerter struct {
+	mu    sync.Mutex
+	shown []shownAlert
+}
+
+func (a *lockedAlerter) Status() string { return "granted" }
+func (a *lockedAlerter) Show(title, body string, urgent, force bool) bool {
+	a.mu.Lock()
+	a.shown = append(a.shown, shownAlert{title, body, urgent, force})
+	a.mu.Unlock()
+	return true
+}
+func (a *lockedAlerter) OpenSettings() {}
+func (a *lockedAlerter) alerts() []shownAlert {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]shownAlert(nil), a.shown...)
+}
+
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for i := 0; i < 400; i++ {
+		if ok() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", what)
+}
+
+func TestUpdateWaitsForTheTerminalsAndThenFinishesByItself(t *testing.T) {
+	old := readyPoll
+	readyPoll = 5 * time.Millisecond
+	t.Cleanup(func() { readyPoll = old })
+
+	open := &device.TerminalsRunning{Terminals: []device.RunningTerminal{{ID: "t1", ProjectID: "p1", Agent: "codex", Repository: "test-repo"}}}
+	for _, tc := range []struct {
+		name       string
+		adoptErr   error
+		wantAlert  string
+		wantReload int
+	}{
+		{name: "it finishes", wantAlert: "Werkbord updated", wantReload: 1},
+		{name: "it cannot", adoptErr: errors.New("the new program did not start"), wantAlert: "Werkbord was not updated"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &fakeLauncher{pending: true, installed: "v1.8.0", bundled: "v1.9.0", adoptEr: tc.adoptErr,
+				status: update.Status{Release: true, Current: "v1.8.0", Latest: "v1.9.0", Available: true}}
+			ui := &fakeUI{answers: []string{"Update when they finish"}}
+			alerts := &lockedAlerter{}
+			var mu sync.Mutex
+			stillOpen := true
+			guards := 0
+			s := New(Options{Launcher: l, UI: ui, Alerter: alerts, Version: "v1.9.0", UpdateGuard: func(context.Context) error {
+				mu.Lock()
+				defer mu.Unlock()
+				guards++
+				if stillOpen {
+					return open
+				}
+				return nil
+			}})
+
+			res := s.RequestUpdate()
+			if !res.Scheduled || res.OK || res.Declined || res.Message == "" {
+				t.Fatalf("choosing to wait should say it is scheduled: %+v", res)
+			}
+			// While a terminal is open nothing is installed, however many times it looks.
+			time.Sleep(60 * time.Millisecond)
+			l.mu.Lock()
+			early := l.adopted
+			l.mu.Unlock()
+			if early != 0 {
+				t.Fatal("installed while a terminal was still open")
+			}
+			mu.Lock()
+			stillOpen = false
+			mu.Unlock()
+			waitFor(t, "the update", func() bool { return len(alerts.alerts()) > 0 })
+			got := alerts.alerts()
+			if len(got) != 1 || got[0].title != tc.wantAlert || !got[0].forced {
+				t.Fatalf("alerts: %+v", got)
+			}
+			l.mu.Lock()
+			adopted := l.adopted
+			l.mu.Unlock()
+			ui.mu.Lock()
+			reloads := ui.reloads
+			ui.mu.Unlock()
+			if adopted != 1 || reloads != tc.wantReload {
+				t.Fatalf("adopted %d times, reloaded %d times", adopted, reloads)
+			}
+			// It is done with, and a second request can wait again.
+			waitFor(t, "the watcher to end", func() bool { return !s.waiting.Load() })
+		})
+	}
+}
+
+func TestOnlyOneUpdateWaitsAtATime(t *testing.T) {
+	old := readyPoll
+	readyPoll = time.Hour // it never looks: only how many watchers there are matters
+	t.Cleanup(func() { readyPoll = old })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := New(Options{Launcher: &fakeLauncher{}, UI: &fakeUI{}, Ctx: ctx, UpdateGuard: func(context.Context) error { return nil }})
+	s.updateWhenReady()
+	if !s.waiting.Load() {
+		t.Fatal("no watcher started")
+	}
+	s.updateWhenReady() // would panic or double up if a second one started and ended the first's state
+	cancel()
+	waitFor(t, "the watcher to end with the app", func() bool { return !s.waiting.Load() })
+}
+
+func TestAnUpdateThatNeedsMoreThanTheAppStillAsksItsUsualQuestion(t *testing.T) {
+	old := readyPoll
+	readyPoll = 5 * time.Millisecond
+	t.Cleanup(func() { readyPoll = old })
+	open := &device.TerminalsRunning{Terminals: []device.RunningTerminal{{ID: "t1", ProjectID: "p1", Agent: "codex", Repository: "test-repo"}}}
+	// Nothing newer is carried by the app: this is a download, which is the usual update with its usual question.
+	l := &fakeLauncher{status: update.Status{Release: true, Current: "v1.8.0", Latest: "v1.9.0", Available: true}}
+	ui := &fakeUI{answers: []string{"Update when they finish", "Update now"}}
+	var mu sync.Mutex
+	stillOpen := true
+	s := New(Options{Launcher: l, UI: ui, Version: "v1.8.0", UpdateGuard: func(context.Context) error {
+		mu.Lock()
+		defer mu.Unlock()
+		if stillOpen {
+			return open
+		}
+		return nil
+	}})
+	if res := s.RequestUpdate(); !res.Scheduled {
+		t.Fatalf("%+v", res)
+	}
+	mu.Lock()
+	stillOpen = false
+	mu.Unlock()
+	waitFor(t, "the usual update", func() bool { l.mu.Lock(); defer l.mu.Unlock(); return l.applied == 1 })
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
+	if len(ui.asked) != 2 || !strings.HasPrefix(ui.asked[1].Title, "Update to Werkbord") {
+		t.Fatalf("the usual question was skipped: %+v", ui.asked)
 	}
 }
