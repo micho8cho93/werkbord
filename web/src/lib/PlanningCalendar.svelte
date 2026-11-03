@@ -110,6 +110,8 @@
     return COLOURS[h % COLOURS.length];
   }
   const clock = (t: string) => new Date(`2000-01-01T${t}:00`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  /** The same time in few characters for a narrow cell: 9:30am, 2pm. */
+  const clockShort = (t: string) => clock(t).replace(/[\s\u202f]*([AP])M$/i, (_, m: string) => m.toLowerCase() + 'm').replace(/:00(?=[ap]m$)/, '');
   const status = (r: CalendarRow) => (r.status || (r.kind === 'scheduled' ? 'scheduled' : 'planned')).replaceAll('_', ' ');
 
   function step(by: number) {
@@ -134,9 +136,10 @@
     data-status={r.status} data-kind={r.kind} data-plan-item={onmove ? r.id : undefined} data-plan-start={r.start} data-plan-end={r.end}
     aria-busy={pending[r.id] || false} aria-label="{r.title}, {r.project}, {span(r)}" title="{r.title} · {r.project} · {span(r)}" onclick={() => openItem(r)}
   >
+    {#if full && r.time}<span class="at at-top">{#if r.kind === 'scheduled'}<span class="run" role="img" aria-label="Agent run"><Icon name="play" size={10} /></span>{/if}{clock(r.time)}</span>{/if}
     <span class="line">
-      {#if r.time}<span class="at">{clock(r.time)}</span>{/if}
-      {#if r.kind === 'scheduled'}<span class="run" role="img" aria-label="Agent run"><Icon name="play" size={10} /></span>{/if}
+      {#if !full && r.time}<span class="at">{clockShort(r.time)}</span>{/if}
+      {#if r.kind === 'scheduled' && !(full && r.time)}<span class="run" role="img" aria-label="Agent run"><Icon name="play" size={10} /></span>{/if}
       <strong>{r.title}</strong>
     </span>
     {#if full}<small>{r.project} · {status(r)}</small>{/if}
@@ -218,7 +221,7 @@
   .dense { padding: 0; }
   .tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
   .nav, .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .period { margin: 0 0 0 8px; font-family: var(--font); font-size: var(--fs-section); font-weight: 600; letter-spacing: -.012em; text-transform: none; color: var(--text); }
+  .period { margin: 0 0 0 8px; font-family: var(--font); font-size: 20px; font-weight: 600; letter-spacing: -.012em; text-transform: none; color: var(--text); }
   .filters .select { width: auto; max-width: 180px; }
   .filters .count { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); font-size: 12px; font-variant-numeric: tabular-nums; }
   .filters .btn.on { background: var(--selected); }
@@ -226,10 +229,10 @@
   .empty { margin: 0 0 12px; color: var(--text-2); font-size: 13px; }
   .stage { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .stage.with-tray { grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem); }
-  .scroll { overflow: auto; min-height: 0; border: 1px solid var(--edge-strong); border-radius: var(--radius); background: var(--surface); }
+  .scroll { overflow: auto; min-height: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 
   .dows { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--border); background: var(--tray); position: sticky; top: 0; z-index: 1; }
-  .dows span { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .dows span { padding: 10px 12px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
   /* A week is one grid: a row of day numbers, then a row for each lane of bars, with the day cells behind all of it so a bar lies
      across the days it covers instead of repeating in each. */
   .grid { display: flex; flex-direction: column; min-height: 100%; }
@@ -239,16 +242,19 @@
   .day:nth-child(7n) { border-right: 0; }
   .day.outside { background: var(--tray); }
   .day.outside h3 .n { color: var(--text-2); }
-  .day h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 600; font-family: var(--font); text-transform: none; letter-spacing: 0; color: var(--text); }
+  .day h3 { margin: 0; display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; font-weight: 600; font-family: var(--font); text-transform: none; letter-spacing: 0; color: var(--text); }
   .day .m { color: var(--text-2); font-weight: 500; }
   .day.today h3 .n { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--accent-text); }
 
-  /* An item: a chip with a bar in its project's colour, the time if it has one, then its title. */
-  .cc { --bar: var(--accent); display: block; width: 100%; min-width: 0; padding: 3px 8px 3px 10px; border: 1px solid var(--edge-strong); border-radius: 6px; background: var(--surface); box-shadow: inset 3px 0 0 var(--bar); color: var(--text); font: inherit; font-size: 12px; text-align: left; }
-  .cc:hover { background: var(--hover); }
+  /* An item: a soft card tinted with its project's colour, the time first when it has one, then its title. */
+  .cc { --bar: var(--accent); display: block; width: 100%; min-width: 0; padding: 4px 8px 4px 10px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--bar) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--bar); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; transition: background 120ms, box-shadow 120ms, transform 120ms; }
+  .cc:hover { background: color-mix(in srgb, var(--bar) 20%, var(--surface)); box-shadow: inset 3px 0 0 var(--bar), 0 2px 8px color-mix(in srgb, var(--text) 12%, transparent); }
+  .cc:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .cc .line { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; }
   .cc strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  .cc .at { flex: none; font-variant-numeric: tabular-nums; color: var(--text-2); }
+  /* The time is the first thing read: heavier than the title, in the project's colour darkened to stay legible on its own tint. */
+  .cc .at { flex: none; font-size: 11.5px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--bar) 62%, var(--text)); }
+  .cc .at-top { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
   .cc .run { flex: none; display: inline-flex; color: var(--text-2); }
   .cc.done { opacity: .6; }
   .cc.done strong { text-decoration: line-through; }
@@ -256,12 +262,12 @@
   .cc.goes-on { border-top-right-radius: 0; border-bottom-right-radius: 0; }
   /* A bar sits in its week's grid, over the day cells: inset from the cell edges, and flush with them where it carries on into another week. */
   .cc.placed { width: auto; align-self: stretch; margin: 0 5px 3px; }
-  .cc.placed.continues { margin-left: 0; border-left-width: 0; box-shadow: none; }
-  .cc.placed.goes-on { margin-right: 0; border-right-width: 0; }
+  .cc.placed.continues { margin-left: 0; box-shadow: none; }
+  .cc.placed.goes-on { margin-right: 0; }
   .cc.full { padding: 7px 10px 7px 12px; }
   .cc.full strong { white-space: normal; }
-  .cc small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12px; text-transform: capitalize; }
-  .cc[data-kind='scheduled'] { background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+  .cc small { display: block; margin-top: 2px; color: var(--text-2); font-size: 11.5px; text-transform: capitalize; }
+  .cc[data-kind='scheduled'] { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); box-shadow: inset 3px 0 0 var(--warn); }
   .more { align-self: start; justify-self: start; margin: 0 5px; border: 0; background: none; padding: 0 4px; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
   .more:hover { color: var(--text); text-decoration: underline; }
 
