@@ -19,7 +19,7 @@
   import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
   import { readAgentView, writeAgentView } from '../lib/agent-view';
   import { tick } from 'svelte';
-  import { controlsFor, hasTaskContext, isTrouble, nextAfter, OUTCOME_LABELS, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, sessionAgent, sessionState, summaryOf } from '../lib/agent-overview';
+  import { controlsFor, hasTaskContext, idleNote, isTrouble, nextAfter, OUTCOME_LABELS, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, sessionAgent, sessionState, summaryOf } from '../lib/agent-overview';
   import AgentMark from '../lib/AgentMark.svelte';
   import { measuredNumber } from '../lib/analytics';
   import SessionCard from '../lib/agents/SessionCard.svelte';
@@ -238,9 +238,11 @@
 {#snippet card(x: AgentSession, tone: 'needs' | 'trouble' | 'running' | 'done', index: number)}
   <SessionCard session={x} {tone} {index} agent={agentFor(x)} now={app.now} live={app.connection === 'live'} selected={x.key === key}
     title={taskTitle(x) || x.title}
-    meta="{agentName(app.agents, x.agentId)} · {repoOf(x)}{x.taskId ? '' : ' · Standalone'}{x.kind === 'terminal' ? ' · Terminal' : ''}{x.launchedBy ? ' · Started by Salie' : ''}"
+    meta="{agentName(app.agents, x.agentId)} · {repoOf(x)}{x.taskId ? '' : ' · Standalone'}{x.kind === 'terminal' ? ' · Terminal' : ''}{x.kind === 'terminal' && x.live ? ` · Started ${timeAgo(x.createdAt, app.now)}` : ''}{x.launchedBy ? ' · Started by Salie' : ''}"
     doing={x.live
-      ? { state: x.waiting ? 'Needs you' : 'Running', detail: doing(x) === sessionState(x) ? '' : doing(x), waiting: !!x.waiting }
+      ? idleNote(x, app.now)
+        ? { state: 'Idle', detail: idleNote(x, app.now), idle: true }
+        : { state: x.waiting ? 'Needs you' : 'Running', detail: doing(x) === sessionState(x) ? '' : doing(x), waiting: !!x.waiting }
       : { state: OUTCOME_LABELS[outcomeOf(x)], detail: timeAgo(x.updatedAt, app.now), outcome: outcomeOf(x) }}
     onopen={() => select(x.key)} onchange={() => void refresh()} />
 {/snippet}

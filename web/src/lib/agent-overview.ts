@@ -121,6 +121,26 @@ export function reportedLine(report: { recordedAt?: string; stale: boolean } | u
   return { label: `Reported ${ago}`, freshness: secs < 120 ? 'live' : 'recent' };
 }
 
+/** A live native terminal that has had no output and no input for this long is called idle. */
+export const TERMINAL_IDLE_MS = 24 * 60 * 60 * 1000;
+
+/** How long a live native terminal has sat untouched, or null when this is not one or it has not been idle for a day. */
+export function idleFor(s: Pick<AgentSession, 'kind' | 'live' | 'updatedAt'>, now: number): number | null {
+  if (s.kind !== 'terminal' || !s.live) return null;
+  const last = Date.parse(s.updatedAt);
+  if (!Number.isFinite(last)) return null;
+  const ms = now - last;
+  return ms >= TERMINAL_IDLE_MS ? ms : null;
+}
+
+/** What to say about an idle terminal: how long, and that stopping it is up to the person. Empty when it is not idle. */
+export function idleNote(s: Pick<AgentSession, 'kind' | 'live' | 'updatedAt'>, now: number): string {
+  const ms = idleFor(s, now);
+  if (ms === null) return '';
+  const days = Math.floor(ms / 86_400_000);
+  return `No activity for ${days === 1 ? '1 day' : `${days} days`}. Stop it if you are done.`;
+}
+
 /** The state of a session for a line of text. */
 export const sessionState = (s: AgentSession): string => (s.live ? stateLabel(s) : OUTCOME_LABELS[outcomeOf(s)]);
 

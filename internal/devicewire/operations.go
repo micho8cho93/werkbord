@@ -24,6 +24,10 @@ type Terminal struct {
 	State     string    `json:"state"`
 	Phones    []string  `json:"phones,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+	// ActiveAt is when the process last wrote output or was last given input: how long a terminal has sat untouched. It is
+	// kept in memory by the controller that owns the process, so it is zero in a record read back from disk, and older
+	// controllers do not send it.
+	ActiveAt time.Time `json:"activeAt,omitzero"`
 }
 type Output struct {
 	Metadata Terminal `json:"session"`

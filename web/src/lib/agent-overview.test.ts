@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRetry, controlsFor, hasTaskContext, isTrouble, matches, nextAfter, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, reportedLine, sessionAgent, sessionState, summaryOf } from './agent-overview';
+import { canRetry, controlsFor, hasTaskContext, idleFor, idleNote, isTrouble, matches, nextAfter, outcomeOf, overviewOf, planBlocks, planHeading, providersOf, reportedLine, sessionAgent, sessionState, summaryOf } from './agent-overview';
 import { resolveAgentState } from './identity';
 import { isSessionKey, runKey, terminalKey, unique, type AgentSession } from './agent-sessions';
 import { chainOf, pushed, withChain } from './origin';
@@ -190,5 +190,29 @@ describe('plan sub-headers keep the group in its order', () => {
     expect(nextAfter(plan, 'a', id => id === 'b')).toBe('c');
     expect(nextAfter(plan, 'd', () => false)).toBeUndefined();
     expect(nextAfter(plan, 'zzz', () => false)).toBeUndefined();
+  });
+});
+
+describe('a native terminal nobody has touched for a day is called idle', () => {
+  const day = 86_400_000;
+  const now = Date.parse('2026-11-03T12:00:00Z');
+  const term = (o: Partial<AgentSession>) => s({ key: 'terminal:t', kind: 'terminal', id: 't', taskId: undefined, capabilities: { ...caps, terminal: true }, ...o });
+
+  it('measures from the last activity, not from when it started', () => {
+    expect(idleFor(term({ createdAt: '2026-10-27T10:00:00Z', updatedAt: '2026-11-03T11:00:00Z' }), now)).toBeNull();
+    expect(idleFor(term({ updatedAt: '2026-11-02T12:00:00Z' }), now)).toBe(day);
+    expect(idleFor(term({ updatedAt: '2026-10-27T12:00:00Z' }), now)).toBe(7 * day);
+  });
+
+  it('says how long, and leaves stopping it to the person', () => {
+    expect(idleNote(term({ updatedAt: '2026-10-27T12:00:00Z' }), now)).toBe('No activity for 7 days. Stop it if you are done.');
+    expect(idleNote(term({ updatedAt: '2026-11-02T11:00:00Z' }), now)).toBe('No activity for 1 day. Stop it if you are done.');
+    expect(idleNote(term({ updatedAt: '2026-11-03T08:00:00Z' }), now)).toBe('');
+  });
+
+  it('is about live terminals only', () => {
+    expect(idleFor(term({ live: false, state: 'exited', updatedAt: '2026-10-27T12:00:00Z' }), now)).toBeNull();
+    expect(idleFor(s({ updatedAt: '2026-10-27T12:00:00Z' }), now)).toBeNull();
+    expect(idleFor(term({ updatedAt: 'not a time' }), now)).toBeNull();
   });
 });

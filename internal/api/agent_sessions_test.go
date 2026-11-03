@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"werkbord/internal/agent/fake"
+	"werkbord/internal/devicewire"
 	"werkbord/internal/domain"
 	"werkbord/internal/service"
 	"werkbord/internal/terminal"
@@ -218,5 +220,21 @@ func TestTerminalsAreListedOnlyToTheLocalOwnerButRunsAreNot(t *testing.T) {
 	f.handler.ServeHTTP(w, unauth)
 	if w.Code != 401 && w.Code != 403 {
 		t.Fatalf("without a token: %d", w.Code)
+	}
+}
+
+func TestATerminalsLastWordIsItsLastActivity(t *testing.T) {
+	created := time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
+	active := created.Add(6 * 24 * time.Hour)
+	for name, tc := range map[string]struct{ active, want time.Time }{
+		"active since":         {active, active},
+		"no activity recorded": {time.Time{}, created},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := sessionOfTerminal(devicewire.Terminal{ID: "t1", State: "running", CreatedAt: created, ActiveAt: tc.active}, "", nil)
+			if !got.UpdatedAt.Equal(tc.want) || !got.CreatedAt.Equal(created) {
+				t.Fatalf("created %v updated %v, want updated %v", got.CreatedAt, got.UpdatedAt, tc.want)
+			}
+		})
 	}
 }

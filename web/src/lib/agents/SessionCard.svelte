@@ -19,7 +19,7 @@
     title: string;
     meta: string;
     /** The state word and what it is doing, already said. */
-    doing: { state: string; detail: string; waiting?: boolean; outcome?: string };
+    doing: { state: string; detail: string; waiting?: boolean; idle?: boolean; outcome?: string };
     /** The session's agent and where it stands, for the ringed mark; only a confirmed live session turns the ring. */
     agent: StepAgent;
     now: number;
@@ -94,7 +94,7 @@
     <span class="head">
       <AgentMark agentId={agent.agentId} state={agent.state} fresh={agent.fresh} observedAt={agent.observedAt} {now} decorative />
       <span class="title" {title}>{title}</span>
-      <span class="state" data-waiting={doing.waiting ? 'true' : undefined} data-outcome={doing.outcome}>{doing.state}</span>
+      <span class="state" data-waiting={doing.waiting ? 'true' : undefined} data-idle={doing.idle ? 'true' : undefined} data-outcome={doing.outcome}>{doing.state}</span>
     </span>
     <span class="meta">{meta}</span>
     {#if doing.detail}<span class="doing">{doing.detail}</span>{/if}
@@ -102,7 +102,7 @@
 
   {#if questions.length || mayReply || mayStop || mayRetry}
     <!-- Stop on a session that is simply running is kept out of the way until the card is pointed at or focused; what needs you is never hidden. -->
-    <div class="inline" class:tucked={tone === 'running' && !questions.length && !mayReply && !confirmStop && !busy}>
+    <div class="inline" class:tucked={tone === 'running' && !doing.idle && !questions.length && !mayReply && !confirmStop && !busy}>
       {#each questions as q (q.id)}
         <div class="q"><QuestionCard question={q} showMeta={false} revealContext={q.kind === 'approval'} disabled={!mayAnswer} /></div>
       {/each}
@@ -144,6 +144,7 @@
   .meta { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .doing { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .state { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 12px; }
+  .state[data-idle='true'] { background: color-mix(in srgb, var(--amber) 14%, var(--surface)); color: var(--text); }
   .state[data-waiting='true'] { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--text); font-weight: 600; }
   .state[data-outcome='failed'], .state[data-outcome='interrupted'] { color: var(--danger-text); }
   .state[data-outcome='completed'] { color: var(--ok-text); }

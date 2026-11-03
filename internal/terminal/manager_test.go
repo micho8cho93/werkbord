@@ -579,3 +579,36 @@ func TestTaskAssociationIsMetadataThatSurvivesARestartWithoutRelaunching(t *test
 		}
 	}
 }
+
+func TestATerminalRecordsWhenItWasLastActive(t *testing.T) {
+	m, p := fixture(t)
+	activeAt := func(id string) time.Time {
+		for _, s := range m.List() {
+			if s.ID == id {
+				return s.ActiveAt
+			}
+		}
+		t.Fatal("terminal not listed")
+		return time.Time{}
+	}
+
+	s := create(t, m, p, "codex")
+	_, offset := collect(t, m, s, 0, "READY")
+	before := activeAt(s.ID)
+	if before.IsZero() {
+		t.Fatal("a terminal that has written has no activity time")
+	}
+	// A quiet terminal stays as active as it last was, however long it sits.
+	time.Sleep(60 * time.Millisecond)
+	if got := activeAt(s.ID); !got.Equal(before) {
+		t.Fatalf("time passing counted as activity: %v -> %v", before, got)
+	}
+	// Typing into it, and what comes back, are activity.
+	if err := m.Input(p, s.ID, []byte("hello\n")); err != nil {
+		t.Fatal(err)
+	}
+	collect(t, m, s, offset, "REPLY:hello")
+	if got := activeAt(s.ID); !got.After(before) {
+		t.Fatalf("input and output were not counted as activity: %v -> %v", before, got)
+	}
+}

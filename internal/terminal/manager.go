@@ -289,7 +289,7 @@ func (m *Manager) Create(ctx context.Context, projectID, agentID, device string,
 	if err != nil {
 		return Metadata{}, err
 	}
-	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: name, State: "running", CreatedAt: time.Now().UTC()}, Root: root, CommonDir: common, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
+	s := &session{record: record{Metadata: Metadata{ID: id, ProjectID: projectID, AgentID: agentID, Device: device, Repository: name, State: "running", CreatedAt: time.Now().UTC(), ActiveAt: time.Now().UTC()}, Root: root, CommonDir: common, Process: p.info()}, p: p, changed: make(chan struct{}), done: make(chan struct{}), input: make(chan []byte, 8)}
 	m.sessions[id] = s
 	if err = m.persist(); err != nil {
 		p.kill()
@@ -340,6 +340,7 @@ func (m *Manager) read(s *session) {
 				s.buffer = append([]byte(nil), s.buffer[drop:]...)
 				s.base += uint64(drop)
 			}
+			s.ActiveAt = time.Now().UTC() // the real clock: this runs beside whatever a test does to m.now
 			m.notify(s)
 			m.mu.Unlock()
 		}
@@ -358,6 +359,9 @@ func (m *Manager) write(s *session) {
 			if err := s.p.write(data); err != nil {
 				return
 			}
+			m.mu.Lock()
+			s.ActiveAt = time.Now().UTC()
+			m.mu.Unlock()
 		}
 	}
 }

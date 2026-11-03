@@ -147,11 +147,17 @@ func sessionOfTerminal(t devicewire.Terminal, taskTitle string, planIDs []string
 	if taskTitle != "" {
 		title = taskTitle
 	}
+	// A terminal's last word is the last time it did or was told anything; one that has not said, or was read back from disk
+	// without it, is as old as it is.
+	updated := t.ActiveAt
+	if updated.IsZero() {
+		updated = t.CreatedAt
+	}
 	return domain.AgentSession{
 		Key: domain.TerminalRef(t.ID).String(), Kind: domain.SessionTerminal, ID: t.ID, ProjectID: t.ProjectID, TaskID: t.TaskID, PlanIDs: planIDs,
 		AgentID: t.AgentID, Title: title, State: t.State, Live: live, Device: t.Device, Repository: t.Repository,
 		Capabilities: domain.SessionCapabilities{Terminal: true, Stop: live},
-		CreatedAt:    t.CreatedAt, UpdatedAt: t.CreatedAt,
+		CreatedAt:    t.CreatedAt, UpdatedAt: updated,
 	}
 }
 

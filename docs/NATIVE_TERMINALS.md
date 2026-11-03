@@ -39,6 +39,11 @@ At most eight active terminal processes, 32 concurrent output polls, 64 retained
 
 Metadata is stored in a mode-0600 `terminals.json` within the controller's private data directory, written, flushed and renamed so a crash leaves the previous file or the new one. A file that is nevertheless unreadable is set aside as `terminals.json.damaged` and the controller starts with no terminals rather than refusing to start; a file with more than 64 records keeps the newest 64, and every record still marked running is reaped first. Output is not logged to disk by this service. Process ownership metadata is private and never returned by the terminal API.
 
+Each terminal's metadata carries `activeAt`: when its process last wrote output or was last given input. It is kept in memory
+by the controller that owns the process, is not sent by older controllers, and is zero in a record read back from disk. Agents
+shows a live terminal with no activity for a day as **Idle**, with how long, how long ago it started, and its Stop button in
+view. Nothing is stopped for being idle: that is the person's call.
+
 ## Validation
 
 `go test -race ./internal/terminal ./internal/api` covers real PTY descriptors, ANSI bytes, input/output isolation, resizing, cancellation/reconnection, process exit/termination, limits, restart recovery, unsupported launch rejection, unknown command fields and owner/program/phone/project authorisation. Frontend tests cover service discovery and tab persistence without launching task or conversation sessions.
