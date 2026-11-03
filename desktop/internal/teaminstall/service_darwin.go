@@ -30,6 +30,33 @@ func stopInstalledService() error {
 	return nil
 }
 
+// privilegedCommand is the one line macOS runs as root after the administrator's authorization. It does not run the app where it is:
+// that app may be owned by the person, and a program run as root from a place an ordinary program can write to is a way to be root
+// whatever checks the program makes of itself. So root first copies the app into a private folder of its own, takes it out of reach
+// of everyone else, has the system's own codesign tool check the COPY against the release requirement, and only then runs the copy.
+// What was checked is what runs. Every tool is a system program by absolute path, and nothing but fixed operations and the paths
+// of the app and the person's account number goes in.
+func privilegedCommand(appRoot, exe, requirement, action, uid string) (string, error) {
+	rel, err := filepath.Rel(appRoot, exe)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", errors.New("the Team installer is not inside its app")
+	}
+	fail := func(code int, why string) string {
+		return " || { echo " + shellQuote(why) + " >&2; exit " + strconv.Itoa(code) + "; }"
+	}
+	steps := []string{
+		`D=$(/usr/bin/mktemp -d /private/var/tmp/werkbord-team.XXXXXXXX)` + fail(70, "a private place to check the Team app could not be made"),
+		`trap '/bin/rm -rf "$D"' EXIT`,
+		`A="$D"/` + shellQuote(filepath.Base(appRoot)),
+		`/usr/bin/ditto --noqtn ` + shellQuote(appRoot) + ` "$A"` + fail(71, "the Team app could not be copied to be checked"),
+		`/usr/sbin/chown -R 0:0 "$D"` + fail(72, "the checked copy of the Team app could not be made root's"),
+		`/bin/chmod -R go-w "$D"` + fail(73, "the checked copy of the Team app could not be closed to others"),
+		`/usr/bin/codesign --verify --strict --deep -R ` + shellQuote(requirement) + ` "$A"` + fail(74, "the Team app was not signed by the Werkbord release team"),
+		`"$A"/` + shellQuote(rel) + ` --team-service ` + shellQuote(action) + ` ` + shellQuote(uid),
+	}
+	return strings.Join(steps, "; "), nil
+}
+
 // AuthorizeService invokes this signed application's fixed installer through macOS's normal administrator dialog.
 func AuthorizeService(ctx context.Context, action string) error {
 	if !ValidAction(action) && action != ActionMaintain {
@@ -39,8 +66,14 @@ func AuthorizeService(ctx context.Context, action string) error {
 	if err != nil {
 		return err
 	}
-	uid := strconv.Itoa(os.Getuid())
-	cmd := shellQuote(exe) + " --team-service " + shellQuote(action) + " " + shellQuote(uid)
+	requirement, err := signingRequirement(signingTeam)
+	if err != nil {
+		return errors.New("this build of Werkbord is not release signed, so it cannot install or change Team's service")
+	}
+	cmd, err := privilegedCommand(releaseRoot(exe), exe, requirement, action, strconv.Itoa(os.Getuid()))
+	if err != nil {
+		return err
+	}
 	// osascript is only in the native installer, never in the daemon or workspace build. The arguments are fixed operations.
 	out, err := exec.CommandContext(ctx, "/usr/bin/osascript", "-e", "do shell script "+appleString(cmd)+" with administrator privileges").CombinedOutput()
 	if err != nil {
@@ -63,6 +96,10 @@ func PrivilegedService(action, uid string) (resultErr error) {
 	}
 	appRoot := releaseRoot(exe)
 	if err := RequireRelease(appRoot); err != nil {
+		return err
+	}
+	// Whatever started this, root does not go on from a place that is not root's (see privilegedCommand).
+	if err := requireRootOwnedTree(appRoot); err != nil {
 		return err
 	}
 	n, err := strconv.Atoi(uid)
