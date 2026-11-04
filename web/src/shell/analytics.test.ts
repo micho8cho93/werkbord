@@ -66,6 +66,15 @@ describe('what only Personal reports', () => {
     expect(runsOf(undefined).totals.attempts).toBe(0);
   });
 
+  it('filters execution rows without turning missing measurements into zero or filtering completion evidence', () => {
+    const row = { attempts: 1, retries: 0, accepted: 1, rejected: 0, limitEvents: 0, inputRuns: 0, outputRuns: 0, cachedRuns: 0, actualCostRuns: 0, estimatedCostRuns: 0, partialRuns: 1, inputTokens: null, outputTokens: null, cachedTokens: null, actualCostUsd: null, estimatedCostUsd: null, outcomes: { completed: 1 } };
+    const raw = { executions: [{ ...row, provider: 'codex', runnerId: 'mac' }, { ...row, provider: 'claude-code', runnerId: '' }], verifiedMerges: 2, normalSessionCompletions: 2, agentReportedCompletion: null, verifiedCompletion: null };
+    expect(runsOf(raw, { provider: 'codex', runner: 'mac' }).totals).toMatchObject({ attempts: 1, inputTokens: null });
+    expect(runsOf(raw, { runner: '__unrecorded' }).rows).toHaveLength(1);
+    expect(runsOf(raw, { provider: 'missing' }).totals).toMatchObject({ attempts: 0, actualCostUsd: null });
+    expect(runsOf(raw)).toMatchObject({ normalSessionCompletions: 2, verifiedMerges: 2, agentReportedCompletion: null, verifiedCompletion: null });
+  });
+
   it('is available only when Personal is among what is read', () => {
     expect(runsAvailable([{ workspace: 'team:a' }])).toBe(false);
     expect(runsAvailable([{ workspace: 'team:a' }, { workspace: 'personal' }])).toBe(true);

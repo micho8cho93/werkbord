@@ -60,8 +60,26 @@ let browser;
   await tile('Moved to Done').getByText('1', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Runs and usage', exact: true }).click();
   await tile('Run attempts').getByText('1', { exact: true }).waitFor();
-  const decisions = page.getByText('Accepted', { exact: true });
-  assert.equal(await decisions.evaluate(el => el.nextElementSibling.textContent), '1', 'the accepted run is counted');
+  await page.getByLabel('Analytics agent provider').selectOption('fixture');
+  await page.getByLabel('Analytics runner', { exact: true }).selectOption(expected.executions[0].runnerId || '__unrecorded');
+  await tile('Run attempts').getByText('1', { exact: true }).waitFor();
+  await page.getByLabel('Usage measure').selectOption('cost');
+  await page.getByRole('heading', { name: 'API cost', exact: true }).waitFor();
+  await page.getByText('Breakdown', { exact: true }).click();
+  const breakdown = page.getByRole('region', { name: 'Runner, provider and model execution breakdown' });
+  await breakdown.getByRole('cell', { name: 'Analytics fixture', exact: true }).waitFor();
+  assert.match(await breakdown.innerText(), /120 \/ 0/);
+  await breakdown.focus();
+  assert(await breakdown.evaluate(el => el === document.activeElement), 'breakdown is keyboard scrollable');
+  await page.getByLabel('Analytics agent provider').selectOption('');
+  await page.getByLabel('Analytics runner', { exact: true }).selectOption('');
+  await page.getByLabel('Usage measure').selectOption('tokens');
+  await page.getByRole('button', { name: 'Outcomes', exact: true }).click();
+  await tile('Accepted').getByText('1', { exact: true }).waitFor();
+  await tile('Normal session ends').getByText('1', { exact: true }).waitFor();
+  await page.getByText('Completion details', { exact: true }).click();
+  assert.equal(await page.getByText('Agent-reported task completion', { exact: true }).evaluate(el => el.nextElementSibling.textContent), 'Not recorded');
+  await page.getByRole('button', { name: 'Runs and usage', exact: true }).click();
   await page.getByText('Reporting details', { exact: true }).click();
   await page.getByRole('heading', { name: 'Usage trends', exact: true }).waitFor();
   const trend = page.getByRole('region', {name: 'Usage by run start day'});
@@ -83,6 +101,15 @@ let browser;
   await page.screenshot({ path: path.join(artifacts, 'analytics-work-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
 
+  for (const width of [1440, 900, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const view of ['Work', 'Runs and usage', 'Outcomes']) {
+      await page.getByRole('button', { name: view, exact: true }).click();
+      await page.locator('main').evaluate(el => { el.scrollTop = 0; });
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), view + ' fits ' + width);
+      await page.screenshot({ path: path.join(artifacts, `shared-analytics-${width}-${view}.png`) });
+    }
+  }
   const coord = (method, url, body) => api(team, teamToken, method, '/api/team/v1' + url, body);
   const tp = await coord('POST', '/projects', { name: 'Analytics coordination' });
   const tpOther = await coord('POST', '/projects', { name: 'Analytics other project' });

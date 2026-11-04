@@ -95,9 +95,9 @@ export function mergeActivity(parts: readonly Activity[]): Activity {
 }
 
 /** What Personal's agents did, from its report: runs, how they ended, tokens and cost (unknown stays unknown, never zero). */
-export function runsOf(raw: unknown) {
+export function runsOf(raw: unknown, filter: { provider?: string; runner?: string } = {}) {
   const r = obj(raw);
-  const rows = (Array.isArray(r.executions) ? r.executions : []) as AnalyticsExecution[];
+  const rows = ((Array.isArray(r.executions) ? r.executions : []) as AnalyticsExecution[]).filter(row => (!filter.provider || row.provider === filter.provider) && (!filter.runner || (row.runnerId || '__unrecorded') === filter.runner));
   const totals = executionTotals(rows);
   return {
     totals,
@@ -108,6 +108,9 @@ export function runsOf(raw: unknown) {
     rejected: num(r.rejected),
     verifiedMerges: num(r.verifiedMerges),
     normalSessionCompletions: num(r.normalSessionCompletions),
+    completed: num(r.completed),
+    agentReportedCompletion: opt(r.agentReportedCompletion),
+    verifiedCompletion: opt(r.verifiedCompletion),
     blocked: num(r.blocked),
     stopped: num(r.stopped),
   };

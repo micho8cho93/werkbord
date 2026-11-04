@@ -88,6 +88,8 @@ const screens = () => [
   { id: 'git', title: 'Git', shell: async p => { await pickProject(p); await sidebar(p, 'Git'); }, web: `#/p/${P.id}/git` },
   { id: 'agents', title: 'Agents', shell: async p => { await sidebar(p, 'Agents'); }, web: '#/sessions' },
   { id: 'analytics', title: 'Analytics', shell: async p => { await sidebar(p, 'Analytics'); }, web: '#/analytics' },
+  { id: 'analytics-runs', title: 'Analytics · Runs and usage', shell: async p => { await sidebar(p, 'Analytics'); await p.getByRole('button', { name: 'Runs and usage', exact: true }).click(); }, web: '#/analytics', afterWeb: async p => { await p.getByRole('button', { name: 'Runs and usage', exact: true }).click(); } },
+  { id: 'analytics-outcomes', title: 'Analytics · Outcomes', shell: async p => { await sidebar(p, 'Analytics'); await p.getByRole('button', { name: 'Outcomes', exact: true }).click(); }, web: '#/analytics', afterWeb: async p => { await p.getByRole('button', { name: 'Outcomes', exact: true }).click(); } },
   { id: 'reviews', title: 'Reviews', skip: 'Not compared: Reviews is the Team workspace\u2019s page (Team service), not a page of this web app, and it needs a running Team service this fixture does not start. The window\u2019s Reviews (web/src/shell/Reviews.svelte) reads Team summaries from the window\u2019s overview, and the web app opened on its own has no such page, so there is no second side to compare. Individual has no reviews page' },
   { id: 'settings', title: 'Settings', shell: async p => { await p.getByRole('button', { name: 'Settings', exact: true }).first().click(); }, web: '#/settings' },
   { id: 'help', title: 'Help', shell: async p => { await p.getByRole('button', { name: /^Help/ }).first().click(); }, web: '#/help' },
@@ -185,6 +187,7 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
             if (s.web === null) { row.webMissing = true; continue; }
             await page.goto(personalURL + '/' + s.web);
             await page.locator('main, [role=main], h1').first().waitFor();
+            await s.afterWeb?.(page);
           }
           await sleep(1200);
           row[side] = await read(page);

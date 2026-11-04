@@ -14,4 +14,4 @@
 
 <Tour surface="analytics" />
 <AnalyticsPage items={[PERSONAL]} {selected} label={project ? `${app.project(project)?.name ?? project} · Personal` : 'All Projects'}
-  read={(_workspace, projectId, days) => api.analytics(projectId, days, '')} revision={app.analyticsRevision} />
+  read={(_workspace, projectId, days) => api.analytics(projectId, days, '')} names={{ projects: Object.fromEntries(app.projects.map(p => [p.id, p.name])), runners: Object.fromEntries(app.runners.map(r => [r.id, r.name])) }} revision={app.analyticsRevision} />

@@ -108,7 +108,7 @@ lint: web/node_modules
 test-parity: web web-embed web-shell
 	BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
 	PARITY_THEME=dark PARITY_OUT=output/parity/dark BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
-	PARITY_WIDTH=900 PARITY_ONLY=work,project-work,calendar,agents,analytics,settings,help PARITY_OUT=output/parity/narrow BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
+	PARITY_WIDTH=900 PARITY_ONLY=work,project-work,calendar,agents,analytics,analytics-runs,analytics-outcomes,settings,help PARITY_OUT=output/parity/narrow BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
 
 ## check: everything CI should run, including the parity gate (make test-parity with PARITY_STRICT=1)
 check: web-shell test lint desktop-test test-notarize-desktop test-workflows test-premium-console
@@ -383,3 +383,8 @@ test-attention-browser: web web-embed web-shell
 
 test-project-settings-gear-browser: web-shell
 	node scripts/browser-project-context.cjs
+
+.PHONY: test-analytics-browser
+## test-analytics-browser: shared Work, Runs and usage, Outcomes, evidence filters and breakdown
+test-analytics-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-analytics.cjs node scripts/test-browser.cjs

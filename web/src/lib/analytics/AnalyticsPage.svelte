@@ -9,12 +9,13 @@
   import Panel from '../charts/Panel.svelte';
   import Ring from '../charts/Ring.svelte';
   import StatTile from '../charts/StatTile.svelte';
-  import { analyticsDuration, measuredCost, measuredNumber, percent } from '../analytics';
+  import { analyticsDuration, measuredCost, measuredNumber, percent, sumBy } from '../analytics';
   import { activityOf, mergeActivity, RANGES, runsAvailable, runsOf } from '../../shell/analytics';
   import FilterBar from '../../shell/FilterBar.svelte';
   import Notice from '../../shell/Notice.svelte';
   import PageFrame from '../../shell/PageFrame.svelte';
   import Segmented from '../Segmented.svelte';
+  import { agentName } from '../agent-marks';
   import type { Item } from '../../shell/types';
   import type { ProjectIdentity } from '../../shell/project-context';
 
@@ -22,7 +23,7 @@
   // one team, and a project within that) is the project picker's choice, handed in as `selected`; the person chooses a period; what each
   // workspace reports about the work itself is merged into one picture. What an agent did (runs, tokens, cost) is reported by Personal
   // alone and has a view of its own. Each side says which workspaces there are and how to read one's report (`read`).
-  let { items, selected, label, read, revision = 0 }: {
+  let { items, selected, label, read, names = { projects: {}, runners: {} }, revision = 0 }: {
     items: readonly Item[] | undefined;
     selected: ProjectIdentity | null;
     /** What the page says it is looking at: "All Projects", or the project and where it is. */
@@ -30,15 +31,20 @@
     read: (workspace: string, project: string, days: number) => Promise<unknown>;
     /** Moves when something happened that the figures may reflect (an agent's run ended): the page then reads again, quietly. */
     revision?: number;
+    names?: { projects: Record<string, string>; runners: Record<string, string> };
   } = $props();
 
-  const views = ['Work', 'Runs and usage'] as const;
+  const views = ['Work', 'Runs and usage', 'Outcomes'] as const;
   type View = (typeof views)[number];
   let view = $state<View>('Work');
   const where = $derived(selected?.workspace ?? 'all');
   const projectKey = $derived(selected?.project ?? '');
   let days = $state<number>(30);
   let series = $state('both');
+  let provider = $state('');
+  let runner = $state('');
+  let measure = $state('tokens');
+  $effect(() => { void projectKey; void where; untrack(() => { provider = ''; runner = ''; }); });
   const targets = $derived((items ?? []).filter(i => i.state === 'ready' && (!selected || i.id === selected.workspace))
     .map(i => ({ workspace: i.id, project: selected?.project ?? '' })));
   const nameOf = (id: string): string => items?.find(i => i.id === id)?.name ?? id;
@@ -107,21 +113,27 @@
 
   const activity = $derived(parts.length ? mergeActivity(parts.map((p) => activityOf(p.raw))) : null);
   const personal = $derived(parts.find((p) => p.workspace === 'personal'));
-  const runs = $derived(personal ? runsOf(personal.raw) : null);
+  const allRuns = $derived(personal ? runsOf(personal.raw) : null);
+  const runs = $derived(personal ? runsOf(personal.raw, { provider, runner }) : null);
+  const providers = $derived([...new Set([...(allRuns?.rows.map(r => r.provider) ?? []), ...(provider ? [provider] : [])])].sort());
+  const runners = $derived([...new Set([...(allRuns?.rows.map(r => r.runnerId || '__unrecorded') ?? []), ...(runner ? [runner] : [])])].sort());
+  const runnerName = (id: string) => id === '__unrecorded' || !id ? 'Not recorded' : names.runners[id] || id;
+  const projectName = (id: string) => names.projects[id] || id;
   const canRuns = $derived(runsAvailable(targets));
-  const chartScope = $derived(`${where}/${projectKey}/${days}`);
+  const chartScope = $derived(`${where}/${projectKey}/${days}/${view}/${provider}/${runner}/${measure}`);
   const hasThroughput = $derived(!!activity?.days.some((d) => d.created || d.completed));
   const doneShare = $derived(activity && activity.created > 0 ? activity.completed / activity.created : null);
   const heat = $derived(activity?.days.map((d) => ({ date: d.date, value: d.created + d.completed })) ?? []);
     const outcomes: [string, string, string][] = [['completed', 'Normal exit', 'var(--ok)'], ['failed', 'Failed', 'var(--danger)'], ['stopped', 'Stopped', 'var(--accent)'], ['blocked', 'Blocked', 'var(--accent)'], ['waiting_for_user', 'Waiting', 'var(--warn)'], ['running', 'Running', 'var(--accent)']];
   const outcomeSlices = $derived(runs ? outcomes.map(([state, label, tone]) => ({ label, value: (runs.totals.outcomes as Record<string, number | undefined>)[state] ?? 0, tone })) : []);
-  const usage = $derived(runs ? [
+  const usage = $derived(runs ? (measure === 'tokens' ? [
     { label: 'Input tokens', value: runs.totals.inputTokens, detail: `${runs.totals.inputRuns}/${runs.totals.attempts} runs reported input` },
     { label: 'Output tokens', value: runs.totals.outputTokens, detail: `${runs.totals.outputRuns}/${runs.totals.attempts} runs reported output` },
     { label: 'Cached tokens', value: runs.totals.cachedTokens, detail: `${runs.totals.cachedRuns}/${runs.totals.attempts} runs reported cached tokens` },
+  ] : [
     { label: 'Estimated cost', value: runs.totals.estimatedCostUsd, formatted: measuredCost(runs.totals.estimatedCostUsd), detail: `${runs.totals.estimatedCostRuns}/${runs.totals.attempts} runs have estimates` },
     { label: 'Reported API cost', value: runs.totals.actualCostUsd, formatted: measuredCost(runs.totals.actualCostUsd), detail: `${runs.totals.actualCostRuns}/${runs.totals.attempts} runs reported cost`, tone: 'var(--warn)' },
-  ] : []);
+  ]) : []);
 </script>
 
 <PageFrame id="analytics-h" title="Analytics" lede="How work is going in the selected project context.">
@@ -132,7 +144,12 @@
       </select>
     </label>
     <Segmented compact options={views.map((v) => ({ id: v, label: v }))} value={view} onchange={(v) => (view = v)} label="Analytics view" />
-      </FilterBar>
+    {#if view === 'Runs and usage' && canRuns}
+      <label class="pick"><span>Provider</span><select aria-label="Analytics agent provider" bind:value={provider}><option value="">All agent providers</option>{#each providers as id (id)}<option value={id}>{agentName(id)}</option>{/each}</select></label>
+      <label class="pick"><span>Runner</span><select aria-label="Analytics runner" bind:value={runner}><option value="">All runners</option>{#each runners as id (id)}<option value={id}>{runnerName(id)}</option>{/each}</select></label>
+      <label class="pick"><span>Measure</span><select aria-label="Usage measure" bind:value={measure}><option value="tokens">Tokens</option><option value="cost">API cost</option></select></label>
+    {/if}
+  </FilterBar>
 
   {#each failed as f (f.workspace)}
     <Notice>{nameOf(f.workspace)} could not be read: {f.message} Its figures are left out.</Notice>
@@ -177,8 +194,28 @@
       {/if}
     {:else if !canRuns || !runs}
       <p class="notice" role="status" data-testid="analytics-runs-personal-only">
-        Agent usage is available in Personal. Choose Personal to view it.
+        {view === 'Outcomes' ? 'Personal outcome evidence' : 'Agent usage'} is available in Personal. Choose Personal to view it.
       </p>
+    {:else if view === 'Outcomes' && allRuns}
+      <dl class="statistics">
+        <StatTile label="Accepted" value={allRuns.accepted} tone="var(--ok)" />
+        <StatTile label="Rejected" value={allRuns.rejected} tone="var(--danger)" />
+        <StatTile label="Controller-verified merges" value={allRuns.verifiedMerges} tone="var(--block)" />
+        <StatTile label="Normal session ends" value={allRuns.normalSessionCompletions} tone="var(--accent)" />
+      </dl>
+      <p class="muted">For the selected Personal project and period. Assessments, moves to Done, session ends and verified merges are separate signals.</p>
+      <div class="board">
+        <Panel title="Recorded assessments" caption="Your decision on assessed runs" span={5} tone="var(--ok)">
+          <AnalyticsBars shares={false} scope={chartScope} label="Accepted and rejected work" rows={[{ label: 'Accepted', value: allRuns.accepted }, { label: 'Rejected', value: allRuns.rejected }]} />
+        </Panel>
+        <Panel title="Completion evidence" caption="Separate counts, not steps of one process" span={7} tone="var(--accent)">
+          <AnalyticsBars shares={false} scope={chartScope} label="Separate completion signals" rows={[{ label: 'Moved to Done', value: allRuns.completed }, { label: 'Normal session ends', value: allRuns.normalSessionCompletions }, { label: 'Controller-verified merges', value: allRuns.verifiedMerges }]} />
+        </Panel>
+      </div>
+      <details class="disclosure"><summary>Completion details</summary><dl class="facts">
+        <div><dt>Agent-reported task completion</dt><dd>{allRuns.agentReportedCompletion ?? 'Not recorded'}</dd></div>
+        <div><dt>Independently verified task completion</dt><dd>{allRuns.verifiedCompletion ?? 'Not recorded'}</dd></div>
+      </dl><p class="muted">A normal session exit does not establish that a task is done. Missing evidence stays unknown.</p></details>
     {:else}
       <dl class="statistics">
         <StatTile label="Run attempts" value={runs.totals.attempts} tone="var(--accent)" />
@@ -192,24 +229,42 @@
         <Panel title="Run outcomes" caption="Where each attempt ended up" tone="var(--accent)" span={5}>
           {#if runs.totals.attempts}<Donut slices={outcomeSlices} centre={String(runs.totals.attempts)} caption={runs.totals.attempts === 1 ? 'run' : 'runs'} label="Run outcomes by count" />{:else}<p class="empty">No runs in this period.</p>{/if}
         </Panel>
-        <Panel title="Tokens and cost" caption="What agents reported; unknown is shown as unknown" tone="var(--warn)" span={7}>
-          <AnalyticsBars shares={false} scope={chartScope} label="Token usage and cost" rows={usage} />
+        <Panel title={measure === 'tokens' ? 'Tokens' : 'API cost'} caption="What agents reported; unknown is shown as unknown" tone="var(--warn)" span={7}>
+          <AnalyticsBars shares={false} scope={chartScope} label={measure === 'tokens' ? 'Token usage' : 'API cost in USD'} rows={usage} />
           <p class="muted tail">{measuredNumber(runs.totals.limitEvents)} usage-limit notices · {runs.totals.partialRuns} partial reports</p>
         </Panel>
         <Panel title="Attempts by agent" caption="Which runtime did the work" tone="var(--accent)" span={6}>
-          <AnalyticsBars shares={false} scope={chartScope} label="Attempts by agent provider" rows={runs.providers.map((p) => ({ label: p.name || 'Not recorded', value: p.attempts, tone: 'var(--accent)' }))} />
+          <AnalyticsBars shares={false} scope={chartScope} label="Attempts by agent provider" rows={runs.providers.map((p) => ({ label: p.name ? agentName(p.name) : 'Not recorded', value: p.attempts, tone: 'var(--accent)' }))} />
           {#if !runs.providers.length}<p class="muted">No attempts to group.</p>{/if}
         </Panel>
-        <Panel title="Your decisions" caption="Assessed runs you accepted or rejected, and verified merges" tone="var(--ok)" span={6}>
-          <dl class="facts"><div><dt>Accepted</dt><dd>{runs.accepted}</dd></div><div><dt>Rejected</dt><dd>{runs.rejected}</dd></div><div><dt>Controller-verified merges</dt><dd>{runs.verifiedMerges}</dd></div><div><dt>Currently blocked / stopped</dt><dd>{runs.blocked} / {runs.stopped}</dd></div></dl>
+        <Panel title="Attempts by runner" caption="Which machine ran the work" tone="var(--block)" span={6}>
+          <AnalyticsBars shares={false} scope={chartScope} label="Attempts by runner" rows={sumBy(runs.rows, 'runnerId', r => r.attempts).map(r => ({ label: runnerName(r.key), value: r.value }))} />
         </Panel>
       </div>
-      <AnalyticsUsageDetails rows={runs.rows} days={runs.days} scope={chartScope} />
+      {#if provider || runner}<p class="muted">Daily usage trends are available with all providers and runners selected; the report does not split daily measurements by runner or provider.</p>
+      {:else}<AnalyticsUsageDetails rows={runs.rows} days={runs.days} scope={chartScope} />{/if}
+      <details class="disclosure"><summary>Breakdown</summary>
+        <p class="muted">Configured models may differ from resolved models. Reported API costs and estimated equivalents are separate, never added together.</p>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex (The execution evidence table needs a keyboard-scrollable region.) -->
+        <div class="table-scroll" role="region" aria-label="Runner, provider and model execution breakdown" tabindex="0"><table><thead><tr>{#each ['Project', 'Runner', 'Agent provider', 'Configured model', 'Attempts / retries', 'Input / output tokens', 'API cost / estimated', 'Limit notices'] as heading (heading)}<th>{heading}</th>{/each}</tr></thead><tbody>
+          {#each runs.rows as row (JSON.stringify([row.projectId, row.runnerId, row.provider, row.model]))}<tr>
+            <td>{projectName(row.projectId)}</td><td>{runnerName(row.runnerId)}</td><td>{agentName(row.provider)}</td><td>{row.model || 'Agent default · unknown'}</td>
+            <td>{row.attempts} / {row.retries}</td><td>{measuredNumber(row.inputTokens)} / {measuredNumber(row.outputTokens)}<small>{row.inputRuns} input, {row.outputRuns} output reports</small></td>
+            <td>{measuredCost(row.actualCostUsd)} / {measuredCost(row.estimatedCostUsd)}<small>{row.actualCostRuns} actual, {row.estimatedCostRuns} estimated reports</small></td><td>{row.limitEvents}</td>
+          </tr>{:else}<tr><td colspan="8">No execution evidence matches these filters.</td></tr>{/each}
+        </tbody></table></div>
+      </details>
     {/if}
   {/if}
 </PageFrame>
 
 <style>
+  .table-scroll { overflow: auto; max-width: 100%; }
+  .table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-2); font-weight: 500; }
+  td small { display: block; color: var(--text-2); }
   .series { margin-bottom: 10px; }
   .stamp { margin: 0; }
   .muted { color: var(--text-2); font-size: 12px; line-height: 1.6; }
