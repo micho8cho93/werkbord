@@ -1,4 +1,7 @@
 <script lang="ts">
+  import PendingRepositories from './PendingRepositories.svelte';
+  import { workOperation, type WorkAction } from './actions';
+  import { globalHref, calendarHref } from '../location';
   import WorkOverview from './WorkOverview.svelte';
   import BriefCard from './BriefCard.svelte';
   import Attention from './Attention.svelte';
@@ -37,6 +40,7 @@
 
   // A task opens on its own page; the summary's address is the workspace's own (#/p/<project>/task/<task>).
   const open = (_workspace: string, href: string) => { location.hash = href; };
+  async function act(_workspace: string, action: WorkAction) { await workOperation(action); await workSummary.refresh(true); void app.refreshOverview(); }
   const decide = {
     askable: (d: Decision) => !!d.question && reachable(workSummary.overview, now, workSummary.readAt),
     fresh: (d: Decision) => current(d, workSummary.overview),
@@ -51,11 +55,12 @@
 {#if !overview}
   <p class="status" role="status">Loading work…</p>
 {:else}
-  <WorkOverview {waiting} {decide} {running} {upNext} ready={readyCount(queueRows)} {plans}
+  <WorkOverview oncalendar={() => { location.hash = calendarHref(projectId); }} activity={(_workspace, href) => overview?.entries[0]?.summary?.work.find(w => w.href === href)?.run?.activity} {waiting} {decide} {running} {upNext} ready={readyCount(queueRows)} {plans}
     plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
     people={participants(overview)} showWhere={false} {now} whereOf={() => undefined} detail={(w, item) => rowDetail(overview, w, item)}
     isOpen={() => false} onopen={open} seeAll={toQueue}>
-    {#snippet attention()}<Attention {overview} answerWith={(q, answer) => decide.answerWith(q, answer)} onSettled={decide.onSettled} open={(workspace, href) => { if (href) open(workspace, href); }} notify={decide.notify} />{/snippet}
+    {#snippet incoming()}<PendingRepositories {overview} {act} />{/snippet}
+    {#snippet attention()}<Attention {overview} actionWith={act} onalerts={() => { location.hash = globalHref('settings') + '?alerts'; }} answerWith={(q, answer) => decide.answerWith(q, answer)} onSettled={decide.onSettled} open={(workspace, href) => { if (href) open(workspace, href); }} notify={decide.notify} />{/snippet}
     {#snippet brief()}
       <BriefCard scope={projectId ? (app.project(projectId)?.name ?? 'this project') : 'all projects'}
         projectContext={projectId ? { workspace: 'personal', project: projectId, label: app.project(projectId)?.name ?? '' } : null}

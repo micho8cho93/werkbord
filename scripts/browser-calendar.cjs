@@ -32,6 +32,7 @@ async function drag(page, from, to) {
   const plannedNow = await edit(billing, planned, { start: day(1), end: day(1), time: '09:30' });
   const taskOf = async (project, id) => (await api('GET', `/projects/${project.id}/tasks`)).tasks.find(t => t.id === id);
 
+  await mk(billing, 'Agent start waiting for its time', { orchestration: { enabled: true, scheduledAt: new Date(Date.now() + 86400000).toISOString(), timezone: 'UTC', dependencies: [], expectedPaths: [], missedPolicy: 'run_late', graceSeconds: 300 } });
   const browser = await chromium.launch();
   const errors = [];
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
@@ -51,6 +52,11 @@ async function drag(page, from, to) {
     assert.equal(await page.getByRole('heading', { name: 'Calendar', exact: true }).count(), 1, 'one heading, not a second from the page around it');
     ok('the sidebar lists Calendar between Work and Git, and #/calendar opens it');
 
+    const readiness = page.getByRole('heading', { name: 'Agent schedules', exact: true });
+    await readiness.waitFor();
+    await page.getByRole('button', { name: 'Agent start waiting for its time', exact: true }).waitFor();
+    assert.match(await page.locator('.readiness').innerText(), /Scheduled|Waiting/);
+    ok('Calendar keeps agent schedule readiness separate from planned work dates');
     const item = page.locator(`[data-plan-item="personal/${planned.id}/plan"]`).first();
     await item.waitFor();
     assert.equal(await item.getAttribute('data-plan-start'), day(1));

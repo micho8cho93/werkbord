@@ -2,7 +2,6 @@
   import Icon from '../lib/Icon.svelte';
   import WebOverview from '../lib/work/WebOverview.svelte';
   import WorkRow from '../lib/work/WorkRow.svelte';
-  import ControlCenter from './ControlCenter.svelte';
   import { workSummary } from '../lib/work/summary.svelte';
   import { ApiError, api } from '../lib/api';
   import { blockingTasks, workGroup } from '../lib/work-queue';
@@ -17,8 +16,6 @@
   // one the Mac window shows; the queue is the summary's rows in Now, Next and Later, each of which can be dragged to another.
   const section = $derived(new URLSearchParams(router.query).get('section'));
   const queueTab = $derived(section === 'queue');
-  // The page this one replaced (its filters, browser alerts and the Team tickets waiting for a repository) stays one tab away until each has a place.
-  const feedTab = $derived(section === 'feed');
   let search = $state('');
   let now = $state(Date.now());
   $effect(() => { const timer = setInterval(() => (now = Date.now()), 30_000); return () => clearInterval(timer); });
@@ -87,13 +84,10 @@
     </div>
   </header>
   <nav class="work-tabs" aria-label="Work sections">
-    <a href={globalHref('control')} aria-current={!queueTab && !feedTab ? 'page' : undefined}>Overview</a>
+    <a href={globalHref('control')} aria-current={!queueTab ? 'page' : undefined}>Overview</a>
     <a href="{globalHref('control')}?section=queue" aria-current={queueTab ? 'page' : undefined}>Queue &amp; Plans<span>{queueCount}</span></a>
-    <a href="{globalHref('control')}?section=feed" aria-current={feedTab ? 'page' : undefined}>Feed{#if app.needsYou}<span>{app.needsYou}</span>{/if}</a>
   </nav>
-  {#if feedTab}
-    <ControlCenter />
-  {:else if !queueTab}
+  {#if !queueTab}
     <WebOverview {search} toQueue={() => (location.hash = `${globalHref('control')}?section=queue`)} />
   {:else if !overview}
     <p class="empty" role="status">Loading work…</p>

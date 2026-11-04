@@ -17,7 +17,7 @@
   // catch-up, what is running, what is next, the plans, and room for what one side adds. It is handed rows and says nothing about
   // where they came from: each side reads its own workspaces and says what pressing a row, a decision or "See all" does.
   const SHOWN = 3;
-  let { waiting, decide, running, upNext, ready, plans, plansEmpty, people, showWhere, now, whereOf, detail, isOpen, onopen, seeAll, brief, attention, extra, compact = false }: {
+  let { waiting, decide, running, upNext, ready, plans, plansEmpty, people, showWhere, now, whereOf, detail, isOpen, onopen, seeAll, brief, incoming, activity, oncalendar, attention, extra, compact = false }: {
     waiting: Decision[];
     /** What the window or the web app does with a question: can it be answered here, how, and what opening it means. */
     decide: {
@@ -45,6 +45,9 @@
     seeAll: () => void;
     /** The catch-up card: it depends on where Salie can be asked from, so each side draws it. */
     brief?: Snippet;
+    incoming?: Snippet;
+    oncalendar?: () => void;
+    activity?: (workspace: string, href: string) => string | undefined;
     /** The questions and notices under the cards. */
     attention?: Snippet;
     /** More trays one side has (the window's Git activity). */
@@ -56,7 +59,7 @@
 </script>
 
 {#snippet rowOf(row: Row, i: number)}
-  <WorkRow {row} index={i} live={row.item.group === 'done' ? undefined : detail(row.workspace, row.item)} current={isOpen(row.workspace, row.item.href)} where={showWhere ? whereOf(row.workspace) : undefined} {now} {onopen} />
+  <WorkRow {row} index={i} activity={activity?.(row.workspace, row.item.href)} live={row.item.group === 'done' ? undefined : detail(row.workspace, row.item)} current={isOpen(row.workspace, row.item.href)} where={showWhere ? whereOf(row.workspace) : undefined} {now} {onopen} />
 {/snippet}
 {#snippet decisionBlock()}
     <aside class="decision" class:urgent={waiting.length > 0} aria-labelledby="decision-h" data-testid="next-decision">
@@ -101,6 +104,7 @@
 <div class="work-overview" class:compact>
     <div class="work-grid overview">
       <div class="work-main">
+        {@render incoming?.()}
         {@render decisionBlock()}
         {@render brief?.()}
         {@render attention?.()}
@@ -108,7 +112,7 @@
       </div>
       <div class="work-side">
         <section class="tray" aria-labelledby="running-h">
-          <header><h2 id="running-h" class="section-title">Running now<span class="head-count" data-testid="running-count">{running.length}</span></h2></header>
+          <header><h2 id="running-h" class="section-title">Running now<span class="head-count" data-testid="running-count">{running.length}</span></h2>{#if oncalendar}<button type="button" class="link" onclick={oncalendar}>Agent schedules</button>{/if}</header>
           <ul class="tray-card rows">{#each running.slice(0, 5) as row, i (row.workspace + row.item.href)}{@render rowOf(row, i)}{:else}<li class="empty">No agent is working right now.</li>{/each}</ul>
         </section>
         <section class="tray" aria-labelledby="next-h">

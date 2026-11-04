@@ -10,7 +10,7 @@ Code: `internal/domain/health.go` (the finding entity, severities, thresholds, l
 keeps findings' lives, watches for events), `internal/api/githealth.go` (HTTP),
 `internal/store/sqlite/health.go` and migration `0007` (persistence), `web/src/lib/health.ts` and
 `web/src/lib/git/HealthPanel.svelte`, `FindingCard.svelte` (the screen), and Needs attention
-(`internal/service/control.go`, `web/src/routes/ControlCenter.svelte`).
+(`internal/service/control.go`, `web/src/lib/work/Attention.svelte`).
 
 ---
 

@@ -1,5 +1,7 @@
 # Shared window/web verification
 
+Historical report for commit `ff7ffff`. The subsequent approved Analytics/Feed migration is described in [ANALYTICS_FEED_MIGRATION.md](ANALYTICS_FEED_MIGRATION.md).
+
 Branch: `feature/clear-update-blockers`. Starting commit: `7b7d26d`. Local work only; no version change, tag or push. Raw test output is retained under `output/verification/` (ignored build artifacts).
 
 ## Requested checks

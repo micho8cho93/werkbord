@@ -1,6 +1,7 @@
 // The router: the current page, kept in step with the address bar. Hash routing
 // means the shell works from any static host and from the service worker cache.
 
+import { SvelteURLSearchParams } from 'svelte/reactivity';
 import { hrefOf, parse, queryOf, type Location, type View } from './location';
 
 export * from './location';
@@ -26,6 +27,14 @@ class Router {
     if (/^#\/p\/[^/]+\/(calendar|timeline)(?:[?&]|$)/.test(location.hash)) {
       history.replaceState(null, '', location.pathname + location.search + hrefOf(loc));
       window.dispatchEvent(new Event('werkbord:place'));
+    }
+    if (loc.view === 'control') {
+      const query = new SvelteURLSearchParams(queryOf(location.hash));
+      if (query.get('section') === 'feed') {
+        query.delete('section');
+        history.replaceState(null, '', location.pathname + location.search + '#/control' + (query.size ? '?' + query : ''));
+        window.dispatchEvent(new Event('werkbord:place'));
+      }
     }
     this.view = loc.view;
     this.projectId = loc.projectId;

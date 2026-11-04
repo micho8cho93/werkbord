@@ -11,6 +11,9 @@
   import { current, pending, type Decision } from './decisions';
   import { decisions } from './decisions.svelte';
   import { flagCounts, needAction, readyCount, rowDetail, rowsOf, urgentFirst, type Flag, type Row } from './workqueue';
+  import PendingRepositories from '../lib/work/PendingRepositories.svelte';
+  import { workAction } from './work-actions';
+  import { ask } from './native';
   import WorkOverview from '../lib/work/WorkOverview.svelte';
   import WorkRow from '../lib/work/WorkRow.svelte';
   import * as answering from './answering';
@@ -126,10 +129,11 @@
   {#each overview?.entries.filter(e => e.error || e.workspace.state !== 'ready' || !e.summary) ?? [] as e (e.workspace.id)}<p role="status" class="source-notice">{e.workspace.name}: {standing(e)}</p>{/each}
   {#if overview?.entries.some(e => e.summary?.queueIncomplete)}<p role="status" class="source-notice">Some work is outside this summary’s limit. Open a project to see its complete queue and plans.</p>{/if}
   {#if section === 'overview'}
-    <WorkOverview waiting={waiting} {decide} running={running.slice(0, 5)} {upNext} ready={readyCount(queueRows)} plans={plans} plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
+    <WorkOverview oncalendar={() => model.go('calendar')} activity={(workspace, href) => overview?.entries.find(e => e.workspace.id === workspace)?.summary?.work.find(w => w.href === href)?.run?.activity} waiting={waiting} {decide} running={running.slice(0, 5)} {upNext} ready={readyCount(queueRows)} plans={plans} plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
       {people} {showWhere} {now} whereOf={entryOf} {detail} isOpen={openHere} onopen={open} seeAll={() => (section = 'queue')} {compact}>
       {#snippet brief()}<BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} refresh={() => model.refreshOverview()} latest={() => model.contextOverview} explain={(prompt) => model.explainCatchUp(prompt)} canExplain={!model.remotePersonal} open={(workspace, href) => model.open(workspace, href)} />{/if}</BriefCard>{/snippet}
-      {#snippet attention()}<Attention {overview} answerWith={(q, answer, at) => answering.answerWith(q, answer, overview, at)} onSettled={answering.settled} open={(workspace, href) => model.open(workspace, href)} notify={(message) => (model.notice = message)} />{/snippet}
+      {#snippet incoming()}<PendingRepositories {overview} act={workAction} chooseFolder={() => ask(a => a.Relay('personal', 'ChooseDirectory', [])) as Promise<string>} />{/snippet}
+      {#snippet attention()}<Attention {overview} actionWith={workAction} onalerts={() => model.openSettings('general/alerts')} answerWith={(q, answer, at) => answering.answerWith(q, answer, overview, at)} onSettled={answering.settled} open={(workspace, href) => model.open(workspace, href)} notify={(message) => (model.notice = message)} />{/snippet}
       {#snippet extra()}
         {#if repoNews.length}
           <section class="tray" aria-labelledby="repo-news-h" data-testid="repo-news">

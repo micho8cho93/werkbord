@@ -1,6 +1,8 @@
-# Analytics and Feed: decisions left open
+# Analytics and Feed: review and implementation decision
 
-Reviewed on 4 November 2026 against `d7b0bd8:web/src/routes/Analytics.svelte` and the current shared pages. No Analytics view or Feed function was restored or removed in this verification change.
+The user subsequently approved the three-view Analytics page and migration of Feed functions into Overview, notices and Calendar, followed by removing Feed. The earlier “leave unchanged” choices below describe the verification pass; they were superseded by that approval.
+
+Historical review on 4 November 2026 against `d7b0bd8:web/src/routes/Analytics.svelte` and the current shared pages. No Analytics view or Feed function was restored or removed in this verification change.
 
 ## Analytics
 

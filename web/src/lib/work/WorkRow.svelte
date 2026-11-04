@@ -8,11 +8,12 @@
 
   // One row of work as the Work page draws it, in the window and in the web app: the title and where it sits, why it is worth a look,
   // the agent on it, its state at the right. What a press does, and which row is open beside the list, is the page's to say.
-  let { row, index = 0, live, current = false, where, now, onopen, sortable = false }: {
+  let { row, index = 0, live, activity, current = false, where, now, onopen, sortable = false }: {
     row: Row;
     index?: number;
     /** What the work is doing now, in words; left out for finished work. */
     live?: string;
+    activity?: string;
     /** This row's task is the one open beside the list. */
     current?: boolean;
     /** The workspace to name on the row, when there is more than one to tell apart. */
@@ -33,9 +34,10 @@
     {#if row.item.owner && row.item.group !== 'done'}<span class="holder" title={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner}><Avatar id={row.item.owner} name={row.item.mine ? 'Held by you' : 'Held by ' + row.item.owner} self={row.item.mine} size="sm" /></span>{/if}
     <span class="task-state" data-state={row.state} aria-hidden="true">{#if row.state === 'done'}<Icon name="check" size={14} />{/if}</span>
     <span class="open-icon"><Icon name="right" size={14} /></span>
-  </button></li>
+  </button>{#if activity}<details class="activity"><summary>Agent activity</summary><p>{activity}</p></details>{/if}</li>
 
 <style>
+ .activity { margin: 0 14px 12px; font-size: 12px; color: var(--text-2); } .activity summary { cursor: pointer; } .activity p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
  .sortable{display:flex;align-items:center;gap:2px;padding-left:4px;}.sortable .task{flex:1;min-width:0;}
  .task{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 8px;background:transparent;border:0;color:var(--text);cursor:pointer;border-radius:5px;}
  .task:hover{background:var(--hover);}

@@ -21,19 +21,7 @@
       "why": "The window's Settings opens over the page you were on and returns to it; the web app's Settings is a page of its own and the sidebar leads back."
     }
   ],
-  "work": [
-    {
-      "side": "web",
-      "match": "^nav: Feed#$",
-      "why": "The page the Overview replaced stays one tab away in the web app until its filters, browser alerts and Team tickets waiting for a repository have a place (Work phase decision). To be removed with them."
-    }
-  ],
   "project-work": [
-    {
-      "side": "web",
-      "match": "^nav: Feed#$",
-      "why": "As on All projects: the old feed stays one tab away until its parts have a place."
-    },
     {
       "side": "window",
       "match": "^button: Agents and connections$",

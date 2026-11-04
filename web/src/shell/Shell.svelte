@@ -145,7 +145,7 @@
             {:else if model.page === 'git'}<GitProjects />
             {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />
-            {:else if model.page === 'analytics'}<AnalyticsPage items={model.view?.items} selected={model.selectedProject} label={model.contextLabel} read={(workspace, project, days) => ask(a => a.Analytics(workspace, project, days))} />
+            {:else if model.page === 'analytics'}<AnalyticsPage items={model.view?.items} selected={model.selectedProject} label={model.contextLabel} names={{ projects: Object.fromEntries((model.contextOverview?.entries ?? []).flatMap(e => (e.summary?.projects ?? []).map(p => [p.id, p.name]))), runners: Object.fromEntries((model.contextOverview?.entries ?? []).flatMap(e => (e.summary?.runners ?? []).map(r => [r.id, r.name]))) }} read={(workspace, project, days) => ask(a => a.Analytics(workspace, project, days))} />
             {:else if model.page === 'inbox'}<Hub overview={model.contextOverview} compact={model.paneOpen} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>

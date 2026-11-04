@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ScheduleReadiness from './ScheduleReadiness.svelte';
   import Sheet from '../Sheet.svelte';
   import type { PlanningItem, PlanningOperation } from '../planningBridge';
   import { instantFromWall, wallTime } from '../scheduling';
@@ -81,6 +82,7 @@
 <section class="page" aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">{lede}</p></header>
   {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} focus={rows.find(r => r.id.split('/')[1] === task)?.id ?? ''} remember="window-calendar" onopen={id => void open(id)} onmove={move} />{/if}
+  <ScheduleReadiness {overview} open={goTo} />
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}

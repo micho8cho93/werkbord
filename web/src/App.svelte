@@ -45,7 +45,6 @@
   import PartialUpdate from './lib/PartialUpdate.svelte';
   import Work from './routes/Work.svelte';
   import WorkAll from './routes/WorkAll.svelte';
-  import ControlCenter from './routes/ControlCenter.svelte';
   import Git from './routes/Git.svelte';
   import TeamRepo from './routes/TeamRepo.svelte';
   import { createRepoWatcher } from './lib/repowatch';
@@ -328,7 +327,7 @@
           {#if deck}<Schedule />{/if}
         {:else if router.view === 'control'}
           <!-- In the window's own page the window draws Work; the framed page keeps the feed it has always shown there. -->
-          {#if framed}<ControlCenter />{:else}<WorkAll />{/if}
+          <WorkAll />
         {:else if router.view === 'calendar'}
           {#if !framed && !deck}<Calendar />{/if}
         {:else if router.view === 'sessions'}

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
+	"werkbord/internal/integration"
 
 	"werkbord/internal/domain"
 	"werkbord/internal/store"
@@ -26,6 +28,19 @@ func (s *ControlCenter) WorkspaceSummary(ctx context.Context) (workspace.Summary
 	}
 	out := SummaryOf(ov, s.now())
 	err = s.Store.View(ctx, func(tx store.Tx) error {
+		pending, pendingErr := readWaiting(ctx, tx)
+		if pendingErr != nil {
+			return pendingErr
+		}
+		for _, p := range pending {
+			github := ""
+			if id, err := integration.RepositoryIdentity(p.Repository); err == nil {
+				if name, ok := strings.CutPrefix(id, "github.com/"); ok && strings.Count(name, "/") == 1 {
+					github = name
+				}
+			}
+			out.PendingRepositories = append(out.PendingRepositories, workspace.PendingRepository{SourceRef: p.SourceRef, Repository: p.Repository, Title: p.Title, From: p.From, GitHub: github})
+		}
 		out.Changes, err = recentWorkspaceChanges(ctx, tx, ov, out.At)
 		if err != nil {
 			return err
@@ -285,7 +300,7 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 			sev = workspace.SeverityCritical
 		}
 		out.Attention = append(out.Attention, workspace.Attention{ID: "repo-" + f.ID, Kind: workspace.AttentionRepository, Severity: sev,
-			Title: f.Title, Detail: f.Explanation, Project: f.ProjectName, Href: "#/p/" + f.ProjectID + "/git"})
+			Title: f.Title, Detail: f.Explanation, Next: f.Action.Label, Project: f.ProjectName, Href: "#/p/" + f.ProjectID + "/git"})
 	}
 
 	for _, a := range ov.Orchestration {
@@ -295,6 +310,39 @@ func SummaryOf(ov *Overview, now time.Time) workspace.Summary {
 		}
 		out.Schedule = append(out.Schedule, workspace.Scheduled{ID: a.Task.ID, Title: a.Task.Title, Project: a.ProjectName, At: at.UTC(),
 			Zone: a.Task.Orchestration.Timezone, State: a.Decision.State, Reason: a.Decision.Reason, Href: taskHref(a.Task.ProjectID, a.Task.ID)})
+	}
+	// Context is projected only from the controller's own runs. It is display evidence, never permission to execute.
+	runByHref := map[string]domain.Run{}
+	for _, r := range append(append([]AttentionRun{}, ov.Runs...), ov.Failed...) {
+		runByHref[taskHref(r.Run.ProjectID, r.Run.TaskID)] = r.Run
+	}
+	for _, r := range ov.Review {
+		if r.LastRun != nil {
+			runByHref[taskHref(r.Task.ProjectID, r.Task.ID)] = *r.LastRun
+		}
+	}
+	for i := range out.Work {
+		if r, ok := runByHref[out.Work[i].Href]; ok {
+			out.Work[i].Run = runContext(r, ov.Runners)
+		}
+	}
+	for i := range out.Attention {
+		if r, ok := runByHref[out.Attention[i].Href]; ok {
+			out.Attention[i].Run = runContext(r, ov.Runners)
+		}
+	}
+	for _, r := range ov.Runners {
+		out.Runners = append(out.Runners, workspace.Machine{ID: r.ID, Name: r.Name})
+	}
+	for _, a := range ov.Orchestration {
+		at := a.Task.Orchestration.ScheduledAt
+		if at == nil {
+			at = a.Task.Orchestration.NotBefore
+		}
+		out.Readiness = append(out.Readiness, workspace.Readiness{ID: a.Task.ID, Title: a.Task.Title, Project: a.ProjectName, State: a.Decision.State, Reason: a.Decision.Reason, At: at, Href: taskHref(a.Task.ProjectID, a.Task.ID)})
+		if a.Decision.State == "blocked" || a.Decision.State == "potentially_conflicting" {
+			out.Attention = append(out.Attention, workspace.Attention{ID: "schedule-" + a.Task.ID, Kind: "schedule", Severity: workspace.SeverityWarning, Title: a.Task.Title + " cannot start", Detail: a.Decision.Reason, Project: a.ProjectName, Href: taskHref(a.Task.ProjectID, a.Task.ID)})
+		}
 	}
 	sort.SliceStable(out.Schedule, func(i, j int) bool { return out.Schedule[i].At.Before(out.Schedule[j].At) })
 	sort.SliceStable(out.Attention, func(i, j int) bool {
@@ -311,4 +359,22 @@ func severityRank(s workspace.Severity) int {
 		return 1
 	}
 	return 2
+}
+
+func runContext(r domain.Run, runners []domain.Runner) *workspace.RunContext {
+	context := &workspace.RunContext{RunID: r.ID, Agent: r.AgentID, RunnerID: r.RunnerID, Activity: workspace.Clip(r.Activity, workspace.MaxText), Retry: r.State == domain.RunFailed, Stale: reportOf(r, runners).Stale}
+	for _, runner := range runners {
+		if runner.ID == r.RunnerID {
+			context.Runner = runner.Name
+			break
+		}
+	}
+	if r.State == domain.RunBlocked && r.Blocker != nil {
+		for _, choice := range r.Blocker.Options {
+			if len(context.Choices) < 10 {
+				context.Choices = append(context.Choices, workspace.Clip(choice, 200))
+			}
+		}
+	}
+	return context
 }

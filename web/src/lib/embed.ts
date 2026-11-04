@@ -8,11 +8,13 @@
 import { REPO_NAME } from './repowatch';
 import { isEmbedded, isWorkspaceHref, onNavigate, onStyle, onTheme, reportFrame } from '../../../internal/nativebridge/bridge.js';
 import { look, theme } from './theme.svelte';
+import { followWorkActions } from './work/actions';
 import { followPlanning } from './planningBridge';
 
 /** Follows the shell's requests to go to a place in this page. Returns a function that stops following. */
 export function followShell(): () => void {
   const stopPlanning = followPlanning();
+  const stopWork = followWorkActions();
   const stopReporting = reportFrame(() => location.hash || '#/');
   const stopNavigation = onNavigate((href: string) => {
     if (href.startsWith('#')) location.hash = href;
@@ -20,7 +22,7 @@ export function followShell(): () => void {
   const stopTheme = onTheme((choice) => theme.set(choice, true));
   const stopStyle = onStyle((choice) => look.set(choice, true));
   const stopLinks = followShellLinks();
-  return () => { stopPlanning(); stopReporting(); stopNavigation(); stopTheme(); stopStyle(); stopLinks(); };
+  return () => { stopWork(); stopPlanning(); stopReporting(); stopNavigation(); stopTheme(); stopStyle(); stopLinks(); };
 }
 
 /** Whether a desktop shell frames this page. */

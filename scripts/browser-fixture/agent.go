@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"werkbord/internal/agent"
 	"werkbord/internal/domain"
@@ -70,6 +71,9 @@ func runFixtureAgent() error {
 			fmt.Println("WERKBORD_STAGE 6 completed")
 			fmt.Println("Fixture findings report preserved")
 			fmt.Println(`WERKBORD_DRAFT {"key":"fixture-bug","title":"Review the reproducible fixture bug","description":"Reproduce the failure and validate the suggested fix with a focused test.","references":["fixture.go:12"]}`)
+		case "work-long":
+			fmt.Println("Inspecting source files and running the migration checks")
+			time.Sleep(30 * time.Second)
 		case "fail":
 			return fmt.Errorf("intentional fixture agent failure")
 		case "ask":

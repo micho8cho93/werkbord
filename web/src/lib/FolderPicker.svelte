@@ -5,7 +5,7 @@
   import Icon from './Icon.svelte';
   import Sheet from './Sheet.svelte';
 
-  let { value = $bindable(''), disabled = false }: { value?: string; disabled?: boolean } = $props();
+  let { value = $bindable(''), disabled = false, chooseWith }: { value?: string; disabled?: boolean; chooseWith?: () => Promise<string> } = $props();
   let open = $state(false);
   let busy = $state(false);
   let error = $state('');
@@ -20,6 +20,7 @@
     finally { busy = false; }
   }
   async function choose() {
+    if (chooseWith) { try { const path = await chooseWith(); if (path) value = path; } catch (e) { error = e instanceof Error ? e.message : String(e); } return; }
     if (desktop.available) {
       try { const path = await callDesktop<string>('ChooseDirectory', [], 0); if (path) value = path; return; }
       catch { /* Older desktop apps use the controller's folder browser. */ }
@@ -30,6 +31,7 @@
 </script>
 
 <button class="btn" type="button" {disabled} onclick={choose}><Icon name="folder" />Choose folder…</button>
+{#if chooseWith && error}<p class="error" role="alert">{error}</p>{/if}
 {#if open}
   <Sheet title="Choose a folder" onclose={() => open = false}>
     <p class="muted">Folders on the computer running Werkbord. Choose your Git repository.</p>

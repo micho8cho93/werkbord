@@ -67,7 +67,11 @@ export interface Project {
   liveOff?: boolean;
 }
 
+export interface RunContext { runId: string; agent?: string; runnerId?: string; runner?: string; activity?: string; choices?: string[]; retry?: boolean; stale?: boolean }
+export interface Readiness { id: string; title: string; project: string; state: string; reason?: string; at?: string; href: string }
+export interface PendingRepository { sourceRef: string; repository: string; title: string; from: string; github?: string }
 export interface WorkItem {
+  run?: RunContext;
   id: string;
   title: string;
   project: string;
@@ -92,6 +96,8 @@ export interface InboxQuestion {
 }
 
 export interface Attention {
+  next?: string;
+  run?: RunContext;
   id: string;
   kind: string;
   severity: Severity;
@@ -133,6 +139,9 @@ export interface RecentChanges { since: string; through: string; cursor: number;
 
 export interface QueueItem { id: string; title: string; project: string; href: string; group: 'now'|'next'|'later'|'done'|'plan'; detail?: string; owner?: string; mine?: boolean; plan?: string; priority?: 'low' | 'normal' | 'high'; agent?: AgentRef }
 export interface Summary {
+ pendingRepositories?: PendingRepository[];
+ readiness?: Readiness[];
+ runners?: { id: string; name: string }[];
  queue?: QueueItem[];
  /** Recent moves of branches of the workspace's repositories, as members reported them. */
  pushes?: { id: string; key: string; project: string; branch: string; sha: string; href: string; at: string; mine?: boolean }[];

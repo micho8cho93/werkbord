@@ -195,6 +195,7 @@ func (s Status) Valid() bool {
 
 // Item is a piece of the person's own work: a task of theirs, or a ticket they hold.
 type Item struct {
+	Run       *RunContext      `json:"run,omitempty"`
 	ID        string           `json:"id"`
 	Title     string           `json:"title"`
 	Project   string           `json:"project"`
@@ -269,12 +270,14 @@ func (s Severity) Valid() bool {
 
 // Attention is something that waits for the person, or that they should know about.
 type Attention struct {
-	ID       string   `json:"id"`
-	Kind     string   `json:"kind"`
-	Severity Severity `json:"severity"`
-	Title    string   `json:"title"`
-	Detail   string   `json:"detail,omitempty"`
-	Href     string   `json:"href,omitempty"`
+	Next     string      `json:"next,omitempty"`
+	Run      *RunContext `json:"run,omitempty"`
+	ID       string      `json:"id"`
+	Kind     string      `json:"kind"`
+	Severity Severity    `json:"severity"`
+	Title    string      `json:"title"`
+	Detail   string      `json:"detail,omitempty"`
+	Href     string      `json:"href,omitempty"`
 	// Project names the project it is about, when it is about one.
 	Project string    `json:"project,omitempty"`
 	At      time.Time `json:"at,omitempty"`
@@ -480,8 +483,11 @@ func (q QueueItem) valid() bool {
 }
 
 type Summary struct {
-	QueueIncomplete bool        `json:"queueIncomplete,omitempty"`
-	Queue           []QueueItem `json:"queue,omitempty"`
+	PendingRepositories []PendingRepository `json:"pendingRepositories,omitempty"`
+	Readiness           []Readiness         `json:"readiness,omitempty"`
+	Runners             []Machine           `json:"runners,omitempty"`
+	QueueIncomplete     bool                `json:"queueIncomplete,omitempty"`
+	Queue               []QueueItem         `json:"queue,omitempty"`
 
 	Changes *RecentChanges `json:"changes,omitempty"`
 	// Pushes are recent moves of branches of the workspace's repositories, so a member who cannot see GitHub hears of them too.
@@ -548,6 +554,9 @@ func Clip(s string, max int) string { return clip(s, max) }
 
 // Validate checks a whole summary as a strict reader would. It reports the first problem.
 func (s Summary) Validate() error {
+	if !s.validActivity() {
+		return errors.New("workspace: invalid activity context")
+	}
 	if !s.Changes.valid() {
 		return errors.New("workspace: invalid recent changes")
 	}
@@ -585,7 +594,7 @@ func (s Summary) Validate() error {
 		if a.Question != nil && (s.Workspace.Kind != KindIndividual || a.Kind != AttentionNeedsInput || !a.Question.valid()) {
 			return fmt.Errorf("workspace: question %q is not valid for this attention item", a.ID)
 		}
-		if !ValidID(a.ID) || !ValidID(a.Kind) || !a.Severity.Valid() || !plain(a.Title, MaxText) || a.Title == "" || !plain(a.Detail, MaxText) || !plain(a.Project, MaxName) || (a.Href != "" && !ValidHref(a.Href)) {
+		if !ValidID(a.ID) || !ValidID(a.Kind) || !a.Severity.Valid() || !plain(a.Title, MaxText) || a.Title == "" || !plain(a.Next, MaxText) || !plain(a.Detail, MaxText) || !plain(a.Project, MaxName) || (a.Href != "" && !ValidHref(a.Href)) {
 			return fmt.Errorf("workspace: attention %q is not valid", a.ID)
 		}
 	}
@@ -667,6 +676,7 @@ func (e Entry) validate() error {
 func (s Summary) Clean() (Summary, int) {
 	dropped := 0
 	out := s
+	out.cleanActivity()
 	if !out.Changes.valid() {
 		out.Changes = nil
 		dropped++
@@ -687,6 +697,9 @@ func (s Summary) Clean() (Summary, int) {
 	}
 	out.Work = make([]Item, 0, len(s.Work))
 	for _, it := range s.Work {
+		if !it.Run.valid() || s.Workspace.Kind != KindIndividual {
+			it.Run = nil
+		}
 		it.Title, it.Project = clip(it.Title, MaxText), clip(it.Project, MaxName)
 		if !it.Agent.valid() {
 			it.Agent = nil
@@ -699,12 +712,17 @@ func (s Summary) Clean() (Summary, int) {
 	}
 	out.Attention = make([]Attention, 0, len(s.Attention))
 	for _, a := range s.Attention {
+		if !a.Run.valid() || s.Workspace.Kind != KindIndividual {
+			a.Run = nil
+		}
+
 		if a.Question != nil && (s.Workspace.Kind != KindIndividual || a.Kind != AttentionNeedsInput || !a.Question.valid()) {
 			a.Question = nil
 		}
 		if a.Question != nil {
 			a.Question.Agent = clip(a.Question.Agent, MaxName)
 		}
+		a.Next = clip(a.Next, MaxText)
 		a.Title, a.Detail, a.Project = clip(a.Title, MaxText), clip(a.Detail, MaxText), clip(a.Project, MaxName)
 		if ValidID(a.ID) && ValidID(a.Kind) && a.Severity.Valid() && a.Title != "" && (a.Href == "" || ValidHref(a.Href)) && len(out.Attention) < MaxAttention {
 			out.Attention = append(out.Attention, a)

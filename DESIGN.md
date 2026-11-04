@@ -429,23 +429,24 @@ file drill-downs rather than treating the overview as evidence for text hidden e
 
 ### Analytics views
 
-Individual analytics uses Activity, Execution, Usage and Completion tabs. Activity compares created tasks and moves to
-Done over UTC days; Execution compares run outcomes; Usage compares measured tokens or API costs with reporting coverage;
-Completion keeps recorded assessments and separate completion signals visible. Each tab retains its own project and
-period filters. Provider filters belong to execution, usage and completion; runner filters apply to execution and usage.
-Activity's series choice and Usage's measure choice change the chart, rather than the underlying report scope. Individual's
-charts occupy separate panels with coloured top edges, tinted headers and identifying swatches. Activity pairs bounded
-animated daily bars with cumulative lines and areas, a daily heatmap and a Done / created ratio ring. The band between the
-cumulative totals shows their difference within the selected period, never an outstanding backlog. Done / created compares
-period counts, not the completion rate of the same task cohort; work created earlier can make it exceed 100%.
+The shared Analytics page has Work, Runs and usage, and Outcomes. The project picker scopes every view; the period applies to all three.
+Work compares created tasks and moves to Done over UTC days, duration, cumulative progress, categories and daily activity. Done / created
+compares period counts rather than one cohort: work created earlier can make the ratio exceed 100%.
 
-Execution has an outcome donut, normal-exit and retry rings, and provider and runner comparisons. A normal exit remains
-separate from verified completion. Usage pairs token or cost comparisons with reporting coverage, whose full scale is all
-attempts in the filtered period, and retains provider and runner comparisons. Completion shows an assessment ring beside
-accepted/rejected counts and separate completion-signal comparisons; these are separate evidence counts, not stages of one
-cohort. Exact daily values are available by pointer and keyboard, with execution breakdowns and complementary evidence
-in disclosures. Unknown measurements remain distinct from reported zero, and cost estimates are separate from reported
-costs. Chart reveals keep labels and exact values available immediately and respect reduced motion.
+Runs and usage reports Personal's execution evidence. Provider and runner filters narrow execution rows without refetching or changing
+Work/Outcomes totals. Tokens and API cost are separate measures; missing measurements remain unknown and reported zero remains zero.
+Reported costs and estimated equivalents are never added together. A keyboard-scrollable breakdown retains project, runner, provider,
+configured model, attempts, retries, measurements, coverage and limit notices. Daily usage trends show only with all providers and runners
+selected because the report does not split daily measurements by those dimensions.
+
+Outcomes shows assessments, moves to Done, normal session ends and controller-verified merges as separate evidence, never stages of one
+process. A normal session exit does not establish task completion. Team reports coordination only; execution and Personal completion
+evidence are unavailable when only a Team workspace is selected.
+
+Overview is the single place for attention. Incoming tickets waiting for a repository appear above the decisions. Questions and workspace
+notices have kind, runner and agent filters; blocker choices and failed-run retries are explicit actions checked against current runs.
+Running now offers expandable activity, and Agent schedules opens Calendar's readiness explanations. Alerts settings is a shortcut to each
+host's existing preferences. The former Feed tab has been removed after moving these functions to shared components.
 
 Team analytics uses Activity, Categories and Completion tabs, each with its own project and period. Category comparisons
 use current labels and explain that tickets may appear in multiple categories. Team exposes coordination evidence only.

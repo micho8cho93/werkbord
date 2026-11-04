@@ -93,7 +93,7 @@ Settings. The table below lists the navigation catalogue, rather than the initia
 
 | Key | Page | Reuses | Counts |
 | --- | --- | --- | --- |
-| Needs attention | `#/control` | the Needs attention page (`routes/ControlCenter.svelte`) | what needs you (the app's own count) |
+| Needs attention | `#/control` | the Needs attention page (`lib/work/WebOverview.svelte`) | what needs you (the app's own count) |
 | Calendar | `#/schedule` | `lib/mobile/Schedule.svelte`: Month and Week | |
 | Projects | `#/projects` | the Projects page, each project with what it asks of you | |
 | My Work | `#/mywork` | `lib/mobile/MyWork.svelte`, the board's status words | |

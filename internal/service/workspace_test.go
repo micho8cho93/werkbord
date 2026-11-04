@@ -156,3 +156,29 @@ func TestTheSummaryNamesTheAgentOnEachRunAndNeverCallsAQuietRunnersWorkFresh(t *
 		}
 	}
 }
+
+func TestWorkspaceSummaryRetainsFeedActionsAndActivity(t *testing.T) {
+	at := time.Now().UTC()
+	ov := &Overview{Runners: []domain.Runner{{ID: "runner_1", Name: "Office Mac"}}, Runs: []AttentionRun{{Run: domain.Run{ID: "run_1", ProjectID: "p_1", TaskID: "t_1", AgentID: "fixture", RunnerID: "runner_1", State: domain.RunBlocked, Activity: "Reading source\nChecking tests", UpdatedAt: at, Blocker: &domain.Blocker{Summary: "Choose a path", Options: []string{"Continue"}}}, ProjectName: "App", TaskTitle: "Change"}}, Failed: []AttentionRun{{Run: domain.Run{ID: "run_2", ProjectID: "p_1", TaskID: "t_2", State: domain.RunFailed, UpdatedAt: at}, ProjectName: "App", TaskTitle: "Failed"}}, Orchestration: []AttentionSchedule{{Task: domain.Task{ID: "t_3", ProjectID: "p_1", Title: "Queued"}, Decision: domain.SchedulingDecision{State: "waiting_capacity", Reason: "Runner is full"}}}}
+	sum := SummaryOf(ov, at)
+	if len(sum.Readiness) != 1 || sum.Readiness[0].Reason != "Runner is full" || sum.Readiness[0].At != nil {
+		t.Fatalf("readiness lost: %+v", sum.Readiness)
+	}
+	if sum.Work[0].Run == nil || sum.Work[0].Run.Activity != "Reading source Checking tests" || sum.Work[0].Run.Runner != "Office Mac" {
+		t.Fatalf("run context lost: %+v", sum.Work[0])
+	}
+	var choice, retry bool
+	for _, a := range sum.Attention {
+		if a.Run != nil {
+			choice = choice || len(a.Run.Choices) == 1
+			retry = retry || a.Run.Retry
+		}
+	}
+	if !choice || !retry {
+		t.Fatalf("blocker choices or failed-run retry missing: %+v", sum.Attention)
+	}
+	clean, dropped := sum.Clean()
+	if dropped != 0 || clean.Validate() != nil {
+		t.Fatalf("new context does not survive strict summary reader: dropped=%d error=%v", dropped, clean.Validate())
+	}
+}
