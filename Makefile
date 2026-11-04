@@ -85,7 +85,7 @@ test: web/node_modules
 	python3 scripts/test-release-hardening.py
 	WERKBORD_SKIP_RQLITE=1 $(GO) test -timeout 30m ./...
 	cd web && $(NPM) test
-	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs
+	node --test scripts/seed-browser-fixture.test.cjs scripts/team-mentions.test.cjs scripts/parity-checks.test.cjs
 	node --test relay/e2e/e2e.test.mjs relay/connector/test/lanes.test.mjs
 	cd relay/connector && node build.mjs && node --check dist/sw.js && node --check dist/connect/connect.js
 
@@ -369,3 +369,17 @@ test-work-order-browser: web web-embed web-shell build-team
 	BROWSER_SCRIPT=scripts/browser-plan-steps.cjs node scripts/test-browser.cjs
 	BROWSER_SCRIPT=scripts/browser-team-work-order.cjs node scripts/test-browser.cjs
 	BROWSER_SCRIPT=scripts/browser-team-agents.cjs node scripts/test-browser.cjs
+
+.PHONY: test-help-browser test-catch-up-browser test-attention-browser test-project-settings-gear-browser
+## test-help-browser: Help navigation with disposable projects and real waiting/review runs
+test-help-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-help.cjs node scripts/test-browser.cjs
+
+test-catch-up-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-catch-up.cjs node scripts/test-browser.cjs
+
+test-attention-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-attention.cjs node scripts/test-browser.cjs
+
+test-project-settings-gear-browser: web-shell
+	node scripts/browser-project-context.cjs

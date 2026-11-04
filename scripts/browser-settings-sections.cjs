@@ -23,10 +23,10 @@ const ok = msg => console.log('PASS ' + msg);
     await page.goto(base + '/#/settings');
     const nav = page.getByRole('navigation', { name: 'Settings sections' });
     await page.getByRole('group', { name: 'Theme', exact: true }).waitFor();
-    assert.equal(await nav.getByRole('link', { name: 'Appearance', exact: true }).getAttribute('aria-current'), 'page', 'Settings opens on Appearance, as the window does');
+    assert.equal(await nav.getByRole('button', { name: 'Appearance', exact: true }).getAttribute('aria-current'), 'page', 'Settings opens on Appearance, as the window does');
     const groups = await nav.getByRole('heading').allInnerTexts();
     assert.deepEqual(groups, ['General', 'Projects & workspaces', 'Work', 'Machines', 'Connections'], 'one list of groups, one Projects & workspaces');
-    const links = await nav.getByRole('link').allInnerTexts();
+    const links = await nav.getByRole('button').allInnerTexts();
     assert.deepEqual(links.slice(0, 3), ['Appearance', 'Alerts', 'Keyboard shortcuts']);
     for (const absent of ['Updates & about', 'Plan', 'Workspaces', 'Alerts and display']) assert(!links.includes(absent), absent + ' is not offered in a browser');
     assert(links.includes('Time format') && links.includes('Task defaults'));
@@ -38,12 +38,12 @@ const ok = msg => console.log('PASS ' + msg);
     assert.equal(await page.locator('html').getAttribute('data-style'), 'plum');
     ok('Appearance sets the theme and the style');
 
-    await nav.getByRole('link', { name: 'Keyboard shortcuts', exact: true }).click();
+    await nav.getByRole('button', { name: 'Keyboard shortcuts', exact: true }).click();
     const keys = await page.getByTestId('shortcut-list').innerText();
     assert.match(keys, /(⌘|Ctrl\+)K/); assert.match(keys, /Fold or show the sidebar/);
     ok('Keyboard shortcuts lists the keys that work everywhere');
 
-    await nav.getByRole('link', { name: 'Alerts', exact: true }).click();
+    await nav.getByRole('button', { name: 'Alerts', exact: true }).click();
     await page.getByRole('heading', { name: 'Alerts', exact: true }).first().waitFor();
     assert.equal(await page.getByRole('group', { name: 'Theme', exact: true }).count(), 0, 'Theme is Appearance’s, not Alerts’');
     await page.goto(base + '/#/settings?defaults');

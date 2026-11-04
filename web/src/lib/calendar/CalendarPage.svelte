@@ -13,7 +13,8 @@
   // The Calendar page, drawn once for the Mac window page and for the web app: scheduled and planned work, the No date tray, and the sheet
   // that edits one item. It knows nothing about where the work comes from. Each side hands it the overview to draw, how to read and change a
   // task (`call`), how to read the overview again after a change (`refresh`), and what opening a task does (`open`).
-  let { overview, call, refresh, open: goTo, lede = 'Scheduled and planned work across all projects' }: {
+  let { overview, call, refresh, open: goTo, task = '', lede = 'Scheduled and planned work across all projects' }: {
+    task?: string;
     overview: Overview | null;
     call: (workspace: string, href: string, operation: PlanningOperation, payload?: Record<string, unknown>) => Promise<PlanningItem>;
     refresh: () => Promise<unknown>;
@@ -79,7 +80,7 @@
 </script>
 <section class="page" aria-labelledby="cal-h">
   <header><h1 id="cal-h">Calendar</h1><p class="lede">{lede}</p></header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} remember="window-calendar" onopen={id => void open(id)} onmove={move} />{/if}
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} focus={rows.find(r => r.id.split('/')[1] === task)?.id ?? ''} remember="window-calendar" onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}

@@ -7,7 +7,7 @@ const { chromium } = require('../web/node_modules/playwright');
 const root = path.resolve(__dirname, '..'), temp = fs.mkdtempSync(path.join(os.tmpdir(), 'werkbord-shell-browser-'));
 const children = []; let browser, testPage;
 const delay = ms => new Promise(r => setTimeout(r, ms));
-function run(cmd, args) { const r = cp.spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 180000 }); if (r.status !== 0) throw Error(r.stderr || r.stdout); return r.stdout; }
+function run(cmd, args) { const r = cp.spawnSync(cmd, args, { cwd: root, encoding: 'utf8', timeout: 180000 }); if (r.status !== 0) throw Error(`${cmd} ${args.join(' ')} failed (status=${r.status}, signal=${r.signal}, error=${r.error?.message || 'none'})\n${r.stderr}\n${r.stdout}`); return r.stdout; }
 function spawn(cmd, args, env = {}, cwd = root) { const p = cp.spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] }); p.diagnostics = ''; p.stdout.on('data', d => p.diagnostics += d); p.stderr.on('data', d => p.diagnostics += d); children.push(p); return p; }
 async function port() { const s = net.createServer(); s.listen(0, '127.0.0.1'); await once(s, 'listening'); const p = s.address().port; await new Promise(r => s.close(r)); return p; }
 async function wait(fn, label, tenths = 900) { for (let i = 0; i < tenths; i++) { for (const c of children) if (c.exitCode !== null) throw Error(c.diagnostics); if (await fn()) return; await delay(100); } throw Error('Timed out: ' + label); }
@@ -324,7 +324,8 @@ async function api(base, token, method, url, body) { const r = await fetch(base 
  await wait(async () => await inline.getByRole('button', {name:'No',exact:true}).isEnabled({timeout:2000}).catch(() => false), 'reconnected answer enabled');
  await inline.getByRole('button', { name: 'No', exact: true }).click();
  await wait(async () => (await api(individualURL, full, 'GET', `/api/projects/${localProject.id}/runs/${active.id}`)).waiting === 'idle', 'inline answer reaches the runner');
- assert.equal(await inline.count(), 0, 'settled question closes its editor');
+ // The runner can persist its answer before the relay response updates Svelte. Wait for that visible outcome too.
+ await inline.waitFor({ state: 'detached' });
  await capture('workspaces');
  console.log('PASS inline Individual answer, no focused choice, stale disabling, reconnect, delivery and responsive Workspaces attention');
  await page.setViewportSize({ width: 480, height: 844 });

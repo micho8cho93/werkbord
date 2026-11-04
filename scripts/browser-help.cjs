@@ -20,8 +20,8 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
   page.on('pageerror', (error) => errors.push(error.message));
   try {
     await page.goto(`${base}/#token=${token}`);
-    await page.getByRole('link', { name: 'Help', exact: true }).waitFor();
-    await page.getByRole('link', { name: 'Help', exact: true }).click();
+    await page.getByRole('link', { name: 'Help and keyboard shortcuts', exact: true }).waitFor();
+    await page.getByRole('link', { name: 'Help and keyboard shortcuts', exact: true }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
     assert.equal(await page.locator('.guides > li').count(), 10, 'desktop Help lists all bundled guides');
 
@@ -38,35 +38,37 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     await page.keyboard.press('Control+k');
     await page.getByRole('dialog', { name: 'Jump to' }).waitFor();
     await page.locator('#jt-search').fill('help');
-    assert.equal(await page.locator('#jt-list [role=option]').count(), 1, 'Jump to finds the bundled Help destination');
-    await page.keyboard.press('Enter');
+    await page.locator('#jt-list [role=option]').filter({ hasText: 'Help' }).first().click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
 
     await page.goto(`${base}/#token=${token}`);
     await page.goto(`${base}/#/p/${projects.review}/work?section=queue`);
-    await page.getByRole('heading', { name: 'Second repo' }).waitFor();
-    await page.getByRole('link', { name: 'Help', exact: true }).click();
+    await page.getByTestId('project-context').filter({ hasText: 'Second repo' }).waitFor();
+    await page.getByRole('link', { name: 'Help and keyboard shortcuts', exact: true }).click();
     await page.getByRole('link', { name: 'Open project work' }).first().click();
-    assert.match(page.url(), new RegExp(`/p/${projects.review}/runs$`), 'repository guide returns to a repository view');
+    await page.waitForURL(new RegExp(`/p/${projects.review}/work$`));
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`${base}/#/p/${projects.work}/work?section=queue`);
     await page.getByRole('heading', { name: 'Venue search' }).waitFor();
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
+    // The phone's Help entry lives on the Control Deck.
+    await page.goto(`${base}/#/deck`);
+    await page.getByRole('link', { name: 'Help and shortcuts', exact: true }).click();
     await page.getByRole('link', { name: 'Open planning or schedule' }).click();
-    assert.match(page.url(), new RegExp(`/p/${projects.work}/calendar$`), 'work guide links to Calendar for planned dates');
+    assert.match(page.url(), new RegExp(`#/calendar$`), 'work guide links to Calendar for planned dates');
 
     await page.goto(`${base}/#/p/${projects.review}/work?section=queue`);
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
+    // The phone's Help entry lives on the Control Deck.
+    await page.goto(`${base}/#/deck`);
+    await page.getByRole('link', { name: 'Help and shortcuts', exact: true }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
     assert.match(page.url(), /#\/help$/);
     assert.equal(await page.getByRole('searchbox', { name: 'Search Help and shortcuts' }).count(), 1, 'phone can search Help');
 
     await page.goto(`${base}/#/settings?defaults`);
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: 'Help' }).click();
+    // The phone's Help entry lives on the Control Deck.
+    await page.goto(`${base}/#/deck`);
+    await page.getByRole('link', { name: 'Help and shortcuts', exact: true }).click();
     await page.getByRole('heading', { name: 'Find the next step' }).waitFor();
     assert.match(page.url(), /#\/help$/);
 
@@ -100,7 +102,7 @@ const projects = JSON.parse(fs.readFileSync(projectsPath, 'utf8'));
     await touchContext.close();
 
     assert.deepEqual(errors, [], 'Help navigation has no JavaScript errors');
-    console.log('Help browser flows passed: desktop rail, Jump to, bundled search, repository/work links, phone More, Settings link, keyboard focus, coarse-pointer targets and reduced-motion preference.');
+    console.log('Help browser flows passed: desktop rail, Jump to, bundled search, repository/work links, phone Control Deck, Settings return, keyboard focus, coarse-pointer targets and reduced-motion preference.');
   } finally {
     await browser.close();
   }

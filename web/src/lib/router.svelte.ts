@@ -18,10 +18,15 @@ class Router {
 
   constructor() {
     window.addEventListener('hashchange', () => this.read());
+    this.read();
   }
 
   private read() {
     const loc = parse(location.hash);
+    if (/^#\/p\/[^/]+\/(calendar|timeline)(?:[?&]|$)/.test(location.hash)) {
+      history.replaceState(null, '', location.pathname + location.search + hrefOf(loc));
+      window.dispatchEvent(new Event('werkbord:place'));
+    }
     this.view = loc.view;
     this.projectId = loc.projectId;
     this.taskId = loc.taskId;

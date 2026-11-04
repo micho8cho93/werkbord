@@ -377,7 +377,7 @@ import { calendarHref as calendarPage, globalHref, projectHref, router, taskHref
     return withChain(`${projectHref(project.id, 'work')}?plan=${encodeURIComponent(parentPlan.id)}`, here);
   });
   const scheduledAt = $derived(task?.orchestration?.enabled ? task.orchestration.scheduledAt : undefined);
-  const calendarHref = $derived(task && scheduledAt ? withChain(calendarPage(project.id), here) : '');
+  const calendarHref = $derived(task && scheduledAt ? withChain(calendarPage(project.id) + '&task=' + encodeURIComponent(task.id), here) : '');
   const scheduledText = $derived(scheduledAt ? new Date(scheduledAt).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
   const gitHref = $derived(run?.branch && !run.remote ? branchHref(project.id, 'local', run.branch) : '');
   /** The run set-up is open for a task with no run yet, and when the next action asks for it; the person's own choice wins. */

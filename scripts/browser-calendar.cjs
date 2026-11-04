@@ -84,6 +84,50 @@ async function drag(page, from, to) {
     assert.equal(await page.getByTestId('project-context').innerText().then(t => t.includes('Release planning')), true, 'the picker names the project');
     ok('the project picker scopes the Calendar, as it does in the window');
 
+    // Leave a different month behind: the task parameter must override remembered calendar position.
+    await page.getByRole('button', { name: 'Next period', exact: true }).click();
+    await page.getByRole('button', { name: 'Next period', exact: true }).click();
+    await page.goto(base + '/#/calendar?project=' + billing.id + '&task=' + planned.id);
+    await page.locator(`[data-plan-item="personal/${planned.id}/plan"].highlighted`).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Week', exact: true }).getAttribute('aria-pressed'), 'true');
+    ok('a task deep link anchors its week and highlights the entry');
+
+    // Empty project scope must stay empty rather than falling back to all projects.
+    const empty = await api('POST', '/projects', { name: 'Empty calendar', kind: 'work' });
+    await page.goto(base + '/#/calendar?project=' + empty.id);
+    await page.getByRole('heading', { name: 'Calendar', exact: true }).waitFor();
+    await page.getByText('Scheduled and planned work in Empty calendar').waitFor();
+    assert.equal(await page.locator('[data-plan-item]').count(), 0);
+    ok('an empty project scope shows no work from other projects');
+
+    fs.mkdirSync(process.env.BROWSER_ARTIFACT_DIR, { recursive: true });
+    for (const width of [1440, 900]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(() => localStorage.setItem('werkbord.theme', 'dark'));
+      await page.goto(base + '/#/calendar');
+      await page.reload();
+      await page.getByRole('heading', { name: 'Calendar', exact: true }).waitFor();
+      for (const view of ['Week', 'List', 'Month']) {
+        await page.getByRole('button', { name: view, exact: true }).click();
+        assert.equal(await page.getByRole('button', { name: view, exact: true }).getAttribute('aria-pressed'), 'true');
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Calendar has no horizontal page overflow');
+        assert(await page.locator('.planning-calendar .scroll').evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'all seven days fit inside the Calendar');
+        await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `calendar-dark-${width}-${view}.png`) });
+      }
+      await page.goto(base + '/#/analytics');
+      await page.getByRole('heading', { name: 'Analytics', exact: true }).waitFor();
+      await page.getByText('Loading analytics…', { exact: true }).waitFor({ state: 'hidden' });
+      for (const view of ['Work', 'Runs and usage']) {
+        await page.getByRole('button', { name: view, exact: true }).click();
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Analytics has no horizontal page overflow');
+        await page.screenshot({ path: path.join(process.env.BROWSER_ARTIFACT_DIR, `analytics-dark-${width}-${view}.png`) });
+      }
+    }
+    ok('Calendar month, week and list, and Analytics fit dark mode at 1440px and 900px');
+    for (const retired of ['calendar', 'timeline']) {
+      await page.goto(base + '/#/p/' + billing.id + '/' + retired);
+      await page.waitForURL(base + '/#/p/' + billing.id + '/work');
+    }
     await page.goto(base + '/#/p/' + billing.id + '/calendar');
     await side.locator('a[aria-current="page"]', { hasText: 'Work' }).waitFor();
     ok('an old project calendar link lands on that project’s Work');

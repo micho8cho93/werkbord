@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsGroups from '../lib/settings/SettingsGroups.svelte';
   import UsageSettings from '../lib/UsageSettings.svelte';
   import ClientsPanel from '../lib/ClientsPanel.svelte';
   import ProjectHistory from '../lib/ProjectHistory.svelte';
@@ -156,16 +157,7 @@
   <aside class="column">
   <h1 class="title">Settings</h1>
   <nav class="sections" aria-label="Settings sections">
-    {#each shownGroups as group (group.label)}
-      <div class="section-group" role="group" aria-label={group.label}>
-        <h2>{group.label}</h2>
-        <div class="section-links">
-          {#each group.sections as s (s.key)}
-            <a href={href(s.key)} aria-current={section === s.key ? 'page' : undefined}>{s.label}</a>
-          {/each}
-        </div>
-      </div>
-    {/each}
+    <SettingsGroups groups={shownGroups.map(g => ({ ...g, sections: g.sections.map(s => ({ id: s.key, label: s.label })) }))} selected={section} onselect={id => { location.hash = href(id); }} />
   </nav>
   </aside>
 
@@ -307,11 +299,6 @@
   .mcp-direction { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
   .mcp-direction button { white-space: normal; min-height: 44px; }
   .mcp-direction [aria-pressed="true"] { color: var(--accent); background: var(--surface-2); }
-  .section-group + .section-group { margin-top: 24px; }
-  /* A group heading names what is under it and is not pressable; its sections are indented beneath it on a rule. */
-  .section-group h2 { margin: 0 12px 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font: 600 13px var(--font); letter-spacing: 0; text-transform: none; color: var(--text); }
-
-  .section-links { display: flex; flex-direction: column; gap: 2px; }
   .settings {
     height: 100%;
     min-height: 0;
@@ -335,31 +322,6 @@
   /* In the window: one section, no list of its own (the window's Settings has it). */
   .settings.framed { display: block; height: auto; }
   .settings.framed .column, .settings.framed .mobile-section { display: none; }
-
-  .sections a {
-    display: flex;
-    align-items: center;
-    min-height: 34px;
-    margin: 0 12px 0 20px;
-    padding: 0 10px;
-    border-left: 2px solid var(--border);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    color: var(--text-2);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-  }
-
-  .sections a:hover {
-    color: var(--text);
-  }
-
-  .sections a[aria-current='page'] {
-    border-left-color: var(--accent);
-    background: var(--surface-2);
-    color: var(--text);
-    font-weight: 600;
-  }
 
   .content {
     min-height: 0;
@@ -459,7 +421,6 @@
 
     .mobile-section select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-    .section-group { flex: none; }
 
     .content {
       overflow: visible;

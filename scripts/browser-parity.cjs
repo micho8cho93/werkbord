@@ -8,6 +8,7 @@
 // Environment: PARITY_ONLY=work,settings limits the screens; PARITY_OUT=dir moves the report; PARITY_THEME=dark checks dark; PARITY_WIDTH=900 checks the narrowest desktop window (below 900px the web app is the phone UI, which is not compared);
 // PARITY_STRICT=1 makes any difference that is not in scripts/parity-allowed.json an error (that is what make check will run).
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
+const { duplicateHeadings, layoutDrift } = require('./test-support/parity-checks.cjs');
 const root = path.resolve(__dirname, '..');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright'));
 const personalURL = process.env.PERSONAL_BROWSER_URL, shellPort = Number(new URL(process.env.PLANNING_SHELL_URL).port);
@@ -67,7 +68,12 @@ function collect() {
 }
 // The shell page has the web app in a frame: both documents are one screen to a person.
 async function read(page) {
-  const all = [];
+  const all = [], headings = [];
+  for (const frame of page.frames()) {
+    headings.push(...await frame.locator('h1:visible').allTextContents());
+  }
+  const duplicates = duplicateHeadings(headings);
+  if (duplicates.length) throw Error('Duplicate visible h1: ' + [...new Set(duplicates)].join(', '));
   for (const f of page.frames()) { try { all.push(...await f.evaluate(collect)); } catch (_) { /* a frame that is going away */ } }
   return [...new Set(all)];
 }
@@ -182,10 +188,18 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
           }
           await sleep(1200);
           row[side] = await read(page);
+          row[side + 'Layout'] = {
+            sidebar: await page.getByTestId('sidebar').boundingBox(),
+            page: await page.locator(side === 'window' ? '.content' : '.main-area').first().boundingBox(),
+          };
           await page.screenshot({ path: path.join(out, `${s.id}-${side}.png`) });
         } catch (e) { row[side + 'Error'] = String(e.message).split('\n')[0]; row[side] = row[side] || []; }
         finally { await ctx.close(); }
         row[side] ||= [];
+      }
+      if (row.windowLayout && row.webLayout) {
+        row.layoutDrift = layoutDrift(row.windowLayout, row.webLayout);
+        if (row.layoutDrift.length) row.webError = 'Layout drift: ' + row.layoutDrift.join('; ');
       }
       row.diff = diff(row.window, row.web);
       report.push(row);
@@ -217,5 +231,6 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
   fs.writeFileSync(path.join(out, 'report.md'), md.join('\n') + '\n');
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(report, null, 1));
   console.log(`Parity report: ${path.join(out, 'report.md')} (${unexpected} difference${unexpected === 1 ? '' : 's'} not allowed)`);
-  if (strict && unexpected) { console.error('Parity failed: see the report.'); process.exitCode = 1; }
+  const duplicateH1 = report.some(r => [r.windowError, r.webError].some(error => error?.startsWith('Duplicate visible h1:')));
+  if ((strict && unexpected) || duplicateH1) { console.error('Parity failed: see the report.'); process.exitCode = 1; }
 })().catch(e => { console.error(e.stack || e.message); process.exitCode = 1; });

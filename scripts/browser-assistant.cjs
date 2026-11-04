@@ -683,6 +683,8 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
             assert.equal(attachCalls.length, 0, 'nothing has left the page before the person says yes');
             await page.screenshot({ path: path.join(artifacts, 'assistant-authorize.png') });
             await ask.getByRole('button', { name: 'Share' }).click();
+            // Creating the session rekeys its content; an outgoing chip can remain during its transition.
+            await page.waitForFunction(() => document.querySelectorAll('.file[data-state="ready"]').length === 1);
             await page.locator('.file[data-state="ready"]').waitFor();
             assert.deepEqual(attachCalls.map(c => [c.method, c.auth]), [['POST', 'true']]);
             assert.equal(decodeURIComponent(attachCalls[0].name), 'plan notes.md');

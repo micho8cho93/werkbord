@@ -53,7 +53,7 @@ async function cleanup() {
     // Screenshots are useful after both success and failure. They contain only fixtures.
     console.log('Browser artifacts: ' + artifacts);
     fs.rmSync(path.join(artifacts, 'active-token.txt'), { force: true });
-    for (const name of ['team-data', 'owner-token.txt', 'fixture', 'repo']) fs.rmSync(path.join(temp, name), { recursive: true, force: true });
+    for (const name of ['team-data', 'owner-token.txt', 'fixture', 'repo', 'help-seed']) fs.rmSync(path.join(temp, name), { recursive: true, force: true });
 }
 (async () => {
     const repo = path.join(temp, 'repo'); fs.mkdirSync(repo);
@@ -63,7 +63,7 @@ async function cleanup() {
     run('go', ['build', '-o', fixture, './scripts/browser-fixture'], {}, true);
     const shellURL = 'http://127.0.0.1:' + await port();
     const individualURL = 'http://127.0.0.1:' + await port();
-    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1', WERKBORD_BROWSER_ASSISTANT: process.env.BROWSER_MOTION_ONLY === '1' ? '1' : '', WERKBORD_BROWSER_SHELL_ORIGIN: shellURL });
+    const individual = serve(fixture, [], { WERKBORD_BROWSER_ADDR: new URL(individualURL).host, WERKBORD_BROWSER_EXECUTION: '1', WERKBORD_BROWSER_ASSISTANT: process.env.BROWSER_MOTION_ONLY === '1' || process.env.BROWSER_SCRIPT === 'scripts/browser-catch-up.cjs' ? '1' : '', WERKBORD_BROWSER_SHELL_ORIGIN: shellURL });
     await ready(individual, individualURL + '/api/health');
     const teamURL = 'http://127.0.0.1:' + await port();
     // The suites make teams of more than two people, so this Team is built as Premium. -X main.testPremium=1 exists only for the
@@ -79,6 +79,13 @@ async function cleanup() {
     const team = serve(teamBinary, ['serve'], teamEnv);
     await ready(team, teamURL + '/api/team/v1/health');
     const testEnv = { PLANNING_SHELL_URL: shellURL, PERSONAL_BROWSER_URL: individualURL, TEAM_BROWSER_URL: teamURL, TEAM_BROWSER_TOKEN: '', TEAM_BROWSER_TOKEN_FILE: tokenFile, WERKBORD_BROWSER_REPO: repo, BROWSER_ARTIFACT_DIR: artifacts, PLAYWRIGHT_MODULE: process.env.PLAYWRIGHT_MODULE || path.join(root, 'web/node_modules/playwright') };
+    if (process.env.BROWSER_SCRIPT === 'scripts/browser-help.cjs') {
+      const seedDir = path.join(temp, 'help-seed');
+      const projectsFile = path.join(temp, 'projects.json');
+      const projects = run(process.execPath, ['scripts/seed-browser-fixture.cjs'], { ...testEnv, SEED_DIR: seedDir }, true);
+      fs.writeFileSync(projectsFile, projects);
+      testEnv.SEED_PROJECTS = projectsFile;
+    }
     // One script, for working on a single screen: BROWSER_SCRIPT=scripts/browser-phone-fit.cjs node scripts/test-browser.cjs
     if (process.env.BROWSER_SCRIPT) { run(process.execPath, [process.env.BROWSER_SCRIPT], testEnv); return; }
     if (process.env.BROWSER_INDIVIDUAL_ONLY === '1') { run(process.execPath, ['scripts/browser-individual.cjs'], testEnv); run(process.execPath, ['scripts/browser-task-panel.cjs'], testEnv); return; }

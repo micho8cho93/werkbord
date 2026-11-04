@@ -34,7 +34,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.url.startsWith('/frame')) {
     res.setHeader('Content-Type', 'text/html');
-    res.end(`<html><body>Fixture workspace<script>parent.postMessage({type:'werkbord.frame',event:'ready'},'*');addEventListener('message',e=>{if(e.data.type==='werkbord.assistant'&&e.data.action==='open'){document.body.textContent='Salie · '+(e.data.projectContext?.label??'All Projects'); parent.postMessage({type:'werkbord.frame',event:'assistant',open:true,waiting:0,running:false},'*')}});parent.postMessage({type:'werkbord.frame',event:'assistant',open:false,waiting:0,running:false},'*')</script></body></html>`); return;
+    res.end(`<html><body>Fixture workspace<script>parent.postMessage({type:'werkbord.frame',event:'ready'},'*');addEventListener('message',e=>{if(e.data.type==='werkbord.navigate')window.__lastNavigation=e.data.href;if(e.data.type==='werkbord.assistant'&&e.data.action==='open'){document.body.textContent='Salie · '+(e.data.projectContext?.label??'All Projects'); parent.postMessage({type:'werkbord.frame',event:'assistant',open:true,waiting:0,running:false},'*')}});parent.postMessage({type:'werkbord.frame',event:'assistant',open:false,waiting:0,running:false},'*')</script></body></html>`); return;
   }
   const url = req.url === '/' ? '/shell/index.html' : req.url.split('?')[0];
   const file = path.join(root, url);
@@ -56,6 +56,15 @@ const server = http.createServer(async (req, res) => {
     const optionCount = async () => { await picker.click(); const n = await page.locator('#project-listbox [role="option"]').count(); await page.keyboard.press('Escape'); return n; };
     const load = async () => { await page.goto(url); await picker.waitFor(); await picker.click(); await page.locator('#project-listbox').getByText('Project one').first().waitFor(); await page.keyboard.press('Escape'); };
     await load();
+    const gear = page.getByRole('button', { name: 'Project settings: defaults for Project one', exact: true });
+    assert.equal(await page.getByRole('button', { name: /^Project settings: defaults for/ }).count(), 0, 'All Projects has no settings gear');
+    await chooseProject(page, JSON.stringify(['personal', 'one']));
+    await gear.click();
+    await page.waitForFunction(() => [...document.querySelectorAll('iframe')].some(f => f.contentWindow?.__lastNavigation === '#/p/one/defaults' || f.contentWindow?.location.hash === '#/p/one/defaults'));
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Work', exact: true }).click();
+    await chooseProject(page, '');
+    assert.equal(await page.getByRole('button', { name: /^Project settings: defaults for/ }).count(), 0);
+    console.log('PASS Work project-settings gear opens the selected project defaults and is absent for All Projects');
     assert.deepEqual((await page.locator('[data-testid="sidebar"] .destinations button').allTextContents()).map(s => s.trim()), ['Work', 'Calendar', 'Git', 'Agents', 'Analytics']);
     assert.equal(await optionCount(), 2);
     for (const scenario of [

@@ -12,7 +12,7 @@
    * calendar in a small panel: one week, and no tray. Each item is an element with data-plan-item, and each day a cell with data-plan-day,
    * which is how a drag finds where it was dropped (planning-drag.js).
    */
-  let { rows, undated = [], dense = false, onopen, onmove, remember = '' }: { rows: CalendarRow[]; undated?: CalendarRow[]; dense?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void>; remember?: string } = $props();
+  let { rows, undated = [], dense = false, onopen, onmove, remember = '', focus = '' }: { rows: CalendarRow[]; undated?: CalendarRow[]; dense?: boolean; onopen?: (id: string) => void; onmove?: (drop: DateDrop) => Promise<void>; remember?: string; focus?: string } = $props();
 
   type View = 'month' | 'week' | 'list';
   let surface = $state<HTMLElement>();
@@ -20,6 +20,11 @@
   $effect(() => leaveWeek(remember, anchor));
   // A month is seven columns: too narrow to read or tap on a phone, where the list is what shows until the person picks a view.
   let chosen = $state<View | null>(null);
+  let anchored = $state('');
+  $effect(() => {
+    const item = rows.find(r => r.id === focus);
+    if (item && anchored !== focus) { anchor = item.start; chosen = 'week'; anchored = focus; }
+  });
   let narrow = $state(false);
   $effect(() => {
     if (typeof matchMedia !== 'function') return;
@@ -130,7 +135,7 @@
 
 {#snippet chip(r: CalendarRow, continues: boolean, goesOn: boolean, full: boolean, at?: { col: number; span: number; lane: number })}
   <button
-    class="event cc" class:full class:continues class:goes-on={goesOn} class:done={r.status === 'done'} class:placed={!!at}
+    class="event cc" class:highlighted={r.id === focus} class:full class:continues class:goes-on={goesOn} class:done={r.status === 'done'} class:placed={!!at}
     style:--bar={colour(r.project)}
     style:grid-column={at ? `${at.col + 1} / span ${at.span}` : undefined} style:grid-row={at ? at.lane + 2 : undefined}
     data-status={r.status} data-kind={r.kind} data-plan-item={onmove ? r.id : undefined} data-plan-start={r.start} data-plan-end={r.end}
@@ -236,7 +241,7 @@
   /* A week is one grid: a row of day numbers, then a row for each lane of bars, with the day cells behind all of it so a bar lies
      across the days it covers instead of repeating in each. */
   .grid { display: flex; flex-direction: column; min-height: 100%; }
-  .week { flex: 1 0 auto; display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); min-width: 1050px; min-height: 7.5rem; }
+  .week { flex: 1 0 auto; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; min-height: 7.5rem; }
   .grid.month .week { grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
   .day { grid-row: 1 / -1; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 6px 0; display: flex; flex-direction: column; min-width: 0; background: var(--surface); }
   .day:nth-child(7n) { border-right: 0; }
@@ -249,6 +254,7 @@
   /* An item: a soft card tinted with its project's colour, the time first when it has one, then its title. */
   .cc { --bar: var(--accent); display: block; width: 100%; min-width: 0; padding: 4px 8px 4px 10px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--bar) 12%, var(--surface)); box-shadow: inset 3px 0 0 var(--bar); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; transition: background 120ms, box-shadow 120ms, transform 120ms; }
   .cc:hover { background: color-mix(in srgb, var(--bar) 20%, var(--surface)); box-shadow: inset 3px 0 0 var(--bar), 0 2px 8px color-mix(in srgb, var(--text) 12%, transparent); }
+  .cc.highlighted { outline: 2px solid var(--accent); outline-offset: 1px; }
   .cc:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .cc .line { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; }
   .cc strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -265,8 +271,8 @@
   .cc.placed.continues { margin-left: 0; box-shadow: none; }
   .cc.placed.goes-on { margin-right: 0; }
   .cc.full { padding: 7px 10px 7px 12px; }
-  .cc.full strong { white-space: normal; }
-  .cc small { display: block; margin-top: 2px; color: var(--text-2); font-size: 11.5px; text-transform: capitalize; }
+  .cc.full strong { white-space: normal; overflow-wrap: anywhere; }
+  .cc small { overflow-wrap: anywhere; display: block; margin-top: 2px; color: var(--text-2); font-size: 11.5px; text-transform: capitalize; }
   .cc[data-kind='scheduled'] { background: color-mix(in srgb, var(--warn) 10%, var(--surface)); box-shadow: inset 3px 0 0 var(--warn); }
   .more { align-self: start; justify-self: start; margin: 0 5px; border: 0; background: none; padding: 0 4px; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
   .more:hover { color: var(--text); text-decoration: underline; }

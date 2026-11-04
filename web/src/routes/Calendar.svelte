@@ -14,6 +14,6 @@
   $effect(() => { const timer = setInterval(() => void workSummary.refresh(), 15_000); return () => clearInterval(timer); });
 </script>
 
-<CalendarPage {overview} call={(_workspace, href, operation, payload) => planningOperation(href, operation, payload)} refresh={() => workSummary.refresh(true)}
+<CalendarPage {overview} task={new URLSearchParams(router.query).get('task') ?? ''} call={(_workspace, href, operation, payload) => planningOperation(href, operation, payload)} refresh={() => workSummary.refresh(true)}
   open={(_workspace, href) => { location.hash = href; }}
   lede={project ? `Scheduled and planned work in ${app.project(project)?.name ?? 'this project'}` : undefined} />
