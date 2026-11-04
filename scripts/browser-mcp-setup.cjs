@@ -14,14 +14,10 @@ assert(base, 'Requires a disposable fixture');
   try {
     await fetch(base + '/api/onboarding/complete', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: '{}' });
     await page.goto(base + '/#token=' + token);
-    await page.getByRole('link', { name: 'Settings', exact: true }).waitFor();
-    await page.goto(base + '/#/settings?mcp');
-    // Signing in with the token can reset the address on a slow machine; if it did, take the same route a person would.
+    // Use the shared Settings navigation, whose section controls are buttons.
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'MCP services', exact: true }).click();
     const paste = page.getByText('Have an MCP configuration? Paste it here');
-    await paste.waitFor({ timeout: 5000 }).catch(async () => {
-      await page.getByRole('link', { name: 'Settings', exact: true }).click();
-      await page.getByRole('link', { name: 'MCP services', exact: true }).click();
-    });
     await paste.click();
     await page.getByRole('textbox', { name: 'MCP configuration', exact: true }).fill(JSON.stringify({ mcpServers: { 'Fixture service': { url: base + '/mcp' } } }));
     await page.getByRole('button', { name: 'Fill in connection', exact: true }).click();
