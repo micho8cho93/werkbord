@@ -20,7 +20,7 @@
   import { continuityOf } from '../lib/continuity';
   import RunReviewSummary from '../lib/RunReviewSummary.svelte';
   import RunUsage from '../lib/RunUsage.svelte';
-import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
+import { calendarHref as calendarPage, globalHref, projectHref, router, taskHref } from '../lib/router.svelte';
   import Crumbs from '../lib/Crumbs.svelte';
   import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
   import { goOrigin, originHref } from '../lib/origin-nav';
@@ -59,7 +59,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     if (given.length) return given;
     return [planParam ? { kind: 'plan', projectId: project.id, planId: planParam } : { kind: 'board', projectId: project.id }];
   });
-  const backHref = $derived(originHref(chain[0], chain.slice(1), router.taskId));
+  const backHref = $derived(originHref(chain[0], chain.slice(1)));
   let plans = $state<WorkPlan[]>([]);
   // The plans are read to know the task's parent plan, if it has one; a task needs none. A paired phone may not read plans.
   $effect(() => {
@@ -79,7 +79,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
   const here = $derived<Origin[]>(pushed({ kind: 'task', projectId: project.id, taskId: router.taskId }, chain));
 
   function close() {
-    goOrigin(chain[0], chain.slice(1), router.taskId);
+    goOrigin(chain[0], chain.slice(1));
   }
 
   // ---- which run is shown: the latest, unless the user picked an earlier one ----
@@ -377,7 +377,7 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
     return withChain(`${projectHref(project.id, 'work')}?plan=${encodeURIComponent(parentPlan.id)}`, here);
   });
   const scheduledAt = $derived(task?.orchestration?.enabled ? task.orchestration.scheduledAt : undefined);
-  const calendarHref = $derived(task && scheduledAt ? withChain(`${projectHref(project.id, 'calendar')}?task=${encodeURIComponent(task.id)}`, here) : '');
+  const calendarHref = $derived(task && scheduledAt ? withChain(calendarPage(project.id), here) : '');
   const scheduledText = $derived(scheduledAt ? new Date(scheduledAt).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '');
   const gitHref = $derived(run?.branch && !run.remote ? branchHref(project.id, 'local', run.branch) : '');
   /** The run set-up is open for a task with no run yet, and when the next action asks for it; the person's own choice wins. */
@@ -499,14 +499,14 @@ import { globalHref, projectHref, router, taskHref } from '../lib/router.svelte'
 <section class="panel" transition:surface={{ x: 20, y: 0 }} aria-labelledby={task ? 'task-title' : undefined} aria-label={task ? undefined : 'Task'}>
   {#if !task}
     <header class="head">
-      <Crumbs {chain} {names} fromTask={router.taskId} />
+      <Crumbs {chain} {names} />
       {@render closer()}
     </header>
     {#if scope.loaded}<p class="empty">This task was not found in this project.</p>{:else}<Settling compact label="Opening the task…" />{/if}
   {:else}
     <header class="head" use:acknowledge={{ value: task.state, success: task.state === 'done' }}>
       <button class="skip" onclick={skipToContent}>Skip to task content</button>
-      <Crumbs {chain} {names} fromTask={router.taskId} />
+      <Crumbs {chain} {names} />
       <div class="top">
         <label class="state">
           <span class="visually-hidden">Task column</span>

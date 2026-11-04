@@ -4,7 +4,7 @@
 
 export interface AgentView {
   filter: 'all' | 'live' | 'task' | 'standalone';
-  /** Only used where the page chooses the project itself (a plain browser); in the window the window's project context does. */
+  /** No longer kept: the project is the sidebar's project picker, in the address. */
   project: string;
   scroll: number;
 }

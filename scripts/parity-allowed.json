@@ -1,0 +1,6 @@
+{
+  "git": [
+    { "side": "window", "match": "^button: Agents and connections$", "why": "The window's header popover lists the agents, connected tools and Git head of the selected project context, from the window's overview of every workspace. The web app has one workspace and the same facts on the page; sharing it needs the overview shape on the web side." },
+    { "side": "window", "match": "^link: Show on Deck$", "why": "A suggestion that starts a workflow is a link where the window can show the Control Deck; a browser has no Deck on a wide screen, so it says to start it from the phone or the desktop app (lib/recommend/RecommendationCard.svelte)." }
+  ]
+}

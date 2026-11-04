@@ -21,7 +21,7 @@ TEAM_BIN := bin/werkbord-team
 .PHONY: all build werkbord web web-shell web-embed go-build build-team werkbord-team install-team nebula test-nebula rqlite test-rqlite \
         test test-werkbord test-team lint check \
         desktop desktop-package desktop-release desktop-preview desktop-dev desktop-dev-stop desktop-test desktop-check test-desktop-sign test-desktop-update test-notarize-desktop test-workflows \
-        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser test-parity test-work-overview-browser test-settings-browser
+        dev-api dev-web dev-team clean tag verify-tag dist test-install test-install-team test-team-signed-release test-browser test-held-runs-browser test-planning-browser test-onboarding-browser test-assistant-browser test-team-desktop-browser test-unified-desktop-browser test-plan-browser test-archive-browser test-parity test-work-overview-browser test-settings-browser test-calendar-browser
 
 all: check build build-team
 
@@ -346,6 +346,11 @@ test-work-overview-browser: web web-embed web-shell
 ## test-settings-browser: the web app's Settings lists the sections the window lists
 test-settings-browser: web web-embed web-shell
 	BROWSER_SCRIPT=scripts/browser-settings-sections.cjs node scripts/test-browser.cjs
+
+.PHONY: test-calendar-browser
+## test-calendar-browser: the web app's Calendar page: its place in the sidebar, #/calendar, the No date tray, a date dragged onto a day, the edit sheet and the project picker
+test-calendar-browser: web web-embed web-shell
+	BROWSER_SCRIPT=scripts/browser-calendar.cjs node scripts/test-browser.cjs
 
 .PHONY: test-archive-browser
 ## test-archive-browser: Done, then archived, then deleted (30 days in Recently deleted), then erased, for tasks and projects

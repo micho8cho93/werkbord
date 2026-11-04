@@ -58,6 +58,7 @@
   import Projects from './routes/Projects.svelte';
   import AgentSessions from './routes/AgentSessions.svelte';
   import Analytics from './routes/Analytics.svelte';
+  import Calendar from './routes/Calendar.svelte';
   import Settings from './routes/Settings.svelte';
   import TaskPanelHost from './routes/TaskPanelHost.svelte';
 
@@ -72,10 +73,12 @@
   const scope = $derived(router.projectId ? app.scopes.get(router.projectId) : undefined);
 
   /** The pages that wear the window's header bar on a desktop, and what it calls them. */
-  const GLOBAL_BAR: Record<string, string | undefined> = { control: 'Work', sessions: 'Agents', analytics: 'Analytics' };
+  const GLOBAL_BAR: Record<string, string | undefined> = { control: 'Work', calendar: 'Calendar', sessions: 'Agents', analytics: 'Analytics' };
   const globalTitle = $derived(router.view === 'onboarding' ? 'Set up Werkbord' : (GLOBAL_VIEWS.find((g) => g.id === router.view)?.label ?? titleOf(router.view)));
   /** The phone has its own navigation (the Control Deck and the Assistant). A narrow window of the desktop app keeps the desktop's. */
   const deck = $derived(phone.on);
+  /** Agents is titled under the header bar, in the window and in the web app alike, without a Jump to button (⌘K does that). Analytics, Calendar and Work title themselves. */
+  const titled = $derived(router.view === 'sessions' && !deck && !isPhone());
   const subtitle = $derived(
     deck
       ? phoneSubtitle(router.view, { needsYou: app.needsYou, review: app.overview?.review.length ?? 0, cards: agentCards(app.agents, app.overview), runners: app.runners })
@@ -104,16 +107,19 @@
     if (hrefOf(fixed) !== hrefOf(loc)) router.go(fixed, true);
   });
 
-  // Overview, Calendar and Runs are no longer pages of a project. Calendar is the window's own; the others are Work.
+  // Overview and Runs are no longer pages of a project; they are Work.
   $effect(() => {
     const v = router.view;
     if (!project || !(RETIRED_SECTIONS as readonly string[]).includes(v)) return;
-    if (v === 'calendar' && framed) {
+    router.go({ view: 'work', projectId: project.id, taskId: '' }, true);
+  });
+  // Inside the window's own page the window draws Calendar itself; a phone has its Schedule.
+  $effect(() => {
+    if (router.view !== 'calendar') return;
+    if (framed) {
       window.parent.postMessage({ type: 'werkbord.frame', event: 'page', page: 'calendar' }, '*');
       history.back();
-      return;
-    }
-    router.go({ view: 'work', projectId: project.id, taskId: '' }, true);
+    } else if (deck) router.go({ view: 'schedule', projectId: '', taskId: '' }, true);
   });
 
   // A work project has no calendar, Git or runs: an address that names one lands on its board.
@@ -257,9 +263,8 @@
         <ProjectHeader {project} />
       {:else if !framed && !deck && !isPhone() && GLOBAL_BAR[router.view]}
         <!-- The window's header: where you are, and what is running and waiting. Work, Agents and Analytics are entries of the sidebar. -->
-        <ContextBar crumbs={[{ label: 'All Projects' }, { label: GLOBAL_BAR[router.view] ?? '' }]} running={(app.overview?.projects ?? []).reduce((n, p) => n + p.running, 0)} needsYou={app.needsYou}>
-          <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to"><Icon name="search" /><span class="wide">Jump to</span></button>
-        </ContextBar>
+        <ContextBar crumbs={[{ label: 'All Projects' }, { label: GLOBAL_BAR[router.view] ?? '' }]} running={(app.overview?.projects ?? []).reduce((n, p) => n + p.running, 0)} needsYou={app.needsYou} />
+        {#if titled}<header class="ghead"><div class="gtitle"><h1>{globalTitle}</h1></div></header>{/if}
       {:else if (router.view !== 'deck' || !deck) && !((hosted || (!framed && !deck && !isPhone())) && (router.view === 'settings' || router.view === 'help'))}
         <header class="ghead">
           <div class="gtitle">
@@ -275,9 +280,9 @@
           </div>
           <div class="gacts">
             {#if !framed && !deck && (!app.needsOnboarding || app.onboardingPaused)}<span class="phone-only"><AssistantButton variant="icon" /></span>{/if}
-            <button class="btn jump" type="button" onclick={() => (framed ? window.parent.postMessage({ type: 'werkbord.frame', event: 'palette' }, '*') : (app.switcherOpen = true))} aria-label="Jump to">
+            {#if !titled}<button class="btn jump" type="button" onclick={() => (framed ? window.parent.postMessage({ type: 'werkbord.frame', event: 'palette' }, '*') : (app.switcherOpen = true))} aria-label="Jump to">
               <Icon name="search" /><span class="wide">Jump to</span>
-            </button>
+            </button>{/if}
           </div>
         </header>
         <!-- The workspace's own sub-areas, under its entry in the window's sidebar: the same row a project and a team have. -->
@@ -324,6 +329,8 @@
         {:else if router.view === 'control'}
           <!-- In the window's own page the window draws Work; the framed page keeps the feed it has always shown there. -->
           {#if framed}<ControlCenter />{:else}<WorkAll />{/if}
+        {:else if router.view === 'calendar'}
+          {#if !framed && !deck}<Calendar />{/if}
         {:else if router.view === 'sessions'}
           <AgentSessions />
         {:else if router.view === 'github'}

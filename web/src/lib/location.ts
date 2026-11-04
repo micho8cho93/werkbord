@@ -6,6 +6,7 @@
 //   global          #/control          what needs you, in every project
 //                   #/projects         every registered repository, and registering one
 //                   #/help             bundled task guidance and keyboard shortcuts
+//                   #/calendar         every project's scheduled and planned work (#/calendar?project=<id> for one)
 //                   #/sessions[/<key>] Agents: every coding-agent session, and one of them open (key is run:<id> or terminal:<id>)
 //   in a project    #/p/<id>/work     (also: git, defaults)
 //                   #/p/<id>/git/...   Git drills down: branch, file, changes (see gitroute.ts)
@@ -15,7 +16,7 @@
 // switcher and the tab bar are all built from that list, so a section added to
 // it (Calendar, in V1) appears everywhere without further navigation work.
 
-export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboarding' | 'github' | 'analytics' | 'sessions' | PhoneView;
+export type GlobalView = 'control' | 'calendar' | 'projects' | 'settings' | 'help' | 'onboarding' | 'github' | 'analytics' | 'sessions' | PhoneView;
 /**
  * The pages only the phone has: the Control Deck that opens it and the screens its keys lead to. They are global (they look across
  * every project), they are not in GLOBAL_VIEWS (the desktop navigation does not list them), and an address that names one on a wide
@@ -23,13 +24,14 @@ export type GlobalView = 'control' | 'projects' | 'settings' | 'help' | 'onboard
  */
 export type PhoneView = 'deck' | 'mywork' | 'schedule' | 'agents' | 'reviews' | 'repositories' | 'runners';
 export const PHONE_VIEWS: readonly PhoneView[] = ['deck', 'mywork', 'schedule', 'agents', 'reviews', 'repositories', 'runners'];
-export type ProjectSection = 'overview' | 'work' | 'calendar' | 'git' | 'runs' | 'analytics' | 'defaults';
-/** Pages a project no longer has: Work is its one page, Calendar is the window's own and runs are Agents. An old address to one still lands (App.svelte settles it). */
-export const RETIRED_SECTIONS: readonly ProjectSection[] = ['overview', 'calendar', 'runs'];
+export type ProjectSection = 'overview' | 'work' | 'git' | 'runs' | 'analytics' | 'defaults';
+/** Pages a project no longer has: Work is its one page and runs are Agents. An old address to one still lands (App.svelte settles it). */
+export const RETIRED_SECTIONS: readonly ProjectSection[] = ['overview', 'runs'];
 export type View = GlobalView | ProjectSection | 'task';
 
 export const GLOBAL_VIEWS: readonly { id: Exclude<GlobalView, 'onboarding' | 'github' | PhoneView>; label: string; short: string }[] = [
   { id: 'control', label: 'Workspace', short: 'Workspace' },
+  { id: 'calendar', label: 'Calendar', short: 'Calendar' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'sessions', label: 'Agents', short: 'Agents' },
   { id: 'analytics', label: 'Analytics', short: 'Analytics' },
@@ -90,9 +92,8 @@ const isGlobal = (v: string): v is GlobalView => GLOBAL_VIEWS.some((g) => g.id =
 export const isPhoneView = (v: string): v is PhoneView => (PHONE_VIEWS as readonly string[]).includes(v);
 const isSection = (v: string): v is ProjectSection => PROJECT_SECTIONS.some((s) => s.id === v) || (RETIRED_SECTIONS as readonly string[]).includes(v);
 
-/** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. */
-/** Sections that were renamed: an old link still lands. */
-const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'calendar', 'product-map': 'overview' };
+/** Sections that were renamed: an old link still lands. "Activity" was the run history, now Runs. A project's calendar is the Calendar page now: its old links land on the project's Work. */
+const RENAMED: Record<string, ProjectSection> = { board: 'work', activity: 'runs', timeline: 'work', calendar: 'work', 'product-map': 'overview' };
 const section = (v: string): ProjectSection | '' => (isSection(v) ? v : (RENAMED[v] ?? ''));
 
 /** A path part decoded, or '' when it is not valid percent-encoding. */
@@ -165,6 +166,11 @@ export function sessionsHref(key = ''): string {
 
 export function projectHref(projectId: string, section: ProjectSection = 'work'): string {
   return `#/p/${enc(projectId)}/${section}`;
+}
+
+/** The Calendar page: every project's, or the one named. */
+export function calendarHref(projectId = ''): string {
+  return projectId ? `#/calendar?project=${enc(projectId)}` : '#/calendar';
 }
 
 export function taskHref(projectId: string, taskId: string, runId = ''): string {

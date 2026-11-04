@@ -33,6 +33,7 @@ const shellInit = ({ items, personalURL, token, theme }) => {
     Premium: async () => ({ active: false, canCheck: false, buyUrl: '' }), Info: async () => ({ version: 'fixture', platform: 'darwin' }),
     Workspaces: async () => ({ items, selected: 'personal', problems: [], team: { state: 'ready' }, teamInstaller: false, invitation: false }),
     OpenWorkspace: load, LoadWorkspace: load, Overview: async () => fetch('/fixture-overview').then(r => r.json()),
+    Analytics: async (id, project, days) => fetch('/fixture-analytics?' + new URLSearchParams({ project, days: String(days) })).then(r => r.json()),
     AssistantWorkspaces: async () => [], RememberPlace: async () => {}, Relay: async () => ({ version: 'fixture', platform: 'darwin' }), PendingInvitation: async () => '', OpenExternal: async () => null,
   } } };
   window.runtime = { EventsOn: () => () => {} };
@@ -75,11 +76,11 @@ let P;
 const screens = () => [
   { id: 'work', title: 'Work (all projects)', shell: async p => { await sidebar(p, 'Work'); }, web: '#/control' },
   { id: 'project-work', title: 'A project’s Work', shell: async p => { await pickProject(p); await sidebar(p, 'Work'); }, web: `#/p/${P.id}/work` },
-  { id: 'calendar', title: 'Calendar', shell: async p => { await sidebar(p, 'Calendar'); }, web: null, note: 'The web app has no Calendar page: a project\u2019s calendar was retired and the window\u2019s Calendar is its own (web/src/shell/Calendar.svelte). Phase 4 decides which one stays' },
+  { id: 'calendar', title: 'Calendar', shell: async p => { await sidebar(p, 'Calendar'); }, web: '#/calendar' },
   { id: 'git', title: 'Git', shell: async p => { await pickProject(p); await sidebar(p, 'Git'); }, web: `#/p/${P.id}/git` },
   { id: 'agents', title: 'Agents', shell: async p => { await sidebar(p, 'Agents'); }, web: '#/sessions' },
   { id: 'analytics', title: 'Analytics', shell: async p => { await sidebar(p, 'Analytics'); }, web: '#/analytics' },
-  { id: 'reviews', title: 'Reviews', skip: 'Reviews is a Team page and the fixture has no Team workspace; Individual has none. Compared once a Team fixture is part of the run' },
+  { id: 'reviews', title: 'Reviews', skip: 'Not compared: Reviews is the Team workspace\u2019s page (Team service), not a page of this web app, and it needs a running Team service this fixture does not start. The window\u2019s Reviews (web/src/shell/Reviews.svelte) reads Team summaries from the window\u2019s overview, and the web app opened on its own has no such page, so there is no second side to compare. Individual has no reviews page' },
   { id: 'settings', title: 'Settings', shell: async p => { await p.getByRole('button', { name: 'Settings', exact: true }).first().click(); }, web: '#/settings' },
   { id: 'help', title: 'Help', shell: async p => { await p.getByRole('button', { name: /^Help/ }).first().click(); }, web: '#/help' },
 ];
@@ -138,6 +139,10 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
     if (req.url === '/fixture-overview') {
       const summary = await api('GET', '/workspace/v1/summary');
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ entries: [{ workspace: items[0], summary }], at: new Date().toISOString() })); return;
+    }
+    if (req.url.startsWith('/fixture-analytics?')) {
+      const report = await api('GET', '/analytics?' + new URLSearchParams({ project: new URL(req.url, 'http://x').searchParams.get('project') || '', days: new URL(req.url, 'http://x').searchParams.get('days') || '30', provider: '' }));
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(report)); return;
     }
     if (!file.startsWith(shellRoot) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); res.end(); return; }
     const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.png': 'image/png' };

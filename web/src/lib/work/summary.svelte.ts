@@ -18,10 +18,10 @@ class WorkSummary {
 
   readonly overview = $derived<Overview | null>(this.summary ? { entries: [{ workspace: PERSONAL, summary: this.summary }], at: this.summary.at } : null);
 
-  /** Reads the summary again: at most once a second however often it is asked. */
-  refresh(): Promise<void> {
+  /** Reads the summary again: at most once a second however often it is asked, unless a change just made must show (`force`). */
+  refresh(force = false): Promise<void> {
     if (this.pending) return this.pending;
-    if (Date.now() - this.last < 1000) return Promise.resolve();
+    if (!force && Date.now() - this.last < 1000) return Promise.resolve();
     this.last = Date.now();
     this.pending = api.workspaceSummary()
       .then((s) => { this.summary = s; this.readAt = Date.now(); this.failed = false; this.decisions.sync(this.overview); })

@@ -3,14 +3,19 @@
   import ProjectPicker, { type PickerGroup } from '../ProjectPicker.svelte';
   import { assistant } from '../assistant/sessions.svelte';
   import { originOf } from '../assistant/transition';
-  import { globalHref, projectHref, router, switchedTo } from '../router.svelte';
+  import { globalHref, projectHref, router, sessionsHref, switchedTo } from '../router.svelte';
   import { sectionApplies } from '../location';
   import { app } from '../state.svelte';
+  import { workSummary } from '../work/summary.svelte';
+  import { railBadges } from '../../shell/rail';
 
   // The web app's sidebar is the shared one (lib/Sidebar.svelte), the same as the Mac window's, told what the web app lists and what
   // choosing each thing does. (Inside the Mac window's own page the window's sidebar does this job and this one is not shown.)
 
-  const current = $derived(router.projectId);
+  /** Calendar, Agents and Analytics are pages of every project: the project they show is in the address (#/calendar?project=<id>), the picker's choice. */
+  const calendar = $derived(router.view === 'calendar');
+  const everyProject = $derived(calendar || router.view === 'sessions' || router.view === 'analytics');
+  const current = $derived(everyProject ? (new URLSearchParams(router.query).get('project') ?? '') : router.projectId);
   const project = $derived(app.project(router.projectId || app.lastProjectId) ?? app.projects[0]);
   const view = $derived(router.view);
 
@@ -21,18 +26,26 @@
   };
   const chosen = $derived(app.projects.find((p) => p.id === current));
   /** Switching keeps the section you are in, where the other project has one. */
-  const choose = (id: string) => router.go(id ? switchedTo(router.location, id) : { view: 'control', projectId: '', taskId: '' });
+  const choose = (id: string) => {
+    if (everyProject) location.hash = (calendar ? globalHref('calendar') : router.view === 'analytics' ? globalHref('analytics') : sessionsHref()) + (id ? `?project=${encodeURIComponent(id)}` : '');
+    else router.go(id ? switchedTo(router.location, id) : { view: 'control', projectId: '', taskId: '' });
+  };
 
-  const waiting = $derived(app.needsYou);
+  // What waits in each place is worked out from the workspace summary by the same function the window uses (shell/rail.ts), so the two
+  // sidebars say the same thing. The summary is read now and then, because the sidebar is on every page.
+  $effect(() => { void app.overview; void workSummary.refresh(); });
+  $effect(() => { const timer = setInterval(() => void workSummary.refresh(), 15_000); return () => clearInterval(timer); });
+  const badges = $derived(railBadges(workSummary.overview));
   const destinations = $derived<SidebarItem[]>([
     {
       key: 'work', label: 'Work', icon: 'control',
       href: project && current ? projectHref(project.id, 'work') : globalHref('control'),
       current: view === 'control' || view === 'task' || view === 'work',
-      badge: waiting > 0 ? { count: waiting, tone: 'ask', label: `${waiting} interruption${waiting === 1 ? '' : 's'}; excludes work ready for review` } : undefined,
+      badge: badges.inbox,
     },
+    { key: 'calendar', label: 'Calendar', icon: 'calendar', href: globalHref('calendar'), current: calendar },
     ...(project && sectionApplies('git', project.kind) ? [{ key: 'git', label: 'Git', icon: 'git' as const, href: projectHref(project.id, 'git'), current: view === 'git' }] : []),
-    { key: 'agents', label: 'Agents', icon: 'activity', href: globalHref('sessions'), current: view === 'sessions' },
+    { key: 'agents', label: 'Agents', icon: 'activity', href: globalHref('sessions'), current: view === 'sessions', badge: badges.agents },
     { key: 'analytics', label: 'Analytics', icon: 'analytics', href: globalHref('analytics'), current: view === 'analytics' },
   ]);
   const bottom = $derived<SidebarItem[]>([

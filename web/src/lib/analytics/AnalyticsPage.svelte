@@ -1,37 +1,46 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
-  import AnalyticsUsageDetails from '../lib/AnalyticsUsageDetails.svelte';
-  import AnalyticsBars from '../lib/AnalyticsBars.svelte';
-  import AnalyticsDaily from '../lib/AnalyticsDaily.svelte';
-  import Donut from '../lib/charts/Donut.svelte';
-  import Heat from '../lib/charts/Heat.svelte';
-  import LineProgress from '../lib/charts/LineProgress.svelte';
-  import Panel from '../lib/charts/Panel.svelte';
-  import Ring from '../lib/charts/Ring.svelte';
-  import StatTile from '../lib/charts/StatTile.svelte';
-  import { analyticsDuration, measuredCost, measuredNumber, percent } from '../lib/analytics';
-  import { activityOf, mergeActivity, RANGES, runsAvailable, runsOf } from './analytics';
-  import FilterBar from './FilterBar.svelte';
-  import Notice from './Notice.svelte';
-  import PageFrame from './PageFrame.svelte';
-  import Segmented from '../lib/Segmented.svelte';
-  import { model } from './model.svelte';
-  import { ask } from './native';
+  import { onDestroy, onMount, untrack } from 'svelte';
+  import AnalyticsUsageDetails from '../AnalyticsUsageDetails.svelte';
+  import AnalyticsBars from '../AnalyticsBars.svelte';
+  import AnalyticsDaily from '../AnalyticsDaily.svelte';
+  import Donut from '../charts/Donut.svelte';
+  import Heat from '../charts/Heat.svelte';
+  import LineProgress from '../charts/LineProgress.svelte';
+  import Panel from '../charts/Panel.svelte';
+  import Ring from '../charts/Ring.svelte';
+  import StatTile from '../charts/StatTile.svelte';
+  import { analyticsDuration, measuredCost, measuredNumber, percent } from '../analytics';
+  import { activityOf, mergeActivity, RANGES, runsAvailable, runsOf } from '../../shell/analytics';
+  import FilterBar from '../../shell/FilterBar.svelte';
+  import Notice from '../../shell/Notice.svelte';
+  import PageFrame from '../../shell/PageFrame.svelte';
+  import Segmented from '../Segmented.svelte';
+  import type { Item } from '../../shell/types';
+  import type { ProjectIdentity } from '../../shell/project-context';
 
-  // One Analytics page for the whole window. Choose where to look (Personal and every team, Personal alone, or one team), a project
-  // within that, and a period; what each workspace reports about the work itself is merged into one picture. What an agent did (runs,
-  // tokens, cost) is reported by Personal alone and has a view of its own.
+  // One Analytics page, drawn once for the Mac window page and for the web app. Where to look (Personal and every team, Personal alone, or
+  // one team, and a project within that) is the project picker's choice, handed in as `selected`; the person chooses a period; what each
+  // workspace reports about the work itself is merged into one picture. What an agent did (runs, tokens, cost) is reported by Personal
+  // alone and has a view of its own. Each side says which workspaces there are and how to read one's report (`read`).
+  let { items, selected, label, read, revision = 0 }: {
+    items: readonly Item[] | undefined;
+    selected: ProjectIdentity | null;
+    /** What the page says it is looking at: "All Projects", or the project and where it is. */
+    label: string;
+    read: (workspace: string, project: string, days: number) => Promise<unknown>;
+    /** Moves when something happened that the figures may reflect (an agent's run ended): the page then reads again, quietly. */
+    revision?: number;
+  } = $props();
 
   const views = ['Work', 'Runs and usage'] as const;
   type View = (typeof views)[number];
   let view = $state<View>('Work');
-  const where = $derived(model.selectedProject?.workspace ?? 'all');
-  const projectKey = $derived(model.selectedProject?.project ?? '');
+  const where = $derived(selected?.workspace ?? 'all');
+  const projectKey = $derived(selected?.project ?? '');
   let days = $state<number>(30);
   let series = $state('both');
-  const items = $derived(model.view?.items);
-  const targets = $derived((items ?? []).filter(i => i.state === 'ready' && (!model.selectedProject || i.id === model.selectedProject.workspace))
-    .map(i => ({ workspace: i.id, project: model.selectedProject?.project ?? '' })));
+  const targets = $derived((items ?? []).filter(i => i.state === 'ready' && (!selected || i.id === selected.workspace))
+    .map(i => ({ workspace: i.id, project: selected?.project ?? '' })));
   const nameOf = (id: string): string => items?.find(i => i.id === id)?.name ?? id;
 
   let parts = $state<{ workspace: string; raw: unknown }[]>([]);
@@ -56,7 +65,7 @@
     const results = await Promise.all(
       wanted.targets.map(async (t) => {
         try {
-          return { workspace: t.workspace, raw: await ask((a) => a.Analytics(t.workspace, t.project, wanted.days)) };
+          return { workspace: t.workspace, raw: await read(t.workspace, t.project, wanted.days) };
         } catch (e) {
           return { workspace: t.workspace, message: e instanceof Error ? e.message : String(e) };
         }
@@ -86,6 +95,15 @@
     const timer = setInterval(() => { if (!document.hidden && loaded) void load(true); }, 30000);
     return () => clearInterval(timer);
   });
+  // Events can arrive every few seconds while agents run: at most one quiet read per interval, never one per event.
+  let seenRevision = untrack(() => revision);
+  let soon: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (revision === seenRevision || soon) return;
+    seenRevision = revision;
+    soon = setTimeout(() => { soon = undefined; if (!document.hidden) void load(true); }, 8000);
+  });
+  onDestroy(() => clearTimeout(soon));
 
   const activity = $derived(parts.length ? mergeActivity(parts.map((p) => activityOf(p.raw))) : null);
   const personal = $derived(parts.find((p) => p.workspace === 'personal'));
@@ -95,8 +113,7 @@
   const hasThroughput = $derived(!!activity?.days.some((d) => d.created || d.completed));
   const doneShare = $derived(activity && activity.created > 0 ? activity.completed / activity.created : null);
   const heat = $derived(activity?.days.map((d) => ({ date: d.date, value: d.created + d.completed })) ?? []);
-  const describe = $derived(model.contextLabel);
-  const outcomes: [string, string, string][] = [['completed', 'Normal exit', 'var(--ok)'], ['failed', 'Failed', 'var(--danger)'], ['stopped', 'Stopped', 'var(--accent)'], ['blocked', 'Blocked', 'var(--accent)'], ['waiting_for_user', 'Waiting', 'var(--warn)'], ['running', 'Running', 'var(--accent)']];
+    const outcomes: [string, string, string][] = [['completed', 'Normal exit', 'var(--ok)'], ['failed', 'Failed', 'var(--danger)'], ['stopped', 'Stopped', 'var(--accent)'], ['blocked', 'Blocked', 'var(--accent)'], ['waiting_for_user', 'Waiting', 'var(--warn)'], ['running', 'Running', 'var(--accent)']];
   const outcomeSlices = $derived(runs ? outcomes.map(([state, label, tone]) => ({ label, value: (runs.totals.outcomes as Record<string, number | undefined>)[state] ?? 0, tone })) : []);
   const usage = $derived(runs ? [
     { label: 'Input tokens', value: runs.totals.inputTokens, detail: `${runs.totals.inputRuns}/${runs.totals.attempts} runs reported input` },
@@ -126,7 +143,7 @@
   {:else if !activity}
     <p class="empty">Nothing could be read. Check that Personal and your teams are connected.</p>
   {:else}
-    <p class="muted stamp">{describe} · the last {days} days{activity.end ? ` · as of ${new Date(asOf || activity.end).toLocaleString()}` : ''}</p>
+    <p class="muted stamp">{label} · the last {days} days{activity.end ? ` · as of ${new Date(asOf || activity.end).toLocaleString()}` : ''}</p>
     {#if activity.partial}
       <p class="notice" role="status">Some history is unavailable, so totals may be incomplete.</p>
     {/if}

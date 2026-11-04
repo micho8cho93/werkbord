@@ -145,16 +145,7 @@ describe('Work → Plan → Task → Session, Session → Task → Plan, Task �
     expect(originHref(chain[0], chain.slice(1))).toContain('#/p/p/task/t1');
     const fromCalendar = withChain('#/p/p/task/t1', [{ kind: 'calendar', projectId: 'p' }]);
     const back = chainOf(fromCalendar);
-    expect(originHref(back[0], back.slice(1))).toBe('#/p/p/calendar');
-  });
-});
-
-describe('Back from a task to a project Calendar names the task, so the Calendar opens on its entry', () => {
-  it('adds the task to the Calendar address only when the Calendar is a project’s own', () => {
-    expect(originHref({ kind: 'calendar', projectId: 'p' }, [], 't1')).toBe('#/p/p/calendar?task=t1');
-    expect(originHref({ kind: 'calendar', projectId: 'p' }, [{ kind: 'work' }], 't1')).toBe('#/p/p/calendar?task=t1&from=work');
-    expect(originHref({ kind: 'calendar', projectId: 'p' }, [])).toBe('#/p/p/calendar');
-    expect(originHref({ kind: 'board', projectId: 'p' }, [], 't1')).toBe('#/p/p/work?section=queue');
+    expect(originHref(back[0], back.slice(1))).toBe('#/calendar?project=p');
   });
 });
 

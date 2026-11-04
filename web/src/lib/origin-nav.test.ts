@@ -22,7 +22,7 @@ describe('where Back goes', () => {
     expect(chainOf(task)).toEqual(rest);
     expect(originHref({ kind: 'session', key: 'run:run_a' }, [])).toBe('#/sessions/run%3Arun_a');
     expect(originHref({ kind: 'agents' }, [])).toBe('#/sessions');
-    expect(originHref({ kind: 'calendar', projectId: 'prj_a' }, [])).toBe('#/p/prj_a/calendar');
+    expect(originHref({ kind: 'calendar', projectId: 'prj_a' }, [])).toBe('#/calendar?project=prj_a');
   });
   it('is the window’s page when framed, and Control in a plain browser; Salie is never an address', () => {
     expect(originHref({ kind: 'work' }, [])).toBe('#/control');

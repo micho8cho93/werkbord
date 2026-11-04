@@ -103,7 +103,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     ],
     recovery: 'If you meant to plan work rather than launch an agent, edit the task’s planned dates. If you meant to schedule execution, check the task’s Calendar entry and runner availability.',
     searchTerms: ['plan', 'planning', 'timeline', 'schedule', 'calendar', 'date', 'milestone', 'work project'],
-    destination: { kind: 'project', repository: 'calendar', work: 'calendar' },
+    destination: { kind: 'global', view: 'calendar' },
     linkLabel: 'Open planning or schedule',
   },
   {

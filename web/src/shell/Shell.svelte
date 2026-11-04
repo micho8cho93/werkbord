@@ -4,9 +4,10 @@
   import Palette from './Palette.svelte';
   import FrameHost from './FrameHost.svelte';
   import WorkspaceProblem from './WorkspaceProblem.svelte';
-  import Calendar from './Calendar.svelte';
+  import CalendarPage from '../lib/calendar/CalendarPage.svelte';
+  import { planningCall } from './planning';
   import GitProjects from './GitProjects.svelte';
-  import Analytics from './Analytics.svelte';
+  import AnalyticsPage from '../lib/analytics/AnalyticsPage.svelte';
   import Reviews from './Reviews.svelte';
   import Agents from './Agents.svelte';
   import ContextStatus from './ContextStatus.svelte';
@@ -26,7 +27,7 @@
   import Icon from '../lib/Icon.svelte';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import { model, PANE_MIN, type Page } from './model.svelte';
-  import { onApp } from './native';
+  import { ask, onApp } from './native';
 
   // One project context and destination list surround the original workspace-owned detail screens.
   const pages: Page[] = ['workspace', 'calendar', 'inbox', 'reviews', 'analytics', 'workspaces', 'settings', 'help', 'agents'];
@@ -140,11 +141,11 @@
           <div class="page-area" use:remembered={model.page}>{#if native.native === 'plan'}<SettingsPlan />{:else if native.native === 'workspaces'}<Workspaces overview={model.overview} embedded />{:else}<SettingsNative section={native.native} />{/if}</div>
         {:else if model.page !== 'workspace' && !model.agentsInFrame && !hostedWorkspace}
           <div class="page-area" use:remembered={model.page}>
-            {#if model.page === 'calendar'}<Calendar overview={model.contextOverview} />
+            {#if model.page === 'calendar'}<CalendarPage overview={model.contextOverview} call={planningCall} refresh={() => model.refreshOverview()} open={(workspace, href) => void model.goTo(workspace, href)} />
             {:else if model.page === 'git'}<GitProjects />
             {:else if model.page === 'agents'}<Agents />
             {:else if model.page === 'reviews'}<Reviews />
-            {:else if model.page === 'analytics'}<Analytics />
+            {:else if model.page === 'analytics'}<AnalyticsPage items={model.view?.items} selected={model.selectedProject} label={model.contextLabel} read={(workspace, project, days) => ask(a => a.Analytics(workspace, project, days))} />
             {:else if model.page === 'inbox'}<Hub overview={model.contextOverview} compact={model.paneOpen} />
             {:else if model.page === 'workspaces'}<Workspaces overview={model.overview} />{/if}
           </div>

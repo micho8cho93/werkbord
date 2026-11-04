@@ -45,94 +45,43 @@ let browser;
   page.setDefaultTimeout(15000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript(() => localStorage.setItem('werkbord.token', 'disposable-browser-credential'));
+  // The page is the one the Mac window draws (web/src/lib/analytics/AnalyticsPage.svelte): Work and Runs and usage, a period, and the project
+  // the sidebar's picker names (here by the address). An older project address lands on it with that project.
   await page.goto(`${personal}/#/p/${project.id}/analytics`);
-  await page.getByText('Usage', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Analytics', exact: true }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: 'Analytics', exact: true }).count(), 1, 'one heading, not a second from the page around it');
+  assert.equal(await page.getByLabel('Analytics project').count(), 0, 'the sidebar’s picker is the one project selector');
+  await page.getByText('Analytics fixture · Personal', { exact: false }).first().waitFor();
   const rangeLoaded = page.waitForResponse(r => r.url().includes('/api/analytics') && new URL(r.url()).searchParams.get('days') === '7');
-  await page.getByLabel('Analytics time range').selectOption('7');
+  await page.getByLabel('Analytics period').selectOption('7');
   await rangeLoaded;
-  await page.getByRole('tab', { name: 'Completion', exact: true }).click();
-  await page.getByText('Completion details', { exact: true }).click();
-  await page.getByText('Agent-reported task completion', { exact: true }).waitFor();
-  const reportedTaskCompletion = page.getByText('Agent-reported task completion', { exact: true });
-  assert.equal(await reportedTaskCompletion.evaluate(el => el.nextElementSibling.textContent), 'Not recorded');
-  await page.getByRole('tab', { name: 'Usage', exact: true }).click();
-  await page.getByText(/Not reported/).first().waitFor();
-  const providerLoaded = page.waitForResponse(r => r.url().includes('/api/analytics') && new URL(r.url()).searchParams.get('provider') === 'fixture');
-  await page.getByLabel('Analytics agent provider').selectOption('fixture');
-  await providerLoaded;
-  await page.getByLabel('Usage measure').selectOption('cost');
-  await page.getByRole('heading', { name: 'Reported and estimated API cost' }).waitFor();
+  const tile = name => page.locator('dl.statistics > *').filter({ hasText: name }).first();
+  await tile('Tasks created').getByText('1', { exact: true }).waitFor();
+  await tile('Moved to Done').getByText('1', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Runs and usage', exact: true }).click();
+  await tile('Run attempts').getByText('1', { exact: true }).waitFor();
+  const decisions = page.getByText('Accepted', { exact: true });
+  assert.equal(await decisions.evaluate(el => el.nextElementSibling.textContent), '1', 'the accepted run is counted');
+  await page.getByText('Reporting details', { exact: true }).click();
   await page.getByRole('heading', { name: 'Usage trends', exact: true }).waitFor();
   const trend = page.getByRole('region', {name: 'Usage by run start day'});
   await trend.focus();
   assert(await trend.evaluate(el => el === document.activeElement), 'daily usage must be keyboard scrollable');
   await trend.evaluate(el => el.blur());
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({width, height: 1000});
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'usage trends fit the viewport');
-    await page.screenshot({path: path.join(artifacts, `analytics-usage-${width}.png`), fullPage: true});
-  }
-
-  await page.getByRole('tab', { name: 'Activity', exact: true }).click();
-  assert.equal(await page.getByLabel('Analytics time range').inputValue(), '7', 'Activity remembers its time range');
-  assert.equal(await page.getByLabel('Analytics agent provider').count(), 0, 'Activity has only task-relevant filters');
-  assert.equal(await page.getByText('Daily values', { exact: true }).count(), 0, 'the ever-growing table of daily values is gone');
-  await page.getByRole('tab', { name: 'Execution', exact: true }).click();
-  await page.getByRole('heading', { name: 'Run outcomes' }).waitFor();
-  await page.getByLabel('Analytics runner').waitFor();
-  await page.getByText('Breakdown', { exact: true }).click();
   await page.emulateMedia({reducedMotion: 'reduce'});
   for (const [width, height, name] of [[1440, 1000, 'analytics-desktop'], [390, 844, 'analytics-mobile']]) {
     await page.setViewportSize({ width, height }); await page.evaluate(() => document.fonts.ready);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), name + ' page overflow');
-    if (name === 'analytics-mobile') {
-      const breakdown = page.getByRole('region', { name: 'Runner, provider and model execution breakdown' });
-      await breakdown.focus();
-      assert(await breakdown.evaluate(el => el === document.activeElement), 'execution breakdown must be keyboard-focusable');
-      assert(await breakdown.evaluate(el => el.scrollWidth > el.clientWidth), 'execution breakdown must expose horizontal scrolling');
-      await breakdown.evaluate(el => el.blur());
-      await page.locator('.analytics').evaluate(el => el.scrollTo(0, 0));
-      await page.evaluate(() => window.scrollTo(0, 0));
-    }
     await page.screenshot({ path: path.join(artifacts, name + '.png'), fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
   await page.screenshot({ path: path.join(artifacts, 'analytics-dark.png'), fullPage: true });
-  for (const view of ['Activity', 'Usage', 'Completion']) {
-    await page.getByRole('tab', { name: view, exact: true }).click();
-    await page.getByText('Updating…', { exact: true }).waitFor({ state: 'hidden' });
-    await page.screenshot({ path: path.join(artifacts, 'analytics-' + view.toLowerCase() + '.png'), fullPage: true });
-    await page.setViewportSize({ width: 390, height: 844 });
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), view + ' mobile overflow');
-    await page.screenshot({ path: path.join(artifacts, 'analytics-' + view.toLowerCase() + '-mobile.png'), fullPage: true });
-    await page.setViewportSize({ width: 1440, height: 1000 });
-  }
-  await page.getByRole('tab', { name: 'Activity', exact: true }).focus();
-  await page.keyboard.press('ArrowRight');
-  assert.equal(await page.getByRole('tab', { name: 'Execution', exact: true }).getAttribute('aria-selected'), 'true');
-  assert.equal(await page.getByRole('tab', { name: 'Execution', exact: true }).evaluate(el => el === document.activeElement), true);
-
-
-  // A partial reporting snapshot must use all attempts as its denominator, even when no measure has full coverage.
-  await page.route('**/api/analytics?*', async route => {
-    const response = await route.fetch();
-    const snapshot = await response.json();
-    // The page opens on All projects, so earlier suites' projects are in the snapshot: this check is about the fixture's own.
-    snapshot.executions = snapshot.executions.filter(row => row.projectId === project.id);
-    assert.equal(snapshot.executions.length, 1);
-    snapshot.executions[0].attempts = 10;
-    snapshot.executions[0].outcomes = {completed: 10};
-    await route.fulfill({response, json: snapshot});
-  });
-  await page.getByRole('tab', {name: 'Usage', exact:true}).click();
-  const coverageChart = page.getByRole('group', {name: 'Runs that reported each measure', exact:true});
-  await coverageChart.getByText('1 of 10 runs', {exact:true}).first().waitFor();
-  const inputCoverage = coverageChart.locator('.row').filter({hasText: 'Input tokens'});
-  const fraction = await inputCoverage.evaluate(el => el.querySelector('.fill').getBoundingClientRect().width / el.querySelector('.track').getBoundingClientRect().width);
-  assert.ok(fraction > 0.08 && fraction < 0.12, '1 of 10 runs fills 10% of the coverage track: ' + fraction);
-  await page.screenshot({path:path.join(artifacts, 'analytics-partial-coverage.png'), fullPage:true});
-  await page.unroute('**/api/analytics?*');
+  await page.getByRole('button', { name: 'Work', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Work mobile overflow');
+  await page.screenshot({ path: path.join(artifacts, 'analytics-work-mobile.png'), fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   const coord = (method, url, body) => api(team, teamToken, method, '/api/team/v1' + url, body);
   const tp = await coord('POST', '/projects', { name: 'Analytics coordination' });

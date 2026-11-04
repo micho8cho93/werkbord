@@ -14,7 +14,6 @@
   import { isPhone } from '../lib/phones/capability';
   import { agentName } from '../lib/format';
   import { terminalApi, type TerminalSession } from '../lib/assistant/terminal';
-  import { embedded } from '../lib/embed';
   import Crumbs from '../lib/Crumbs.svelte';
   import { chainOf, pushed, withChain, type Names, type Origin } from '../lib/origin';
   import { readAgentView, writeAgentView } from '../lib/agent-view';
@@ -39,16 +38,14 @@
   let terminalsListed = $state(true);
   let loaded = $state(false);
   let error = $state('');
-  // The filter and the scroll of the list are kept for the tab, so Back from a session's task finds the list as it was left. In the
-  // window the project is the window's own project context (the one selector), told by the address; elsewhere the page has its own.
+  // The filter and the scroll of the list are kept for the tab, so Back from a session's task finds the list as it was left. The project is
+  // the sidebar's project picker (the one selector, in the window and in the web app), told by the address.
   const kept = readAgentView();
   let filter = $state(kept.filter);
-  const windowScoped = embedded();
-  let ownProject = $state(windowScoped ? '' : (new URLSearchParams(router.query).get('project') ?? kept.project));
-  const projectFilter = $derived(windowScoped ? (new URLSearchParams(router.query).get('project') ?? '') : ownProject);
+  const projectFilter = $derived(new URLSearchParams(router.query).get('project') ?? '');
   let sideEl = $state<HTMLElement>();
   let scrolled = kept.scroll;
-  $effect(() => { writeAgentView({ filter, project: windowScoped ? '' : ownProject, scroll: scrolled }); });
+  $effect(() => { writeAgentView({ filter, project: '', scroll: scrolled }); });
   let restored = false;
   $effect(() => {
     if (!loaded || restored || !sideEl) return;
@@ -296,8 +293,6 @@
         </select>
         {#if providersOf(sessions).length > 1}<label class="sr-only" for="sessions-provider">Provider</label>
         <select id="sessions-provider" class="select" bind:value={provider}><option value="">All providers</option>{#each providersOf(sessions) as id (id)}<option value={id}>{agentName(app.agents, id)}</option>{/each}</select>{/if}
-        {#if !windowScoped}<label class="sr-only" for="sessions-project">Project</label>
-        <select id="sessions-project" class="select" bind:value={ownProject}><option value="">All projects</option>{#each app.projects as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</select>{/if}
         {#if launchers.length}<button class="btn primary" type="button" aria-expanded={launchOpen} onclick={toggleLaunch}><Icon name="plus" size={14} />New session</button>{/if}
       </div>
     </div>

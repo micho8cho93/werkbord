@@ -93,7 +93,7 @@ describe('links', () => {
 describe('navigation is data, so it can grow', () => {
   it('lists the sections of a project and the global pages once', () => {
     expect(PROJECT_SECTIONS.map((s) => s.id)).toEqual(['work', 'git', 'analytics', 'defaults']);
-    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'projects', 'sessions', 'analytics', 'settings', 'help']);
+    expect(GLOBAL_VIEWS.map((g) => g.id)).toEqual(['control', 'calendar', 'projects', 'sessions', 'analytics', 'settings', 'help']);
   });
 
   it('keeps any listed section when switching projects', () => {
@@ -116,9 +116,12 @@ describe('a work project has no repository to show', () => {
     expect(sectionApplies('work', 'work')).toBe(true);
   });
 
-  it('settles old timeline links to Calendar', () => {
-    expect(parse('#/p/prj_a/timeline')).toEqual({ view: 'calendar', projectId: 'prj_a', taskId: '' });
-    expect(hrefOf({ view: 'calendar', projectId: 'prj_a', taskId: '' })).toBe('#/p/prj_a/calendar');
+  it('makes Calendar a page of its own, and settles a project\'s old calendar links to its Work', () => {
+    expect(parse('#/calendar')).toEqual({ view: 'calendar', projectId: '', taskId: '' });
+    expect(parse('#/calendar?project=prj_a')).toEqual({ view: 'calendar', projectId: '', taskId: '' });
+    expect(hrefOf({ view: 'calendar', projectId: '', taskId: '' })).toBe('#/calendar');
+    expect(parse('#/p/prj_a/timeline')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
+    expect(parse('#/p/prj_a/calendar')).toEqual({ view: 'work', projectId: 'prj_a', taskId: '' });
   });
 });
 

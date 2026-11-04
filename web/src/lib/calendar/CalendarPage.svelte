@@ -1,17 +1,26 @@
 <script lang="ts">
-  import Sheet from '../lib/Sheet.svelte';
-  import { planningCall, type PlanningItem } from './planning';
-  import { instantFromWall, wallTime } from '../lib/scheduling';
-  import type { DateDrop } from '../lib/planningGestures';
-  import { formatTime, formatWall } from '../lib/clock.svelte';
-  import { localToday } from '../lib/planning-dates';
-  import PlanningCalendar from '../lib/PlanningCalendar.svelte';
-  import { standing } from './aggregate';
-  import { model } from './model.svelte';
-  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
-  import type { Overview } from './types';
-  // `embedded` is Home's panel: it fills the panel and leaves the title to the hub.
-  let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
+  import Sheet from '../Sheet.svelte';
+  import type { PlanningItem, PlanningOperation } from '../planningBridge';
+  import { instantFromWall, wallTime } from '../scheduling';
+  import type { DateDrop } from '../planningGestures';
+  import { formatTime, formatWall } from '../clock.svelte';
+  import { localToday } from '../planning-dates';
+  import PlanningCalendar from '../PlanningCalendar.svelte';
+  import { standing } from '../../shell/aggregate';
+  import WorkspaceTag from '../WorkspaceTag.svelte';
+  import type { Overview } from '../../shell/types';
+
+  // The Calendar page, drawn once for the Mac window page and for the web app: scheduled and planned work, the No date tray, and the sheet
+  // that edits one item. It knows nothing about where the work comes from. Each side hands it the overview to draw, how to read and change a
+  // task (`call`), how to read the overview again after a change (`refresh`), and what opening a task does (`open`).
+  let { overview, call, refresh, open: goTo, lede = 'Scheduled and planned work across all projects' }: {
+    overview: Overview | null;
+    call: (workspace: string, href: string, operation: PlanningOperation, payload?: Record<string, unknown>) => Promise<PlanningItem>;
+    refresh: () => Promise<unknown>;
+    open: (workspace: string, href: string) => void;
+    lede?: string;
+  } = $props();
+  const planningCall: typeof call = (...args) => call(...args);
   const rows = $derived((overview?.entries ?? []).flatMap(e => [
     ...(e.summary?.planned ?? []).map(p => ({ ...p, id: e.workspace.id + '/' + p.id + '/plan', project: e.workspace.name + ' · ' + p.project, detail: p.time ? formatWall(p.time) + ' · planned' : undefined, workspace: e.workspace.id, kind: 'planned' as const, status: e.summary?.work.find(w => w.id === p.id)?.status })),
     ...(e.summary?.schedule ?? []).map(p => { const date = new Date(p.at); const day = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; return { ...p, id: e.workspace.id + '/' + p.id + '/schedule', start: day, end: day, time: `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`, project: e.workspace.name + ' · ' + p.project, detail: formatTime(p.at) + ' · ' + p.state.replaceAll('_', ' ') + (p.reason ? ' · ' + p.reason : ''), workspace: e.workspace.id, kind: 'scheduled' as const }; })
@@ -44,11 +53,11 @@
   async function move(drop: DateDrop) {
     const r = rows.find(r => r.id === drop.id) ?? undated.find(r => r.id === drop.id); if (!r) return;
     const item = await planningCall(r.workspace, r.href, 'read');
-    if (undated.some(u => u.id === r.id)) { if (item.start || item.scheduledAt) { await model.refreshOverview(); throw new Error('This task was given a date elsewhere. The calendar has been refreshed.'); } }
-    else if (r.kind === 'planned' && (item.start !== r.start || item.end !== r.end)) { await model.refreshOverview(); throw new Error('This plan changed elsewhere. The calendar has been refreshed.'); }
-    if (r.kind === 'scheduled' && Date.parse(item.scheduledAt) !== Date.parse(r.at)) { await model.refreshOverview(); throw new Error('This schedule changed elsewhere. The calendar has been refreshed.'); }
+    if (undated.some(u => u.id === r.id)) { if (item.start || item.scheduledAt) { await refresh(); throw new Error('This task was given a date elsewhere. The calendar has been refreshed.'); } }
+    else if (r.kind === 'planned' && (item.start !== r.start || item.end !== r.end)) { await refresh(); throw new Error('This plan changed elsewhere. The calendar has been refreshed.'); }
+    if (r.kind === 'scheduled' && Date.parse(item.scheduledAt) !== Date.parse(r.at)) { await refresh(); throw new Error('This schedule changed elsewhere. The calendar has been refreshed.'); }
     await planningCall(r.workspace, r.href, r.kind === 'scheduled' ? 'reschedule' : 'move', { ...drop, version: item.version, scheduleVersion: item.scheduleVersion });
-    await model.refreshOverview();
+    await refresh();
   }
   async function save() {
     if (!row || !draft || busy) return;
@@ -63,15 +72,14 @@
         }
         if (at !== wallTime(draft.scheduledAt, zone)) await planningCall(row.workspace, row.href, 'reschedule', { ...draft, at: instantFromWall(at, zone) });
       } else await planningCall(row.workspace, row.href, 'save', { ...draft, time: single ? (draft.time ?? '') : '' });
-      await model.refreshOverview(); editing = ''; draft = null;
+      await refresh(); editing = ''; draft = null;
     } catch (e) { error = (detailsSaved ? 'Task details were saved; the schedule could not be confirmed. ' : '') + (e instanceof Error ? e.message : String(e)); }
     finally { busy = false; }
   }
 </script>
-<section class="page" class:embedded aria-labelledby="cal-h">
-  <header><h1 id="cal-h">Calendar</h1><p class="lede">Scheduled and planned work across all projects</p>
-</header>
-  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} dense={embedded} remember={embedded ? 'window-home' : 'window-calendar'} onopen={id => void open(id)} onmove={move} />{/if}
+<section class="page" aria-labelledby="cal-h">
+  <header><h1 id="cal-h">Calendar</h1><p class="lede">{lede}</p></header>
+  {#if !overview}<p class="empty">Loading schedules…</p>{:else}<PlanningCalendar {rows} {undated} remember="window-calendar" onopen={id => void open(id)} onmove={move} />{/if}
   {#each silent as e (e.workspace.id)}<p class="note"><WorkspaceTag workspace={e.workspace} /> {standing(e)}: its schedule cannot be shown now.</p>{/each}
 </section>
 {#if editing}
@@ -79,7 +87,7 @@
     {#if busy && !draft}<p role="status">Loading task…</p>{/if}
     {#if draft}<form id="universal-task-edit" class="edit" onsubmit={e => { e.preventDefault(); void save(); }}>
       <p class="context">{row?.project}</p>
-      {#if row}<button class="btn" type="button" onclick={() => { if (row) void model.goTo(row.workspace, row.href); editing = ''; }}>Open task</button>{/if}
+      {#if row}<button class="btn" type="button" onclick={() => { if (row) goTo(row.workspace, row.href); editing = ''; }}>Open task</button>{/if}
       <label class="field">Title<input class="input" bind:value={draft.title} required maxlength="200" disabled={!draft.editable} /></label>
       <label class="field">Details<textarea class="input" rows="5" bind:value={draft.description} disabled={!draft.editable}></textarea></label>
       {#if row?.kind === 'scheduled'}
@@ -103,8 +111,5 @@
   .page { padding: 24px; height: 100%; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
   h1 { margin: 0; } .lede, .note, .empty { color: var(--text-2); } .lede { margin: 4px 0 16px; }
   header { margin-bottom: 12px; }
-  .embedded { padding: 0; overflow: hidden; }
-  .embedded header { display: flex; align-items: center; justify-content: flex-end; margin: 0 0 8px; }
-  .embedded h1, .embedded .lede { display: none; }
   @media (max-width: 720px) { .page { padding: 16px; } }
 </style>
