@@ -206,8 +206,9 @@ async function api(method, path, data) { const res = await fetch(base + path, { 
         // A task that has never run opens its run setup, so there is nothing to open first.
         await page.getByRole('button', { name: 'Start agent', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: 'Start agent', exact: true }).isEnabled(), true);
-        assert.equal(await page.locator('select[id$="model"] option[value="remote-model"]').count() > 0, true);
-        assert.equal(await page.locator('select[id$="reasoning"] option[value="remote-reason"]').count() > 0, true);
+        // Runner capabilities arrive asynchronously after the task's setup opens.
+        await page.locator('select[id$="model"] option[value="remote-model"]').waitFor({ state: 'attached' });
+        await page.locator('select[id$="reasoning"] option[value="remote-reason"]').waitFor({ state: 'attached' });
         const startResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/runs'));
         await page.getByRole('button', { name: 'Start agent', exact: true }).click();
         const start = await startResponse;
