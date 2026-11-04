@@ -107,7 +107,7 @@ coding agent runtime and is never part of Team ([ASSISTANT.md](ASSISTANT.md)). T
 of those, the answer is to move the non-product-specific part into a shared package (as `sqlitekit` and `httpkit` were),
 not to reach across.
 
-The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. Team has its own small
+The same goes for the web: the PWA in `web/` is Personal's app. `web/src/shell/` is a separately built product-neutral desktop frontend, never embedded in the PWA; it displays Team-owned screens without importing their code. The two are drawn from the same components where they show the same thing: `web/src/lib/` holds them (the sidebar, the header bar, Work, Calendar, Analytics, the Settings list) and each side only supplies data and says what a press does. `make test-parity` keeps it so. Team has its own small
 console (`internal/team/console`). Both consume the framework-neutral components in `internal/uipresentation/static/`:
 shared tokens, segmented controls, section tabs, board geometry, motion, calendar planning gestures and date calculations.
 Personal imports them through its Svelte build; Team embeds and serves them under `ui/` without a Node build step.

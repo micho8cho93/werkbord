@@ -176,7 +176,7 @@ Hosts, Connectivity, Team memory and Backups; both have This computer, Phones an
 workspace at a time. Plan (Free or Premium, and the unlock key) is the window's own, like Appearance and Alerts. Appearance (the theme, for the whole window) and Alerts are the window's own. Every other section is the
 owning workspace's page, shown in a frame of its own (`?hosted=1`, `web/src/shell/FrameHost.svelte`) without that page's own
 navigation, so showing a workspace's settings never moves the workspace you are in. A page's link to settings (`#/settings?phones`,
-`?tab=devices`) asks the window for that section (`frames.ts`, event `settings`). `web/src/shell/settings.ts` is the list.
+`?tab=devices`) asks the window for that section (`frames.ts`, event `settings`). The sections are listed once, in `web/src/lib/settings-sections.ts`, which the window's Settings and the web app's Settings both draw.
 
 **Help** is the button in the bottom right corner of the window and opens Personal's guides and shortcuts, hosted the same way.
 

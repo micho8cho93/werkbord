@@ -72,6 +72,17 @@ Preserve the actual tag, VERSION metadata, assets, preview status and latest sel
   Details: `docs/VERSIONING.md`.
 - The Mac app (`desktop/`) and the Team service are part of the one release and have no version of their own.
 
+## The Mac window and the web app
+
+The Mac window page (`web/src/shell/`) and the web app (`web/src/routes/`, `web/src/lib/`) must look and behave the same.
+
+- A UI change is done when `make test-parity` passes (`PARITY_STRICT=1`, as `make check` runs it). Read `output/parity/report.md`.
+- A design change goes into the shared component in `web/src/lib` first, never into the shell and web copies separately. Each side
+  only supplies data and says what a press does. Do not copy markup between the two.
+- A new page is added to the screens list in `scripts/browser-parity.cjs`, and gets its own browser test.
+- A new allowed difference in `scripts/parity-allowed.json` needs a reason (`why`) and the user's agreement. Never add one just to make
+  the run pass: a real gap is fixed, or left failing and reported.
+
 ## Product boundaries
 
 Individual and Team are one release, but the *code* still has boundaries that are about trust, not packaging. Read

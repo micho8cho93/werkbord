@@ -452,6 +452,14 @@ use current labels and explain that tickets may appear in multiple categories. T
 Project and period filters keep the console's explicit Apply / refresh snapshot behaviour. Both tab bars support arrows,
 Home and End, show selected state and retain visible labels at narrow widths.
 
+### One window, one web app
+The Mac window page (`web/src/shell/`) and the web app (`web/src/routes/`) look and behave the same because they draw the same components,
+which live in `web/src/lib/`: the sidebar (`Sidebar.svelte`; the window's data is `shell/Sidebar.svelte`, the web app's is `shell/Rail.svelte`),
+the header bar (`ContextBar.svelte`; a project's heading, `shell/ProjectHeader.svelte`), Work (`work/WorkOverview.svelte`), Calendar
+(`calendar/CalendarPage.svelte`), Analytics (`analytics/AnalyticsPage.svelte`) and the Settings sections (`settings-sections.ts`). Each side
+supplies data and says what a press does; the look is changed in the shared component, once. `make test-parity` compares every screen of the
+two and fails on a difference that is not listed, with its reason, in `scripts/parity-allowed.json`.
+
 Every desktop window opens on Work. Sidebar width follows the viewport, using the 64px rail only at 640px and below.
 Stored workspace locations remain available when a person explicitly opens that workspace; they do not choose the startup surface.
 

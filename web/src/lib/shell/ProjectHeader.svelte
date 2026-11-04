@@ -92,9 +92,6 @@
 {:else}
   <!-- The same header as the Mac window's (in the window's own page the window draws it, so a framed page keeps the plain one above): where you are, and what is running and waiting. Work and Git are entries of the sidebar. -->
   <ContextBar crumbs={trail} running={activity?.running ?? 0} needsYou={attentionCount(activity)}>
-    <button class="btn jump" type="button" onclick={() => (app.switcherOpen = true)} aria-label="Jump to">
-      <Icon name="search" /><span class="wide">Jump to</span><kbd class="key wide">{isMac ? '⌘' : 'Ctrl'} K</kbd>
-    </button>
     {#if !app.remote}<a class="btn icon gear" href={projectHref(project.id, 'defaults')} aria-label="Project settings: defaults for {project.name}" title="Project settings" aria-current={router.view === 'defaults' ? 'page' : undefined}><Icon name="defaults" /></a>{/if}
     <button class="btn primary new" type="button" onclick={() => (app.newTaskOpen = true)} title="New task (N)"><Icon name="plus" /><span>New task</span></button>
   </ContextBar>

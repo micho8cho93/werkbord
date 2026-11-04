@@ -1,6 +1,55 @@
 {
+  "settings": [
+    {
+      "side": "window",
+      "match": "^nav: Updates & about$",
+      "why": "Mac app only: updating and the version of the app. A browser has no app to update (lib/settings-sections.ts leaves it out)."
+    },
+    {
+      "side": "window",
+      "match": "^nav: Plan$",
+      "why": "Mac app only: the paid plan and its unlock, held by the native app."
+    },
+    {
+      "side": "window",
+      "match": "^nav: Workspaces$",
+      "why": "Window only: the list of Personal and team workspaces and connecting one; the web app is one workspace."
+    },
+    {
+      "side": "window",
+      "match": "^nav: Back to Work$",
+      "why": "The window's Settings opens over the page you were on and returns to it; the web app's Settings is a page of its own and the sidebar leads back."
+    }
+  ],
+  "work": [
+    {
+      "side": "web",
+      "match": "^nav: Feed#$",
+      "why": "The page the Overview replaced stays one tab away in the web app until its filters, browser alerts and Team tickets waiting for a repository have a place (Work phase decision). To be removed with them."
+    }
+  ],
+  "project-work": [
+    {
+      "side": "web",
+      "match": "^nav: Feed#$",
+      "why": "As on All projects: the old feed stays one tab away until its parts have a place."
+    },
+    {
+      "side": "window",
+      "match": "^button: Agents and connections$",
+      "why": "The window's header popover lists the agents, connected tools and Git head of the selected project context, from the window's overview of every workspace. The web app has one workspace and the same facts on the page; sharing it needs the overview shape on the web side."
+    }
+  ],
   "git": [
-    { "side": "window", "match": "^button: Agents and connections$", "why": "The window's header popover lists the agents, connected tools and Git head of the selected project context, from the window's overview of every workspace. The web app has one workspace and the same facts on the page; sharing it needs the overview shape on the web side." },
-    { "side": "window", "match": "^link: Show on Deck$", "why": "A suggestion that starts a workflow is a link where the window can show the Control Deck; a browser has no Deck on a wide screen, so it says to start it from the phone or the desktop app (lib/recommend/RecommendationCard.svelte)." }
+    {
+      "side": "window",
+      "match": "^button: Agents and connections$",
+      "why": "The window's header popover lists the agents, connected tools and Git head of the selected project context, from the window's overview of every workspace. The web app has one workspace and the same facts on the page; sharing it needs the overview shape on the web side."
+    },
+    {
+      "side": "window",
+      "match": "^(button|link): Show on Deck$",
+      "why": "A suggestion that starts a workflow is a link where the window can show the Control Deck; a browser has no Deck on a wide screen, so it says to start it from the phone or the desktop app (lib/recommend/RecommendationCard.svelte)."
+    }
   ]
 }

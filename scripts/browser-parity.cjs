@@ -5,7 +5,7 @@
 //   make test-parity                                    (builds first; writes the report and screenshots to output/parity)
 //   BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs        (the same, on the last build)
 //
-// Environment: PARITY_ONLY=work,settings limits the screens; PARITY_OUT=dir moves the report; PARITY_THEME=dark checks dark;
+// Environment: PARITY_ONLY=work,settings limits the screens; PARITY_OUT=dir moves the report; PARITY_THEME=dark checks dark; PARITY_WIDTH=900 checks the narrowest desktop window (below 900px the web app is the phone UI, which is not compared);
 // PARITY_STRICT=1 makes any difference that is not in scripts/parity-allowed.json an error (that is what make check will run).
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const root = path.resolve(__dirname, '..');
@@ -15,6 +15,7 @@ const token = 'disposable-browser-credential';
 const out = process.env.PARITY_OUT || path.join(root, 'output', 'parity');
 const only = (process.env.PARITY_ONLY || '').split(',').filter(Boolean);
 const theme = process.env.PARITY_THEME || '';
+const width = Number(process.env.PARITY_WIDTH || 1440);
 const strict = process.env.PARITY_STRICT === '1';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -58,7 +59,8 @@ function collect() {
   for (const el of document.querySelectorAll('[role=tab]')) if (shown(el)) add('tab', name(el));
   for (const el of document.querySelectorAll('button,a[href],[role=button],summary')) {
     if (!shown(el) || el.matches('[role=tab]')) continue;
-    add(el.closest('nav,aside,[role=tablist]') ? 'nav' : el.tagName === 'A' ? 'link' : 'button', name(el));
+    // A link drawn as a button (a.btn) is a button to a person: one side may navigate where the other runs code.
+    add(el.closest('nav,aside,[role=tablist]') ? 'nav' : el.tagName === 'A' && !el.classList.contains('btn') ? 'link' : 'button', name(el));
   }
   for (const el of document.querySelectorAll('input:not([type=hidden]),select,textarea')) if (shown(el)) add('field', el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.labels?.[0]?.textContent || el.name || el.type);
   return lines;
@@ -116,7 +118,14 @@ async function seed() {
   await api('PUT', `/projects/${P.id}/orchestration`, { concurrencyLimit: 4 }).catch(() => {});
   { const rs = await api('GET', '/runners'); for (const r of (rs.runners || rs)) await api('PUT', `/runners/${r.id}`, { name: r.name, capacity: 4, automatic: r.automatic, disabled: r.disabled, projects: r.projects, allowClone: r.allowClone }).catch(() => {}); }
   for (const k of ['running', 'copy']) await api('POST', `/projects/${P.id}/tasks/${tasks[k].id}/runs`, { agentId: 'fixture' }).catch(e => console.log('run failed', k, String(e).slice(0, 200)));
-  await sleep(1500);
+  // Wait until both runs have settled on waiting for the next message, so no screen is read while a run is still starting: the same fixture then gives the same figures on both sides.
+  for (let n = 0; n < 100; n++) {
+    const states = await Promise.all(['running', 'copy'].map(k => api('GET', `/projects/${P.id}/tasks`).then(r => r.tasks.find(t => t.id === tasks[k].id))));
+    const runs = await Promise.all(states.map(t => api('GET', `/projects/${P.id}/tasks/${t.id}/runs`).catch(() => null)));
+    if (runs.every(r => { const list = Array.isArray(r) ? r : r?.runs; return list?.length && list.every(x => x.state === 'waiting_for_user'); })) break;
+    await sleep(200);
+  }
+  await sleep(1000);
 }
 
 // ---- running ----
@@ -157,7 +166,7 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
       const row = { id: s.id, title: s.title, note: s.note || '', window: [], web: [] };
       if (s.skip) { row.skipped = s.skip; row.window = []; row.web = []; row.diff = { onlyWindow: [], onlyWeb: [], shared: 0 }; report.push(row); console.log(`SKIP ${s.id}: ${s.skip}`); continue; }
       for (const side of ['window', 'web']) {
-        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+        const ctx = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: 'block' });
         await ctx.addInitScript(({ token, theme }) => { localStorage.setItem('werkbord.token', token); if (theme) localStorage.setItem('werkbord.theme', theme); }, { token, theme });
         if (side === 'window') await ctx.addInitScript(shellInit, { items, personalURL, token, theme });
         const page = await ctx.newPage(); page.setDefaultTimeout(8000);
@@ -185,7 +194,7 @@ const isAllowed = (screen, side, line) => (allowed[screen] || []).concat(allowed
   } finally { await browser.close(); server.close(); }
 
   // The report: one section per screen, differences grouped by kind, so the list of work reads from the top.
-  const md = ['# Parity: Mac window page vs web app', '', `Same build, same fixture, theme ${theme || 'light'}. "Window" is the shell page with the web app in its frame; "web" is the web app on its own.`, '', '| Screen | Shared | Only in window | Only in web | Not allowed |', '|---|---:|---:|---:|---:|'];
+  const md = ['# Parity: Mac window page vs web app', '', `Same build, same fixture, theme ${theme || 'light'}, window ${width}px wide. "Window" is the shell page with the web app in its frame; "web" is the web app on its own.`, '', '| Screen | Shared | Only in window | Only in web | Not allowed |', '|---|---:|---:|---:|---:|'];
   let unexpected = 0;
   for (const r of report) {
     r.open = { window: r.diff.onlyWindow.filter(l => !isAllowed(r.id, 'window', l)), web: r.diff.onlyWeb.filter(l => !isAllowed(r.id, 'web', l)) };

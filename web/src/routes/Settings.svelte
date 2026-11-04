@@ -153,6 +153,8 @@
       {#each SECTIONS as s (s.key)}<option value={s.key}>{s.label}</option>{/each}
     </select>
   </label>
+  <aside class="column">
+  <h1 class="title">Settings</h1>
   <nav class="sections" aria-label="Settings sections">
     {#each shownGroups as group (group.label)}
       <div class="section-group" role="group" aria-label={group.label}>
@@ -165,6 +167,7 @@
       </div>
     {/each}
   </nav>
+  </aside>
 
   <div class="content">
     {#if section === 'defaults'}
@@ -316,20 +319,22 @@
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
+  /* The window's Settings column: the title, then the sections. */
+  .column { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); overflow-y: auto; }
+  .title { margin: 0; padding: 20px 20px 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+
   .sections {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 20px 12px;
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
+    padding: 12px 12px 20px;
   }
 
   .mobile-section { display: none; }
 
   /* In the window: one section, no list of its own (the window's Settings has it). */
   .settings.framed { display: block; height: auto; }
-  .settings.framed .sections, .settings.framed .mobile-section { display: none; }
+  .settings.framed .column, .settings.framed .mobile-section { display: none; }
 
   .sections a {
     display: flex;
@@ -425,7 +430,7 @@
       height: auto;
     }
 
-    .sections {
+    .column {
       display: none;
     }
 

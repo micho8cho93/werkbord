@@ -103,15 +103,20 @@ lint: web/node_modules
 	$(GO) vet ./...
 	cd web && $(NPM) run check && $(NPM) run lint
 
-## test-parity: the Mac window page and the web app, screen by screen, from one build; the report is output/parity/report.md
-## (PARITY_STRICT=1 fails on any difference not listed in scripts/parity-allowed.json)
+## test-parity: the Mac window page and the web app, screen by screen, from one build: light at 1440px (output/parity/report.md), dark (output/parity/dark)
+## and a 900px window (output/parity/narrow; not Git, which is a framed page whose own media queries see the frame, not the window). PARITY_STRICT=1 fails on any difference not listed, with its reason, in scripts/parity-allowed.json
 test-parity: web web-embed web-shell
 	BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
+	PARITY_THEME=dark PARITY_OUT=output/parity/dark BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
+	PARITY_WIDTH=900 PARITY_ONLY=work,project-work,calendar,agents,analytics,settings,help PARITY_OUT=output/parity/narrow BROWSER_SCRIPT=scripts/browser-parity.cjs node scripts/test-browser.cjs
 
-## check: everything CI should run
+## check: everything CI should run, including the parity gate (make test-parity with PARITY_STRICT=1)
 check: web-shell test lint desktop-test test-notarize-desktop test-workflows test-premium-console
 	$(GO) build ./...
 	cd web && $(NPM) run build
+	@# The window and the web app must not drift apart (AGENTS.md, UI changes). CI runs this in its browser job, where Chromium is installed,
+	@# and sets SKIP_PARITY here so that it is not run twice.
+	@if [ -z "$$SKIP_PARITY" ]; then PARITY_STRICT=1 $(MAKE) test-parity; else echo "SKIP_PARITY set: the parity gate runs elsewhere"; fi
 
 # ---- the desktop app (desktop/, docs/DESKTOP.md) ----
 # It is a Go module of its own because it needs cgo and the system's web view; nothing above builds it, so make check

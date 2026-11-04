@@ -56,6 +56,8 @@ jobs:
         env:
           # Native network tests run separately with trusted source-build hashes; make check skips unpinned binaries.
           WERKBORD_REQUIRE_NEBULA: "0"
+          # The window/web parity gate needs Chromium: it runs in the browser job.
+          SKIP_PARITY: "1"
         run: make check
       - name: Patched infrastructure binaries with trusted build-time pins
         run: make test-nebula
@@ -148,6 +150,7 @@ jobs:
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/assistant" make test-assistant-browser
           BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/work" make test-project-context-browser test-work-agents-ux-browser test-brief-browser test-work-browser test-work-order-browser test-work-overview-browser test-settings-browser test-calendar-browser
           node scripts/browser-salie-sessions.cjs
+          BROWSER_ARTIFACT_DIR="$RUNNER_TEMP/werkbord-browser/parity" PARITY_STRICT=1 make test-parity
       - name: Browser diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -156,4 +159,5 @@ jobs:
           path: |
             ${{ runner.temp }}/werkbord-browser/*.png
             ${{ runner.temp }}/werkbord-browser/**/*.png
+            output/parity/**
           if-no-files-found: ignore

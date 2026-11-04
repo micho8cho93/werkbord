@@ -64,7 +64,7 @@ or a schedule (Team): changing one never schedules, delays or moves a run.
 
 `time` (Individual) is the time of day the work is planned for, `HH:MM` on a 24-hour clock with no zone, like the day it belongs to. It is only
 for a single day (a start with no end, or one end the same day, or a milestone) and needs that day; across days it is refused. It is stored in
-`tasks.plan_time` (migration `0035_plan_time.sql`). A timed plan sits in the project Calendar's time grid, drawn dashed so it reads as a plan and
+`tasks.plan_time` (migration `0035_plan_time.sql`). A timed plan sits in the Calendar's time grid, drawn dashed so it reads as a plan and
 not as an agent start. A plan with a time still never starts an agent: starting one at that time is a separate, explicit choice in the task's editor
 (**Also start an agent at …**, unticked), or the offer after a placement in Calendar. The Calendar's **No date** tray lists every open task with no
 plan, human work included, and planning one never schedules it.
