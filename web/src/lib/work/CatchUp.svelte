@@ -1,9 +1,22 @@
 <script lang="ts">
-  import { model } from './model.svelte';
-  import { recap } from './catchup';
-  import { catchUpSession } from './catchup-session.svelte';
-  import type { Overview } from './types';
-  let { overview, waiting }: { overview: Overview | null; waiting: number } = $props();
+  import { recap } from '../../shell/catchup';
+  import { catchUpSession } from '../../shell/catchup-session.svelte';
+  import type { Overview } from '../../shell/types';
+
+  // "Since you were last here", drawn once for the Mac window page and for the web app: what was completed and merged since the person's last
+  // visit (kept as cursors in this browser, never as content), and a button that asks Salie to explain it. It is handed the overview and says
+  // nothing about where it came from; each side says how the overview is read again, how Salie is asked, and what opening a change does.
+  let { overview, waiting, refresh, latest, explain: ask, canExplain = true, open }: {
+    overview: Overview | null;
+    waiting: number;
+    /** Reads the overview again, so nothing cached is sent to Salie; false when it could not be. */
+    refresh: () => Promise<boolean>;
+    /** The overview as it is now, after `refresh`. */
+    latest: () => Overview | null;
+    explain: (prompt: string) => Promise<void>;
+    canExplain?: boolean;
+    open: (workspace: string, href: string) => void;
+  } = $props();
   const previous = $derived(catchUpSession.previous);
   const through = $derived(catchUpSession.through);
   let expanded = $state(false);
@@ -14,12 +27,12 @@
   const elapsed = $derived(previous ? Math.max(0, Math.floor((through - previous.at) / 86_400_000)) : 0);
   async function explain() {
     // Refresh before explanation; never send cached Team content after permission changes.
-    if (!await model.refreshOverview()) { explanationError = 'Recent activity could not be refreshed. Retry before sharing it with Salie.'; return; }
+    if (!await refresh()) { explanationError = 'Recent activity could not be refreshed. Retry before sharing it with Salie.'; return; }
     explanationError = '';
-    const current = model.contextOverview && previous ? recap(model.contextOverview, previous, through) : null;
-    const evidence = current?.items.slice(0, 30).map(i => `- ${i.change.kind === 'completed' ? 'Completed' : 'Merged pull request'}: ${i.change.title} (${i.name}, ${new Date(i.change.at).toLocaleString()}). Source: ${i.change.href}`) ?? [];
-    const coverage = [current?.incomplete ? 'Some history is outside the available coverage.' : '', current?.unavailable.length ? `Unavailable workspaces: ${current.unavailable.join(', ')}.` : '', (current?.items.length ?? 0) > evidence.length ? `Showing the first ${evidence.length} of ${current?.items.length} recorded events.` : ''].filter(Boolean).join(' ');
-    await model.explainCatchUp(`Catch me up on the work recorded since ${new Date(previous!.at).toLocaleString()}. Explain what these facts establish and link to the source records. Say where the evidence is incomplete.\n${coverage}\n\n${evidence.join('\n') || 'No completion or pull-request merge events were recorded in this interval.'}`);
+    const now = latest() && previous ? recap(latest()!, previous, through) : null;
+    const evidence = now?.items.slice(0, 30).map(i => `- ${i.change.kind === 'completed' ? 'Completed' : 'Merged pull request'}: ${i.change.title} (${i.name}, ${new Date(i.change.at).toLocaleString()}). Source: ${i.change.href}`) ?? [];
+    const coverage = [now?.incomplete ? 'Some history is outside the available coverage.' : '', now?.unavailable.length ? `Unavailable workspaces: ${now.unavailable.join(', ')}.` : '', (now?.items.length ?? 0) > evidence.length ? `Showing the first ${evidence.length} of ${now?.items.length} recorded events.` : ''].filter(Boolean).join(' ');
+    await ask(`Catch me up on the work recorded since ${new Date(previous!.at).toLocaleString()}. Explain what these facts establish and link to the source records. Say where the evidence is incomplete.\n${coverage}\n\n${evidence.join('\n') || 'No completion or pull-request merge events were recorded in this interval.'}`);
   }
 </script>
 
@@ -31,10 +44,10 @@
     <div class="facts">
       <button class="btn small quiet" onclick={() => expanded = !expanded} aria-expanded={expanded}>{merged} pull {merged === 1 ? 'request' : 'requests'} merged · {completed} {completed === 1 ? 'item' : 'items'} completed</button>
       <button class="btn small quiet" onclick={() => { const heading = document.getElementById('work-attention') as HTMLDetailsElement | null; if (heading) { heading.open = true; heading.scrollIntoView({ block: 'nearest' }); heading.querySelector('summary')?.focus(); } }}>{waiting} {waiting === 1 ? 'item needs' : 'items need'} attention now</button>
-      {#if !model.remotePersonal}<button class="btn small" onclick={() => { void explain(); }}>Catch me up with Salie</button>{/if}
+      {#if canExplain}<button class="btn small" onclick={() => { void explain(); }}>Catch me up with Salie</button>{/if}
     </div>
     {#if result.incomplete || result.unavailable.length}<p class="muted">{result.incomplete ? 'Some history is outside the available coverage. ' : ''}{result.unavailable.length ? `Unavailable: ${result.unavailable.join(', ')}.` : ''}</p>{/if}
-    {#if expanded}<ul>{#each result.items as row (row.change.key)}<li><button class="btn small quiet" onclick={() => model.open(row.workspace, row.change.href)}>{row.change.title}</button><span class="muted">{row.name} · {row.change.kind === 'completed' ? 'completed' : 'PR merged'}</span></li>{/each}</ul>{/if}
+    {#if expanded}<ul>{#each result.items as row (row.change.key)}<li><button class="btn small quiet" onclick={() => open(row.workspace, row.change.href)}>{row.change.title}</button><span class="muted">{row.name} · {row.change.kind === 'completed' ? 'completed' : 'PR merged'}</span></li>{/each}</ul>{/if}
   {:else}<p class="muted">Loading recent activity…</p>{/if}
 </section>
 <style>

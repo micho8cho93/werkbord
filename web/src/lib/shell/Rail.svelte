@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Sidebar, { type SidebarItem } from '../Sidebar.svelte';
   import ProjectPicker, { type PickerGroup } from '../ProjectPicker.svelte';
   import { assistant } from '../assistant/sessions.svelte';
@@ -8,6 +9,7 @@
   import { app } from '../state.svelte';
   import { workSummary } from '../work/summary.svelte';
   import { railBadges } from '../../shell/rail';
+  import { catchUpSession } from '../../shell/catchup-session.svelte';
 
   // The web app's sidebar is the shared one (lib/Sidebar.svelte), the same as the Mac window's, told what the web app lists and what
   // choosing each thing does. (Inside the Mac window's own page the window's sidebar does this job and this one is not shown.)
@@ -35,6 +37,9 @@
   // sidebars say the same thing. The summary is read now and then, because the sidebar is on every page.
   $effect(() => { void app.overview; void workSummary.refresh(); });
   $effect(() => { const timer = setInterval(() => void workSummary.refresh(), 15_000); return () => clearInterval(timer); });
+  // The last visit is kept from the first page on, so Work can say what changed since (the window does the same).
+  $effect(() => untrack(() => catchUpSession.start()));
+  $effect(() => { catchUpSession.ingest(workSummary.overview); });
   const badges = $derived(railBadges(workSummary.overview));
   const destinations = $derived<SidebarItem[]>([
     {

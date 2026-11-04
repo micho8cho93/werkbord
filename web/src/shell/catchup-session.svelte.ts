@@ -1,6 +1,9 @@
 import { readVisit, VISIT_KEY, type Visit } from './catchup';
 import type { Overview } from './types';
 
+/** The last visit, or none where the browser gives no storage (a private window): the getter itself can throw. */
+const lastVisit = (): Visit | null => { try { return readVisit(localStorage); } catch { return null; } };
+
 /** One recap interval per app session, independent of Home mounting/unmounting. */
 export const catchUpSession = new class {
   previous = $state<Visit | null>(null);
@@ -16,7 +19,7 @@ export const catchUpSession = new class {
     }
   }
   start(): () => void {
-    this.previous = readVisit(localStorage);
+    this.previous = lastVisit();
     this.through = Date.now();
     this.cursors = { ...this.previous?.cursors };
     this.coveredAt = { ...this.previous?.coveredAt };
@@ -24,7 +27,7 @@ export const catchUpSession = new class {
     const save = () => { try { localStorage.setItem(VISIT_KEY, JSON.stringify({ at: Date.now(), cursors: this.cursors, coveredAt: this.coveredAt })); } catch { /* Keep the in-memory recap. */ } };
     const visibility = () => {
       if (document.hidden) { hiddenAt = Date.now(); save(); }
-      else if (hiddenAt && Date.now() - hiddenAt >= 30 * 60_000) { this.previous = readVisit(localStorage); this.through = Date.now(); hiddenAt = 0; }
+      else if (hiddenAt && Date.now() - hiddenAt >= 30 * 60_000) { this.previous = lastVisit(); this.through = Date.now(); hiddenAt = 0; }
     };
     const timer = setInterval(() => { if (!document.hidden) save(); }, 15_000);
     document.addEventListener('visibilitychange', visibility);

@@ -1,7 +1,8 @@
 <script lang="ts">
   import Icon from '../lib/Icon.svelte';
+  import { projectHref } from '../lib/location';
   import Attention from '../lib/work/Attention.svelte';
-  import CatchUp from './CatchUp.svelte';
+  import CatchUp from '../lib/work/CatchUp.svelte';
   import BriefCard from './BriefCard.svelte';
   import { model } from './model.svelte';
   import { contextKey, parseContext } from './project-context';
@@ -114,7 +115,7 @@
 <section class="work work-view" class:compact aria-labelledby="work-h">
   <header class="work-heading"><div><h1 id="work-h">Work</h1><p class="muted">Your tasks, plans and agent activity.</p></div><div class="actions work-actions">
     <label class="work-search"><Icon name="search" size={15} /><span class="visually-hidden">Search work</span><input type="search" bind:value={search} placeholder="Search work…" /></label>
-    <button class="btn" type="button" onclick={() => model.newProject()} data-testid="work-new-project"><Icon name="plus" size={15} />New project</button><button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button><button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
+    <button class="btn" type="button" onclick={() => model.newProject()} data-testid="work-new-project"><Icon name="plus" size={15} />New project</button><button class="btn" disabled={!choices.length} onclick={() => openCreate('plan')}>New plan</button>{#if model.selectedProject && target && target.workspace === 'personal'}<button class="btn icon" type="button" aria-label="Project settings: defaults for {target.project.name}" title="Project settings" onclick={() => model.goTo(target.workspace, projectHref(target.project.id, 'defaults'))}><Icon name="defaults" /></button>{/if}<button class="btn primary" disabled={!choices.length} onclick={() => openCreate('task')}><Icon name="plus" size={15} />New task</button>
     {#if creating}<div class="project-choices" role="group" aria-label="Choose a project for new work"><div><strong>New {creating}</strong><button class="btn quiet small" onclick={() => creating = ''} aria-label="Close project choices"><Icon name="close" size={14} /></button></div><p class="muted">Choose the project for this {creating}.</p>{#each choices as choice (choice.workspace + choice.project.id)}<button onclick={() => openCreate(creating as 'task' | 'plan', choice)}>{choice.title}<Icon name="right" size={13} /></button>{/each}</div>{/if}
   </div></header>
   <nav class="work-tabs" aria-label="Work sections"><button aria-current={section === 'overview' ? 'page' : undefined} onclick={() => section = 'overview'}>Overview</button><button aria-current={section === 'queue' ? 'page' : undefined} onclick={() => model.selectedProject ? model.openProjectWork() : section = 'queue'}>Queue &amp; Plans<span>{queueCount}</span></button></nav>
@@ -127,7 +128,7 @@
   {#if section === 'overview'}
     <WorkOverview waiting={waiting} {decide} running={running.slice(0, 5)} {upNext} ready={readyCount(queueRows)} plans={plans} plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
       {people} {showWhere} {now} whereOf={entryOf} {detail} isOpen={openHere} onopen={open} seeAll={() => (section = 'queue')} {compact}>
-      {#snippet brief()}<BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} />{/if}</BriefCard>{/snippet}
+      {#snippet brief()}<BriefCard>{#if !model.selectedProject}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0} refresh={() => model.refreshOverview()} latest={() => model.contextOverview} explain={(prompt) => model.explainCatchUp(prompt)} canExplain={!model.remotePersonal} open={(workspace, href) => model.open(workspace, href)} />{/if}</BriefCard>{/snippet}
       {#snippet attention()}<Attention {overview} answerWith={(q, answer, at) => answering.answerWith(q, answer, overview, at)} onSettled={answering.settled} open={(workspace, href) => model.open(workspace, href)} notify={(message) => (model.notice = message)} />{/snippet}
       {#snippet extra()}
         {#if repoNews.length}

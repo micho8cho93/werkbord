@@ -2,6 +2,8 @@
   import WorkOverview from './WorkOverview.svelte';
   import BriefCard from './BriefCard.svelte';
   import Attention from './Attention.svelte';
+  import CatchUp from './CatchUp.svelte';
+  import { assistant } from '../assistant/sessions.svelte';
   import { PERSONAL, workSummary } from './summary.svelte';
   import { api } from '../api';
   import { app } from '../state.svelte';
@@ -57,7 +59,11 @@
     {#snippet brief()}
       <BriefCard scope={projectId ? (app.project(projectId)?.name ?? 'this project') : 'all projects'}
         projectContext={projectId ? { workspace: 'personal', project: projectId, label: app.project(projectId)?.name ?? '' } : null}
-        frame={null} inline hidden={app.remote} />
+        frame={null} inline hidden={app.remote}>
+        {#if !projectId}<CatchUp {overview} waiting={overview?.entries.reduce((n, e) => n + (e.summary?.attention.length ?? 0), 0) ?? 0}
+          refresh={async () => { await workSummary.refresh(true); return !workSummary.failed; }} latest={() => workSummary.overview}
+          explain={async (prompt) => { assistant.draft = prompt; assistant.show(undefined, null); }} canExplain={!app.remote} open={(_workspace, href) => open(_workspace, href)} />{/if}
+      </BriefCard>
     {/snippet}
   </WorkOverview>
 {/if}
