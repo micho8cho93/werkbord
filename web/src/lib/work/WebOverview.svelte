@@ -1,6 +1,7 @@
 <script lang="ts">
   import WorkOverview from './WorkOverview.svelte';
   import BriefCard from './BriefCard.svelte';
+  import Attention from './Attention.svelte';
   import { PERSONAL, workSummary } from './summary.svelte';
   import { api } from '../api';
   import { app } from '../state.svelte';
@@ -52,6 +53,7 @@
     plansEmpty={search ? 'No plans match your search.' : 'Create a plan to group related tasks. Individual tasks can stand on their own.'}
     people={participants(overview)} showWhere={false} {now} whereOf={() => undefined} detail={(w, item) => rowDetail(overview, w, item)}
     isOpen={() => false} onopen={open} seeAll={toQueue}>
+    {#snippet attention()}<Attention {overview} answerWith={(q, answer) => decide.answerWith(q, answer)} onSettled={decide.onSettled} open={(workspace, href) => { if (href) open(workspace, href); }} notify={decide.notify} />{/snippet}
     {#snippet brief()}
       <BriefCard scope={projectId ? (app.project(projectId)?.name ?? 'this project') : 'all projects'}
         projectContext={projectId ? { workspace: 'personal', project: projectId, label: app.project(projectId)?.name ?? '' } : null}

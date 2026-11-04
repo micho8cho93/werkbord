@@ -1,11 +1,24 @@
 <script lang="ts">
-  import { attentionAction, attentionGroups, standing, recordedTime, tallyByKind } from './aggregate';
-  import { model } from './model.svelte';
-  import WorkspaceTag from '../lib/WorkspaceTag.svelte';
-  import type { Overview, OverviewEntry } from './types';
-  import QuestionCard from '../lib/QuestionCard.svelte';
-  import type { Question } from '../lib/types';
-  import * as answering from './answering';
+  import { attentionAction, attentionGroups, standing, recordedTime } from '../../shell/aggregate';
+  import WorkspaceTag from '../WorkspaceTag.svelte';
+  import type { Overview, OverviewEntry } from '../../shell/types';
+  import QuestionCard from '../QuestionCard.svelte';
+  import type { Question } from '../types';
+
+  // What waits for the person or that they should know about, drawn once for the Mac window page and for the web app, under the cards of
+  // Work: an agent's question (answered where it is listed, with the agent's own context in view), work that is blocked or failed, a review
+  // someone asked for, and warnings about the machines a Team depends on. Worst first. It is handed the overview; each side says how an
+  // answer is sent, what happens once one is accepted, and what opening an item does.
+  let { overview, answerWith, onSettled, open, notify }: {
+    overview: Overview | null;
+    /** Sends the answer to the workspace that asked; `now` is the clock the page is using. */
+    answerWith: (q: Question, answer: string, now: number) => Promise<Question>;
+    /** The workspace accepted the answer, or says it was settled elsewhere. */
+    onSettled: (q: Question) => void;
+    /** An item may name no place to open. */
+    open: (workspace: string, href: string | undefined) => void;
+    notify: (message: string) => void;
+  } = $props();
 
   let expanded = $state<Record<string, boolean>>({});
   let settled = $state<Record<string, boolean>>({});
@@ -16,43 +29,20 @@
     const e = source(id);
     return !!e?.summary && !e.error && e.workspace.state === 'ready' && now - Date.parse(e.summary.at) < 30000;
   }
-  const answerWith = (q: Question, answer: string) => answering.answerWith(q, answer, overview, now);
-  function onSettled(q: Question): void {
+  const send = (q: Question, answer: string) => answerWith(q, answer, now);
+  function settle(q: Question): void {
     settled[q.id] = true;
-    answering.settled(q);
+    onSettled(q);
   }
-
-
-  // What waits for the person or that they should know about, from every workspace: an agent's question, work that is blocked
-  // or failed, a review someone asked for, and warnings about the machines a Team depends on. Worst first.
-  // `embedded` is Home's panel: no title or tally of its own (the hub shows them), no page padding.
-  let { overview, embedded = false }: { overview: Overview | null; embedded?: boolean } = $props();
 
   const groups = $derived(overview ? attentionGroups(overview) : []);
   const silent = $derived(overview ? overview.entries.filter((e) => e.error || e.workspace.state !== 'ready' || !e.summary) : []);
   const word: Record<string, string> = { critical: 'Urgent', warning: 'Needs attention', info: 'For your information' };
-  const tally = $derived(tallyByKind(groups));
 </script>
 
-<section class="page" class:embedded aria-labelledby="inbox-h">
-  <header>
-    <h1 id="inbox-h">Workspaces</h1>
-    <p class="lede">Questions, blockers, reviews and warnings from all your workspaces</p>
-  </header>
-
-  {#if overview && !embedded}
-    <ul class="tally" aria-label="Waiting by kind of workspace">
-      {#each tally as t (t.kind)}
-        <li data-kind={t.kind} data-testid="tally-{t.kind}">
-          <span class="swatch" aria-hidden="true"></span>
-          <span class="who">{t.label}</span>
-          <span class="n">{t.actions}</span><span class="cap">{t.actions === 1 ? 'action needed' : 'actions needed'}</span>
-          <span class="n">{t.warnings}</span><span class="cap">{t.warnings === 1 ? 'warning' : 'warnings'}</span>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-
+<details id="work-attention" class="attention">
+<summary>Questions and workspace notices</summary>
+<section class="page" aria-label="Questions and workspace notices">
   {#each silent as e (e.workspace.id)}
     <p class="alert" role="status"><WorkspaceTag workspace={e.workspace} /> <strong>Current status unavailable.</strong> {standing(e)} Any displayed items are last reported; open the workspace to reconnect.</p>
   {/each}
@@ -80,13 +70,13 @@
           {#if r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question && !settled[r.item.question.id]}
           <button class="btn action" type="button" aria-expanded={!!expanded[r.item.id]} aria-controls="inbox-answer-{r.item.id}" onclick={() => expanded[r.item.id] = !expanded[r.item.id]}>{expanded[r.item.id] ? 'Close answer' : 'Answer'}</button>
           {:else if !r.item.question || !settled[r.item.question.id]}
-          <button class="btn action" class:primary={group.id !== 'warnings' && group.id === groups[0].id && i === 0} type="button" onclick={() => model.open(r.workspace.id, r.item.href)} aria-label="{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}: {r.item.title}">{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}</button>
+          <button class="btn action" class:primary={group.id !== 'warnings' && group.id === groups[0].id && i === 0} type="button" onclick={() => open(r.workspace.id, r.item.href)} aria-label="{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}: {r.item.title}">{r.workspace.kind === 'team' ? 'Open' : attentionAction(r.item)}</button>
           {/if}
         </div>
         {#if expanded[r.item.id] && r.workspace.kind === 'personal' && r.item.kind === 'needs_input' && r.item.question && !settled[r.item.question.id]}
           <section class="answer" id="inbox-answer-{r.item.id}" aria-label="Answer: {r.item.question.prompt}">
             {#if !available(r.workspace.id)}<p role="status">Answering is unavailable. Last reported: {recordedTime(source(r.workspace.id)?.summary?.at) || 'unknown'}. Open the workspace to reconnect.</p>{/if}
-            <QuestionCard question={{ ...r.item.question, state: 'pending' }} revealContext disabled={!available(r.workspace.id)} {answerWith} {onSettled} notify={(message) => model.notice = message} />
+            <QuestionCard question={{ ...r.item.question, state: 'pending' }} revealContext disabled={!available(r.workspace.id)} answerWith={send} onSettled={settle} {notify} />
           </section>
         {/if}
       </li>
@@ -95,28 +85,14 @@
   </section>
   {/each}
 </section>
+</details>
 
 <style>
+  .attention { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 24px; }
+  .attention summary { cursor: pointer; padding: 10px 0; color: var(--text-2); font-size: 13px; }
   .answer { padding: 0 14px 16px 36px; }
-  .page {
-    padding: 28px clamp(16px, 4vw, 48px);
-    margin: 0 auto;
-    overflow-y: auto;
-    height: 100%;
-  }
-  .page.embedded { padding: 0; max-width: none; margin: 0; height: auto; overflow: visible; }
-  .embedded header { display: none; }
-  .embedded .group { margin-top: 14px; }
-  .embedded .group:first-of-type { margin-top: 0; }
-  .embedded ul { border-color: var(--border); box-shadow: none; }
-  h1 {
-    margin: 0;
-  }
-  .lede {
-    margin: 4px 0 18px;
-    color: var(--text-2);
-  }
-  .group { margin-top: 24px; }
+  .group { margin-top: 14px; }
+  .group:first-of-type { margin-top: 0; }
   h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; }
   .count { color: var(--text-2); font-family: var(--mono); font-size: 12px; }
   ul {
@@ -146,35 +122,6 @@
     font-size: 13px;
   }
   .row[data-kind='team'] { --kind: var(--block); }
-  .tally {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 12px;
-    margin: 0 0 4px;
-    padding: 0;
-    border: 0;
-    background: none;
-    box-shadow: none;
-  }
-  .tally li {
-    --kind: var(--accent);
-    display: grid;
-    grid-template-columns: auto 1fr auto auto auto auto;
-    align-items: baseline;
-    gap: 4px 6px;
-    padding: 12px 14px;
-    border: 1px solid color-mix(in srgb, var(--kind) 45%, var(--border));
-    border-radius: var(--radius);
-    background: color-mix(in srgb, var(--kind) 8%, var(--surface));
-    box-shadow: var(--card-sh);
-    font-size: 12px;
-  }
-  .tally li + li { border-top: 1px solid color-mix(in srgb, var(--kind) 45%, var(--border)); }
-  .tally li[data-kind='team'] { --kind: var(--block); }
-  .swatch { align-self: center; width: 10px; height: 10px; border-radius: 3px; background: var(--kind); }
-  .who { font-weight: 600; font-size: 13px; }
-  .n { font-family: var(--mono); font-size: 16px; font-weight: 600; text-align: right; }
-  .cap { color: var(--text-2); margin-right: 6px; }
   .action { min-height: 44px; white-space: nowrap; }
   .sev {
     width: 8px;
@@ -216,17 +163,8 @@
   .empty {
     color: var(--text-2);
   }
-  /* Paper, Graphite and Cloud: rows are plain list rows and the tally is hairline tiles. The coloured edge, tinted fills and shadows
-     stay in Classic. */
+  /* Paper, Graphite and Cloud: rows are plain list rows and the coloured edge, tinted fills and shadows stay in Classic. */
   :global(:root) .row { box-shadow: none; min-height: 56px; }
-  :global(:root) .tally li {
-    border: 1px solid var(--border);
-    background: var(--surface);
-    box-shadow: none;
-  }
-  :global(:root) .tally li + li { border-top: 1px solid var(--border); }
-  :global(:root) .swatch { width: 8px; height: 8px; border-radius: 50%; }
-  :global(:root) .n { font-family: var(--font); }
   :global(:root) ul { box-shadow: none; }
   @media (max-width: 720px) {
     .row { grid-template-columns: 10px minmax(0, 1fr); align-items: start; }
