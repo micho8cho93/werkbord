@@ -101,8 +101,12 @@ let browser,shellServer;
  assert.equal(await page.getByRole('navigation',{name:'Related'}).getByRole('link',{name:/Deliver the adapter/}).count(),0,'a standalone task has no plan link');
  assert(await page.getByTestId('task-next').isVisible(),'a ready task has a next action');
  await page.screenshot({path:path.join(process.env.BROWSER_ARTIFACT_DIR,'personal-task-desktop.png')});
- // The Calendar is the window's own page (App.svelte retires the project route), so a standalone app cannot show it; the link must still name the task.
- assert.match(await page.getByRole('navigation',{name:'Related'}).locator('[data-rel=calendar]').getAttribute('href'),new RegExp(`/calendar\\?task=${scheduled.id}`),'a scheduled task links to the Calendar with itself in focus');
+ // The shared Calendar link retains both project scope and the scheduled task in focus.
+ const calendarHref=await page.getByRole('navigation',{name:'Related'}).locator('[data-rel=calendar]').getAttribute('href');
+ const calendarURL=new URL(calendarHref.slice(1),personal);
+ assert.equal(calendarURL.pathname,'/calendar');
+ assert.equal(calendarURL.searchParams.get('project'),project.id,'the Calendar keeps the task’s project scope');
+ assert.equal(calendarURL.searchParams.get('task'),scheduled.id,'a scheduled task links to the Calendar with itself in focus');
  // Team plans reuse initiative references, task workflow and permission checks.
  const tp=await t('POST','/projects',{name:'Shared coordination'});
  const a=await t('POST',`/projects/${tp.id}/tickets`,{title:'Agree rollout',status:'available'});
